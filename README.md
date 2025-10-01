@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (6/52)
+## ✅ Completed Designs (7/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -147,7 +147,28 @@ Global CDN serving content across 100+ edge locations with intelligent caching a
 
 ---
 
-## 📋 Upcoming Designs (46)
+### 7. [Distributed Key-Value Store (like DynamoDB/Cassandra)](./distributed_keyvalue_store_system_design.md)
+
+**Status:** ✅ Complete
+
+Highly available distributed key-value store for e-commerce with multi-datacenter deployment and tunable consistency.
+
+**Key Features:**
+
+- Consistent hashing with virtual nodes (128 per physical node)
+- Quorum-based replication (R=2, W=2, N=3) with tunable consistency
+- Vector clocks for conflict resolution and causality tracking
+- Gossip protocol for decentralized failure detection and membership
+- Hinted handoff for temporary node failures (3-hour retention)
+- Merkle trees for anti-entropy repair (10-minute rebuild cycles)
+- AP system favoring availability with eventual consistency
+- Multi-datacenter async replication
+
+**Scale:** 100K writes/sec, 500K reads/sec, 10TB+ data across 100+ nodes, scalable to 1000+ nodes
+
+---
+
+## 📋 Upcoming Designs (45)
 
 ### Core Infrastructure & Storage
 
@@ -156,7 +177,7 @@ Global CDN serving content across 100+ edge locations with intelligent caching a
 - [x] **Design a content delivery network (CDN)**
 - [x] **Design a distributed cache** (like Redis/Memcached)
 - [ ] **Design a file storage service** (like Dropbox or Google Drive)
-- [ ] **Design a distributed key-value store**
+- [x] **Design a distributed key-value store**
 - [ ] **Design a distributed storage system**
 - [ ] **Design an in-memory database**
 
@@ -257,7 +278,7 @@ Global CDN serving content across 100+ edge locations with intelligent caching a
 
 Each design in this repository follows a consistent structure:
 
-```
+```text
 1. Requirements & Clarification
    - User stories
    - Functional requirements (MVP)
@@ -393,11 +414,11 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 6/52 (11.5%)
+**Completion Status:** 7/52 (13.5%)
 
-**Last Design Completed:** Content Delivery Network (CDN)
+**Last Design Completed:** Distributed Key-Value Store (DynamoDB/Cassandra)
 
-**Next Up:** Distributed Key-Value Store
+**Next Up:** Chat Application (WhatsApp)
 
 ---
 
