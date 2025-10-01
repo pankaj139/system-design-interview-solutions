@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (5/52)
+## ✅ Completed Designs (6/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -126,13 +126,34 @@ Distributed rate limiter for API gateway with multi-tier support, burst handling
 
 ---
 
-## 📋 Upcoming Designs (47)
+### 6. [Content Delivery Network (CDN) System Design](./cdn_system_design.md)
+
+**Status:** ✅ Complete
+
+Global CDN serving content across 100+ edge locations with intelligent caching and sub-50ms latency worldwide.
+
+**Key Features:**
+
+- Three-tier cache hierarchy (edge → mid-tier → origin shield)
+- LFU with popularity decay eviction strategy (optimized for Zipf distribution)
+- GeoDNS + Anycast hybrid routing for optimal path selection
+- Real-time cache invalidation (global purge within 5 seconds via Kafka)
+- Adaptive bitrate video streaming (HLS/DASH)
+- Origin pull with request coalescing and connection pooling
+- DDoS protection and signed URLs for security
+- ML-based predictive caching and edge computing capabilities
+
+**Scale:** 1B requests/day, 100+ edge locations, 500 PB content, >90% cache hit ratio, 99.99% availability
+
+---
+
+## 📋 Upcoming Designs (46)
 
 ### Core Infrastructure & Storage
 
 - [x] **Design a URL shortener** (like TinyURL)
 - [ ] **Design a text storage service** (like Pastebin)
-- [ ] **Design a content delivery network (CDN)**
+- [x] **Design a content delivery network (CDN)**
 - [x] **Design a distributed cache** (like Redis/Memcached)
 - [ ] **Design a file storage service** (like Dropbox or Google Drive)
 - [ ] **Design a distributed key-value store**
@@ -372,11 +393,11 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 5/52 (9.6%)
+**Completion Status:** 6/52 (11.5%)
 
-**Last Design Completed:** Rate Limiter for API Gateway
+**Last Design Completed:** Content Delivery Network (CDN)
 
-**Next Up:** Content Delivery Network (CDN)
+**Next Up:** Distributed Key-Value Store
 
 ---
 
