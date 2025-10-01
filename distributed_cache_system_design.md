@@ -125,7 +125,7 @@ Usage:
 
 ### Traffic Estimates
 
-```text
+```
 Target Operations: 1M ops/sec (starting), 10M ops/sec (peak)
 
 Read/Write Distribution:
@@ -138,11 +138,11 @@ Peak Load (3x average):
 
 Operations per day:
 - 1M ops/sec * 86,400 seconds = 86.4B operations/day
-```text
+```
 
 ### Storage Estimates
 
-```text
+```
 Average Data Size:
 - Key size: 50 bytes
 - Value size: 1KB
@@ -162,11 +162,11 @@ With Overhead (metadata, pointers, hash tables):
 - Year 3: 307GB
 - Year 4: 460GB
 - Year 5: 690GB
-```text
+```
 
 ### Resource Estimates
 
-```text
+```
 Number of Nodes Needed:
 
 For Performance (100K ops/sec per node):
@@ -190,11 +190,11 @@ CPU Requirements:
 - Single-threaded performance critical
 - Event-driven I/O model
 - 8-16 cores per node (for handling connections)
-```text
+```
 
 ### Bandwidth Estimates
 
-```text
+```
 Average Request Size:
 - GET request: 50 bytes (key only)
 - SET request: 1.05KB (key + value)
@@ -213,7 +213,7 @@ Bandwidth Calculation (1M ops/sec):
 Peak Bandwidth (3x):
 - Per node: 600Mbps incoming, 1.9Gbps outgoing
 - Well within 10Gbps network capacity
-```text
+```
 
 ---
 
@@ -287,7 +287,7 @@ graph TB
     M1 -->|Metrics| Metrics
     M2 -->|Metrics| Metrics
     M1 -->|Logs| Logs
-```text
+```
 
 ### Data Flow Explanation
 
@@ -323,7 +323,7 @@ graph TB
 ### In-Memory Data Structures
 
 **Hash Table (Primary Storage):**
-```text
+```
 Structure: dict (hash table with chaining)
 - Entry:
   - key (string, pointer to key object)
@@ -335,21 +335,21 @@ Implementation:
 - Load factor: 0.75 (resize when 75% full)
 - Collision handling: Chaining with linked lists
 - Hash function: SipHash or MurmurHash3
-```text
+```
 
 **Key Object:**
-```text
+```
 Key Structure:
 - type (uint8: STRING, LIST, SET, ZSET, HASH)
 - encoding (uint8: RAW, INT, HT, ZIPLIST, etc.)
 - lru (uint24: LRU timestamp for eviction)
 - refcount (uint32: reference count)
 - ptr (pointer to actual data)
-```text
+```
 
 **Value Objects by Type:**
 
-```text
+```
 1. String Value:
    - len (uint32: string length)
    - data (char array: actual string data)
@@ -379,12 +379,12 @@ Key Structure:
    - size (uint32: number of fields)
    - fields (key-value pairs)
    - Max size: 2^32 - 1 fields
-```text
+```
 
 ### Expiration Management
 
 **Expiration Dictionary:**
-```text
+```
 Structure: Separate hash table for keys with TTL
 - Entry:
   - key (pointer to key object)
@@ -394,12 +394,12 @@ Eviction Strategies:
 - Passive: Check expiration on access
 - Active: Periodic random sampling (100 keys every 100ms)
 - Lazy: Remove during iteration operations
-```text
+```
 
 ### Persistence Structures
 
 **RDB Snapshot Format:**
-```text
+```
 Header:
 - Magic string: "REDIS"
 - Version: uint16
@@ -417,10 +417,10 @@ Database Section (per database):
 
 Footer:
 - CRC64 checksum
-```text
+```
 
 **AOF Log Format:**
-```text
+```
 Format: Redis Protocol (RESP)
 - Command: *<arg_count>\r\n
 - Arguments: $<length>\r\n<data>\r\n
@@ -431,7 +431,7 @@ Example:
 Rewrite Strategy:
 - Trigger: When AOF size exceeds 100% of base size
 - Process: Fork child process to rewrite from memory snapshot
-```text
+```
 
 ---
 
@@ -447,9 +447,9 @@ Rewrite Strategy:
 - Pipelining support for batching
 
 **Authentication**:
-```text
+```
 AUTH password
-```text
+```
 
 **Response Format**:
 - Simple Strings: +OK\r\n
@@ -464,9 +464,9 @@ AUTH password
 
 #### SET - Store a key-value pair
 
-```text
+```
 SET key value [EX seconds] [PX milliseconds] [NX|XX]
-```text
+```
 
 **Parameters**:
 - `key`: String key (required)
@@ -477,15 +477,15 @@ SET key value [EX seconds] [PX milliseconds] [NX|XX]
 - `XX`: Only set if key exists (optional)
 
 **Request Example**:
-```text
+```
 SET user:1001:session "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" EX 3600
-```text
+```
 
 **Response**:
-```text
+```
 Success: +OK
 Error: -ERR invalid expiration time
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -495,7 +495,7 @@ Error: -ERR invalid expiration time
 
 ```http
 GET key
-```text
+```
 
 **Parameters**:
 - `key`: String key (required)
@@ -503,13 +503,13 @@ GET key
 **Request Example**:
 ```http
 GET user:1001:session
-```text
+```
 
 **Response**:
-```text
+```
 Success: $43\r\neyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\r\n
 Not Found: $-1\r\n (null bulk string)
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -517,22 +517,22 @@ Not Found: $-1\r\n (null bulk string)
 
 #### DEL - Delete one or more keys
 
-```text
+```
 DEL key [key ...]
-```text
+```
 
 **Parameters**:
 - `key`: One or more keys to delete
 
 **Request Example**:
-```text
+```
 DEL user:1001:session user:1001:cart
-```text
+```
 
 **Response**:
-```text
+```
 :(integer) 2  # Number of keys deleted
-```text
+```
 
 **Time Complexity**: O(N) where N is number of keys
 
@@ -542,7 +542,7 @@ DEL user:1001:session user:1001:cart
 
 ```http
 MGET key [key ...]
-```text
+```
 
 **Parameters**:
 - `key`: One or more keys to retrieve
@@ -550,10 +550,10 @@ MGET key [key ...]
 **Request Example**:
 ```http
 MGET user:1001:name user:1001:email user:1001:age
-```text
+```
 
 **Response**:
-```text
+```
 *3
 $10
 John Smith
@@ -561,7 +561,7 @@ $18
 john@example.com
 $2
 25
-```text
+```
 
 **Time Complexity**: O(N) where N is number of keys
 
@@ -569,22 +569,22 @@ $2
 
 #### MSET - Set multiple key-value pairs
 
-```text
+```
 MSET key value [key value ...]
-```text
+```
 
 **Parameters**:
 - `key value`: Pairs of keys and values
 
 **Request Example**:
-```text
+```
 MSET user:1001:name "John Smith" user:1001:email "john@example.com"
-```text
+```
 
 **Response**:
-```text
+```
 +OK
-```text
+```
 
 **Time Complexity**: O(N) where N is number of keys
 
@@ -594,24 +594,24 @@ MSET user:1001:name "John Smith" user:1001:email "john@example.com"
 
 #### EXPIRE - Set key expiration
 
-```text
+```
 EXPIRE key seconds
-```text
+```
 
 **Parameters**:
 - `key`: Key to set expiration on
 - `seconds`: Time to live in seconds
 
 **Request Example**:
-```text
+```
 EXPIRE session:abc123 3600
-```text
+```
 
 **Response**:
-```text
+```
 :1  # Success
 :0  # Key doesn't exist
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -619,24 +619,24 @@ EXPIRE session:abc123 3600
 
 #### TTL - Get time to live
 
-```text
+```
 TTL key
-```text
+```
 
 **Parameters**:
 - `key`: Key to check expiration
 
 **Request Example**:
-```text
+```
 TTL session:abc123
-```text
+```
 
 **Response**:
-```text
+```
 :3599  # Seconds remaining
 :-1    # Key exists but no expiration
 :-2    # Key doesn't exist
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -644,23 +644,23 @@ TTL session:abc123
 
 #### PERSIST - Remove expiration
 
-```text
+```
 PERSIST key
-```text
+```
 
 **Parameters**:
 - `key`: Key to remove expiration from
 
 **Request Example**:
-```text
+```
 PERSIST user:1001:preferences
-```text
+```
 
 **Response**:
-```text
+```
 :1  # Expiration removed
 :0  # Key doesn't exist or no expiration
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -670,22 +670,22 @@ PERSIST user:1001:preferences
 
 #### INCR - Increment integer value
 
-```text
+```
 INCR key
-```text
+```
 
 **Parameters**:
 - `key`: Key containing integer value
 
 **Request Example**:
-```text
+```
 INCR page:views:homepage
-```text
+```
 
 **Response**:
-```text
+```
 :1001  # New value after increment
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -693,23 +693,23 @@ INCR page:views:homepage
 
 #### INCRBY - Increment by amount
 
-```text
+```
 INCRBY key increment
-```text
+```
 
 **Parameters**:
 - `key`: Key containing integer value
 - `increment`: Amount to add
 
 **Request Example**:
-```text
+```
 INCRBY user:1001:points 100
-```text
+```
 
 **Response**:
-```text
+```
 :1500  # New value after increment
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -717,10 +717,10 @@ INCRBY user:1001:points 100
 
 #### DECR / DECRBY - Decrement operations
 
-```text
+```
 DECR key
 DECRBY key decrement
-```text
+```
 
 Similar to INCR/INCRBY but subtracts value.
 
@@ -732,23 +732,23 @@ Similar to INCR/INCRBY but subtracts value.
 
 #### LPUSH - Prepend to list
 
-```text
+```
 LPUSH key value [value ...]
-```text
+```
 
 **Parameters**:
 - `key`: List key
 - `value`: One or more values to prepend
 
 **Request Example**:
-```text
+```
 LPUSH queue:jobs "process-video-123" "send-email-456"
-```text
+```
 
 **Response**:
-```text
+```
 :2  # New length of list
-```text
+```
 
 **Time Complexity**: O(N) where N is number of values
 
@@ -756,23 +756,23 @@ LPUSH queue:jobs "process-video-123" "send-email-456"
 
 #### RPUSH - Append to list
 
-```text
+```
 RPUSH key value [value ...]
-```text
+```
 
 **Parameters**:
 - `key`: List key
 - `value`: One or more values to append
 
 **Request Example**:
-```text
+```
 RPUSH notifications:user:1001 "New message from Jane"
-```text
+```
 
 **Response**:
-```text
+```
 :3  # New length of list
-```text
+```
 
 **Time Complexity**: O(N) where N is number of values
 
@@ -780,23 +780,23 @@ RPUSH notifications:user:1001 "New message from Jane"
 
 #### LPOP - Remove and return first element
 
-```text
+```
 LPOP key
-```text
+```
 
 **Parameters**:
 - `key`: List key
 
 **Request Example**:
-```text
+```
 LPOP queue:jobs
-```text
+```
 
 **Response**:
-```text
+```
 $17
 process-video-123
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -804,9 +804,9 @@ process-video-123
 
 #### LRANGE - Get range of elements
 
-```text
+```
 LRANGE key start stop
-```text
+```
 
 **Parameters**:
 - `key`: List key
@@ -814,19 +814,19 @@ LRANGE key start stop
 - `stop`: Stop index (inclusive)
 
 **Request Example**:
-```text
+```
 LRANGE notifications:user:1001 0 9
-```text
+```
 
 **Response**:
-```text
+```
 *10
 $23
 New message from Jane
 $19
 New follower: Bob
 ...
-```text
+```
 
 **Time Complexity**: O(S+N) where S is start offset, N is range size
 
@@ -836,23 +836,23 @@ New follower: Bob
 
 #### SADD - Add members to set
 
-```text
+```
 SADD key member [member ...]
-```text
+```
 
 **Parameters**:
 - `key`: Set key
 - `member`: One or more members to add
 
 **Request Example**:
-```text
+```
 SADD user:1001:interests "technology" "sports" "music"
-```text
+```
 
 **Response**:
-```text
+```
 :3  # Number of members added (excluding duplicates)
-```text
+```
 
 **Time Complexity**: O(N) where N is number of members
 
@@ -860,20 +860,20 @@ SADD user:1001:interests "technology" "sports" "music"
 
 #### SMEMBERS - Get all set members
 
-```text
+```
 SMEMBERS key
-```text
+```
 
 **Parameters**:
 - `key`: Set key
 
 **Request Example**:
-```text
+```
 SMEMBERS user:1001:interests
-```text
+```
 
 **Response**:
-```text
+```
 *3
 $10
 technology
@@ -881,7 +881,7 @@ $6
 sports
 $5
 music
-```text
+```
 
 **Time Complexity**: O(N) where N is set size
 
@@ -889,24 +889,24 @@ music
 
 #### SISMEMBER - Check membership
 
-```text
+```
 SISMEMBER key member
-```text
+```
 
 **Parameters**:
 - `key`: Set key
 - `member`: Member to check
 
 **Request Example**:
-```text
+```
 SISMEMBER user:1001:interests "technology"
-```text
+```
 
 **Response**:
-```text
+```
 :1  # Member exists
 :0  # Member doesn't exist
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -916,23 +916,23 @@ SISMEMBER user:1001:interests "technology"
 
 #### HSET - Set hash field
 
-```text
+```
 HSET key field value [field value ...]
-```text
+```
 
 **Parameters**:
 - `key`: Hash key
 - `field value`: Pairs of fields and values
 
 **Request Example**:
-```text
+```
 HSET user:1001 name "John Smith" email "john@example.com" age 25
-```text
+```
 
 **Response**:
-```text
+```
 :3  # Number of fields added
-```text
+```
 
 **Time Complexity**: O(N) where N is number of fields
 
@@ -942,7 +942,7 @@ HSET user:1001 name "John Smith" email "john@example.com" age 25
 
 ```http
 HGET key field
-```text
+```
 
 **Parameters**:
 - `key`: Hash key
@@ -951,13 +951,13 @@ HGET key field
 **Request Example**:
 ```http
 HGET user:1001 name
-```text
+```
 
 **Response**:
-```text
+```
 $10
 John Smith
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -965,20 +965,20 @@ John Smith
 
 #### HGETALL - Get all hash fields and values
 
-```text
+```
 HGETALL key
-```text
+```
 
 **Parameters**:
 - `key`: Hash key
 
 **Request Example**:
-```text
+```
 HGETALL user:1001
-```text
+```
 
 **Response**:
-```text
+```
 *6
 $4
 name
@@ -992,7 +992,7 @@ $3
 age
 $2
 25
-```text
+```
 
 **Time Complexity**: O(N) where N is size of hash
 
@@ -1002,23 +1002,23 @@ $2
 
 #### ZADD - Add members with scores
 
-```text
+```
 ZADD key score member [score member ...]
-```text
+```
 
 **Parameters**:
 - `key`: Sorted set key
 - `score member`: Pairs of scores and members
 
 **Request Example**:
-```text
+```
 ZADD leaderboard:global 1500 "player:1001" 1450 "player:1002"
-```text
+```
 
 **Response**:
-```text
+```
 :2  # Number of members added
-```text
+```
 
 **Time Complexity**: O(log(N)) per member
 
@@ -1026,9 +1026,9 @@ ZADD leaderboard:global 1500 "player:1001" 1450 "player:1002"
 
 #### ZRANGE - Get range by rank
 
-```text
+```
 ZRANGE key start stop [WITHSCORES]
-```text
+```
 
 **Parameters**:
 - `key`: Sorted set key
@@ -1037,12 +1037,12 @@ ZRANGE key start stop [WITHSCORES]
 - `WITHSCORES`: Include scores (optional)
 
 **Request Example**:
-```text
+```
 ZRANGE leaderboard:global 0 9 WITHSCORES
-```text
+```
 
 **Response**:
-```text
+```
 *20
 $12
 player:1003
@@ -1053,7 +1053,7 @@ player:1001
 $4
 1450
 ...
-```text
+```
 
 **Time Complexity**: O(log(N)+M) where M is range size
 
@@ -1061,23 +1061,23 @@ $4
 
 #### ZRANK - Get member rank
 
-```text
+```
 ZRANK key member
-```text
+```
 
 **Parameters**:
 - `key`: Sorted set key
 - `member`: Member to find rank
 
 **Request Example**:
-```text
+```
 ZRANK leaderboard:global "player:1001"
-```text
+```
 
 **Response**:
-```text
+```
 :5  # Rank (0-based)
-```text
+```
 
 **Time Complexity**: O(log(N))
 
@@ -1087,20 +1087,20 @@ ZRANK leaderboard:global "player:1001"
 
 #### KEYS - Find keys by pattern
 
-```text
+```
 KEYS pattern
-```text
+```
 
 **Parameters**:
 - `pattern`: Glob-style pattern (* and ? supported)
 
 **Request Example**:
-```text
+```
 KEYS user:*:session
-```text
+```
 
 **Response**:
-```text
+```
 *3
 $17
 user:1001:session
@@ -1108,7 +1108,7 @@ $17
 user:1002:session
 $17
 user:1003:session
-```text
+```
 
 **⚠️ Warning**: O(N) operation - use SCAN in production
 
@@ -1118,9 +1118,9 @@ user:1003:session
 
 #### SCAN - Iterate keys incrementally
 
-```text
+```
 SCAN cursor [MATCH pattern] [COUNT count]
-```text
+```
 
 **Parameters**:
 - `cursor`: Cursor position (0 to start)
@@ -1128,12 +1128,12 @@ SCAN cursor [MATCH pattern] [COUNT count]
 - `COUNT count`: Hint for number of keys to return (optional)
 
 **Request Example**:
-```text
+```
 SCAN 0 MATCH user:* COUNT 100
-```text
+```
 
 **Response**:
-```text
+```
 *2
 $4
 1357  # Next cursor (0 means complete)
@@ -1143,7 +1143,7 @@ user:1001:name
 $15
 user:1002:name
 ...
-```text
+```
 
 **Time Complexity**: O(1) per call, O(N) for full iteration
 
@@ -1153,23 +1153,23 @@ user:1002:name
 
 #### PUBLISH - Publish message to channel
 
-```text
+```
 PUBLISH channel message
-```text
+```
 
 **Parameters**:
 - `channel`: Channel name
 - `message`: Message to publish
 
 **Request Example**:
-```text
+```
 PUBLISH notifications:realtime "New order received"
-```text
+```
 
 **Response**:
-```text
+```
 :5  # Number of subscribers that received message
-```text
+```
 
 **Time Complexity**: O(N+M) where N is subscribers, M is patterns
 
@@ -1177,20 +1177,20 @@ PUBLISH notifications:realtime "New order received"
 
 #### SUBSCRIBE - Subscribe to channels
 
-```text
+```
 SUBSCRIBE channel [channel ...]
-```text
+```
 
 **Parameters**:
 - `channel`: One or more channels to subscribe
 
 **Request Example**:
-```text
+```
 SUBSCRIBE notifications:realtime alerts:critical
-```text
+```
 
 **Response** (per message):
-```text
+```
 *3
 $7
 message
@@ -1198,7 +1198,7 @@ $23
 notifications:realtime
 $18
 New order received
-```text
+```
 
 **Time Complexity**: O(N) where N is number of channels
 
@@ -1206,17 +1206,17 @@ New order received
 
 #### PSUBSCRIBE - Subscribe to patterns
 
-```text
+```
 PSUBSCRIBE pattern [pattern ...]
-```text
+```
 
 **Parameters**:
 - `pattern`: One or more channel patterns
 
 **Request Example**:
-```text
+```
 PSUBSCRIBE notifications:* alerts:*
-```text
+```
 
 **Response** (similar to SUBSCRIBE with pattern info)
 
@@ -1228,27 +1228,27 @@ PSUBSCRIBE notifications:* alerts:*
 
 #### INFO - Get server information
 
-```text
+```
 INFO [section]
-```text
+```
 
 **Parameters**:
 - `section`: Optional section (server, memory, stats, etc.)
 
 **Request Example**:
-```text
+```
 INFO memory
-```text
+```
 
 **Response**:
-```text
+```
 $200
 # Memory
 used_memory:1073741824
 used_memory_human:1.00G
 used_memory_peak:1610612736
 ...
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -1256,22 +1256,22 @@ used_memory_peak:1610612736
 
 #### FLUSHDB - Clear current database
 
-```text
+```
 FLUSHDB [ASYNC]
-```text
+```
 
 **Parameters**:
 - `ASYNC`: Delete asynchronously (optional)
 
 **Request Example**:
-```text
+```
 FLUSHDB ASYNC
-```text
+```
 
 **Response**:
-```text
+```
 +OK
-```text
+```
 
 **Time Complexity**: O(N) where N is database size
 
@@ -1282,7 +1282,7 @@ FLUSHDB ASYNC
 ```http
 CONFIG GET parameter
 CONFIG SET parameter value
-```text
+```
 
 **Parameters**:
 - `parameter`: Configuration parameter name
@@ -1292,16 +1292,16 @@ CONFIG SET parameter value
 ```http
 CONFIG GET maxmemory
 CONFIG SET maxmemory 2gb
-```text
+```
 
 **Response**:
-```text
+```
 *2
 $9
 maxmemory
 $10
 2147483648
-```text
+```
 
 **Time Complexity**: O(1)
 
@@ -1315,11 +1315,11 @@ $10
 - Implemented at connection handler level
 
 **Error Response Format**:
-```text
+```
 -ERR Error message here
 -WRONGTYPE Operation against a key holding the wrong kind of value
 -NOAUTH Authentication required
-```text
+```
 
 **Pipelining**:
 - Send multiple commands without waiting for responses
@@ -1328,12 +1328,12 @@ $10
 - Example: Send 100 SETs at once, receive 100 responses
 
 **Transactions (Optional)**:
-```text
+```
 MULTI           # Start transaction
 SET key1 value1
 SET key2 value2
 EXEC            # Execute atomically
-```text
+```
 
 **Blocking Operations**:
 - BLPOP/BRPOP: Block until list element available
@@ -1389,7 +1389,7 @@ EXEC            # Execute atomically
 
 **Architecture**:
 
-```text
+```
 Consistent Hashing Ring:
 
 Hash Space: 0 to 2^32 - 1 (or 2^160 for better distribution)
@@ -1408,7 +1408,7 @@ Virtual Nodes Benefits:
 - More even distribution of keys
 - When node fails, load distributes to multiple nodes
 - When node added, steals from multiple nodes
-```text
+```
 
 **Implementation Details**:
 
@@ -1437,7 +1437,7 @@ class ConsistentHashRing:
         if idx == len(self.sorted_keys):
             idx = 0
         return self.ring[self.sorted_keys[idx]]
-```text
+```
 
 **Trade-offs**:
 
@@ -1461,7 +1461,7 @@ class ConsistentHashRing:
 
 **Architecture**:
 
-```text
+```
 Replication Topology:
 
 Master-Replica Model:
@@ -1481,7 +1481,7 @@ Master-Replica Model:
      v               v
   Reads           Reads
   (optional)      (optional)
-```text
+```
 
 **Replication Process**:
 
@@ -1504,7 +1504,7 @@ Master-Replica Model:
 
 **Sentinel-based Failover**:
 
-```text
+```
 Sentinel Cluster (3-5 nodes for quorum):
 
 Responsibilities:
@@ -1540,7 +1540,7 @@ Failover Process:
 
 5. Monitor old master:
    - When old master comes back, demote to replica
-```text
+```
 
 **Trade-offs**:
 
@@ -1580,7 +1580,7 @@ Failover Process:
 
 **Architecture**:
 
-```text
+```
 Memory Management Layers:
 
 1. Object-level Memory Tracking:
@@ -1597,7 +1597,7 @@ Memory Management Layers:
    - Triggered when memory exceeds threshold
    - Selects victims based on eviction policy
    - Frees memory by deleting keys
-```text
+```
 
 **Eviction Policies**:
 
@@ -1631,7 +1631,7 @@ Memory Management Layers:
 
 **LRU Implementation (Approximate)**:
 
-```text
+```
 Traditional LRU Problems:
 - Requires doubly-linked list + hash map
 - O(1) operations but high memory overhead
@@ -1653,11 +1653,11 @@ Redis-style Approximation:
    - Larger sample = closer to true LRU
    - Sample of 10 is very close to true LRU
    - Default 5 is good balance
-```text
+```
 
 **Memory Usage Calculation**:
 
-```text
+```
 Per-key Overhead:
 - Hash table entry: 16 bytes (key ptr, value ptr, hash, next)
 - Key object: 16 bytes (type, encoding, lru, refcount, ptr)
@@ -1675,7 +1675,7 @@ Fragmentation:
 - Internal: Wasted space within allocations
 - Measured: (RSS - used_memory) / RSS
 - Mitigated by jemalloc and periodic defragmentation
-```text
+```
 
 **Trade-offs**:
 
@@ -1719,7 +1719,7 @@ Fragmentation:
 Two persistence mechanisms:
 
 **1. RDB Snapshots**:
-```text
+```
 Process:
 1. Fork child process (copy-on-write)
 2. Child iterates through memory and writes to temp file
@@ -1740,10 +1740,10 @@ Cons:
 - Potential data loss (since last snapshot)
 - Fork can be slow for large datasets
 - Uses extra memory for COW
-```text
+```
 
 **2. AOF (Append-Only File)**:
-```text
+```
 Process:
 1. After executing write command, append to AOF buffer
 2. Periodically fsync buffer to disk (configurable)
@@ -1768,10 +1768,10 @@ Cons:
 - Larger file size than RDB
 - Slower restart (must replay commands)
 - Slightly slower writes (fsync overhead)
-```text
+```
 
 **Hybrid Approach**:
-```text
+```
 Combine RDB + AOF:
 1. Use RDB for fast restarts
 2. Use AOF for durability
@@ -1780,7 +1780,7 @@ Combine RDB + AOF:
    - Replay AOF from snapshot point onwards
 
 Result: Fast restarts + minimal data loss
-```text
+```
 
 **Trade-offs**:
 
@@ -1814,7 +1814,7 @@ Result: Fast restarts + minimal data loss
 ### Caching Strategy
 
 **Cache-aside Pattern**:
-```text
+```
 Application-managed caching:
 
 Read Flow:
@@ -1829,10 +1829,10 @@ Write Flow:
 1. Write to database
 2. Invalidate cache (DEL key)
 3. Next read will cache new value
-```text
+```
 
 **Read-through Cache**:
-```text
+```
 Cache-managed loading:
 
 Read Flow:
@@ -1843,10 +1843,10 @@ Read Flow:
 
 Implementation requires cache to know about database
 (Less common in practice)
-```text
+```
 
 **Write-through Cache**:
-```text
+```
 Synchronous cache + DB writes:
 
 Write Flow:
@@ -1856,10 +1856,10 @@ Write Flow:
 
 Pros: Always consistent
 Cons: Higher write latency
-```text
+```
 
 **Write-behind Cache**:
-```text
+```
 Asynchronous DB writes:
 
 Write Flow:
@@ -1869,7 +1869,7 @@ Write Flow:
 
 Pros: Lower write latency
 Cons: Risk of data loss, eventual consistency
-```text
+```
 
 **Recommended Strategy**: **Cache-aside** for most use cases
 - Simple to implement
@@ -2018,7 +2018,7 @@ Cons: Risk of data loss, eventual consistency
 #### 1. Geographic Distribution
 
 **Multi-Region Deployment**:
-```text
+```
 Strategy:
 - Deploy independent clusters in each region
 - US-East, US-West, EU, Asia-Pacific
@@ -2033,10 +2033,10 @@ Implementation:
 - Use Route53 latency-based routing
 - Replicate configuration across regions
 - Per-region monitoring
-```text
+```
 
 **Cross-Region Replication** (Optional):
-```text
+```
 Strategy:
 - Async replication from primary to secondary regions
 - Use for disaster recovery or global data
@@ -2050,14 +2050,14 @@ When to Use:
 - Read-heavy workloads with global users
 - Disaster recovery scenarios
 - Eventually consistent global cache
-```text
+```
 
 ---
 
 #### 2. Service Optimization
 
 **Multi-Level Caching**:
-```text
+```
 L1 Cache: Application In-Memory
 - Size: 100MB per app instance
 - TTL: 1-10 seconds
@@ -2074,10 +2074,10 @@ L3 Cache: Database Query Cache
 - Hit rate: 60-70%
 
 Result: 95%+ combined hit rate
-```text
+```
 
 **CDN for Static Data**:
-```text
+```
 Use Cases:
 - User profile images
 - Static configuration
@@ -2092,10 +2092,10 @@ Benefits:
 - Offload 90%+ of image traffic
 - Global edge presence
 - Lower costs
-```text
+```
 
 **Query Optimization**:
-```text
+```
 Techniques:
 1. Use hash data structure instead of JSON strings
    - Allows field-level updates (HSET)
@@ -2108,14 +2108,14 @@ Techniques:
 3. Lua scripting for complex operations
    - Execute multi-step logic atomically on server
    - Reduces network round trips
-```text
+```
 
 ---
 
 #### 3. Real-Time Features
 
 **WebSocket for Cache Invalidation**:
-```text
+```
 Problem: Clients cache data, need to know when to invalidate
 
 Solution:
@@ -2132,10 +2132,10 @@ Implementation:
 - Use Redis Pub/Sub as message bus
 - WebSocket server subscribes to channels
 - Pushes updates to connected clients
-```text
+```
 
 **Server-Sent Events (SSE) for Monitoring**:
-```text
+```
 Use Case: Real-time cache statistics dashboard
 
 Implementation:
@@ -2150,7 +2150,7 @@ Benefits:
 - Simple to implement (HTTP-based)
 - Auto-reconnect on disconnect
 - Works through firewalls
-```text
+```
 
 ---
 
@@ -2159,7 +2159,7 @@ Benefits:
 #### Metrics to Track
 
 **System Metrics**:
-```text
+```
 Latency:
 - p50, p95, p99 command latency
 - Target: <1ms p99
@@ -2182,10 +2182,10 @@ Memory:
 - Eviction rate
 - Target: 70-80% utilization
 - Alert: >90% utilization
-```text
+```
 
 **Business Metrics**:
-```text
+```
 Cache Hit Rate:
 - Hits / (Hits + Misses)
 - Target: >80%
@@ -2204,10 +2204,10 @@ Key Count:
 TTL Distribution:
 - Percentage of keys with/without expiration
 - Average TTL
-```text
+```
 
 **Infrastructure Metrics**:
-```text
+```
 CPU:
 - User CPU time (should be low, <30%)
 - System CPU time (context switches)
@@ -2222,14 +2222,14 @@ Disk (for persistence):
 - Write throughput for AOF
 - RDB snapshot duration
 - Alert: Slow disk operations
-```text
+```
 
 ---
 
 #### Alerting Strategy
 
 **Critical Alerts (Page immediately)**:
-```text
+```
 Condition: Master node down
 Threshold: No PONG response for 5 seconds
 Action: Sentinel initiates failover
@@ -2243,10 +2243,10 @@ Threshold: >1% of requests failing
 Action: Investigate cause, check logs
 
 Time Window: Real-time (30-60 second evaluation)
-```text
+```
 
 **Warning Alerts (Slack notification)**:
-```text
+```
 Condition: High latency
 Threshold: p99 > 5ms for 5 minutes
 Action: Check slow log, investigate hot keys
@@ -2260,10 +2260,10 @@ Threshold: >1000/sec for 5 minutes
 Action: Consider increasing memory
 
 Time Window: 5-10 minutes
-```text
+```
 
 **Informational Alerts (Log/dashboard)**:
-```text
+```
 Condition: Configuration change
 Threshold: CONFIG SET command executed
 Action: Log for audit trail
@@ -2277,7 +2277,7 @@ Threshold: >1.5 ratio
 Action: Schedule maintenance for restart
 
 Time Window: 30-60 minutes
-```text
+```
 
 ---
 
@@ -2286,17 +2286,17 @@ Time Window: 30-60 minutes
 #### 1. Authentication & Authorization
 
 **Basic Authentication**:
-```text
+```
 CONFIG SET requirepass "strong_password_here"
 AUTH strong_password_here
 
 Limitations:
 - Single password for all users
 - No per-command permissions
-```text
+```
 
 **ACL (Redis 6+)**:
-```text
+```
 Define per-user permissions:
 
 ACL SETUSER readonly on >readonly_pass ~* -@all +@read
@@ -2306,24 +2306,24 @@ Benefits:
 - Granular permissions
 - Per-user password
 - Command restrictions
-```text
+```
 
 **API Key Authentication** (for REST wrapper):
-```text
+```
 HTTP Header: X-API-Key: <key>
 
 Implementation:
 - Store API keys in separate auth service
 - Validate on each request
 - Rate limit per key
-```text
+```
 
 ---
 
 #### 2. Network Security
 
 **Network Isolation**:
-```text
+```
 Best Practices:
 - Place cache in private subnet
 - Only allow connections from application tier
@@ -2333,10 +2333,10 @@ Best Practices:
 Example (AWS):
 - VPC with private subnet
 - Security group: allow port 6379 from app SG only
-```text
+```
 
 **TLS/SSL Encryption**:
-```text
+```
 Enable encrypted connections:
 
 redis.conf:
@@ -2352,14 +2352,14 @@ Considerations:
 - 10-20% performance overhead
 - Required for sensitive data
 - Use for cross-region replication
-```text
+```
 
 ---
 
 #### 3. Input Validation
 
 **Command Validation**:
-```text
+```
 Risks:
 - Large keys/values causing memory issues
 - Dangerous commands (FLUSHDB, SHUTDOWN)
@@ -2374,14 +2374,14 @@ Mitigations:
    proto-max-bulk-len 1mb
 
 3. Validate input at application layer
-```text
+```
 
 ---
 
 #### 4. DDoS Protection
 
 **Rate Limiting**:
-```text
+```
 Implementation:
 - Per-IP connection limits
 - Per-connection command rate limits
@@ -2390,10 +2390,10 @@ Implementation:
 Example:
 maxclients 10000  # Max concurrent connections
 timeout 300       # Close idle connections
-```text
+```
 
 **Connection Throttling**:
-```text
+```
 Strategy:
 - Use load balancer with rate limiting
 - Implement exponential backoff on clients
@@ -2403,14 +2403,14 @@ AWS NLB:
 - Built-in DDoS protection
 - Connection tracking
 - Automatic scaling
-```text
+```
 
 ---
 
 #### 5. Data Encryption
 
 **Encryption at Rest** (for persistence):
-```text
+```
 Options:
 1. Encrypted disk volumes (AWS EBS encryption)
 2. Application-level encryption before caching
@@ -2419,10 +2419,10 @@ Options:
 Recommendation:
 - Use encrypted EBS for RDB/AOF files
 - Minimal performance impact (<5%)
-```text
+```
 
 **Encryption in Transit**:
-```text
+```
 TLS for all connections:
 - Client to cache
 - Master to replica replication
@@ -2432,7 +2432,7 @@ Required for:
 - Sensitive data (PII, financial)
 - Compliance (HIPAA, PCI-DSS)
 - Cross-region replication
-```text
+```
 
 ---
 

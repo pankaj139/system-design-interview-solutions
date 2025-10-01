@@ -103,7 +103,7 @@
 
 ### Traffic Estimates
 
-```text
+```
 Daily Active Users (DAU): 500M
 Users uploading photos: 20% of DAU = 100M users
 Average uploads per user: 5 photos/day
@@ -123,11 +123,11 @@ Average views per user: 50 photos/day
 Total views per day: 20B views/day
 View QPS: 20B / 86,400 = ~231,000 views/second
 Peak view QPS (3x): ~693,000 views/second
-```text
+```
 
 ### Storage Estimates
 
-```text
+```
 Photo Storage:
 Average photo size: 3MB
 Daily photo storage: 500M photos × 3MB = 1.5 PB/day
@@ -158,11 +158,11 @@ Metadata: 0.365 PB
 Total: ~2,420 PB/year (~2.4 EB/year)
 
 5-Year Storage: ~12 EB
-```text
+```
 
 ### Bandwidth Estimates
 
-```text
+```
 Upload Bandwidth:
 Photos: 500M × 3MB / 86,400s = 17.4 GB/s
 Videos: 50M × 100MB / 86,400s = 57.9 GB/s
@@ -174,11 +174,11 @@ Full image views (10% of views): 2B × 3MB / 86,400s = 69.4 GB/s
 Peak download bandwidth (3x): ~35 TB/s
 
 Total Peak Bandwidth: ~35 TB/s
-```text
+```
 
 ### Resource Estimates
 
-```text
+```
 API Servers:
 Peak QPS: ~700K requests/second
 Assuming 1,000 QPS per server: 700 servers
@@ -209,7 +209,7 @@ Face Embeddings Storage:
 512-dimension vector per face: 2KB per face
 Daily face embeddings: 600M × 2KB = 1.2 TB/day
 Annual storage: 438 TB/year
-```text
+```
 
 ---
 
@@ -297,7 +297,7 @@ graph TB
     
     Hot -->|Lifecycle: 30 days| Warm
     Warm -->|Lifecycle: 1 year| Cold
-```text
+```
 
 ### Data Flow Explanation
 
@@ -356,7 +356,7 @@ graph TB
 - subscription_tier (ENUM: 'free', 'premium')
 - INDEX: idx_email
 - INDEX: idx_username
-```text
+```
 
 **Albums Table:**
 
@@ -371,7 +371,7 @@ graph TB
 - updated_at (TIMESTAMP)
 - INDEX: idx_user_id
 - INDEX: idx_created_at
-```text
+```
 
 **Sharing Table:**
 
@@ -389,13 +389,13 @@ graph TB
 - INDEX: idx_resource_id
 - INDEX: idx_owner_id
 - INDEX: idx_share_link
-```text
+```
 
 ### Metadata Database (Cassandra - NoSQL)
 
 **Photos Metadata Table:**
 
-```text
+```
 Partition Key: user_id
 Clustering Key: upload_date (DESC), photo_id
 
@@ -424,11 +424,11 @@ Columns:
 - is_favorite (BOOLEAN)
 - is_deleted (BOOLEAN)
 - deleted_at (TIMESTAMP)
-```text
+```
 
 **Videos Metadata Table:**
 
-```text
+```
 Partition Key: user_id
 Clustering Key: upload_date (DESC), video_id
 
@@ -456,7 +456,7 @@ Columns:
 - is_favorite (BOOLEAN)
 - is_deleted (BOOLEAN)
 - deleted_at (TIMESTAMP)
-```text
+```
 
 ### Search Index (Elasticsearch)
 
@@ -483,7 +483,7 @@ Columns:
   "is_favorite": "boolean",
   "album_ids": ["uuid"]
 }
-```text
+```
 
 ### Face and People Database (PostgreSQL)
 
@@ -501,7 +501,7 @@ Columns:
 - INDEX: idx_user_id
 - INDEX: idx_person_name
 - UNIQUE: (user_id, person_name) WHERE person_name IS NOT NULL
-```text
+```
 
 **Faces Table:**
 
@@ -520,7 +520,7 @@ Columns:
 - INDEX: idx_user_id
 - INDEX: idx_person_id
 - INDEX: idx_detected_at
-```text
+```
 
 **Face_Clusters Table (for grouping):**
 
@@ -534,7 +534,7 @@ Columns:
 - merged_into_person_id (FK -> People.person_id, NULL)
 - INDEX: idx_user_id
 - INDEX: idx_created_at
-```text
+```
 
 ### Vector Database (Milvus/Pinecone)
 
@@ -555,7 +555,7 @@ Index Configuration:
 - Metric type: COSINE or L2 (Euclidean)
 - Search parameters: nprobe=16, ef=200
 - Partitioning: By user_id for isolation and performance
-```text
+```
 
 **Vector Search Query Example:**
 
@@ -573,13 +573,13 @@ results = collection.search(
     limit=100,
     expr=f"user_id == '{user_id}' and quality_score > 0.7"
 )
-```text
+```
 
 ### Cache Layer (Redis)
 
 **Cache Keys Structure:**
 
-```text
+```
 photo_metadata:{photo_id} -> JSON (TTL: 24h)
 user_photos:{user_id}:{page} -> List of photo_ids (TTL: 1h)
 album_photos:{album_id}:{page} -> List of photo_ids (TTL: 1h)
@@ -589,7 +589,7 @@ share_permissions:{share_link} -> Permissions JSON (TTL: 1h)
 person_photos:{person_id}:{page} -> List of photo_ids (TTL: 1h)
 user_people:{user_id} -> List of person_ids (TTL: 6h)
 face_clusters:{user_id} -> Cluster data (TTL: 12h)
-```text
+```
 
 ---
 
@@ -621,7 +621,7 @@ face_clusters:{user_id} -> Cluster data (TTL: 12h)
 
 ```http
 POST /auth/register
-```text
+```
 
 **Request:**
 
@@ -631,7 +631,7 @@ POST /auth/register
   "password": "securePassword123",
   "username": "photouser"
 }
-```text
+```
 
 **Response (201):**
 
@@ -644,13 +644,13 @@ POST /auth/register
   "refresh_token": "dGhpc2lzYXJlZnJlc2h0b2tlbg...",
   "expires_in": 3600
 }
-```text
+```
 
 #### 2. Login
 
 ```http
 POST /auth/login
-```text
+```
 
 **Request:**
 
@@ -659,7 +659,7 @@ POST /auth/login
   "email": "user@example.com",
   "password": "securePassword123"
 }
-```text
+```
 
 **Response (200):**
 
@@ -670,13 +670,13 @@ POST /auth/login
   "refresh_token": "dGhpc2lzYXJlZnJlc2h0b2tlbg...",
   "expires_in": 3600
 }
-```text
+```
 
 #### 3. Refresh Token
 
 ```http
 POST /auth/refresh
-```text
+```
 
 **Request:**
 
@@ -684,7 +684,7 @@ POST /auth/refresh
 {
   "refresh_token": "dGhpc2lzYXJlZnJlc2h0b2tlbg..."
 }
-```text
+```
 
 **Response (200):**
 
@@ -693,13 +693,13 @@ POST /auth/refresh
   "access_token": "eyJhbGciOiJIUzI1NiIs...",
   "expires_in": 3600
 }
-```text
+```
 
 #### 4. Logout
 
 ```http
 POST /auth/logout
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -713,7 +713,7 @@ POST /auth/logout
 
 ```http
 POST /photos/upload
-```text
+```
 
 **Headers:**
 
@@ -722,7 +722,7 @@ POST /photos/upload
 
 **Request (Form Data):**
 
-```text
+```
 photo: [binary file]
 file_name: "vacation.jpg"
 capture_date: "2025-09-15T14:30:00Z" (optional)
@@ -730,7 +730,7 @@ album_id: "uuid" (optional)
 tags: ["vacation", "beach"] (optional)
 latitude: 37.7749 (optional)
 longitude: -122.4194 (optional)
-```text
+```
 
 **Response (201):**
 
@@ -750,7 +750,7 @@ longitude: -122.4194 (optional)
   },
   "original_url": "https://cdn.example.com/photos/photo_id.jpg"
 }
-```text
+```
 
 **Error Response (413):**
 
@@ -760,13 +760,13 @@ longitude: -122.4194 (optional)
   "message": "File size exceeds maximum limit of 100MB",
   "max_size_bytes": 104857600
 }
-```text
+```
 
 #### 6. Get Photo Details
 
 ```http
 GET /photos/{photo_id}
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -803,13 +803,13 @@ GET /photos/{photo_id}
   "tags": ["vacation", "beach"],
   "is_favorite": false
 }
-```text
+```
 
 #### 7. Get User Photos
 
 ```http
 GET /photos
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -844,13 +844,13 @@ GET /photos
     "has_previous": false
   }
 }
-```text
+```
 
 #### 8. Update Photo
 
 ```http
 PATCH /photos/{photo_id}
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -862,7 +862,7 @@ PATCH /photos/{photo_id}
   "tags": ["vacation", "beach", "sunset"],
   "is_favorite": true
 }
-```text
+```
 
 **Response (200):**
 
@@ -872,13 +872,13 @@ PATCH /photos/{photo_id}
   "message": "Photo updated successfully",
   "updated_fields": ["file_name", "tags", "is_favorite"]
 }
-```text
+```
 
 #### 9. Delete Photo
 
 ```http
 DELETE /photos/{photo_id}
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -895,13 +895,13 @@ DELETE /photos/{photo_id}
   "deleted_at": "2025-10-01T15:30:00Z",
   "permanent_deletion_date": "2025-10-31T15:30:00Z"
 }
-```text
+```
 
 #### 10. Batch Upload Photos
 
 ```http
 POST /photos/batch-upload
-```text
+```
 
 **Headers:**
 
@@ -910,10 +910,10 @@ POST /photos/batch-upload
 
 **Request (Form Data):**
 
-```text
+```
 photos: [array of binary files, max 50 per request]
 album_id: "uuid" (optional)
-```text
+```
 
 **Response (202):**
 
@@ -925,13 +925,13 @@ album_id: "uuid" (optional)
   "processed": 0,
   "status_url": "/photos/batch-upload/batch-uuid/status"
 }
-```text
+```
 
 #### 11. Get Batch Upload Status
 
 ```http
 GET /photos/batch-upload/{batch_id}/status
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -959,7 +959,7 @@ GET /photos/batch-upload/{batch_id}/status
     }
   ]
 }
-```text
+```
 
 ---
 
@@ -969,7 +969,7 @@ GET /photos/batch-upload/{batch_id}/status
 
 ```http
 GET /search/photos
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1007,13 +1007,13 @@ GET /search/photos
     "total_pages": 3
   }
 }
-```text
+```
 
 #### 13. Search by Location
 
 ```http
 GET /search/location
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1049,7 +1049,7 @@ GET /search/location
   "radius_km": 10,
   "total_results": 45
 }
-```text
+```
 
 ---
 
@@ -1059,7 +1059,7 @@ GET /search/location
 
 ```http
 POST /albums
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1071,7 +1071,7 @@ POST /albums
   "description": "Our amazing summer trip to Hawaii",
   "cover_photo_id": "uuid" (optional)
 }
-```text
+```
 
 **Response (201):**
 
@@ -1086,13 +1086,13 @@ POST /albums
   "created_at": "2025-10-01T10:00:00Z",
   "is_shared": false
 }
-```text
+```
 
 #### 15. Get Album Details
 
 ```http
 GET /albums/{album_id}
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1111,13 +1111,13 @@ GET /albums/{album_id}
   "is_shared": true,
   "share_link": "https://photos.example.com/shared/abc123"
 }
-```text
+```
 
 #### 16. Add Photos to Album
 
 ```http
 POST /albums/{album_id}/photos
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1131,7 +1131,7 @@ POST /albums/{album_id}/photos
     "photo-uuid-3"
   ]
 }
-```text
+```
 
 **Response (200):**
 
@@ -1142,13 +1142,13 @@ POST /albums/{album_id}/photos
   "total_photos": 128,
   "message": "Photos added successfully"
 }
-```text
+```
 
 #### 17. Remove Photos from Album
 
 ```http
 DELETE /albums/{album_id}/photos
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1161,7 +1161,7 @@ DELETE /albums/{album_id}/photos
     "photo-uuid-2"
   ]
 }
-```text
+```
 
 **Response (200):**
 
@@ -1172,13 +1172,13 @@ DELETE /albums/{album_id}/photos
   "total_photos": 126,
   "message": "Photos removed successfully"
 }
-```text
+```
 
 #### 18. Get User Albums
 
 ```http
 GET /albums
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1210,13 +1210,13 @@ GET /albums
     "total_pages": 1
   }
 }
-```text
+```
 
 #### 19. Update Album
 
 ```http
 PATCH /albums/{album_id}
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1228,7 +1228,7 @@ PATCH /albums/{album_id}
   "description": "Updated description",
   "cover_photo_id": "new-cover-uuid"
 }
-```text
+```
 
 **Response (200):**
 
@@ -1238,13 +1238,13 @@ PATCH /albums/{album_id}
   "message": "Album updated successfully",
   "updated_fields": ["album_name", "description", "cover_photo_id"]
 }
-```text
+```
 
 #### 20. Delete Album
 
 ```http
 DELETE /albums/{album_id}
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1260,7 +1260,7 @@ DELETE /albums/{album_id}
   "album_id": "album-uuid",
   "photos_deleted": false
 }
-```text
+```
 
 ---
 
@@ -1270,7 +1270,7 @@ DELETE /albums/{album_id}
 
 ```http
 POST /sharing/create
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1284,7 +1284,7 @@ POST /sharing/create
   "is_public": true,
   "expires_at": "2025-12-31T23:59:59Z" (optional)
 }
-```text
+```
 
 **Response (201):**
 
@@ -1300,13 +1300,13 @@ POST /sharing/create
   "expires_at": "2025-12-31T23:59:59Z",
   "created_at": "2025-10-01T10:00:00Z"
 }
-```text
+```
 
 #### 22. Share with Specific User
 
 ```http
 POST /sharing/invite
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1319,7 +1319,7 @@ POST /sharing/invite
   "shared_with_email": "friend@example.com",
   "permission_level": "edit"
 }
-```text
+```
 
 **Response (201):**
 
@@ -1333,13 +1333,13 @@ POST /sharing/invite
   "permission_level": "edit",
   "message": "Invitation sent successfully"
 }
-```text
+```
 
 #### 23. Get Shared Resource
 
 ```http
 GET /sharing/{share_code}
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>` (optional for public shares)
 
@@ -1359,13 +1359,13 @@ GET /sharing/{share_code}
   "cover_photo_url": "https://cdn.example.com/thumbnails/400/cover.jpg",
   "expires_at": "2025-12-31T23:59:59Z"
 }
-```text
+```
 
 #### 24. Revoke Share
 
 ```http
 DELETE /sharing/{share_id}
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1376,13 +1376,13 @@ DELETE /sharing/{share_id}
   "message": "Share access revoked successfully",
   "share_id": "share-uuid"
 }
-```text
+```
 
 #### 25. List My Shares
 
 ```http
 GET /sharing/my-shares
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1417,7 +1417,7 @@ GET /sharing/my-shares
     "total_pages": 1
   }
 }
-```text
+```
 
 ---
 
@@ -1427,7 +1427,7 @@ GET /sharing/my-shares
 
 ```http
 GET /users/me
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1453,13 +1453,13 @@ GET /users/me
     "shared_albums": 5
   }
 }
-```text
+```
 
 #### 27. Update User Profile
 
 ```http
 PATCH /users/me
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1470,7 +1470,7 @@ PATCH /users/me
   "username": "newusername",
   "email": "newemail@example.com"
 }
-```text
+```
 
 **Response (200):**
 
@@ -1481,13 +1481,13 @@ PATCH /users/me
   "email": "newemail@example.com",
   "message": "Profile updated successfully"
 }
-```text
+```
 
 #### 28. Get Storage Statistics
 
 ```http
 GET /users/me/storage
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1511,7 +1511,7 @@ GET /users/me/storage
     "last_30_days_gb": 8.9
   }
 }
-```text
+```
 
 ---
 
@@ -1521,7 +1521,7 @@ GET /users/me/storage
 
 ```http
 GET /people
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1561,13 +1561,13 @@ GET /people
     "total_pages": 1
   }
 }
-```text
+```
 
 #### 30. Get Person Details
 
 ```http
 GET /people/{person_id}
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1590,13 +1590,13 @@ GET /people/{person_id}
     }
   ]
 }
-```text
+```
 
 #### 31. Name a Person
 
 ```http
 PATCH /people/{person_id}/name
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1607,7 +1607,7 @@ PATCH /people/{person_id}/name
   "person_name": "John Doe",
   "is_confirmed": true
 }
-```text
+```
 
 **Response (200):**
 
@@ -1618,13 +1618,13 @@ PATCH /people/{person_id}/name
   "is_confirmed": true,
   "message": "Person named successfully"
 }
-```text
+```
 
 #### 32. Get Photos by Person
 
 ```http
 GET /people/{person_id}/photos
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1657,13 +1657,13 @@ GET /people/{person_id}/photos
     "total_pages": 3
   }
 }
-```text
+```
 
 #### 33. Merge People
 
 ```http
 POST /people/merge
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1675,7 +1675,7 @@ POST /people/merge
   "target_person_id": "person-uuid-3",
   "keep_name_from": "person-uuid-3"
 }
-```text
+```
 
 **Response (200):**
 
@@ -1686,13 +1686,13 @@ POST /people/merge
   "total_faces": 245,
   "source_persons_deleted": 2
 }
-```text
+```
 
 #### 34. Remove Face from Person
 
 ```http
 DELETE /people/{person_id}/faces/{face_id}
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1705,13 +1705,13 @@ DELETE /people/{person_id}/faces/{face_id}
   "face_id": "face-uuid",
   "remaining_face_count": 126
 }
-```text
+```
 
 #### 35. Search Photos by Face
 
 ```http
 POST /search/by-face
-```text
+```
 
 **Headers:**
 
@@ -1720,11 +1720,11 @@ POST /search/by-face
 
 **Request (Form Data):**
 
-```text
+```
 reference_photo: [binary file or photo_id]
 face_id: "face-uuid" (optional, if using existing face)
 threshold: 0.75 (optional, similarity threshold 0.0-1.0, default: 0.75)
-```text
+```
 
 **Response (200):**
 
@@ -1744,13 +1744,13 @@ threshold: 0.75 (optional, similarity threshold 0.0-1.0, default: 0.75)
   "total_matches": 45,
   "search_time_ms": 127
 }
-```text
+```
 
 #### 36. Hide Person
 
 ```http
 PATCH /people/{person_id}/hide
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1760,7 +1760,7 @@ PATCH /people/{person_id}/hide
 {
   "is_hidden": true
 }
-```text
+```
 
 **Response (200):**
 
@@ -1769,7 +1769,7 @@ PATCH /people/{person_id}/hide
   "message": "Person hidden from main view",
   "person_id": "person-uuid"
 }
-```text
+```
 
 **Note:** Hidden people won't appear in the main people list but faces remain linked.
 
@@ -1777,7 +1777,7 @@ PATCH /people/{person_id}/hide
 
 ```http
 GET /photos/{photo_id}/faces
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1807,13 +1807,13 @@ GET /photos/{photo_id}/faces
     }
   ]
 }
-```text
+```
 
 #### 38. Tag Person in Photo
 
 ```http
 POST /photos/{photo_id}/tag-person
-```text
+```
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -1824,7 +1824,7 @@ POST /photos/{photo_id}/tag-person
   "face_id": "face-uuid",
   "person_id": "person-uuid"
 }
-```text
+```
 
 **Response (200):**
 
@@ -1836,7 +1836,7 @@ POST /photos/{photo_id}/tag-person
   "person_id": "person-uuid",
   "person_name": "John Doe"
 }
-```text
+```
 
 ---
 
@@ -1855,7 +1855,7 @@ POST /photos/{photo_id}/tag-person
   "request_id": "req-uuid",
   "timestamp": "2025-10-01T10:00:00Z"
 }
-```text
+```
 
 **Common HTTP Status Codes:**
 
@@ -1874,11 +1874,11 @@ POST /photos/{photo_id}/tag-person
 
 **Rate Limiting Headers:**
 
-```text
+```
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 847
 X-RateLimit-Reset: 1696156800
-```text
+```
 
 **Pagination Strategy:**
 
@@ -1990,7 +1990,7 @@ graph TB
     Clustering --> Merge
     Merge --> PersonGroup
     PersonGroup --> FacesDB
-```text
+```
 
 **Pipeline Stages:**
 
@@ -2036,7 +2036,7 @@ def detect_faces(image_path):
             })
     
     return faces
-```text
+```
 
 **2. Quality Filtering:**
 
@@ -2086,7 +2086,7 @@ def detect_faces(image_path):
       embedding = F.normalize(embedding, p=2, dim=1)
       
       return embedding.cpu().numpy()[0]
-```text
+```
 
 - **Properties:**
   - Same person: embedding distance < 0.6
@@ -2132,7 +2132,7 @@ def store_embedding(face_id, user_id, photo_id, embedding):
     
     # Also store metadata in PostgreSQL
     store_face_metadata(face_id, user_id, photo_id, ...)
-```text
+```
 
 **6. Face Clustering (Batch Job):**
 
@@ -2190,7 +2190,7 @@ def cluster_new_faces(user_id, since_timestamp):
         
         # Update faces with person_id
         update_faces_person_id(cluster_faces, person_id)
-```text
+```
 
 **7. Incremental Clustering:**
 
@@ -2237,7 +2237,7 @@ def assign_face_to_person(new_face_embedding, user_id):
         return best_person
     
     return None  # Not confident, defer to nightly clustering
-```text
+```
 
 **Performance Optimizations:**
 
@@ -2314,7 +2314,7 @@ graph LR
     S3Writer -->|Store| S3
     S3Writer -->|Success| Queue
     Queue -->|Event| ProcessingPipeline
-```text
+```
 
 **Key Features:**
 
@@ -2394,7 +2394,7 @@ graph TB
     Optimize -->|Store| S3Thumb
     Extract -->|Metadata| Cassandra
     Extract -->|Index| ES
-```text
+```
 
 **Processing Steps:**
 
@@ -2485,7 +2485,7 @@ graph TB
     }
   }
 }
-```text
+```
 
 **Query Examples:**
 
@@ -2502,7 +2502,7 @@ graph TB
     }
   }
 }
-```text
+```
 
 1. **Geo-spatial Search:**
 
@@ -2523,7 +2523,7 @@ graph TB
     }
   }
 }
-```text
+```
 
 1. **Date Range Search:**
 
@@ -2543,7 +2543,7 @@ graph TB
     }
   }
 }
-```text
+```
 
 **Search Optimizations:**
 
@@ -2616,7 +2616,7 @@ graph TB
     }
   ]
 }
-```text
+```
 
 **Access Pattern Optimization:**
 
@@ -2675,7 +2675,7 @@ def get_photo_metadata(photo_id):
     redis.setex(f"photo:{photo_id}", 86400, metadata)  # TTL: 24h
     
     return metadata
-```text
+```
 
 **Write-Through (for critical data):**
 
@@ -2686,7 +2686,7 @@ def update_photo_metadata(photo_id, metadata):
     
     # Update cache immediately
     redis.setex(f"photo:{photo_id}", 86400, metadata)
-```text
+```
 
 **Cache Invalidation:**
 
@@ -2962,7 +2962,7 @@ def update_photo_metadata(photo_id, metadata):
 
 **Implementation:**
 
-```text
+```
 US-East (Primary):
 - Full stack deployment
 - Hot storage replication to EU/Asia
@@ -2976,7 +2976,7 @@ Asia-Pacific (Secondary):
 - Full stack deployment
 - Cassandra replica
 - Local uploads stored locally, replicated to US
-```text
+```
 
 ---
 
@@ -3007,7 +3007,7 @@ exports.handler = async (event, context) => {
   // Forward to origin
   return event;
 };
-```text
+```
 
 ---
 
@@ -3033,7 +3033,7 @@ graph LR
     Upload -->|Progress Event| Connection
     Connection -->|Push| Gateway
     Gateway -->|Update| Client
-```text
+```
 
 **Benefits:**
 
@@ -3059,7 +3059,7 @@ SELECT * FROM photos
 WHERE user_id = ? AND date_bucket = '2025-10'
 ORDER BY upload_date DESC 
 LIMIT 50;
-```text
+```
 
 **Cassandra Materialized Views:**
 
@@ -3071,7 +3071,7 @@ CREATE MATERIALIZED VIEW user_favorites AS
     AND is_favorite = true
     AND photo_id IS NOT NULL
   PRIMARY KEY (user_id, is_favorite, upload_date, photo_id);
-```text
+```
 
 ---
 
@@ -3114,7 +3114,7 @@ Business Metrics:
   - Search queries per day
   - Share link creation rate
   - Storage usage growth rate
-```text
+```
 
 **Alerting Strategy:**
 
@@ -3135,7 +3135,7 @@ Info (Dashboard):
   - Daily storage growth
   - Popular search terms
   - User engagement metrics
-```text
+```
 
 **Logging:**
 
@@ -3180,7 +3180,7 @@ def authorize_photo_access(user_id, photo_id):
         return True
     
     return False
-```text
+```
 
 ---
 
@@ -3229,7 +3229,7 @@ Endpoint Limits:
   - Login: 5 attempts/minute
   - Registration: 3 accounts/hour per IP
   - Share creation: 20/hour per user
-```text
+```
 
 ---
 
@@ -3263,7 +3263,7 @@ Endpoint Limits:
   "allow_face_tagging_by_others": false,
   "hide_my_face_from_suggestions": false
 }
-```text
+```
 
 **Data Deletion:**
 
@@ -3288,7 +3288,7 @@ def delete_face_data(user_id):
     
     # Update user preferences
     db.execute("UPDATE users SET face_recognition_enabled = FALSE WHERE user_id = ?", user_id)
-```text
+```
 
 **5. Secure Sandbox**
 

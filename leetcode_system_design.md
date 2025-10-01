@@ -137,7 +137,7 @@
 
 ### Traffic Estimates
 
-```text
+```
 Daily Active Users (DAU): 100,000
 Active users submitting code: 100,000 × 100% = 100,000 users
 
@@ -156,11 +156,11 @@ Peak problem views per second (3x): 36 QPS
 Code execution requests (including test runs): 500,000 × 2 = 1,000,000 executions/day
 Average executions per second: 1,000,000 / 86,400 ≈ 12 QPS
 Peak executions per second (3x): 36 QPS
-```text
+```
 
 ### Storage Estimates
 
-```text
+```
 PROBLEM DATA:
 - Total problems in system: 3,000 problems
 - Average problem size: 5 KB (description, examples, constraints)
@@ -194,11 +194,11 @@ TOTAL STORAGE (3 years):
 - Users: 20 GB
 - Submissions: 1.5 TB
 - Total: ≈ 1.5 TB (submissions dominate)
-```text
+```
 
 ### Resource Estimates
 
-```text
+```
 CONCURRENT EXECUTIONS AT PEAK:
 - Peak execution QPS: 36
 - Average execution time: 3 seconds
@@ -218,11 +218,11 @@ DATABASE CONNECTIONS:
 - API servers: 20 instances × 50 connections = 1,000 connections
 - Background services: 200 connections
 - Total: 1,200 connections (well within PostgreSQL limits)
-```text
+```
 
 ### Bandwidth Estimates
 
-```text
+```
 SUBMISSION REQUEST:
 - Code: 2 KB
 - Metadata: 500 bytes
@@ -239,7 +239,7 @@ PROBLEM VIEW REQUEST:
 Peak bandwidth (submissions): 18 QPS × 3.5 KB = 63 KB/s ≈ 0.5 Mbps
 Peak bandwidth (problem views): 36 QPS × 5.5 KB = 198 KB/s ≈ 1.6 Mbps
 Total peak bandwidth: ≈ 2 Mbps (negligible)
-```text
+```
 
 ---
 
@@ -330,7 +330,7 @@ graph TB
     
     JudgeSvc -->|Monitor| Queue
     JudgeSvc -->|Scale| Worker1
-```text
+```
 
 ### Data Flow Explanation
 
@@ -403,7 +403,7 @@ Indexes:
 - UNIQUE INDEX idx_username (username)
 - UNIQUE INDEX idx_email (email)
 - INDEX idx_created_at (created_at)
-```text
+```
 
 #### Problems Table
 
@@ -429,7 +429,7 @@ Indexes:
 - INDEX idx_difficulty (difficulty)
 - INDEX idx_created_at (created_at)
 - INDEX idx_acceptance_rate (acceptance_rate)
-```text
+```
 
 #### Problem_Tags Table (Many-to-Many)
 
@@ -442,7 +442,7 @@ problem_tags
 Indexes:
 - PRIMARY KEY (problem_id, tag_id)
 - INDEX idx_tag_id (tag_id)
-```text
+```
 
 #### Tags Table
 
@@ -458,7 +458,7 @@ Indexes:
 - PRIMARY KEY (tag_id)
 - UNIQUE INDEX idx_name (name)
 - UNIQUE INDEX idx_slug (slug)
-```text
+```
 
 #### Submissions Table
 
@@ -486,7 +486,7 @@ Indexes:
 - INDEX idx_user_submitted (user_id, submitted_at DESC)
 - INDEX idx_problem_submitted (problem_id, submitted_at DESC)
 - INDEX idx_status (status)
-```text
+```
 
 #### Test_Cases Table
 
@@ -507,7 +507,7 @@ Indexes:
 - PRIMARY KEY (test_case_id)
 - INDEX idx_problem_order (problem_id, order_index)
 - INDEX idx_problem_sample (problem_id, is_sample)
-```text
+```
 
 #### User_Problem_Status Table
 
@@ -526,7 +526,7 @@ Indexes:
 - PRIMARY KEY (user_id, problem_id)
 - INDEX idx_user_status (user_id, status)
 - INDEX idx_solved_at (solved_at)
-```text
+```
 
 #### User_Statistics Table
 
@@ -546,7 +546,7 @@ Indexes:
 - PRIMARY KEY (user_id)
 - INDEX idx_ranking (ranking)
 - INDEX idx_problems_solved (problems_solved DESC)
-```text
+```
 
 #### Sessions Table (Could use Redis, but showing SQL structure)
 
@@ -566,7 +566,7 @@ Indexes:
 - INDEX idx_user_id (user_id)
 - INDEX idx_token_hash (token_hash)
 - INDEX idx_expires_at (expires_at)
-```text
+```
 
 **Database Sharding Strategy:**
 
@@ -607,7 +607,7 @@ Indexes:
 
 ```http
 POST /v1/auth/register
-```text
+```
 
 **Request Headers:**
 
@@ -615,7 +615,7 @@ POST /v1/auth/register
 {
   "Content-Type": "application/json"
 }
-```text
+```
 
 **Request Body:**
 
@@ -626,7 +626,7 @@ POST /v1/auth/register
   "password": "SecureP@ss123",
   "full_name": "John Doe"
 }
-```text
+```
 
 **Response (201 Created):**
 
@@ -648,7 +648,7 @@ POST /v1/auth/register
     }
   }
 }
-```text
+```
 
 **Response (400 Bad Request):**
 
@@ -661,7 +661,7 @@ POST /v1/auth/register
     "field": "username"
   }
 }
-```text
+```
 
 ---
 
@@ -669,7 +669,7 @@ POST /v1/auth/register
 
 ```http
 POST /v1/auth/login
-```text
+```
 
 **Request Body:**
 
@@ -678,7 +678,7 @@ POST /v1/auth/login
   "email": "john@example.com",
   "password": "SecureP@ss123"
 }
-```text
+```
 
 **Response (200 OK):**
 
@@ -698,7 +698,7 @@ POST /v1/auth/login
     }
   }
 }
-```text
+```
 
 ---
 
@@ -706,7 +706,7 @@ POST /v1/auth/login
 
 ```http
 POST /v1/auth/refresh
-```text
+```
 
 **Request Body:**
 
@@ -714,7 +714,7 @@ POST /v1/auth/refresh
 {
   "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
-```text
+```
 
 **Response (200 OK):**
 
@@ -726,7 +726,7 @@ POST /v1/auth/refresh
     "expires_in": 900
   }
 }
-```text
+```
 
 ---
 
@@ -734,7 +734,7 @@ POST /v1/auth/refresh
 
 ```http
 POST /v1/auth/logout
-```text
+```
 
 **Request Headers:**
 
@@ -742,7 +742,7 @@ POST /v1/auth/logout
 {
   "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
-```text
+```
 
 **Response (200 OK):**
 
@@ -751,7 +751,7 @@ POST /v1/auth/logout
   "success": true,
   "message": "Logged out successfully"
 }
-```text
+```
 
 ---
 
@@ -761,7 +761,7 @@ POST /v1/auth/logout
 
 ```http
 GET /v1/problems
-```text
+```
 
 **Query Parameters:**
 
@@ -780,7 +780,7 @@ GET /v1/problems
 {
   "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." 
 }
-```text
+```
 
 *(Optional, for personalized status)*
 
@@ -814,7 +814,7 @@ GET /v1/problems
     }
   }
 }
-```text
+```
 
 **Caching:** Cache-Control: `public, max-age=300` (5 minutes)
 
@@ -824,7 +824,7 @@ GET /v1/problems
 
 ```http
 GET /v1/problems/{slug}
-```text
+```
 
 **Path Parameters:**
 
@@ -868,7 +868,7 @@ GET /v1/problems/{slug}
     }
   }
 }
-```text
+```
 
 **Response (404 Not Found):**
 
@@ -880,7 +880,7 @@ GET /v1/problems/{slug}
     "message": "Problem not found"
   }
 }
-```text
+```
 
 **Caching:** Cache-Control: `public, max-age=3600` (1 hour)
 
@@ -890,7 +890,7 @@ GET /v1/problems/{slug}
 
 ```http
 GET /v1/problems/{slug}/statistics
-```text
+```
 
 **Response (200 OK):**
 
@@ -915,7 +915,7 @@ GET /v1/problems/{slug}/statistics
     }
   }
 }
-```text
+```
 
 ---
 
@@ -925,7 +925,7 @@ GET /v1/problems/{slug}/statistics
 
 ```http
 POST /v1/submissions
-```text
+```
 
 **Request Headers:**
 
@@ -934,7 +934,7 @@ POST /v1/submissions
   "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "Content-Type": "application/json"
 }
-```text
+```
 
 **Request Body:**
 
@@ -944,7 +944,7 @@ POST /v1/submissions
   "language": "python",
   "code": "class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        hashmap = {}\n        for i, num in enumerate(nums):\n            complement = target - num\n            if complement in hashmap:\n                return [hashmap[complement], i]\n            hashmap[num] = i"
 }
-```text
+```
 
 **Response (202 Accepted):**
 
@@ -958,7 +958,7 @@ POST /v1/submissions
     "message": "Submission received and queued for judging"
   }
 }
-```text
+```
 
 **Response (429 Too Many Requests):**
 
@@ -971,7 +971,7 @@ POST /v1/submissions
     "retry_after": 30
   }
 }
-```text
+```
 
 **Rate Limiting:** 10 submissions per minute per user
 
@@ -981,7 +981,7 @@ POST /v1/submissions
 
 ```http
 GET /v1/submissions/{submission_id}
-```text
+```
 
 **Request Headers:**
 
@@ -989,7 +989,7 @@ GET /v1/submissions/{submission_id}
 {
   "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
-```text
+```
 
 **Response (200 OK) - Pending:**
 
@@ -1005,7 +1005,7 @@ GET /v1/submissions/{submission_id}
     "submitted_at": "2025-10-01T10:35:00Z"
   }
 }
-```text
+```
 
 **Response (200 OK) - Completed:**
 
@@ -1028,7 +1028,7 @@ GET /v1/submissions/{submission_id}
     "judged_at": "2025-10-01T10:35:03Z"
   }
 }
-```text
+```
 
 **Response (200 OK) - Failed:**
 
@@ -1049,7 +1049,7 @@ GET /v1/submissions/{submission_id}
     "judged_at": "2025-10-01T10:35:03Z"
   }
 }
-```text
+```
 
 **Polling:** Client should poll every 1-2 seconds while status is `pending` or `running`
 
@@ -1059,7 +1059,7 @@ GET /v1/submissions/{submission_id}
 
 ```http
 POST /v1/problems/{slug}/run
-```text
+```
 
 **Request Body:**
 
@@ -1069,7 +1069,7 @@ POST /v1/problems/{slug}/run
   "code": "class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        return [0, 1]",
   "test_input": "[2,7,11,15]\n9"
 }
-```text
+```
 
 **Response (200 OK):**
 
@@ -1086,7 +1086,7 @@ POST /v1/problems/{slug}/run
     "stderr": ""
   }
 }
-```text
+```
 
 **Response (200 OK) - Runtime Error:**
 
@@ -1101,7 +1101,7 @@ POST /v1/problems/{slug}/run
     "stderr": "Traceback (most recent call last):\n  ..."
   }
 }
-```text
+```
 
 **Rate Limiting:** 30 runs per minute per user
 
@@ -1111,7 +1111,7 @@ POST /v1/problems/{slug}/run
 
 ```http
 GET /v1/users/{username}/submissions
-```text
+```
 
 **Query Parameters:**
 
@@ -1147,7 +1147,7 @@ GET /v1/users/{username}/submissions
     }
   }
 }
-```text
+```
 
 ---
 
@@ -1155,7 +1155,7 @@ GET /v1/users/{username}/submissions
 
 ```http
 GET /v1/submissions/{submission_id}/code
-```text
+```
 
 **Request Headers:**
 
@@ -1163,7 +1163,7 @@ GET /v1/submissions/{submission_id}/code
 {
   "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
-```text
+```
 
 **Response (200 OK):**
 
@@ -1176,7 +1176,7 @@ GET /v1/submissions/{submission_id}/code
     "code": "class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        hashmap = {}\n        for i, num in enumerate(nums):\n            complement = target - num\n            if complement in hashmap:\n                return [hashmap[complement], i]\n            hashmap[num] = i"
   }
 }
-```text
+```
 
 ---
 
@@ -1186,7 +1186,7 @@ GET /v1/submissions/{submission_id}/code
 
 ```http
 GET /v1/users/{username}
-```text
+```
 
 **Response (200 OK):**
 
@@ -1218,7 +1218,7 @@ GET /v1/users/{username}
     ]
   }
 }
-```text
+```
 
 ---
 
@@ -1226,7 +1226,7 @@ GET /v1/users/{username}
 
 ```http
 GET /v1/users/{username}/statistics
-```text
+```
 
 **Response (200 OK):**
 
@@ -1253,7 +1253,7 @@ GET /v1/users/{username}/statistics
     }
   }
 }
-```text
+```
 
 ---
 
@@ -1263,7 +1263,7 @@ GET /v1/users/{username}/statistics
 
 ```http
 GET /v1/tags
-```text
+```
 
 **Response (200 OK):**
 
@@ -1287,7 +1287,7 @@ GET /v1/tags
     ]
   }
 }
-```text
+```
 
 **Caching:** Cache-Control: `public, max-age=86400` (24 hours)
 
@@ -1299,7 +1299,7 @@ GET /v1/tags
 
 ```http
 GET /v1/search
-```text
+```
 
 **Query Parameters:**
 
@@ -1330,7 +1330,7 @@ GET /v1/search
     }
   }
 }
-```text
+```
 
 ---
 
@@ -1348,7 +1348,7 @@ GET /v1/search
     "details": {}
   }
 }
-```text
+```
 
 **Common HTTP Status Codes:**
 
@@ -1384,13 +1384,13 @@ GET /v1/search
 
 **Security Headers:**
 
-```text
+```
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 X-XSS-Protection: 1; mode=block
 Content-Security-Policy: default-src 'self'
-```text
+```
 
 **CORS Policy:**
 
@@ -1404,23 +1404,30 @@ Content-Security-Policy: default-src 'self'
 ### API Trade-Offs
 
 **Decision:** REST vs GraphQL
+
 **Choice:** REST API
+
 **Pros:**
 
 - Simpler to implement and maintain
 - Better caching support (HTTP caching)
 - Standardized and well-understood
 - Better tooling and monitoring
+
 **Cons:**
+
 - Over-fetching data (getting more than needed)
 - Under-fetching (multiple requests needed)
 - Less flexible for clients
+
 **Justification:** For a LeetCode-style platform, REST is sufficient. The data models are well-defined, and endpoints have predictable access patterns. The slight inefficiency from over/under-fetching is acceptable given the simplicity benefits.
 
 ---
 
 **Decision:** Synchronous vs Asynchronous Code Execution
+
 **Choice:** Asynchronous (queue-based)
+
 **Pros:**
 
 - Decouples submission from execution
@@ -1428,41 +1435,55 @@ Content-Security-Policy: default-src 'self'
 - Can handle traffic spikes
 - Easy to scale workers independently
 - Retry failed executions
+
 **Cons:**
+
 - Added complexity (queue management)
 - Requires polling or WebSocket for real-time updates
 - Slightly higher latency (queuing delay)
+
 **Justification:** Code execution can take several seconds. Synchronous execution would tie up API server threads and create poor user experience. Async execution allows the API to remain responsive while workers handle the heavy processing.
 
 ---
 
 **Decision:** Offset vs Cursor Pagination
+
 **Choice:** Offset for problems, Cursor for submissions
+
 **Pros (Offset):**
 
 - Allows random page access
 - Simple to implement
 - Good for small, stable datasets
+
 **Pros (Cursor):**
+
 - Consistent results for real-time data
 - Better performance for large datasets
 - No missing/duplicate items during pagination
+
 **Cons:** Mixed approach adds complexity
+
 **Justification:** Problems are relatively static (3K items), so offset pagination is fine. Submissions are time-series data with constant inserts, so cursor pagination prevents inconsistencies during pagination.
 
 ---
 
 **Decision:** Endpoint Granularity
+
 **Choice:** Separate endpoints for different resources
+
 **Pros:**
 
 - Clear separation of concerns
 - Easier to version and evolve
 - Better caching strategies per resource
 - Follows REST principles
+
 **Cons:**
+
 - More network requests for related data
 - Potential for over-fetching
+
 **Justification:** Aligns with REST best practices and allows independent scaling of different services.
 
 ---
@@ -1476,7 +1497,7 @@ Execute user-submitted code in a secure, isolated environment and evaluate it ag
 
 **Internal Architecture:**
 
-```text
+```
 Judge Worker Container
 ├── Job Listener (pulls from queue)
 ├── Language Runtime Manager
@@ -1488,7 +1509,7 @@ Judge Worker Container
 ├── Resource Monitor (CPU, Memory, Time)
 ├── Test Case Runner
 └── Result Reporter
-```text
+```
 
 **Execution Flow:**
 
@@ -1566,13 +1587,13 @@ Judge Worker Container
 
 **Redis Cache Architecture:**
 
-```text
+```
 Redis Cluster
 ├── Problem Cache (Hot problems)
 ├── User Session Cache
 ├── Rate Limit Counter Cache
 └── Leaderboard Cache
-```text
+```
 
 **What to Cache:**
 
@@ -2020,7 +2041,7 @@ If message queue goes down, no submissions can be processed.
 
 **Alert Conditions:**
 
-```text
+```
 Alert: High API Latency
 Condition: p95 latency > 500ms for 5 minutes
 Severity: Warning
@@ -2035,7 +2056,7 @@ Alert: Database Write Latency
 Condition: Write p99 > 200ms for 5 minutes
 Severity: Warning
 Action: Check for slow queries, lock contention
-```text
+```
 
 ---
 

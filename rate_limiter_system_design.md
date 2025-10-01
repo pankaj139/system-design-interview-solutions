@@ -84,7 +84,7 @@
 
 ### Traffic Estimates
 
-```text
+```
 Daily Active Users (DAU):
 - 100K registered API keys (assume 50% active daily) = 50K DAU
 
@@ -103,11 +103,11 @@ Rate Limit Checks per Second:
 - Average: 116 QPS
 - Peak: 348 QPS
 - Per region (3 regions): 348 / 3 = ~116 QPS per region at peak
-```text
+```
 
 ### Storage Estimates
 
-```text
+```
 Per API Key State Storage:
 - API key: 32 bytes (UUID)
 - Current count: 8 bytes (int64)
@@ -131,11 +131,11 @@ Historical Data (30 days):
 - 10M requests/day × 48 bytes = 480 MB/day
 - 30 days: 480 MB × 30 = 14.4 GB
 - With indexes (2x): ~30 GB
-```text
+```
 
 ### Resource Estimates
 
-```text
+```
 Compute Resources:
 - Rate limiter service: 4 vCPU, 8 GB RAM per instance
 - Instances per region: 3 (for HA and load distribution)
@@ -156,11 +156,11 @@ Concurrent Connections:
 - Assume 100ms processing time
 - Concurrent requests: 116 × 0.1 = ~12 concurrent requests per region
 - With safety margin (10x): 120 concurrent connections per region
-```text
+```
 
 ### Bandwidth Estimates
 
-```text
+```
 Rate Limiter Check:
 - Request: API key (32 bytes) + headers (500 bytes) = 532 bytes
 - Response: Status + headers (300 bytes) = 300 bytes
@@ -174,7 +174,7 @@ Daily Bandwidth:
 Redis Synchronization:
 - State updates: 100 bytes per update
 - 116 QPS × 100 bytes = 11.6 KB/s = 0.09 Mbps (negligible)
-```text
+```
 
 ---
 
@@ -269,7 +269,7 @@ graph TB
     RL1 -->|Metrics| Metrics
     RL2 -->|Metrics| Metrics
     RL3 -->|Metrics| Metrics
-```text
+```
 
 ### Data Flow Explanation
 
@@ -321,7 +321,7 @@ CREATE TABLE api_keys (
     INDEX idx_user_id (user_id),
     INDEX idx_tier (tier)
 );
-```text
+```
 
 **Table: users**
 ```sql
@@ -336,7 +336,7 @@ CREATE TABLE users (
     INDEX idx_email (email),
     INDEX idx_tier (tier)
 );
-```text
+```
 
 **Table: rate_limit_events** (Time-series database - TimescaleDB)
 ```sql
@@ -358,24 +358,24 @@ SELECT create_hypertable('rate_limit_events', 'timestamp');
 -- Create indexes
 CREATE INDEX idx_rate_limit_api_key ON rate_limit_events (api_key_hash, timestamp DESC);
 CREATE INDEX idx_rate_limit_region ON rate_limit_events (region, timestamp DESC);
-```text
+```
 
 ### Redis Data Structures
 
 **Key Pattern: `ratelimit:{api_key_hash}:{window_start_epoch}`**
 
 **Structure Type:** Sorted Set (for sliding window log)
-```text
+```
 Key: ratelimit:abc123def456:1696118400
 Value: Sorted Set {
     score: timestamp_ms,
     member: request_id
 }
 TTL: 3600 seconds (1 hour)
-```text
+```
 
 **Alternative Structure:** Hash (for sliding window counter)
-```text
+```
 Key: ratelimit:abc123def456:window
 Hash Fields:
     - bucket_0: count (most recent minute)
@@ -384,17 +384,17 @@ Hash Fields:
     - bucket_59: count (59 minutes ago)
     - last_update: timestamp
 TTL: 3600 seconds
-```text
+```
 
 **Metadata Cache Pattern: `metadata:{api_key_hash}`**
-```text
+```
 Key: metadata:abc123def456
 Hash Fields:
     - tier: "pro"
     - limit: 1000
     - user_id: "uuid-here"
 TTL: 300 seconds (5 minutes)
-```text
+```
 
 ---
 
@@ -405,22 +405,22 @@ TTL: 300 seconds (5 minutes)
 **Base URL:** `https://api.example.com/v1`
 
 **Authentication:** API Key in header
-```text
+```
 X-API-Key: {api_key}
-```text
+```
 
 **Versioning:** URL path versioning (`/v1/`, `/v2/`)
 
 **Response Format:** JSON
 
 **Standard Rate Limit Headers (returned with every response):**
-```text
+```
 X-RateLimit-Limit: 1000          # Max requests per hour
 X-RateLimit-Remaining: 847        # Remaining requests in current window
 X-RateLimit-Reset: 1696122000     # Unix timestamp when limit resets
 X-RateLimit-Window: 3600          # Window duration in seconds
 X-RateLimit-Policy: sliding-window
-```text
+```
 
 ---
 
@@ -432,12 +432,12 @@ X-RateLimit-Policy: sliding-window
 
 ```http
 GET /v1/ratelimit/status
-```text
+```
 
 **Request Headers:**
-```text
+```
 X-API-Key: {api_key}
-```text
+```
 
 **Query Parameters:**
 None
@@ -468,7 +468,7 @@ None
     "eu": 22
   }
 }
-```text
+```
 
 **Response (401 Unauthorized):**
 ```json
@@ -478,7 +478,7 @@ None
     "message": "The provided API key is invalid or has been revoked"
   }
 }
-```text
+```
 
 **Response (503 Service Unavailable - Degraded Mode):**
 ```json
@@ -496,7 +496,7 @@ None
   "warning": "Rate limit service is operating in degraded mode. Counts may be approximate.",
   "mode": "degraded"
 }
-```text
+```
 
 ---
 
@@ -506,12 +506,12 @@ None
 
 ```http
 GET /v1/ratelimit/history
-```text
+```
 
 **Request Headers:**
-```text
+```
 X-API-Key: {api_key}
-```text
+```
 
 **Query Parameters:**
 - `start_time` (ISO 8601 timestamp, required): Start of time range
@@ -522,7 +522,7 @@ X-API-Key: {api_key}
 **Example Request:**
 ```http
 GET /v1/ratelimit/history?start_time=2025-10-01T00:00:00Z&end_time=2025-10-01T23:59:59Z&granularity=hour
-```text
+```
 
 **Response (200 OK):**
 ```json
@@ -561,7 +561,7 @@ GET /v1/ratelimit/history?start_time=2025-10-01T00:00:00Z&end_time=2025-10-01T23
     "block_rate": 0.0098
   }
 }
-```text
+```
 
 **Response (400 Bad Request):**
 ```json
@@ -571,7 +571,7 @@ GET /v1/ratelimit/history?start_time=2025-10-01T00:00:00Z&end_time=2025-10-01T23
     "message": "Time range cannot exceed 30 days"
   }
 }
-```text
+```
 
 ---
 
@@ -581,13 +581,13 @@ GET /v1/ratelimit/history?start_time=2025-10-01T00:00:00Z&end_time=2025-10-01T23
 
 ```http
 GET /v1/resource/{id}
-```text
+```
 
 **Request Headers:**
-```text
+```
 X-API-Key: {api_key}
 Content-Type: application/json
-```text
+```
 
 **Response (200 OK):**
 ```json
@@ -597,14 +597,14 @@ Content-Type: application/json
     "key": "value"
   }
 }
-```text
+```
 
 **Response Headers (Always Included):**
-```text
+```
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 846
 X-RateLimit-Reset: 1696122000
-```text
+```
 
 **Response (429 Too Many Requests):**
 ```json
@@ -617,15 +617,15 @@ X-RateLimit-Reset: 1696122000
     "window": "1 hour"
   }
 }
-```text
+```
 
 **Response Headers:**
-```text
+```
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 0
 X-RateLimit-Reset: 1696122000
 Retry-After: 1847
-```text
+```
 
 ---
 
@@ -635,13 +635,13 @@ Retry-After: 1847
 
 ```http
 POST /v1/account/upgrade
-```text
+```
 
 **Request Headers:**
-```text
+```
 X-API-Key: {api_key}
 Content-Type: application/json
-```text
+```
 
 **Request Body:**
 ```json
@@ -649,7 +649,7 @@ Content-Type: application/json
   "target_tier": "pro",
   "payment_method": "card_token_xyz"
 }
-```text
+```
 
 **Response (200 OK):**
 ```json
@@ -663,7 +663,7 @@ Content-Type: application/json
   "effective_immediately": true,
   "message": "Your account has been upgraded to Pro tier"
 }
-```text
+```
 
 ---
 
@@ -687,7 +687,7 @@ Content-Type: application/json
     "timestamp": "2025-10-01T14:30:00Z"
   }
 }
-```text
+```
 
 #### Pagination
 - **Not applicable** for rate limiter status (single object response)
@@ -696,22 +696,22 @@ Content-Type: application/json
   - Use `cursor` parameter for next page
 
 #### Security Headers
-```text
+```
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 X-XSS-Protection: 1; mode=block
 Content-Security-Policy: default-src 'none'
-```text
+```
 
 #### CORS Policy
 - Allow all origins for public API
 - Expose rate limit headers
-```text
+```
 Access-Control-Allow-Origin: *
 Access-Control-Expose-Headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
 Access-Control-Max-Age: 3600
-```text
+```
 
 #### Idempotency
 - Status check endpoint is naturally idempotent (GET)
@@ -721,10 +721,10 @@ Access-Control-Max-Age: 3600
 #### Compression
 - Support gzip and brotli compression
 - Apply to responses > 1KB
-```text
+```
 Accept-Encoding: gzip, br
 Content-Encoding: gzip
-```text
+```
 
 ---
 
@@ -789,7 +789,7 @@ class TokenBucket:
         new_tokens = elapsed * self.refill_rate
         self.tokens = min(self.capacity, self.tokens + new_tokens)
         self.last_refill = now
-```text
+```
 
 **Pros:**
 - Naturally handles burst traffic
@@ -824,7 +824,7 @@ def fixed_window_check(api_key, limit):
         redis.expire(key, 3600)  # expire after 1 hour
     
     return count <= limit
-```text
+```
 
 **Pros:**
 - Extremely simple to implement
@@ -867,7 +867,7 @@ def sliding_window_log(api_key, limit, window_seconds):
         return True
     
     return False
-```text
+```
 
 **Pros:**
 - **Most accurate** - no boundary issues
@@ -917,7 +917,7 @@ def sliding_window_counter(api_key, limit):
         return True
     
     return False
-```text
+```
 
 **Pros:**
 - **Good accuracy** (~1-2% error margin)
@@ -964,7 +964,7 @@ class LeakyBucket:
         leaked = elapsed * self.leak_rate
         self.queue_size = max(0, self.queue_size - leaked)
         self.last_leak = now
-```text
+```
 
 **Pros:**
 - Smooth output rate
@@ -995,7 +995,7 @@ class LeakyBucket:
 **Implementation Details:**
 
 **Redis Data Structure:**
-```text
+```
 Key: ratelimit:{api_key_hash}:current
 Hash:
   - minute_0: count (current minute)
@@ -1003,7 +1003,7 @@ Hash:
   ...
   - minute_59: count (59 min ago)
   - last_update: timestamp
-```text
+```
 
 **Optimization with Granular Buckets:**
 ```python
@@ -1059,7 +1059,7 @@ def sliding_window_with_buckets(api_key_hash, limit, window_seconds=3600):
         "remaining": max(0, limit - total_count - (1 if allowed else 0)),
         "reset_at": reset_at
     }
-```text
+```
 
 ---
 
@@ -1098,13 +1098,13 @@ def sliding_window_with_buckets(api_key_hash, limit, window_seconds=3600):
 **Approach:** Each region maintains counter; sync before decision
 
 **Flow:**
-```text
+```
 1. Request arrives at US-East
 2. US-East queries US-West and EU for their counts
 3. Sum all counts
 4. Make decision
 5. Update US-East counter
-```text
+```
 
 **Pros:**
 - Perfect accuracy
@@ -1124,14 +1124,14 @@ def sliding_window_with_buckets(api_key_hash, limit, window_seconds=3600):
 **Approach:** Each region decides independently; sync in background
 
 **Flow:**
-```text
+```
 1. Request arrives at US-East
 2. US-East checks local Redis counter
 3. US-East makes decision immediately (<5ms)
 4. Background job publishes count to message queue
 5. Other regions consume updates and adjust local view
 6. Eventual consistency achieved
-```text
+```
 
 **Implementation:**
 
@@ -1223,7 +1223,7 @@ class DistributedRateLimiter:
             # Update shadow counter
             key = f"shadow:{event['region']}:{event['api_key_hash']}"
             self.redis.set(key, event["count"], ex=7200)
-```text
+```
 
 **Pros:**
 - ✅ **Low latency:** <5ms (local decision only)
@@ -1286,7 +1286,7 @@ consumer_groups:
   - us-east-sync-worker
   - us-west-sync-worker
   - eu-sync-worker
-```text
+```
 
 **Update Event Schema:**
 ```json
@@ -1298,7 +1298,7 @@ consumer_groups:
   "timestamp_ms": 1696121845123,
   "schema_version": "v1"
 }
-```text
+```
 
 **Sync Worker Logic:**
 ```python
@@ -1332,7 +1332,7 @@ def sync_worker():
             "rate_limiter.sync.updates_processed",
             tags=[f"source_region:{event['region']}"]
         )
-```text
+```
 
 ---
 
@@ -1370,7 +1370,7 @@ def check_with_degradation(api_key_hash, limit):
             "allowed": False,
             "mode": "degraded"
         }
-```text
+```
 
 **Monitoring & Alerting:**
 - Alert if sync lag > 500ms (p95)
@@ -1650,7 +1650,7 @@ def invalidate_api_key_cache(api_key_hash):
         "key": api_key_hash,
         "timestamp": time.time()
     }))
-```text
+```
 
 **Rate Limit Counters:**
 - **Strategy:** Time-based expiration (TTL)
@@ -1659,7 +1659,7 @@ def invalidate_api_key_cache(api_key_hash):
 
 ### Cache Sizing
 
-```text
+```
 L1 Cache (In-Memory per Instance):
 - 10K most active keys
 - 50 bytes per entry
@@ -1676,7 +1676,7 @@ Rate Limit Counters (Redis per Region):
 - 100K API keys × 60 buckets × 10 bytes
 - Total: ~60 MB per region
 - Plus overhead: ~100 MB per region
-```text
+```
 
 ---
 
@@ -1699,7 +1699,7 @@ Rate Limit Counters (Redis per Region):
       except RedisConnectionError:
           logger.error("Redis unavailable, using local fallback")
           return local_memory_rate_limit(api_key_hash, limit // 3)
-```text
+```
 
 **Monitoring:**
 - Alert on Redis connection failures
@@ -1728,7 +1728,7 @@ Rate Limit Counters (Redis per Region):
       else:
           margin = 0.02  # 2% margin
       return int(base_limit * (1 - margin))
-```text
+```
 
 **Monitoring:**
 - p50, p95, p99 sync lag metrics
@@ -1750,7 +1750,7 @@ Rate Limit Counters (Redis per Region):
   
   for batch in kinesis.stream(batch_size=batch_size, timeout=batch_timeout):
       postgres.bulk_insert("rate_limit_events", batch)
-```text
+```
 - **TimescaleDB:** Use time-series optimized database
 - **Partitioning:** Partition by timestamp (daily partitions)
 - **Write-Ahead Log:** Tune PostgreSQL WAL settings for write performance
@@ -1776,7 +1776,7 @@ Rate Limit Counters (Redis per Region):
       cache_ttl = 1  # 1 second for hot keys (balance freshness vs performance)
   else:
       cache_ttl = 60  # 1 minute for normal keys
-```text
+```
 
 **Monitoring:**
 - Identify top 100 API keys by request volume
@@ -1802,7 +1802,7 @@ Rate Limit Counters (Redis per Region):
   # ... all buckets
   pipe.hincrby(key, current_bucket, 1)
   results = pipe.execute()  # Single round-trip
-```text
+```
 
 **Monitoring:**
 - p50, p95, p99 rate limiter latency
@@ -1869,7 +1869,7 @@ Rate Limit Counters (Redis per Region):
     "export_endpoints": 1
   }
 }
-```text
+```
 
 **Implementation:**
 - Extend Redis key pattern: `ratelimit:{api_key}:{endpoint_type}:{window}`
@@ -1899,7 +1899,7 @@ ws.onmessage = (event) => {
   const status = JSON.parse(event.data);
   updateUI(status.remaining, status.reset_at);
 };
-```text
+```
 
 **Server-side:**
 ```python
@@ -1909,7 +1909,7 @@ async def stream_rate_limit_status(websocket, api_key_hash):
         status = get_rate_limit_status(api_key_hash)
         await websocket.send(json.dumps(status))
         await asyncio.sleep(1)  # Update every second
-```text
+```
 
 **Benefits:**
 - Instant feedback for users
@@ -1929,7 +1929,7 @@ async def stream_rate_limit_status(websocket, api_key_hash):
 - rate_limiter.error_rate: <0.01%
 - redis.connection_pool.utilization: <80%
 - redis.memory_usage: <75%
-```text
+```
 
 **Business Metrics:**
 ```yaml
@@ -1938,7 +1938,7 @@ async def stream_rate_limit_status(websocket, api_key_hash):
 - requests.blocked_by_tier: Breakdown by free/pro/enterprise
 - block_rate: % of requests blocked (expect 2-5% for free tier)
 - api_keys.active_daily: Daily active API keys
-```text
+```
 
 **Distributed System:**
 ```yaml
@@ -1946,7 +1946,7 @@ async def stream_rate_limit_status(websocket, api_key_hash):
 - sync.events_published: Events sent to Kafka
 - sync.events_consumed: Events received from Kafka
 - sync.accuracy_deviation: % deviation from perfect count (target <2%)
-```text
+```
 
 **Alerting Rules:**
 
@@ -1995,7 +1995,7 @@ def validate_api_key(provided_key: str) -> dict:
         [key_hash]
     )
     return metadata
-```text
+```
 
 ---
 
@@ -2039,7 +2039,7 @@ def validate_api_key_format(api_key: str) -> bool:
     """Validate API key format before processing."""
     pattern = r'^[A-Za-z0-9_-]{32,64}$'
     return bool(re.match(pattern, api_key))
-```text
+```
 
 ---
 

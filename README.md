@@ -236,7 +236,7 @@ Distributed rate limiter for API gateway with multi-tier support, burst handling
 
 Each design in this repository follows a consistent structure:
 
-```text
+```
 1. Requirements & Clarification
    - User stories
    - Functional requirements (MVP)
