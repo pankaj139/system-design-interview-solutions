@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (7/52)
+## ✅ Completed Designs (8/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -168,7 +168,28 @@ Highly available distributed key-value store for e-commerce with multi-datacente
 
 ---
 
-## 📋 Upcoming Designs (45)
+### 8. [Pub/Sub Messaging System (Kafka-like)](./pubsub_messaging_system_design.md)
+
+**Status:** ✅ Complete
+
+Distributed message queue for event streaming across microservices with high-throughput and petabyte-scale storage.
+
+**Key Features:**
+
+- Topic partitioning strategy (hash-based, key-based)
+- Consumer groups and rebalancing protocol
+- Offset management (auto-commit vs manual)
+- Log-structured storage and segment management
+- Replication protocol (leader-follower, ISR)
+- Producer batching and compression
+- Back-pressure and flow control
+- Compacted topics for changelog streams
+
+**Scale:** 10M messages/sec, 100+ topics with 1000+ partitions, 30 days retention (10 PB total), 10K+ producers/consumers
+
+---
+
+## 📋 Upcoming Designs (44)
 
 ### Core Infrastructure & Storage
 
@@ -183,7 +204,7 @@ Highly available distributed key-value store for e-commerce with multi-datacente
 
 ### Messaging & Communication
 
-- [ ] **Design a pub/sub messaging system** (like Kafka)
+- [x] **Design a pub/sub messaging system** (like Kafka)
 - [ ] **Design a chat application** (like WhatsApp)
 - [ ] **Design a notification system**
 - [ ] **Design a distributed stream processing system**
@@ -414,9 +435,9 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 7/52 (13.5%)
+**Completion Status:** 8/52 (15.4%)
 
-**Last Design Completed:** Distributed Key-Value Store (DynamoDB/Cassandra)
+**Last Design Completed:** Pub/Sub Messaging System (Kafka-like)
 
 **Next Up:** Chat Application (WhatsApp)
 

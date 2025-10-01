@@ -4,18 +4,18 @@
 
 **Last Updated:** October 1, 2025
 
-**Progress:** 7/52 (13.5% Complete)
+**Progress:** 8/52 (15.4% Complete)
 
 ---
 
 ## 📊 Progress Overview
 
 ```text
-✅ Completed: 7
+✅ Completed: 8
 🚧 In Progress: 0
-📝 Planned: 45
+📝 Planned: 44
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[█████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 13.5%
+[█████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 15.4%
 ```
 
 ---
@@ -85,9 +85,18 @@
 - **Key Features:** Consistent hashing with virtual nodes (128 per node), quorum-based replication (R=2, W=2, N=3) with tunable consistency, vector clocks for conflict resolution, gossip protocol for failure detection, hinted handoff (3-hour retention), Merkle trees for anti-entropy (10-minute rebuild), AP system favoring availability, multi-datacenter async replication
 - **Lines:** 1,790+ (comprehensive)
 
+### 8. ✅ Pub/Sub Messaging System (Kafka-like) System Design
+
+- **Status:** Complete
+- **File:** `pubsub_messaging_system_design.md`
+- **Completed:** October 1, 2025
+- **Scale:** 10M messages/sec, 100+ topics with 1000+ partitions, 30 days retention (10 PB total), 10K+ producers/consumers
+- **Key Features:** Topic partitioning strategy (hash-based, key-based), consumer groups and rebalancing protocol, offset management (auto-commit vs manual), log-structured storage and segment management, replication protocol (leader-follower, ISR), producer batching and compression, back-pressure and flow control, compacted topics for changelog streams
+- **Lines:** 2,500+ (comprehensive)
+
 ---
 
-## 📋 Pending Designs (45)
+## 📋 Pending Designs (44)
 
 ### 💬 Messaging & Real-Time Systems (Next Priority)
 
@@ -103,9 +112,9 @@
 - **Estimated Time:** 3-4 hours
 - **Key Concepts:** WebSocket, message queue, read receipts, group chat, end-to-end encryption
 
-#### 9. ⬜ Pub/Sub Messaging System (Kafka)
+#### 9. ✅ Pub/Sub Messaging System (Kafka)
 
-- **Status:** Not Started
+- **Status:** Complete
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
 - **Estimated Time:** 4-5 hours
@@ -643,8 +652,8 @@ Before marking a design as complete, ensure:
 
 ---
 
-**Last Activity:** October 1, 2025 - Completed Distributed Key-Value Store (DynamoDB/Cassandra) System Design
+**Last Activity:** October 1, 2025 - Completed Pub/Sub Messaging System (Kafka-like) System Design
 
-**Next Milestone:** Complete 10 designs by end of Q4 2025 - 7/10 done
+**Next Milestone:** Complete 10 designs by end of Q4 2025 - 8/10 done
 
 **Target:** Complete all 52 designs by Q4 2026
