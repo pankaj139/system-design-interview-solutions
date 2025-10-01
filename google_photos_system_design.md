@@ -2086,7 +2086,8 @@ def detect_faces(image_path):
       embedding = F.normalize(embedding, p=2, dim=1)
       
       return embedding.cpu().numpy()[0]
-```
+  
+  ```
 
 - **Properties:**
   - Same person: embedding distance < 0.6
