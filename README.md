@@ -267,7 +267,7 @@ Each design in this repository follows a consistent structure:
    - Monitoring & observability
    - Security considerations
    - Future enhancements
-```text
+```
 
 ---
 
@@ -280,6 +280,7 @@ Common technologies used across designs:
 **API Gateway:** Kong, AWS API Gateway, Nginx
 
 **Databases:**
+
 - SQL: PostgreSQL, MySQL
 - NoSQL: MongoDB, Cassandra, DynamoDB
 - Time-Series: InfluxDB, TimescaleDB
@@ -341,16 +342,19 @@ This is a personal learning repository. However, if you notice errors or have su
 ## 📚 Additional Resources
 
 **Books:**
+
 - *Designing Data-Intensive Applications* by Martin Kleppmann
 - *System Design Interview* by Alex Xu (Volumes 1 & 2)
 - *Web Scalability for Startup Engineers* by Artur Ejsmont
 
 **Online Resources:**
+
 - [System Design Primer](https://github.com/donnemartin/system-design-primer)
 - [High Scalability Blog](http://highscalability.com/)
 - Engineering blogs from major tech companies
 
 **Practice Platforms:**
+
 - LeetCode System Design section
 - Pramp (mock interviews)
 - Exponent.fyi
@@ -391,4 +395,3 @@ These designs are inspired by real-world systems, engineering blogs, and system 
 **Happy Learning! 🚀**
 
 *Remember: System design is not about memorizing solutions, but understanding trade-offs and making informed decisions based on requirements.*
-
