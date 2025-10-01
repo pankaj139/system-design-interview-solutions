@@ -50,3 +50,6 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
+# Personal reference files (not for version control)
+INTERVIEW_PROMPTS.md
+

@@ -35,11 +35,13 @@ This collection represents in-depth system design solutions that go beyond surfa
 ## ✅ Completed Designs (5/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
+
 **Status:** ✅ Complete
 
 Online coding platform with judge system, sandboxed code execution, and real-time feedback.
 
 **Key Features:**
+
 - Secure code execution sandbox (Docker + gVisor)
 - Asynchronous job processing with message queues
 - Multi-language support (Python, Java, C++, JavaScript)
@@ -51,11 +53,13 @@ Online coding platform with judge system, sandboxed code execution, and real-tim
 ---
 
 ### 2. [Google Photos System Design](./google_photos_system_design.md)
+
 **Status:** ✅ Complete
 
 Cloud-based photo storage and management service with intelligent features.
 
 **Key Features:**
+
 - Distributed storage architecture
 - Image processing pipeline
 - Search and organization capabilities
@@ -67,11 +71,13 @@ Cloud-based photo storage and management service with intelligent features.
 ---
 
 ### 3. [URL Shortener (TinyURL) System Design](./url_shortener_system_design.md)
+
 **Status:** ✅ Complete
 
 URL shortening service with analytics, custom aliases, and high-availability architecture.
 
 **Key Features:**
+
 - Snowflake-based distributed ID generation (no collisions)
 - Multi-tier caching (CDN + Redis cluster)
 - Asynchronous analytics pipeline with Kafka and ClickHouse
@@ -83,11 +89,13 @@ URL shortening service with analytics, custom aliases, and high-availability arc
 ---
 
 ### 4. [Distributed Cache (Redis/Memcached) System Design](./distributed_cache_system_design.md)
+
 **Status:** ✅ Complete
 
 High-performance in-memory distributed caching system with replication, sharding, and persistence.
 
 **Key Features:**
+
 - Consistent hashing for horizontal scaling
 - Master-replica replication with automatic failover
 - Multiple data types (strings, lists, sets, sorted sets, hashes)
@@ -100,11 +108,13 @@ High-performance in-memory distributed caching system with replication, sharding
 ---
 
 ### 5. [Rate Limiter for API Gateway System Design](./rate_limiter_system_design.md)
+
 **Status:** ✅ Complete
 
 Distributed rate limiter for API gateway with multi-tier support, burst handling, and multi-region deployment.
 
 **Key Features:**
+
 - Sliding window counter algorithm for accuracy and performance balance
 - Multi-region deployment with eventual consistency (US-East, US-West, EU)
 - Three-tier pricing support (Free: 100/hour, Pro: 1000/hour, Enterprise: unlimited)
@@ -226,7 +236,7 @@ Distributed rate limiter for API gateway with multi-tier support, burst handling
 
 Each design in this repository follows a consistent structure:
 
-```
+```text
 1. Requirements & Clarification
    - User stories
    - Functional requirements (MVP)
@@ -257,7 +267,7 @@ Each design in this repository follows a consistent structure:
    - Monitoring & observability
    - Security considerations
    - Future enhancements
-```
+```text
 
 ---
 

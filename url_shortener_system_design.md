@@ -1,4 +1,5 @@
 # URL SHORTENER (TINYURL) SYSTEM DESIGN
+
 ## Complete System Design Interview Solution
 
 **File Purpose:** This document provides a comprehensive system design for a URL shortening service (like TinyURL). It covers requirements gathering, capacity planning, high-level architecture, database design, API specifications, deep-dive into critical components, trade-off analysis, and scalability considerations. This serves as a complete reference for system design interviews and real-world implementation.
@@ -12,12 +13,14 @@
 ### User Stories
 
 **As a user**, I want to:
+
 - Convert a long URL into a short URL so that I can easily share it
 - Click on a short URL and be redirected to the original long URL so that I can access the content quickly
 - Customize my short URL (if available) so that it's memorable and branded
 - View analytics on my shortened URLs so that I can track engagement
 
 **As a system administrator**, I want to:
+
 - Ensure the service is highly available so that users can access short URLs 24/7
 - Prevent abuse and spam so that the platform remains trustworthy
 - Scale the system efficiently so that we can handle growing traffic
@@ -33,6 +36,7 @@
 5. **Analytics:** Track basic metrics (click count, timestamps)
 
 **Out of Scope for MVP:**
+
 - User authentication and authorization
 - Advanced analytics (geographic data, device types)
 - URL editing after creation
@@ -44,7 +48,7 @@
 ### Non-Functional Requirements
 
 1. **Availability:** 99.99% uptime (critical for redirection service)
-2. **Performance:** 
+2. **Performance:**
    - URL redirection: < 100ms latency (P99)
    - URL shortening: < 500ms latency (P99)
 3. **Scalability:** Support 100M new URLs per month, 10B redirects per month
@@ -57,6 +61,7 @@
 ### Clarifying Questions and Assumptions
 
 **Questions:**
+
 1. What is the expected ratio of reads (redirects) to writes (URL creation)?
 2. How long should short URLs be retained?
 3. Should we support custom domains (e.g., brand.short/abc)?
@@ -64,6 +69,7 @@
 5. Do we need real-time analytics or is eventual consistency acceptable?
 
 **Assumptions:**
+
 1. **Read-to-Write Ratio:** 100:1 (heavy read workload)
 2. **Retention:** URLs never expire by default unless user specifies
 3. **Short URL Length:** 6-7 characters
@@ -78,7 +84,7 @@
 
 ### Traffic Estimates
 
-```
+```text
 Daily Active Users (DAU): 100M
 Assumption: 1% of users create new short URLs daily
 URL Creation Rate: 100M * 1% = 1M URLs/day
@@ -94,13 +100,13 @@ Read QPS: 100,000,000 / 86,400 ≈ 1,160 reads/second
 Peak Traffic (3x average):
 - Write QPS: 36 writes/second
 - Read QPS: 3,480 reads/second
-```
+```text
 
 ---
 
 ### Storage Estimates
 
-```
+```text
 URL Storage per Entry:
 - Short URL hash: 7 bytes
 - Original URL: 500 bytes (average)
@@ -116,13 +122,13 @@ Annual Storage: 18 GB * 12 = 216 GB/year
 5-Year Storage: 216 GB * 5 = 1.08 TB
 
 With 50% overhead (indexes, replication): ~1.6 TB for 5 years
-```
+```text
 
 ---
 
 ### Analytics Storage Estimates
 
-```
+```text
 Click Event Storage:
 - Short URL hash: 7 bytes
 - Timestamp: 8 bytes
@@ -137,13 +143,13 @@ Monthly Analytics Storage: 23 GB * 30 = 690 GB/month
 Annual Analytics Storage: 690 GB * 12 = 8.3 TB/year
 
 With data retention of 2 years: ~16.6 TB
-```
+```text
 
 ---
 
 ### Bandwidth Estimates
 
-```
+```text
 Write Operations:
 - Request size: ~600 bytes (URL + metadata)
 - Response size: ~200 bytes (short URL + metadata)
@@ -161,13 +167,13 @@ Peak Bandwidth:
 - Read: 1.4 MB/s (manageable)
 
 Total Daily Bandwidth: ~40 GB/day
-```
+```text
 
 ---
 
 ### URL Space Calculation
 
-```
+```text
 Character Set: [a-z, A-Z, 0-9] = 62 characters
 Short URL Length: 6 characters
 
@@ -179,13 +185,13 @@ Time to Exhaust 6-char Space: 56.8B / 1M = 56,800 days ≈ 155 years
 Time to Exhaust 7-char Space: 3.5T / 1M ≈ 9,589 years
 
 Conclusion: 7 characters provide ample space
-```
+```text
 
 ---
 
 ### Resource Estimates
 
-```
+```text
 Application Servers:
 - Each server handles: 1,000 requests/second
 - Read servers needed: 1,160 / 1,000 = 2 servers (4 with redundancy)
@@ -203,7 +209,7 @@ Cache Hit Ratio:
 - Memory per URL in cache: ~600 bytes
 - Total cache memory: 360M * 600 bytes = 216 GB
 - Distributed across cache cluster: 216 GB / 10 nodes = ~22 GB per node
-```
+```text
 
 ---
 
@@ -284,7 +290,7 @@ graph TB
     PrimaryDB -.->|17. Replicate| ReadReplica1
     PrimaryDB -.->|18. Replicate| ReadReplica2
     PrimaryDB -.->|19. Backup| BackupStorage
-```
+```text
 
 ---
 
@@ -330,7 +336,7 @@ graph TB
 ### URL Mappings Table (Primary Data Store)
 
 **Table: `url_mappings`**
-```
+```text
 Columns:
 - short_url_hash (PK, VARCHAR(7), UNIQUE, INDEXED)
   Primary key, the unique short identifier
@@ -362,9 +368,10 @@ Indexes:
 - INDEX idx_expires_at (expires_at) WHERE expires_at IS NOT NULL
 - INDEX idx_created_at (created_at)
 - INDEX idx_active (is_active)
-```
+```text
 
 **Partitioning Strategy:**
+
 - Partition by creation date (monthly partitions)
 - Allows efficient data archival and query optimization
 
@@ -373,7 +380,7 @@ Indexes:
 ### Users Table (Optional - for authenticated users)
 
 **Table: `users`**
-```
+```text
 Columns:
 - user_id (PK, BIGINT, AUTO_INCREMENT)
   Unique user identifier
@@ -397,14 +404,14 @@ Indexes:
 - PRIMARY KEY (user_id)
 - UNIQUE INDEX idx_email (email)
 - UNIQUE INDEX idx_api_key (api_key_hash)
-```
+```text
 
 ---
 
 ### Analytics Events Table (Time-Series Data)
 
 **Table: `click_events`** (Cassandra/ClickHouse)
-```
+```text
 Columns:
 - event_id (UUID, PK)
   Unique event identifier
@@ -433,25 +440,28 @@ Columns:
 Partitioning:
 - Partition by clicked_at (daily partitions)
 - Clustering by short_url_hash for efficient querying
-```
+```text
 
 ---
 
 ### Database Technology Choices
 
 **Primary Database: PostgreSQL**
+
 - ACID compliance ensures data integrity
 - Excellent support for indexes and queries
 - Proven scalability with read replicas
 - Strong consistency for URL creation
 
 **Analytics Database: Cassandra or ClickHouse**
+
 - Optimized for time-series data
 - High write throughput for click events
 - Efficient aggregation queries
 - Horizontal scalability
 
 **Replication Strategy:**
+
 - Master-Slave replication (1 primary, 2+ read replicas)
 - Writes go to primary
 - Reads distributed across replicas
@@ -466,15 +476,18 @@ Partitioning:
 **Base URL:** `https://api.tiny.url/v1`
 
 **Authentication:**
+
 - Anonymous access allowed for basic shortening
 - API Key authentication for advanced features: `Authorization: Bearer {api_key}`
 - Rate limiting based on IP address (anonymous) or API key (authenticated)
 
 **Versioning:**
+
 - URL path versioning: `/v1/`, `/v2/`
 - Maintains backward compatibility
 
 **Response Format:**
+
 - Content-Type: `application/json`
 - Character encoding: UTF-8
 
@@ -485,17 +498,17 @@ Partitioning:
 #### 1. Create Short URL
 
 **Endpoint:**
-```
+```http
 POST /v1/shorten
-```
+```text
 
 **Description:** Creates a new short URL from a long URL
 
 **Request Headers:**
-```
+```text
 Content-Type: application/json
 Authorization: Bearer {api_key} (optional)
-```
+```text
 
 **Request Body:**
 ```json
@@ -504,9 +517,10 @@ Authorization: Bearer {api_key} (optional)
   "custom_alias": "mylink",
   "expires_at": "2025-12-31T23:59:59Z"
 }
-```
+```text
 
 **Request Parameters:**
+
 - `long_url` (string, required): The original URL to shorten (max 2048 chars)
 - `custom_alias` (string, optional): Custom short URL identifier (3-15 alphanumeric chars)
 - `expires_at` (ISO 8601 timestamp, optional): Expiration date/time
@@ -523,7 +537,7 @@ Authorization: Bearer {api_key} (optional)
     "expires_at": "2025-12-31T23:59:59Z"
   }
 }
-```
+```text
 
 **Error Responses:**
 
@@ -536,7 +550,7 @@ Authorization: Bearer {api_key} (optional)
     "message": "The provided URL is not valid"
   }
 }
-```
+```text
 
 *409 Conflict - Custom alias taken:*
 ```json
@@ -547,7 +561,7 @@ Authorization: Bearer {api_key} (optional)
     "message": "The custom alias 'mylink' is already in use"
   }
 }
-```
+```text
 
 *429 Too Many Requests:*
 ```json
@@ -559,9 +573,10 @@ Authorization: Bearer {api_key} (optional)
   },
   "retry_after": 60
 }
-```
+```text
 
 **Rate Limiting:**
+
 - Anonymous users: 10 requests per hour per IP
 - Authenticated users: 1000 requests per hour per API key
 
@@ -570,24 +585,24 @@ Authorization: Bearer {api_key} (optional)
 #### 2. Redirect Short URL
 
 **Endpoint:**
-```
+```http
 GET /{short_code}
-```
+```text
 
 **Description:** Redirects to the original long URL
 
 **Request Example:**
-```
+```http
 GET /aB3xY9
 Host: tiny.url
-```
+```text
 
 **Success Response (302 Found):**
-```
+```text
 HTTP/1.1 302 Found
 Location: https://www.example.com/very/long/url/path?param1=value1&param2=value2
 Cache-Control: public, max-age=3600
-```
+```text
 
 **Error Responses:**
 
@@ -600,7 +615,7 @@ Cache-Control: public, max-age=3600
     "message": "The short URL does not exist or has expired"
   }
 }
-```
+```text
 
 *410 Gone - URL expired:*
 ```json
@@ -611,9 +626,10 @@ Cache-Control: public, max-age=3600
     "message": "This short URL has expired"
   }
 }
-```
+```text
 
 **Caching:**
+
 - CDN caching: 1 hour for popular URLs
 - Redis caching: Indefinite until evicted
 - Client caching: As per Cache-Control header
@@ -623,27 +639,28 @@ Cache-Control: public, max-age=3600
 #### 3. Get URL Analytics
 
 **Endpoint:**
-```
+```http
 GET /v1/analytics/{short_code}
-```
+```text
 
 **Description:** Retrieves analytics data for a short URL
 
 **Request Headers:**
-```
+```text
 Authorization: Bearer {api_key} (required)
-```
+```text
 
 **Query Parameters:**
+
 - `start_date` (ISO 8601 date, optional): Start of date range (default: 30 days ago)
 - `end_date` (ISO 8601 date, optional): End of date range (default: today)
 - `granularity` (string, optional): `hour`, `day`, `week`, `month` (default: `day`)
 
 **Request Example:**
-```
+```http
 GET /v1/analytics/aB3xY9?start_date=2025-09-01&end_date=2025-10-01&granularity=day
 Authorization: Bearer abc123xyz
-```
+```text
 
 **Success Response (200 OK):**
 ```json
@@ -689,7 +706,7 @@ Authorization: Bearer abc123xyz
     ]
   }
 }
-```
+```text
 
 **Error Responses:**
 
@@ -702,7 +719,7 @@ Authorization: Bearer abc123xyz
     "message": "You are not authorized to view analytics for this URL"
   }
 }
-```
+```text
 
 *404 Not Found:*
 ```json
@@ -713,25 +730,26 @@ Authorization: Bearer abc123xyz
     "message": "The short URL does not exist"
   }
 }
-```
+```text
 
 ---
 
 #### 4. Get User URLs
 
 **Endpoint:**
-```
+```http
 GET /v1/urls
-```
+```text
 
 **Description:** Lists all URLs created by the authenticated user
 
 **Request Headers:**
-```
+```text
 Authorization: Bearer {api_key} (required)
-```
+```text
 
 **Query Parameters:**
+
 - `page` (integer, optional): Page number (default: 1)
 - `limit` (integer, optional): Results per page, max 100 (default: 20)
 - `sort` (string, optional): `created_at`, `clicks`, `expires_at` (default: `created_at`)
@@ -739,10 +757,10 @@ Authorization: Bearer {api_key} (required)
 - `status` (string, optional): `active`, `expired`, `all` (default: `active`)
 
 **Request Example:**
-```
+```http
 GET /v1/urls?page=1&limit=20&sort=clicks&order=desc&status=active
 Authorization: Bearer abc123xyz
-```
+```text
 
 **Success Response (200 OK):**
 ```json
@@ -779,9 +797,10 @@ Authorization: Bearer abc123xyz
     }
   }
 }
-```
+```text
 
 **Pagination Strategy:**
+
 - Offset-based pagination for simplicity
 - Future enhancement: Cursor-based pagination for better performance
 
@@ -790,22 +809,22 @@ Authorization: Bearer abc123xyz
 #### 5. Delete Short URL
 
 **Endpoint:**
-```
+```http
 DELETE /v1/urls/{short_code}
-```
+```text
 
 **Description:** Soft deletes a short URL (makes it inactive)
 
 **Request Headers:**
-```
+```text
 Authorization: Bearer {api_key} (required)
-```
+```text
 
 **Request Example:**
-```
+```http
 DELETE /v1/urls/aB3xY9
 Authorization: Bearer abc123xyz
-```
+```text
 
 **Success Response (200 OK):**
 ```json
@@ -816,7 +835,7 @@ Authorization: Bearer abc123xyz
     "short_code": "aB3xY9"
   }
 }
-```
+```text
 
 **Error Responses:**
 
@@ -829,7 +848,7 @@ Authorization: Bearer abc123xyz
     "message": "You are not authorized to delete this URL"
   }
 }
-```
+```text
 
 *404 Not Found:*
 ```json
@@ -840,16 +859,16 @@ Authorization: Bearer abc123xyz
     "message": "The short URL does not exist"
   }
 }
-```
+```text
 
 ---
 
 #### 6. Health Check
 
 **Endpoint:**
-```
+```http
 GET /v1/health
-```
+```text
 
 **Description:** Health check endpoint for monitoring
 
@@ -864,7 +883,7 @@ GET /v1/health
     "queue": "up"
   }
 }
-```
+```text
 
 **Degraded Response (503 Service Unavailable):**
 ```json
@@ -877,7 +896,7 @@ GET /v1/health
     "queue": "up"
   }
 }
-```
+```text
 
 ---
 
@@ -888,16 +907,17 @@ GET /v1/health
 **Strategy:** Token bucket algorithm implemented in Redis
 
 **Limits by User Type:**
+
 - Anonymous (by IP): 10 URL shortening requests/hour, unlimited redirects
 - Authenticated Free Tier: 1,000 URL shortening requests/hour
 - Authenticated Pro Tier: 100,000 URL shortening requests/hour
 
 **Rate Limit Headers:**
-```
+```text
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 856
 X-RateLimit-Reset: 1696161600
-```
+```text
 
 ---
 
@@ -914,9 +934,10 @@ X-RateLimit-Reset: 1696161600
   },
   "request_id": "req_abc123xyz"
 }
-```
+```text
 
 **Common Error Codes:**
+
 - `INVALID_URL`: Malformed or invalid URL
 - `ALIAS_TAKEN`: Custom alias already exists
 - `URL_NOT_FOUND`: Short URL doesn't exist
@@ -930,37 +951,40 @@ X-RateLimit-Reset: 1696161600
 #### Security Headers
 
 **All API Responses Include:**
-```
+```text
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 X-XSS-Protection: 1; mode=block
 Content-Security-Policy: default-src 'self'
-```
+```text
 
 ---
 
 #### Idempotency
 
 **Idempotent Operations:**
+
 - GET requests are naturally idempotent
 - DELETE requests are idempotent (deleting already deleted URL returns success)
 
 **Non-Idempotent Operations:**
+
 - POST /v1/shorten creates new URL each time (by design)
 - Optional: Use `Idempotency-Key` header for duplicate prevention
 
 **Idempotency Key Example:**
-```
+```http
 POST /v1/shorten
 Idempotency-Key: unique-client-generated-key-123
-```
+```text
 
 ---
 
 #### Content Negotiation
 
 **Supported Response Formats:**
+
 - JSON (default): `Accept: application/json`
 - For redirect endpoint: Returns HTTP 302 by default
 
@@ -969,37 +993,41 @@ Idempotency-Key: unique-client-generated-key-123
 #### CORS Policy
 
 **Configuration:**
-```
+```http
 Access-Control-Allow-Origin: * (for GET redirects)
 Access-Control-Allow-Origin: https://app.tiny.url (for API endpoints)
 Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
 Access-Control-Allow-Headers: Authorization, Content-Type
 Access-Control-Max-Age: 86400
-```
+```text
 
 ---
 
 ### API Trade-Offs
 
 **Decision: REST vs GraphQL**
+
 - **Choice:** REST API
 - **Pros:** Simpler, better HTTP caching, widely understood, perfect for CRUD operations
 - **Cons:** Multiple endpoints, potential over-fetching
 - **Justification:** URL shortener has simple, well-defined resources; REST is ideal for this use case
 
 **Decision: Synchronous Redirection**
+
 - **Choice:** Synchronous redirect with async analytics
 - **Pros:** Lowest latency for user, immediate redirect
 - **Cons:** Analytics processing can't block redirect
 - **Justification:** User experience is paramount; analytics can be eventually consistent
 
 **Decision: Offset-based Pagination**
+
 - **Choice:** Offset-based for v1, cursor-based for future
 - **Pros:** Simple to implement, easy to understand
 - **Cons:** Performance degrades with large offsets
 - **Justification:** Sufficient for MVP; can upgrade to cursor-based for scale
 
 **Decision: API Versioning in URL Path**
+
 - **Choice:** `/v1/`, `/v2/` in URL path
 - **Pros:** Explicit, easy to route, clear for clients
 - **Cons:** Multiple versions to maintain
@@ -1020,7 +1048,7 @@ Access-Control-Max-Age: 86400
 The ID Generation Service uses a distributed approach similar to Twitter's Snowflake to generate unique 64-bit IDs, which are then encoded in Base62.
 
 **ID Structure (64 bits):**
-```
+```text
 [1 bit unused][41 bits timestamp][10 bits machine ID][12 bits sequence]
 
 - Timestamp (41 bits): Milliseconds since custom epoch (2025-01-01)
@@ -1029,7 +1057,7 @@ The ID Generation Service uses a distributed approach similar to Twitter's Snowf
 - Machine ID (10 bits): Unique server ID (supports 1024 machines)
   
 - Sequence (12 bits): Per-machine sequence number (4096 IDs per ms per machine)
-```
+```text
 
 **ID Generation Process:**
 
@@ -1107,7 +1135,7 @@ class IDGenerator:
         while timestamp <= last_timestamp:
             timestamp = self._current_millis()
         return timestamp
-```
+```text
 
 **Alternative Approach: MD5 Hash with Collision Detection**
 
@@ -1160,7 +1188,7 @@ class HashIDGenerator:
         # Query database to check if short_code exists
         query = "SELECT 1 FROM url_mappings WHERE short_url_hash = %s"
         return self.db.execute(query, (short_code,)).fetchone() is not None
-```
+```text
 
 **Comparison:**
 
@@ -1173,6 +1201,7 @@ class HashIDGenerator:
 | **Chosen Approach** | ✅ Recommended | Alternative |
 
 **Technology Choice: Snowflake-based approach**
+
 - No collisions by design
 - No database dependency for generation
 - Horizontally scalable (up to 1024 machines)
@@ -1187,24 +1216,26 @@ class HashIDGenerator:
 **Architecture: Multi-Tier Caching**
 
 **Tier 1: CDN (CloudFlare/Akamai)**
+
 - Caches HTTP 302 redirects for extremely popular URLs
 - Geographic distribution reduces latency
 - Cache-Control: public, max-age=3600 (1 hour)
 
 **Tier 2: Application-Level Cache (Redis Cluster)**
+
 - In-memory key-value store
 - Stores URL mappings: `short_code -> long_url`
 - Cluster mode for high availability and scalability
 
 **Redis Architecture:**
 
-```
+```text
 Redis Cluster Configuration:
 - 6 nodes (3 masters, 3 replicas)
 - Hash slot partitioning (16,384 slots)
 - Automatic failover
 - Memory: 64GB per node = 384GB total cluster capacity
-```
+```text
 
 **Caching Strategy: Cache-Aside (Lazy Loading)**
 
@@ -1282,7 +1313,7 @@ class CacheManager:
         """
         result = self.db.execute(query, (short_code,)).fetchone()
         return result[0] if result else None
-```
+```text
 
 **Cache Invalidation Strategy:**
 
@@ -1329,9 +1360,10 @@ class CacheWarmer:
         pipeline.execute()
         
         return len(popular_urls)
-```
+```text
 
 **Monitoring:**
+
 - Track cache hit ratio (target: >90%)
 - Monitor cache memory usage
 - Alert on unusual miss rates
@@ -1351,7 +1383,7 @@ graph LR
     C -->|3. Enrich| D[GeoIP Service]
     C -->|4. Batch Write| E[(Analytics DB<br/>ClickHouse)]
     E -->|5. Query| F[Analytics API]
-```
+```text
 
 **Components:**
 
@@ -1397,7 +1429,7 @@ class AnalyticsProducer:
         Hashes IP address for privacy compliance (GDPR)
         """
         return hashlib.sha256(ip_address.encode()).hexdigest()
-```
+```text
 
 **2. Event Consumer (Analytics Worker):**
 
@@ -1471,11 +1503,12 @@ class AnalyticsConsumer:
             VALUES
         """
         self.clickhouse.execute_batch(query, batch)
-```
+```text
 
 **3. Analytics Database (ClickHouse):**
 
 **Why ClickHouse?**
+
 - Columnar storage optimized for analytics
 - Excellent compression (10x-100x)
 - Fast aggregation queries
@@ -1495,7 +1528,7 @@ CREATE TABLE click_events (
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(clicked_at)
 ORDER BY (short_code, clicked_at)
-```
+```text
 
 **Aggregation Queries:**
 ```sql
@@ -1529,9 +1562,10 @@ WHERE short_code = 'aB3xY9'
   AND clicked_at >= now() - INTERVAL 30 DAY
 GROUP BY country_code
 ORDER BY clicks DESC
-```
+```text
 
 **Performance Characteristics:**
+
 - Insert throughput: 100K events/second per node
 - Query latency: Sub-second for aggregations on billions of rows
 - Storage efficiency: 10x compression ratio
@@ -1546,12 +1580,14 @@ ORDER BY clicks DESC
 **Alternative:** Hash-based with collision detection
 
 **Pros:**
+
 - Guaranteed uniqueness without database checks
 - Extremely fast (no I/O)
 - Horizontally scalable
 - High throughput (millions/second)
 
 **Cons:**
+
 - IDs are sequential (predictable)
 - Requires coordination of machine IDs
 - Clock synchronization important
@@ -1565,16 +1601,19 @@ ORDER BY clicks DESC
 #### Decision 2: Database Technology
 
 **Decision:** PostgreSQL for URL mappings, ClickHouse for analytics
-**Alternatives:** 
+**Alternatives:**
+
 - All-in-one: Use only PostgreSQL
 - NoSQL: Use Cassandra for both
 
 **Pros:**
+
 - PostgreSQL: ACID guarantees, proven reliability, strong consistency
 - ClickHouse: Optimized for analytics, excellent compression, fast aggregations
 - Separation of concerns: Different workloads optimized separately
 
 **Cons:**
+
 - Operational complexity (two database systems)
 - Need to manage two different technologies
 - Additional infrastructure cost
@@ -1589,11 +1628,13 @@ ORDER BY clicks DESC
 **Alternative:** Write-through caching with TTL
 
 **Pros:**
+
 - Only cache what's actually accessed (efficient memory usage)
 - Simple to implement and reason about
 - Cache always has latest data after write
 
 **Cons:**
+
 - Cache miss on first access
 - Extra database query on miss
 
@@ -1607,12 +1648,14 @@ ORDER BY clicks DESC
 **Alternative:** Synchronous logging to database
 
 **Pros:**
+
 - Zero impact on redirect latency
 - Decouples analytics from core service
 - Can handle traffic spikes (queue buffers)
 - Easy to scale analytics processing independently
 
 **Cons:**
+
 - Analytics data is eventually consistent
 - Additional infrastructure (Kafka)
 - More complex architecture
@@ -1627,12 +1670,14 @@ ORDER BY clicks DESC
 **Alternative:** GraphQL
 
 **Pros:**
+
 - Simple, well-understood pattern
 - Excellent HTTP caching support
 - Easy to implement and test
 - Matches CRUD nature of URL resources
 
 **Cons:**
+
 - Multiple endpoints to maintain
 - Potential for over-fetching data
 - Less flexible than GraphQL
@@ -1647,14 +1692,15 @@ ORDER BY clicks DESC
 
 #### Bottleneck 1: Database Write Contention
 
-**Problem:** 
+**Problem:**
 As URL creation rate increases (e.g., viral traffic), primary database can become a write bottleneck. PostgreSQL's single-master architecture limits write throughput.
 
 **Solution:**
+
 1. **Database Sharding:** Partition data across multiple database shards
    - Shard key: First 2 characters of short_code
    - Distributes writes across multiple masters
-   
+
 2. **Write Optimization:**
    - Batch insert operations where possible
    - Use connection pooling (e.g., PgBouncer)
@@ -1666,6 +1712,7 @@ As URL creation rate increases (e.g., viral traffic), primary database can becom
    - Trade-off: Eventual consistency
 
 **Monitoring:**
+
 - Track database write latency (P95, P99)
 - Monitor connection pool utilization
 - Alert when write QPS approaches 80% of capacity
@@ -1678,6 +1725,7 @@ As URL creation rate increases (e.g., viral traffic), primary database can becom
 As URL database grows to billions of entries, caching all URLs becomes impossible. Cache memory fills up, evicting potentially popular URLs.
 
 **Solution:**
+
 1. **Intelligent Eviction:** Use LRU (Least Recently Used) with popularity scoring
    - Track access frequency
    - Evict URLs with low access frequency first
@@ -1691,11 +1739,12 @@ As URL database grows to billions of entries, caching all URLs becomes impossibl
    - L2: Redis cluster (popular 20%)
    - L3: Database (remaining 79%)
 
-4. **Bloom Filters:** 
+4. **Bloom Filters:**
    - Quickly check if URL exists before cache/DB query
    - Reduces unnecessary lookups
 
 **Monitoring:**
+
 - Track cache hit ratio (target >90%)
 - Monitor memory utilization per Redis node
 - Alert on sudden drops in hit ratio
@@ -1708,6 +1757,7 @@ As URL database grows to billions of entries, caching all URLs becomes impossibl
 During peak traffic (e.g., 100K redirects/second), analytics database can't keep up with write throughput, causing message queue backlog.
 
 **Solution:**
+
 1. **Batch Writes:** Aggregate events in larger batches (1000-5000 events)
    - Reduces write operations
    - Improves ClickHouse efficiency
@@ -1725,6 +1775,7 @@ During peak traffic (e.g., 100K redirects/second), analytics database can't keep
    - Prevents data loss during processing delays
 
 **Monitoring:**
+
 - Track Kafka consumer lag
 - Monitor ClickHouse insert throughput
 - Alert on queue backlog growth
@@ -1737,6 +1788,7 @@ During peak traffic (e.g., 100K redirects/second), analytics database can't keep
 If ID Generation Service becomes unavailable, new URL creation stops completely. Single point of failure.
 
 **Solution:**
+
 1. **Service Redundancy:** Deploy multiple ID generation service instances
    - Each instance has unique machine ID
    - Load balanced across instances
@@ -1751,6 +1803,7 @@ If ID Generation Service becomes unavailable, new URL creation stops completely.
    - Accept small collision risk during outage
 
 **Monitoring:**
+
 - Health checks on all ID generation instances
 - Monitor ID pool levels in Redis
 - Alert on service degradation
@@ -1763,6 +1816,7 @@ If ID Generation Service becomes unavailable, new URL creation stops completely.
 Users far from primary data center experience high latency for both URL creation and redirection (200-500ms cross-continent latency).
 
 **Solution:**
+
 1. **Geographic Distribution:**
    - Deploy in multiple regions (US East, US West, Europe, Asia)
    - Route traffic to nearest region via GeoDNS
@@ -1781,6 +1835,7 @@ Users far from primary data center experience high latency for both URL creation
    - Prevent duplicate short codes across regions
 
 **Monitoring:**
+
 - Track latency by geographic region
 - Monitor cross-region replication lag
 - Alert on regional service degradation
@@ -1793,7 +1848,7 @@ Users far from primary data center experience high latency for both URL creation
 
 **Implementation Strategy:**
 
-```
+```text
 Region Deployment:
 - US-East (Primary): Virginia
 - US-West: Oregon  
@@ -1809,9 +1864,10 @@ Traffic Routing:
 - GeoDNS routes to nearest region
 - Fallback to next-nearest on failure
 - Health checks every 30 seconds
-```
+```text
 
 **Benefits:**
+
 - Latency reduced to <100ms globally
 - Improved availability (regional failures isolated)
 - Better compliance (data sovereignty)
@@ -1830,14 +1886,16 @@ WHERE is_active = TRUE;
 -- Partition table by creation date
 CREATE TABLE url_mappings_2025_10 PARTITION OF url_mappings
 FOR VALUES FROM ('2025-10-01') TO ('2025-11-01');
-```
+```text
 
 **Connection Pooling:**
+
 - Use PgBouncer for database connection pooling
 - Pool size: 100 connections per application server
 - Reduces connection overhead
 
 **Code-Level Optimization:**
+
 - Use async/await for non-blocking I/O
 - Implement circuit breakers for external services
 - Batch database queries where possible
@@ -1882,9 +1940,10 @@ class WebSocketHandler:
                     })
         except WebSocketDisconnect:
             pubsub.unsubscribe()
-```
+```text
 
 **Benefits:**
+
 - Live dashboard updates without polling
 - Reduced server load (no repeated GET requests)
 - Better user experience
@@ -1896,7 +1955,7 @@ class WebSocketHandler:
 #### Metrics to Track
 
 **System Metrics:**
-```
+```text
 Latency Metrics:
 - URL creation latency (P50, P95, P99)
 - Redirect latency (P50, P95, P99)
@@ -1914,49 +1973,50 @@ Error Metrics:
 - HTTP 4xx error rate
 - Database connection errors
 - Cache connection errors
-```
+```text
 
 **Business Metrics:**
-```
+```text
 - Total URLs created (daily, monthly)
 - Total redirects (daily, monthly)
 - Active URLs
 - Expired URLs
 - Top domains using service
 - Average clicks per URL
-```
+```text
 
 **Infrastructure Metrics:**
-```
+```text
 - CPU utilization (by service)
 - Memory utilization (by service)
 - Disk I/O
 - Network bandwidth
 - Database connection pool usage
-```
+```text
 
 ---
 
 #### Alerting Strategy
 
 **Critical Alerts (Page immediately):**
-```
+```text
 - Service availability < 99.9%
 - Redirect latency P99 > 500ms
 - Error rate > 1%
 - Database primary unavailable
 - Cache cluster unavailable
-```
+```text
 
 **Warning Alerts (Notify, don't page):**
-```
+```text
 - Cache hit ratio < 85%
 - Database connection pool > 80% utilized
 - Kafka consumer lag > 10 minutes
 - Disk space > 80%
-```
+```text
 
 **Monitoring Tools:**
+
 - Metrics: Prometheus + Grafana
 - Logging: ELK Stack (Elasticsearch, Logstash, Kibana)
 - Tracing: Jaeger for distributed tracing
@@ -2022,13 +2082,14 @@ class URLValidator:
             'onclick='
         ]
         return any(pattern in url.lower() for pattern in suspicious)
-```
+```text
 
 ---
 
 #### 2. Rate Limiting
 
 **DDoS Protection:**
+
 - Implement rate limiting at multiple layers:
   - CDN level: 1000 requests/second per IP
   - API Gateway: User-specific limits
@@ -2065,19 +2126,21 @@ class RateLimiter:
             self.redis.expire(key, window)
         
         return current <= limit
-```
+```text
 
 ---
 
 #### 3. Authentication & Authorization
 
 **API Key Management:**
+
 - Generate secure API keys (256-bit random)
 - Hash keys before storage (bcrypt)
 - Implement key rotation
 - Track key usage for abuse detection
 
 **OAuth Integration (Future):**
+
 - Support OAuth 2.0 for third-party apps
 - Scoped permissions (read-only, write, admin)
 
@@ -2086,11 +2149,13 @@ class RateLimiter:
 #### 4. Data Encryption
 
 **Encryption at Rest:**
+
 - Database: Enable transparent data encryption (TDE)
 - Backups: Encrypt with AES-256
 - Key management: AWS KMS or HashiCorp Vault
 
 **Encryption in Transit:**
+
 - TLS 1.3 for all API endpoints
 - Certificate pinning for mobile apps
 - HTTPS mandatory (no HTTP access)
@@ -2141,9 +2206,10 @@ class SpamDetector:
             return True
         
         return False
-```
+```text
 
 **Malicious URL Detection:**
+
 - Integration with Google Safe Browsing API
 - Check URLs against known malware/phishing databases
 - Flag suspicious URLs for manual review
@@ -2155,11 +2221,13 @@ class SpamDetector:
 #### 1. Advanced Analytics
 
 **Machine Learning Features:**
+
 - Predict URL popularity based on domain, time, referrer
 - Anomaly detection for unusual traffic patterns
 - Fraud detection for click fraud
 
 **Enhanced Metrics:**
+
 - Device type breakdown (mobile, tablet, desktop)
 - Browser statistics
 - Time-of-day analysis
@@ -2170,9 +2238,11 @@ class SpamDetector:
 #### 2. Custom Domains
 
 **Feature:** Allow users to use their own domains
+
 - Example: `short.mybrand.com/abc123`
 
 **Implementation:**
+
 - DNS CNAME verification
 - SSL certificate management (Let's Encrypt)
 - Domain-specific analytics
@@ -2211,9 +2281,10 @@ class QRCodeGenerator:
         
         img = qr.make_image(fill_color="black", back_color="white")
         return self._to_bytes(img)
-```
+```text
 
 **Storage:**
+
 - Generate on-demand (don't store)
 - Cache generated QR codes in CDN
 - Support different sizes and formats
@@ -2225,11 +2296,13 @@ class QRCodeGenerator:
 **Feature:** Redirect to different URLs based on user attributes
 
 **Use Cases:**
+
 - A/B testing (50% to URL A, 50% to URL B)
 - Geographic targeting (US users → US site, EU users → EU site)
 - Device targeting (Mobile users → app store, Desktop → website)
 
 **Implementation:**
+
 - Store multiple target URLs per short code
 - Decision logic based on request metadata
 - Track conversion rates per variant
@@ -2241,6 +2314,7 @@ class QRCodeGenerator:
 **Feature:** Generate link previews with Open Graph data
 
 **Implementation:**
+
 - Scrape OG tags from target URL
 - Cache preview data
 - Provide API endpoint for preview info
@@ -2256,7 +2330,7 @@ class QRCodeGenerator:
     "domain": "example.com"
   }
 }
-```
+```text
 
 ---
 
@@ -2265,9 +2339,9 @@ class QRCodeGenerator:
 **Feature:** Create or manage multiple URLs at once
 
 **API Endpoint:**
-```
+```http
 POST /v1/bulk/shorten
-```
+```text
 
 **Request:**
 ```json
@@ -2278,7 +2352,7 @@ POST /v1/bulk/shorten
     {"long_url": "https://example.com/page3"}
   ]
 }
-```
+```text
 
 **Response:**
 ```json
@@ -2293,9 +2367,10 @@ POST /v1/bulk/shorten
     ]
   }
 }
-```
+```text
 
 **Use Cases:**
+
 - Marketing campaigns with many links
 - Content migration
 - Batch import from spreadsheets
@@ -2318,6 +2393,7 @@ The system can serve as a foundation for a production-grade URL shortening servi
 ---
 
 **Document Metadata:**
+
 - **Version:** 1.0
 - **Created:** October 1, 2025
 - **Last Updated:** October 1, 2025
@@ -2325,4 +2401,3 @@ The system can serve as a foundation for a production-grade URL shortening servi
 - **Status:** Complete
 
 ---
-

@@ -1,4 +1,5 @@
 # GOOGLE PHOTOS SYSTEM DESIGN
+
 ## Cloud-Based Photo Storage and Management Platform
 
 ---
@@ -8,6 +9,7 @@
 ### User Stories
 
 **As a user, I want to:**
+
 - Upload photos and videos from multiple devices so that I can access them anywhere
 - Automatically backup my photos so that I never lose precious memories
 - Search photos by content, location, or date so that I can quickly find specific images
@@ -18,6 +20,7 @@
 ### Functional Requirements (MVP)
 
 **Core Features:**
+
 1. **Upload & Storage**
    - Upload photos and videos (max 100MB per photo, 10GB per video)
    - Support multiple formats (JPEG, PNG, RAW, MP4, MOV)
@@ -55,31 +58,37 @@
 ### Non-Functional Requirements
 
 **Performance:**
+
 - Upload latency: < 5 seconds for photos, < 30 seconds for videos
 - Image load time: < 200ms for thumbnails, < 1s for full resolution
 - Search results: < 500ms
 
 **Availability:**
+
 - 99.9% uptime (about 8.76 hours downtime per year)
 - Multi-region deployment for disaster recovery
 
 **Scalability:**
+
 - Support 500M active users
 - Handle 100M photo uploads per day
 - Support 1B photo views per day
 
 **Security:**
+
 - End-to-end encryption for uploads
 - Access control for shared content
 - Secure authentication (OAuth 2.0)
 
 **Consistency:**
+
 - Eventual consistency acceptable for non-critical operations
 - Strong consistency for ownership and permissions
 
 ### Clarifying Questions & Assumptions
 
 **Assumptions:**
+
 1. **Scale:** 500M DAU, 20% upload daily (100M uploads/day)
 2. **Usage Pattern:** Read-heavy (1:100 write-to-read ratio)
 3. **Geographic Distribution:** Global users, concentrated in US, Europe, Asia
@@ -94,7 +103,7 @@
 
 ### Traffic Estimates
 
-```
+```text
 Daily Active Users (DAU): 500M
 Users uploading photos: 20% of DAU = 100M users
 Average uploads per user: 5 photos/day
@@ -114,11 +123,11 @@ Average views per user: 50 photos/day
 Total views per day: 20B views/day
 View QPS: 20B / 86,400 = ~231,000 views/second
 Peak view QPS (3x): ~693,000 views/second
-```
+```text
 
 ### Storage Estimates
 
-```
+```text
 Photo Storage:
 Average photo size: 3MB
 Daily photo storage: 500M photos × 3MB = 1.5 PB/day
@@ -149,11 +158,11 @@ Metadata: 0.365 PB
 Total: ~2,420 PB/year (~2.4 EB/year)
 
 5-Year Storage: ~12 EB
-```
+```text
 
 ### Bandwidth Estimates
 
-```
+```text
 Upload Bandwidth:
 Photos: 500M × 3MB / 86,400s = 17.4 GB/s
 Videos: 50M × 100MB / 86,400s = 57.9 GB/s
@@ -165,11 +174,11 @@ Full image views (10% of views): 2B × 3MB / 86,400s = 69.4 GB/s
 Peak download bandwidth (3x): ~35 TB/s
 
 Total Peak Bandwidth: ~35 TB/s
-```
+```text
 
 ### Resource Estimates
 
-```
+```text
 API Servers:
 Peak QPS: ~700K requests/second
 Assuming 1,000 QPS per server: 700 servers
@@ -200,7 +209,7 @@ Face Embeddings Storage:
 512-dimension vector per face: 2KB per face
 Daily face embeddings: 600M × 2KB = 1.2 TB/day
 Annual storage: 438 TB/year
-```
+```text
 
 ---
 
@@ -288,11 +297,12 @@ graph TB
     
     Hot -->|Lifecycle: 30 days| Warm
     Warm -->|Lifecycle: 1 year| Cold
-```
+```text
 
 ### Data Flow Explanation
 
 **Upload Flow (Steps 1-16):**
+
 1. User uploads photo via web/mobile client
 2. CDN routes request to nearest load balancer
 3. Load balancer distributes to API gateway
@@ -322,6 +332,7 @@ graph TB
 21. Sharing Service validates permissions in PostgreSQL
 
 **Face Search Flow:**
+
 - Query face embeddings in Vector DB using similarity search
 - Return photos containing matching faces
 
@@ -332,6 +343,7 @@ graph TB
 ### User Database (PostgreSQL - Relational)
 
 **Users Table:**
+
 ```sql
 - user_id (PK, UUID)
 - email (VARCHAR(255), UNIQUE, NOT NULL)
@@ -344,9 +356,10 @@ graph TB
 - subscription_tier (ENUM: 'free', 'premium')
 - INDEX: idx_email
 - INDEX: idx_username
-```
+```text
 
 **Albums Table:**
+
 ```sql
 - album_id (PK, UUID)
 - user_id (FK -> Users.user_id)
@@ -358,9 +371,10 @@ graph TB
 - updated_at (TIMESTAMP)
 - INDEX: idx_user_id
 - INDEX: idx_created_at
-```
+```text
 
 **Sharing Table:**
+
 ```sql
 - share_id (PK, UUID)
 - resource_type (ENUM: 'photo', 'album')
@@ -375,12 +389,13 @@ graph TB
 - INDEX: idx_resource_id
 - INDEX: idx_owner_id
 - INDEX: idx_share_link
-```
+```text
 
 ### Metadata Database (Cassandra - NoSQL)
 
 **Photos Metadata Table:**
-```
+
+```text
 Partition Key: user_id
 Clustering Key: upload_date (DESC), photo_id
 
@@ -409,10 +424,11 @@ Columns:
 - is_favorite (BOOLEAN)
 - is_deleted (BOOLEAN)
 - deleted_at (TIMESTAMP)
-```
+```text
 
 **Videos Metadata Table:**
-```
+
+```text
 Partition Key: user_id
 Clustering Key: upload_date (DESC), video_id
 
@@ -440,11 +456,12 @@ Columns:
 - is_favorite (BOOLEAN)
 - is_deleted (BOOLEAN)
 - deleted_at (TIMESTAMP)
-```
+```text
 
 ### Search Index (Elasticsearch)
 
 **Photos Index:**
+
 ```json
 {
   "photo_id": "uuid",
@@ -466,11 +483,12 @@ Columns:
   "is_favorite": "boolean",
   "album_ids": ["uuid"]
 }
-```
+```text
 
 ### Face and People Database (PostgreSQL)
 
 **People Table:**
+
 ```sql
 - person_id (PK, UUID)
 - user_id (FK -> Users.user_id)
@@ -483,9 +501,10 @@ Columns:
 - INDEX: idx_user_id
 - INDEX: idx_person_name
 - UNIQUE: (user_id, person_name) WHERE person_name IS NOT NULL
-```
+```text
 
 **Faces Table:**
+
 ```sql
 - face_id (PK, UUID)
 - photo_id (FK -> Photos.photo_id)
@@ -501,9 +520,10 @@ Columns:
 - INDEX: idx_user_id
 - INDEX: idx_person_id
 - INDEX: idx_detected_at
-```
+```text
 
 **Face_Clusters Table (for grouping):**
+
 ```sql
 - cluster_id (PK, UUID)
 - user_id (FK -> Users.user_id)
@@ -514,11 +534,12 @@ Columns:
 - merged_into_person_id (FK -> People.person_id, NULL)
 - INDEX: idx_user_id
 - INDEX: idx_created_at
-```
+```text
 
 ### Vector Database (Milvus/Pinecone)
 
 **Face Embeddings Collection:**
+
 ```python
 Collection Schema:
 - face_id (VARCHAR, PRIMARY KEY)
@@ -534,9 +555,10 @@ Index Configuration:
 - Metric type: COSINE or L2 (Euclidean)
 - Search parameters: nprobe=16, ef=200
 - Partitioning: By user_id for isolation and performance
-```
+```text
 
 **Vector Search Query Example:**
+
 ```python
 # Find similar faces
 search_params = {
@@ -551,12 +573,13 @@ results = collection.search(
     limit=100,
     expr=f"user_id == '{user_id}' and quality_score > 0.7"
 )
-```
+```text
 
 ### Cache Layer (Redis)
 
 **Cache Keys Structure:**
-```
+
+```text
 photo_metadata:{photo_id} -> JSON (TTL: 24h)
 user_photos:{user_id}:{page} -> List of photo_ids (TTL: 1h)
 album_photos:{album_id}:{page} -> List of photo_ids (TTL: 1h)
@@ -566,7 +589,7 @@ share_permissions:{share_link} -> Permissions JSON (TTL: 1h)
 person_photos:{person_id}:{page} -> List of photo_ids (TTL: 1h)
 user_people:{user_id} -> List of person_ids (TTL: 6h)
 face_clusters:{user_id} -> Cluster data (TTL: 12h)
-```
+```text
 
 ---
 
@@ -576,7 +599,8 @@ face_clusters:{user_id} -> Cluster data (TTL: 12h)
 
 **Base URL:** `https://api.googlephotos.example.com/v1`
 
-**Authentication:** 
+**Authentication:**
+
 - OAuth 2.0 with JWT tokens
 - All requests require: `Authorization: Bearer <access_token>`
 - Token expiry: 1 hour (access), 30 days (refresh)
@@ -584,6 +608,7 @@ face_clusters:{user_id} -> Cluster data (TTL: 12h)
 **Versioning:** URL path versioning (`/v1`, `/v2`)
 
 **Rate Limiting:**
+
 - Standard tier: 1,000 requests/hour per user
 - Premium tier: 10,000 requests/hour per user
 - Upload endpoints: 100 uploads/hour per user
@@ -594,20 +619,22 @@ face_clusters:{user_id} -> Cluster data (TTL: 12h)
 
 #### 1. Register User
 
-```
+```http
 POST /auth/register
-```
+```text
 
 **Request:**
+
 ```json
 {
   "email": "user@example.com",
   "password": "securePassword123",
   "username": "photouser"
 }
-```
+```text
 
 **Response (201):**
+
 ```json
 {
   "user_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -617,23 +644,25 @@ POST /auth/register
   "refresh_token": "dGhpc2lzYXJlZnJlc2h0b2tlbg...",
   "expires_in": 3600
 }
-```
+```text
 
 #### 2. Login
 
-```
+```http
 POST /auth/login
-```
+```text
 
 **Request:**
+
 ```json
 {
   "email": "user@example.com",
   "password": "securePassword123"
 }
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "user_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -641,34 +670,36 @@ POST /auth/login
   "refresh_token": "dGhpc2lzYXJlZnJlc2h0b2tlbg...",
   "expires_in": 3600
 }
-```
+```text
 
 #### 3. Refresh Token
 
-```
+```http
 POST /auth/refresh
-```
+```text
 
 **Request:**
+
 ```json
 {
   "refresh_token": "dGhpc2lzYXJlZnJlc2h0b2tlbg..."
 }
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIs...",
   "expires_in": 3600
 }
-```
+```text
 
 #### 4. Logout
 
-```
+```http
 POST /auth/logout
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -680,16 +711,18 @@ POST /auth/logout
 
 #### 5. Upload Photo
 
-```
+```http
 POST /photos/upload
-```
+```text
 
 **Headers:**
+
 - `Authorization: Bearer <access_token>`
 - `Content-Type: multipart/form-data`
 
 **Request (Form Data):**
-```
+
+```text
 photo: [binary file]
 file_name: "vacation.jpg"
 capture_date: "2025-09-15T14:30:00Z" (optional)
@@ -697,9 +730,10 @@ album_id: "uuid" (optional)
 tags: ["vacation", "beach"] (optional)
 latitude: 37.7749 (optional)
 longitude: -122.4194 (optional)
-```
+```text
 
 **Response (201):**
+
 ```json
 {
   "photo_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -716,26 +750,28 @@ longitude: -122.4194 (optional)
   },
   "original_url": "https://cdn.example.com/photos/photo_id.jpg"
 }
-```
+```text
 
 **Error Response (413):**
+
 ```json
 {
   "error": "file_too_large",
   "message": "File size exceeds maximum limit of 100MB",
   "max_size_bytes": 104857600
 }
-```
+```text
 
 #### 6. Get Photo Details
 
-```
+```http
 GET /photos/{photo_id}
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Response (200):**
+
 ```json
 {
   "photo_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -767,17 +803,18 @@ GET /photos/{photo_id}
   "tags": ["vacation", "beach"],
   "is_favorite": false
 }
-```
+```text
 
 #### 7. Get User Photos
 
-```
+```http
 GET /photos
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Query Parameters:**
+
 - `page` (integer, default: 1)
 - `page_size` (integer, default: 50, max: 100)
 - `sort_by` (enum: "upload_date", "capture_date", default: "upload_date")
@@ -786,6 +823,7 @@ GET /photos
 - `is_favorite` (boolean, optional) - filter favorites only
 
 **Response (200):**
+
 ```json
 {
   "photos": [
@@ -806,46 +844,50 @@ GET /photos
     "has_previous": false
   }
 }
-```
+```text
 
 #### 8. Update Photo
 
-```
+```http
 PATCH /photos/{photo_id}
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "file_name": "updated_vacation.jpg",
   "tags": ["vacation", "beach", "sunset"],
   "is_favorite": true
 }
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "photo_id": "123e4567-e89b-12d3-a456-426614174000",
   "message": "Photo updated successfully",
   "updated_fields": ["file_name", "tags", "is_favorite"]
 }
-```
+```text
 
 #### 9. Delete Photo
 
-```
+```http
 DELETE /photos/{photo_id}
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Query Parameters:**
+
 - `permanent` (boolean, default: false) - Soft delete vs permanent delete
 
 **Response (200):**
+
 ```json
 {
   "message": "Photo moved to trash",
@@ -853,25 +895,28 @@ DELETE /photos/{photo_id}
   "deleted_at": "2025-10-01T15:30:00Z",
   "permanent_deletion_date": "2025-10-31T15:30:00Z"
 }
-```
+```text
 
 #### 10. Batch Upload Photos
 
-```
+```http
 POST /photos/batch-upload
-```
+```text
 
 **Headers:**
+
 - `Authorization: Bearer <access_token>`
 - `Content-Type: multipart/form-data`
 
 **Request (Form Data):**
-```
+
+```text
 photos: [array of binary files, max 50 per request]
 album_id: "uuid" (optional)
-```
+```text
 
 **Response (202):**
+
 ```json
 {
   "batch_id": "batch-uuid",
@@ -880,17 +925,18 @@ album_id: "uuid" (optional)
   "processed": 0,
   "status_url": "/photos/batch-upload/batch-uuid/status"
 }
-```
+```text
 
 #### 11. Get Batch Upload Status
 
-```
+```http
 GET /photos/batch-upload/{batch_id}/status
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Response (200):**
+
 ```json
 {
   "batch_id": "batch-uuid",
@@ -913,7 +959,7 @@ GET /photos/batch-upload/{batch_id}/status
     }
   ]
 }
-```
+```text
 
 ---
 
@@ -921,13 +967,14 @@ GET /photos/batch-upload/{batch_id}/status
 
 #### 12. Search Photos
 
-```
+```http
 GET /search/photos
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Query Parameters:**
+
 - `query` (string, optional) - Text search query
 - `start_date` (ISO 8601, optional) - Filter by capture date
 - `end_date` (ISO 8601, optional) - Filter by capture date
@@ -939,6 +986,7 @@ GET /search/photos
 - `page_size` (integer, default: 50, max: 100)
 
 **Response (200):**
+
 ```json
 {
   "results": [
@@ -959,17 +1007,18 @@ GET /search/photos
     "total_pages": 3
   }
 }
-```
+```text
 
 #### 13. Search by Location
 
-```
+```http
 GET /search/location
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Query Parameters:**
+
 - `latitude` (double, required)
 - `longitude` (double, required)
 - `radius_km` (double, default: 10, max: 100)
@@ -977,6 +1026,7 @@ GET /search/location
 - `page_size` (integer, default: 50)
 
 **Response (200):**
+
 ```json
 {
   "results": [
@@ -999,7 +1049,7 @@ GET /search/location
   "radius_km": 10,
   "total_results": 45
 }
-```
+```text
 
 ---
 
@@ -1007,22 +1057,24 @@ GET /search/location
 
 #### 14. Create Album
 
-```
+```http
 POST /albums
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "album_name": "Summer Vacation 2025",
   "description": "Our amazing summer trip to Hawaii",
   "cover_photo_id": "uuid" (optional)
 }
-```
+```text
 
 **Response (201):**
+
 ```json
 {
   "album_id": "album-uuid",
@@ -1034,17 +1086,18 @@ POST /albums
   "created_at": "2025-10-01T10:00:00Z",
   "is_shared": false
 }
-```
+```text
 
 #### 15. Get Album Details
 
-```
+```http
 GET /albums/{album_id}
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Response (200):**
+
 ```json
 {
   "album_id": "album-uuid",
@@ -1058,17 +1111,18 @@ GET /albums/{album_id}
   "is_shared": true,
   "share_link": "https://photos.example.com/shared/abc123"
 }
-```
+```text
 
 #### 16. Add Photos to Album
 
-```
+```http
 POST /albums/{album_id}/photos
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "photo_ids": [
@@ -1077,9 +1131,10 @@ POST /albums/{album_id}/photos
     "photo-uuid-3"
   ]
 }
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "album_id": "album-uuid",
@@ -1087,17 +1142,18 @@ POST /albums/{album_id}/photos
   "total_photos": 128,
   "message": "Photos added successfully"
 }
-```
+```text
 
 #### 17. Remove Photos from Album
 
-```
+```http
 DELETE /albums/{album_id}/photos
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "photo_ids": [
@@ -1105,9 +1161,10 @@ DELETE /albums/{album_id}/photos
     "photo-uuid-2"
   ]
 }
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "album_id": "album-uuid",
@@ -1115,23 +1172,25 @@ DELETE /albums/{album_id}/photos
   "total_photos": 126,
   "message": "Photos removed successfully"
 }
-```
+```text
 
 #### 18. Get User Albums
 
-```
+```http
 GET /albums
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Query Parameters:**
+
 - `page` (integer, default: 1)
 - `page_size` (integer, default: 20, max: 50)
 - `sort_by` (enum: "created_at", "updated_at", "name", default: "updated_at")
 - `order` (enum: "asc", "desc", default: "desc")
 
 **Response (200):**
+
 ```json
 {
   "albums": [
@@ -1151,53 +1210,57 @@ GET /albums
     "total_pages": 1
   }
 }
-```
+```text
 
 #### 19. Update Album
 
-```
+```http
 PATCH /albums/{album_id}
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "album_name": "Hawaii Vacation 2025",
   "description": "Updated description",
   "cover_photo_id": "new-cover-uuid"
 }
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "album_id": "album-uuid",
   "message": "Album updated successfully",
   "updated_fields": ["album_name", "description", "cover_photo_id"]
 }
-```
+```text
 
 #### 20. Delete Album
 
-```
+```http
 DELETE /albums/{album_id}
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Query Parameters:**
+
 - `delete_photos` (boolean, default: false) - Delete photos or just remove from album
 
 **Response (200):**
+
 ```json
 {
   "message": "Album deleted successfully",
   "album_id": "album-uuid",
   "photos_deleted": false
 }
-```
+```text
 
 ---
 
@@ -1205,13 +1268,14 @@ DELETE /albums/{album_id}
 
 #### 21. Create Share Link
 
-```
+```http
 POST /sharing/create
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "resource_type": "album",
@@ -1220,9 +1284,10 @@ POST /sharing/create
   "is_public": true,
   "expires_at": "2025-12-31T23:59:59Z" (optional)
 }
-```
+```text
 
 **Response (201):**
+
 ```json
 {
   "share_id": "share-uuid",
@@ -1235,17 +1300,18 @@ POST /sharing/create
   "expires_at": "2025-12-31T23:59:59Z",
   "created_at": "2025-10-01T10:00:00Z"
 }
-```
+```text
 
 #### 22. Share with Specific User
 
-```
+```http
 POST /sharing/invite
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "resource_type": "album",
@@ -1253,9 +1319,10 @@ POST /sharing/invite
   "shared_with_email": "friend@example.com",
   "permission_level": "edit"
 }
-```
+```text
 
 **Response (201):**
+
 ```json
 {
   "share_id": "share-uuid",
@@ -1266,17 +1333,18 @@ POST /sharing/invite
   "permission_level": "edit",
   "message": "Invitation sent successfully"
 }
-```
+```text
 
 #### 23. Get Shared Resource
 
-```
+```http
 GET /sharing/{share_code}
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>` (optional for public shares)
 
 **Response (200):**
+
 ```json
 {
   "resource_type": "album",
@@ -1291,38 +1359,41 @@ GET /sharing/{share_code}
   "cover_photo_url": "https://cdn.example.com/thumbnails/400/cover.jpg",
   "expires_at": "2025-12-31T23:59:59Z"
 }
-```
+```text
 
 #### 24. Revoke Share
 
-```
+```http
 DELETE /sharing/{share_id}
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Response (200):**
+
 ```json
 {
   "message": "Share access revoked successfully",
   "share_id": "share-uuid"
 }
-```
+```text
 
 #### 25. List My Shares
 
-```
+```http
 GET /sharing/my-shares
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Query Parameters:**
+
 - `type` (enum: "created", "received", default: "created")
 - `page` (integer, default: 1)
 - `page_size` (integer, default: 20)
 
 **Response (200):**
+
 ```json
 {
   "shares": [
@@ -1346,7 +1417,7 @@ GET /sharing/my-shares
     "total_pages": 1
   }
 }
-```
+```text
 
 ---
 
@@ -1354,13 +1425,14 @@ GET /sharing/my-shares
 
 #### 26. Get User Profile
 
-```
+```http
 GET /users/me
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Response (200):**
+
 ```json
 {
   "user_id": "user-uuid",
@@ -1381,25 +1453,27 @@ GET /users/me
     "shared_albums": 5
   }
 }
-```
+```text
 
 #### 27. Update User Profile
 
-```
+```http
 PATCH /users/me
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "username": "newusername",
   "email": "newemail@example.com"
 }
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "user_id": "user-uuid",
@@ -1407,17 +1481,18 @@ PATCH /users/me
   "email": "newemail@example.com",
   "message": "Profile updated successfully"
 }
-```
+```text
 
 #### 28. Get Storage Statistics
 
-```
+```http
 GET /users/me/storage
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Response (200):**
+
 ```json
 {
   "storage": {
@@ -1436,7 +1511,7 @@ GET /users/me/storage
     "last_30_days_gb": 8.9
   }
 }
-```
+```text
 
 ---
 
@@ -1444,19 +1519,21 @@ GET /users/me/storage
 
 #### 29. Get People (Face Groups)
 
-```
+```http
 GET /people
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Query Parameters:**
+
 - `include_unnamed` (boolean, default: false) - Include unnamed face clusters
 - `min_face_count` (integer, default: 3) - Minimum faces to show group
 - `page` (integer, default: 1)
 - `page_size` (integer, default: 50)
 
 **Response (200):**
+
 ```json
 {
   "people": [
@@ -1484,17 +1561,18 @@ GET /people
     "total_pages": 1
   }
 }
-```
+```text
 
 #### 30. Get Person Details
 
-```
+```http
 GET /people/{person_id}
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Response (200):**
+
 ```json
 {
   "person_id": "person-uuid",
@@ -1512,25 +1590,27 @@ GET /people/{person_id}
     }
   ]
 }
-```
+```text
 
 #### 31. Name a Person
 
-```
+```http
 PATCH /people/{person_id}/name
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "person_name": "John Doe",
   "is_confirmed": true
 }
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "person_id": "person-uuid",
@@ -1538,23 +1618,25 @@ PATCH /people/{person_id}/name
   "is_confirmed": true,
   "message": "Person named successfully"
 }
-```
+```text
 
 #### 32. Get Photos by Person
 
-```
+```http
 GET /people/{person_id}/photos
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Query Parameters:**
+
 - `page` (integer, default: 1)
 - `page_size` (integer, default: 50, max: 100)
 - `sort_by` (enum: "capture_date", "upload_date", default: "capture_date")
 - `order` (enum: "asc", "desc", default: "desc")
 
 **Response (200):**
+
 ```json
 {
   "person_id": "person-uuid",
@@ -1575,26 +1657,28 @@ GET /people/{person_id}/photos
     "total_pages": 3
   }
 }
-```
+```text
 
 #### 33. Merge People
 
-```
+```http
 POST /people/merge
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "source_person_ids": ["person-uuid-1", "person-uuid-2"],
   "target_person_id": "person-uuid-3",
   "keep_name_from": "person-uuid-3"
 }
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "message": "People merged successfully",
@@ -1602,17 +1686,18 @@ POST /people/merge
   "total_faces": 245,
   "source_persons_deleted": 2
 }
-```
+```text
 
 #### 34. Remove Face from Person
 
-```
+```http
 DELETE /people/{person_id}/faces/{face_id}
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Response (200):**
+
 ```json
 {
   "message": "Face removed from person",
@@ -1620,26 +1705,29 @@ DELETE /people/{person_id}/faces/{face_id}
   "face_id": "face-uuid",
   "remaining_face_count": 126
 }
-```
+```text
 
 #### 35. Search Photos by Face
 
-```
+```http
 POST /search/by-face
-```
+```text
 
-**Headers:** 
+**Headers:**
+
 - `Authorization: Bearer <access_token>`
 - `Content-Type: multipart/form-data`
 
 **Request (Form Data):**
-```
+
+```text
 reference_photo: [binary file or photo_id]
 face_id: "face-uuid" (optional, if using existing face)
 threshold: 0.75 (optional, similarity threshold 0.0-1.0, default: 0.75)
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "query_face_id": "face-uuid",
@@ -1656,42 +1744,45 @@ threshold: 0.75 (optional, similarity threshold 0.0-1.0, default: 0.75)
   "total_matches": 45,
   "search_time_ms": 127
 }
-```
+```text
 
 #### 36. Hide Person
 
-```
+```http
 PATCH /people/{person_id}/hide
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "is_hidden": true
 }
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "message": "Person hidden from main view",
   "person_id": "person-uuid"
 }
-```
+```text
 
 **Note:** Hidden people won't appear in the main people list but faces remain linked.
 
 #### 37. Get Face Detection Status
 
-```
+```http
 GET /photos/{photo_id}/faces
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Response (200):**
+
 ```json
 {
   "photo_id": "photo-uuid",
@@ -1716,25 +1807,27 @@ GET /photos/{photo_id}/faces
     }
   ]
 }
-```
+```text
 
 #### 38. Tag Person in Photo
 
-```
+```http
 POST /photos/{photo_id}/tag-person
-```
+```text
 
 **Headers:** `Authorization: Bearer <access_token>`
 
 **Request:**
+
 ```json
 {
   "face_id": "face-uuid",
   "person_id": "person-uuid"
 }
-```
+```text
 
 **Response (200):**
+
 ```json
 {
   "message": "Person tagged successfully",
@@ -1743,13 +1836,14 @@ POST /photos/{photo_id}/tag-person
   "person_id": "person-uuid",
   "person_name": "John Doe"
 }
-```
+```text
 
 ---
 
 ### Cross-Cutting API Concerns
 
 **Standard Error Response Format:**
+
 ```json
 {
   "error": "error_code",
@@ -1761,9 +1855,10 @@ POST /photos/{photo_id}/tag-person
   "request_id": "req-uuid",
   "timestamp": "2025-10-01T10:00:00Z"
 }
-```
+```text
 
 **Common HTTP Status Codes:**
+
 - `200 OK` - Successful request
 - `201 Created` - Resource created successfully
 - `202 Accepted` - Request accepted for processing
@@ -1778,26 +1873,31 @@ POST /photos/{photo_id}/tag-person
 - `503 Service Unavailable` - Service temporarily unavailable
 
 **Rate Limiting Headers:**
-```
+
+```text
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 847
 X-RateLimit-Reset: 1696156800
-```
+```text
 
 **Pagination Strategy:**
+
 - Offset-based pagination for stable datasets (photos, albums)
 - Cursor-based pagination for real-time feeds (future feature)
 
 **Idempotency:**
+
 - Upload endpoints accept `Idempotency-Key` header
 - Duplicate requests with same key return original response
 - Keys valid for 24 hours
 
 **Compression:**
+
 - Supports gzip compression via `Accept-Encoding: gzip`
 - Response includes `Content-Encoding: gzip`
 
 **CORS Policy:**
+
 - Allowed origins: configured domains only
 - Supports preflight OPTIONS requests
 - Credentials allowed for authenticated requests
@@ -1807,24 +1907,28 @@ X-RateLimit-Reset: 1696156800
 ### API Trade-Offs
 
 **Decision: REST vs GraphQL**
+
 - **Choice:** REST API
 - **Pros:** Simpler to implement, better caching, wider client support, predictable performance
 - **Cons:** Multiple requests for complex queries, over-fetching data
 - **Justification:** Photo management has predictable access patterns with well-defined resources. REST's caching benefits are crucial for serving millions of photo URLs.
 
 **Decision: Synchronous vs Asynchronous Upload Processing**
+
 - **Choice:** Hybrid approach - synchronous upload, asynchronous processing
 - **Pros:** Immediate upload confirmation, non-blocking thumbnail generation, better resource utilization
 - **Cons:** Delayed availability of thumbnails and metadata
 - **Justification:** Users need quick upload feedback, but thumbnail generation and metadata extraction can happen asynchronously without impacting UX.
 
 **Decision: Pagination Strategy**
+
 - **Choice:** Offset-based pagination with page numbers
 - **Pros:** Simple to implement, allows jumping to specific pages, familiar to users
 - **Cons:** Performance degrades with deep pagination, inconsistent results if data changes
 - **Justification:** Most users browse recent photos (first few pages), making offset pagination performant for 95% of use cases.
 
 **Decision: Endpoint Granularity**
+
 - **Choice:** Resource-oriented with separate endpoints for different resources
 - **Pros:** Clear responsibility, easier to cache, better rate limiting control
 - **Cons:** More network requests for related data
@@ -1886,13 +1990,14 @@ graph TB
     Clustering --> Merge
     Merge --> PersonGroup
     PersonGroup --> FacesDB
-```
+```text
 
 **Pipeline Stages:**
 
 **1. Face Detection:**
+
 - **Model:** MTCNN (Multi-task Cascaded CNN) or RetinaFace
-- **Process:** 
+- **Process:**
   - Detect face bounding boxes in image
   - Extract facial landmarks (eyes, nose, mouth)
   - Calculate confidence score (0.0-1.0)
@@ -1931,9 +2036,10 @@ def detect_faces(image_path):
             })
     
     return faces
-```
+```text
 
 **2. Quality Filtering:**
+
 - **Filters:**
   - Minimum face size: 80x80 pixels
   - Blur detection (Laplacian variance > threshold)
@@ -1943,15 +2049,18 @@ def detect_faces(image_path):
 - **Threshold:** Only process faces with quality > 0.5
 
 **3. Face Alignment:**
+
 - Align face to canonical pose using detected landmarks
 - Normalize rotation, scale, and translation
 - Crop to 160x160 pixels (FaceNet input size)
 - Histogram equalization for lighting normalization
 
 **4. Embedding Generation:**
+
 - **Model:** FaceNet (Inception-ResNet-v1) or ArcFace
 - **Output:** 512-dimensional embedding vector
 - **Process:**
+
   ```python
   def generate_embedding(aligned_face):
       """
@@ -1977,7 +2086,7 @@ def detect_faces(image_path):
       embedding = F.normalize(embedding, p=2, dim=1)
       
       return embedding.cpu().numpy()[0]
-  ```
+```text
 
 - **Properties:**
   - Same person: embedding distance < 0.6
@@ -1985,6 +2094,7 @@ def detect_faces(image_path):
   - Use cosine similarity or Euclidean distance
 
 **5. Vector Storage:**
+
 - Store embeddings in Milvus (vector database)
 - Partition by user_id for data isolation
 - Index type: HNSW (Hierarchical Navigable Small World)
@@ -2022,7 +2132,7 @@ def store_embedding(face_id, user_id, photo_id, embedding):
     
     # Also store metadata in PostgreSQL
     store_face_metadata(face_id, user_id, photo_id, ...)
-```
+```text
 
 **6. Face Clustering (Batch Job):**
 
@@ -2080,7 +2190,7 @@ def cluster_new_faces(user_id, since_timestamp):
         
         # Update faces with person_id
         update_faces_person_id(cluster_faces, person_id)
-```
+```text
 
 **7. Incremental Clustering:**
 
@@ -2127,7 +2237,7 @@ def assign_face_to_person(new_face_embedding, user_id):
         return best_person
     
     return None  # Not confident, defer to nightly clustering
-```
+```text
 
 **Performance Optimizations:**
 
@@ -2148,27 +2258,31 @@ def assign_face_to_person(new_face_embedding, user_id):
 **Technology Choices:**
 
 **Face Detection Model:**
+
 - **Choice:** RetinaFace
 - **Pros:** High accuracy, good for various angles, real-time capable
 - **Cons:** Slightly slower than simpler models
 - **Justification:** Accuracy is critical for user trust; speed acceptable with GPU
 
 **Face Recognition Model:**
+
 - **Choice:** FaceNet (Inception-ResNet-v1) pre-trained on VGGFace2
 - **Pros:** Industry-standard, 512-dim embeddings, excellent accuracy (99.6% on LFW)
 - **Cons:** Model size (100MB), requires GPU
 - **Justification:** Proven performance, manageable size, widely supported
 
 **Vector Database:**
+
 - **Choice:** Milvus
 - **Pros:** Open-source, optimized for similarity search, scales horizontally, HNSW indexing
 - **Cons:** Operational complexity, memory-intensive
-- **Alternatives Considered:** 
+- **Alternatives Considered:**
   - Pinecone (managed, easier, but vendor lock-in and cost)
   - Faiss (library only, need to build service layer)
 - **Justification:** Best balance of performance, cost, and control for large-scale deployment
 
 **Clustering Algorithm:**
+
 - **Choice:** DBSCAN (Density-Based Spatial Clustering)
 - **Pros:** No need to specify number of clusters, handles outliers well, works with cosine distance
 - **Cons:** Requires tuning eps and min_samples parameters
@@ -2200,7 +2314,7 @@ graph LR
     S3Writer -->|Store| S3
     S3Writer -->|Success| Queue
     Queue -->|Event| ProcessingPipeline
-```
+```text
 
 **Key Features:**
 
@@ -2228,12 +2342,14 @@ graph LR
    - Exactly-once delivery semantics
 
 **Scaling Strategy:**
+
 - Horizontal scaling based on upload QPS
 - Auto-scaling group: 100-2000 instances
 - Connection pooling to S3
 - Load balancer with sticky sessions for resumable uploads
 
 **Technology Choice:**
+
 - **Language:** Node.js for I/O-bound operations
 - **Framework:** Express.js with Multer for multipart handling
 - **Why:** Excellent async I/O, large ecosystem for file handling
@@ -2278,7 +2394,7 @@ graph TB
     Optimize -->|Store| S3Thumb
     Extract -->|Metadata| Cassandra
     Extract -->|Index| ES
-```
+```text
 
 **Processing Steps:**
 
@@ -2307,6 +2423,7 @@ graph TB
    - Geo-spatial indexing for location-based search
 
 **Worker Configuration:**
+
 - Consumer group: `image-processing-workers`
 - Parallelism: 2000 workers
 - Processing timeout: 60s per photo
@@ -2314,11 +2431,13 @@ graph TB
 - Dead letter queue for failed processing
 
 **Technology Choices:**
+
 - **Language:** Python for image processing libraries
 - **Library:** Pillow, ImageMagick bindings
 - **Why:** Rich ecosystem for image manipulation, easy integration with ML libraries
 
 **Performance Optimization:**
+
 - Pre-allocate memory pools for image buffers
 - GPU acceleration for batch thumbnail generation
 - Lazy loading of processing libraries
@@ -2333,6 +2452,7 @@ graph TB
 **Elasticsearch Index Design:**
 
 **Index Settings:**
+
 ```json
 {
   "settings": {
@@ -2365,11 +2485,12 @@ graph TB
     }
   }
 }
-```
+```text
 
 **Query Examples:**
 
 1. **Text Search:**
+
 ```json
 {
   "query": {
@@ -2381,9 +2502,10 @@ graph TB
     }
   }
 }
-```
+```text
 
-2. **Geo-spatial Search:**
+1. **Geo-spatial Search:**
+
 ```json
 {
   "query": {
@@ -2401,9 +2523,10 @@ graph TB
     }
   }
 }
-```
+```text
 
-3. **Date Range Search:**
+1. **Date Range Search:**
+
 ```json
 {
   "query": {
@@ -2420,9 +2543,10 @@ graph TB
     }
   }
 }
-```
+```text
 
 **Search Optimizations:**
+
 - User-specific routing: route queries to shards by user_id
 - Query caching for common searches
 - Result caching with Redis (TTL: 5 minutes)
@@ -2430,6 +2554,7 @@ graph TB
 - Highlighting for matched terms
 
 **Scaling Strategy:**
+
 - 20 shards for horizontal scaling
 - 2 replicas for read scalability and fault tolerance
 - Dedicated master nodes (3 nodes)
@@ -2491,9 +2616,10 @@ graph TB
     }
   ]
 }
-```
+```text
 
 **Access Pattern Optimization:**
+
 - Metadata always in Cassandra (fast access)
 - Thumbnails always in hot storage
 - Original photos transition based on age
@@ -2501,6 +2627,7 @@ graph TB
 - Pre-warming: predictively move photos to hot storage based on access patterns
 
 **Cost Savings:**
+
 - Hot: 30 days × 1.5 PB/day × $0.023 = $1,035/day
 - Warm: 335 days × 1.5 PB × $0.0125 = $6,281.25/day
 - Cold: 4 years × 547.5 PB/year × $0.0036 = $7,884/day
@@ -2533,6 +2660,7 @@ graph TB
 **Caching Patterns:**
 
 **Cache-Aside (Lazy Loading):**
+
 ```python
 def get_photo_metadata(photo_id):
     # Check cache first
@@ -2547,9 +2675,10 @@ def get_photo_metadata(photo_id):
     redis.setex(f"photo:{photo_id}", 86400, metadata)  # TTL: 24h
     
     return metadata
-```
+```text
 
 **Write-Through (for critical data):**
+
 ```python
 def update_photo_metadata(photo_id, metadata):
     # Update database
@@ -2557,15 +2686,17 @@ def update_photo_metadata(photo_id, metadata):
     
     # Update cache immediately
     redis.setex(f"photo:{photo_id}", 86400, metadata)
-```
+```text
 
 **Cache Invalidation:**
+
 - Photo deletion: Invalidate photo metadata, CDN URLs
 - Album update: Invalidate album cache, user albums list
 - Permission change: Invalidate share permissions cache
 - Proactive invalidation on write operations
 
 **What NOT to Cache:**
+
 - Real-time statistics (storage usage)
 - Upload in-progress data
 - Authentication tokens (stored in secure session store)
@@ -2580,22 +2711,26 @@ def update_photo_metadata(photo_id, metadata):
 **Decision:** Cassandra (NoSQL) for photo metadata, PostgreSQL (SQL) for user/album data
 
 **Cassandra Pros:**
+
 - Excellent write performance for high-volume uploads
 - Partition by user_id for data locality
 - Linear scalability
 - Multi-datacenter replication built-in
 
 **Cassandra Cons:**
+
 - No joins (acceptable for photo metadata)
 - Eventual consistency by default
 - Complex aggregations difficult
 
 **PostgreSQL Pros:**
+
 - ACID transactions for user/album management
 - Relational integrity for sharing permissions
 - Rich query capabilities
 
 **PostgreSQL Cons:**
+
 - Vertical scaling limitations
 - Complex sharding required at scale
 
@@ -2608,12 +2743,14 @@ def update_photo_metadata(photo_id, metadata):
 **Decision:** Asynchronous processing via Kafka
 
 **Pros:**
+
 - Non-blocking uploads improve perceived performance
 - Better resource utilization (batch processing)
 - Fault tolerance (retry failed processing)
 - Decoupled services for independent scaling
 
 **Cons:**
+
 - Eventual availability of thumbnails
 - Complex error handling
 - Increased system complexity
@@ -2627,6 +2764,7 @@ def update_photo_metadata(photo_id, metadata):
 **Decision:** AWS S3 with CDN
 
 **Pros:**
+
 - Infinite scalability
 - Built-in redundancy (11 9s durability)
 - Lifecycle management
@@ -2634,6 +2772,7 @@ def update_photo_metadata(photo_id, metadata):
 - Cost-effective tiering
 
 **Cons:**
+
 - Vendor lock-in
 - Egress costs
 - Limited customization
@@ -2647,12 +2786,14 @@ def update_photo_metadata(photo_id, metadata):
 **Decision:** Elasticsearch for search
 
 **Pros:**
+
 - Full-text search with relevance scoring
 - Geo-spatial queries
 - Fast aggregations for faceted search
 - Horizontal scalability
 
 **Cons:**
+
 - Additional infrastructure
 - Eventual consistency with source of truth
 - Operational complexity
@@ -2666,12 +2807,14 @@ def update_photo_metadata(photo_id, metadata):
 **Decision:** AWS Elastic Transcoder for video processing (post-MVP: AWS MediaConvert)
 
 **Pros:**
+
 - Managed service (no infrastructure)
 - Multiple format outputs
 - Thumbnail extraction
 - Scalable
 
 **Cons:**
+
 - Processing cost ($0.015/minute of video)
 - Limited customization
 - Vendor lock-in
@@ -2686,18 +2829,21 @@ def update_photo_metadata(photo_id, metadata):
 
 **Bottleneck 1: Database Write Contention**
 
-**Problem:** 
+**Problem:**
+
 - Peak upload QPS (18,000/s) generates massive write load to Cassandra
 - Hot partitions for popular users with many uploads
 - Write latency increases under load
 
 **Solution:**
+
 - Use time-bucketed partitioning: `(user_id, date_bucket)` as composite partition key
 - Write with LOCAL_QUORUM consistency (balance consistency/performance)
 - Separate clusters for read/write workloads
 - Batch writes where possible (reduce overhead)
 
 **Monitoring:**
+
 - Track write latency P99 (alert if > 100ms)
 - Monitor partition hotspots
 - Track write rejection rate
@@ -2707,17 +2853,20 @@ def update_photo_metadata(photo_id, metadata):
 **Bottleneck 2: S3 Request Rate**
 
 **Problem:**
+
 - S3 has request rate limits (3,500 PUT/s per prefix)
 - 18,000 uploads/s exceeds single prefix limit
 - 693,000 GET/s for views requires careful prefix design
 
 **Solution:**
+
 - Use randomized prefixes: `{hash_prefix}/{user_id}/{date}/{photo_id}`
 - Hash prefix provides automatic distribution (2 chars = 256 prefixes)
 - CDN for GET requests reduces S3 load by 95%
 - Multi-region buckets for geographic distribution
 
 **Monitoring:**
+
 - Track 503 SlowDown errors from S3
 - Monitor request distribution across prefixes
 - CDN cache hit ratio
@@ -2727,17 +2876,20 @@ def update_photo_metadata(photo_id, metadata):
 **Bottleneck 3: Thumbnail Generation Lag**
 
 **Problem:**
+
 - Peak: 18,000 photos/s × 5s processing = 90,000 concurrent operations
 - Worker pool of 2,000 creates 45-second lag at peak
 - User frustration if thumbnails unavailable immediately
 
 **Solution:**
+
 - Priority queue: separate queues for new users vs existing users
 - Lazy thumbnail generation: generate on-demand for immediate view
 - Pre-generate only one thumbnail (400px), others on-demand
 - GPU-accelerated batch processing (10x faster)
 
 **Monitoring:**
+
 - Track queue depth (alert if > 50,000)
 - Monitor processing lag (time from upload to thumbnail ready)
 - Track on-demand generation requests
@@ -2747,17 +2899,20 @@ def update_photo_metadata(photo_id, metadata):
 **Bottleneck 4: Search Index Lag**
 
 **Problem:**
+
 - Photos not immediately searchable after upload
 - Elasticsearch indexing lag during peak traffic
 - User searches missing recent uploads
 
 **Solution:**
+
 - Increase Elasticsearch refresh interval during peak (trade-off: latency vs throughput)
 - Bulk indexing with batching
 - Read-from-write optimization: cache recent uploads in Redis, merge with search results
 - Separate index for recent photos (< 1 hour), merge results
 
 **Monitoring:**
+
 - Track indexing lag (time from upload to searchable)
 - Monitor refresh rate and bulk queue size
 - Alert if lag > 5 minutes
@@ -2767,11 +2922,13 @@ def update_photo_metadata(photo_id, metadata):
 **Bottleneck 5: Single Points of Failure**
 
 **Problem:**
+
 - Load balancer failure blocks all traffic
 - Kafka cluster failure stops all processing
 - Database master failure impacts writes
 
 **Solution:**
+
 - Multi-AZ deployment for all components
 - Load balancers: Active-active across AZs
 - Kafka: 3-broker cluster with replication factor 3
@@ -2779,6 +2936,7 @@ def update_photo_metadata(photo_id, metadata):
 - PostgreSQL: Primary-replica with automatic failover (RDS Multi-AZ)
 
 **Monitoring:**
+
 - Health checks on all critical components (30s interval)
 - Automated failover testing (chaos engineering)
 - Alert on single-component dependency
@@ -2790,18 +2948,21 @@ def update_photo_metadata(photo_id, metadata):
 **1. Geographic Distribution**
 
 **Strategy:**
+
 - Deploy full stack in 3 regions: US-East, EU-West, Asia-Pacific
 - User-to-region routing based on latency (Route53 latency-based routing)
 - Cross-region S3 replication for disaster recovery
 - Cassandra multi-DC replication with LOCAL_QUORUM reads
 
 **Benefits:**
+
 - Reduce latency for global users (< 100ms)
 - Disaster recovery (RPO: 1 minute, RTO: 5 minutes)
 - Regulatory compliance (data residency)
 
 **Implementation:**
-```
+
+```text
 US-East (Primary):
 - Full stack deployment
 - Hot storage replication to EU/Asia
@@ -2815,18 +2976,20 @@ Asia-Pacific (Secondary):
 - Full stack deployment
 - Cassandra replica
 - Local uploads stored locally, replicated to US
-```
+```text
 
 ---
 
 **2. Advanced Caching**
 
 **Strategy:**
+
 - Edge caching with Lambda@Edge for personalized content
 - Predictive cache warming based on user behavior
 - Browser cache with service workers for offline access
 
 **Implementation:**
+
 ```javascript
 // Lambda@Edge for personalized photo feeds
 exports.handler = async (event, context) => {
@@ -2844,18 +3007,20 @@ exports.handler = async (event, context) => {
   // Forward to origin
   return event;
 };
-```
+```text
 
 ---
 
 **3. Real-Time Features**
 
 **Strategy:**
+
 - WebSocket connections for live upload progress
 - Server-Sent Events (SSE) for real-time album updates
 - Push notifications for sharing events
 
 **Implementation:**
+
 ```mermaid
 graph LR
     Client[Mobile Client]
@@ -2868,9 +3033,10 @@ graph LR
     Upload -->|Progress Event| Connection
     Connection -->|Push| Gateway
     Gateway -->|Update| Client
-```
+```text
 
 **Benefits:**
+
 - Real-time upload progress (eliminate polling)
 - Instant sharing notifications
 - Live album collaboration
@@ -2880,6 +3046,7 @@ graph LR
 **4. Query Optimization**
 
 **Photo Timeline Query Optimization:**
+
 ```sql
 -- Before: Scan entire partition
 SELECT * FROM photos 
@@ -2892,9 +3059,10 @@ SELECT * FROM photos
 WHERE user_id = ? AND date_bucket = '2025-10'
 ORDER BY upload_date DESC 
 LIMIT 50;
-```
+```text
 
 **Cassandra Materialized Views:**
+
 ```sql
 -- Favorite photos view
 CREATE MATERIALIZED VIEW user_favorites AS
@@ -2903,7 +3071,7 @@ CREATE MATERIALIZED VIEW user_favorites AS
     AND is_favorite = true
     AND photo_id IS NOT NULL
   PRIMARY KEY (user_id, is_favorite, upload_date, photo_id);
-```
+```text
 
 ---
 
@@ -2946,7 +3114,7 @@ Business Metrics:
   - Search queries per day
   - Share link creation rate
   - Storage usage growth rate
-```
+```text
 
 **Alerting Strategy:**
 
@@ -2967,15 +3135,17 @@ Info (Dashboard):
   - Daily storage growth
   - Popular search terms
   - User engagement metrics
-```
+```text
 
 **Logging:**
+
 - Structured JSON logs (ELK stack)
 - Distributed tracing (Jaeger) for request flows
 - Correlation IDs across services
 - Log retention: 30 days hot, 1 year cold
 
 **Dashboards:**
+
 - Real-time operations dashboard (Grafana)
 - Business metrics dashboard
 - Cost analysis dashboard
@@ -2988,6 +3158,7 @@ Info (Dashboard):
 **1. Authentication & Authorization**
 
 **Implementation:**
+
 - OAuth 2.0 with JWT tokens (HS256 algorithm)
 - Refresh token rotation (30-day expiry)
 - Token blacklisting for logout
@@ -2995,6 +3166,7 @@ Info (Dashboard):
 - API keys for third-party integrations
 
 **Photo Access Control:**
+
 ```python
 def authorize_photo_access(user_id, photo_id):
     # Check ownership
@@ -3008,24 +3180,27 @@ def authorize_photo_access(user_id, photo_id):
         return True
     
     return False
-```
+```text
 
 ---
 
 **2. Data Protection**
 
 **Encryption:**
+
 - At-rest: S3 server-side encryption (AES-256)
 - In-transit: TLS 1.3 for all communications
 - Database encryption: Cassandra transparent data encryption
 
 **Privacy:**
+
 - EXIF stripping for shared photos (remove GPS, device info)
 - Anonymous sharing links (no user identification)
 - Right to deletion (GDPR compliance)
 - Data export functionality
 
 **Secure Upload:**
+
 - Pre-signed S3 URLs (client-side upload)
 - URL expiration (15 minutes)
 - File type validation (magic number check)
@@ -3036,12 +3211,14 @@ def authorize_photo_access(user_id, photo_id):
 **3. DDoS Protection**
 
 **Strategy:**
+
 - CloudFlare DDoS protection (L3/L4)
 - AWS Shield Standard (network/transport layer)
 - WAF rules: Rate limiting, IP blocking, geo-blocking
 - Challenge-response for suspicious traffic
 
 **Rate Limiting:**
+
 ```yaml
 Global Limits:
   - 10,000 requests/minute per IP
@@ -3052,13 +3229,14 @@ Endpoint Limits:
   - Login: 5 attempts/minute
   - Registration: 3 accounts/hour per IP
   - Share creation: 20/hour per user
-```
+```text
 
 ---
 
 **4. Face Recognition Privacy**
 
 **Privacy-First Design:**
+
 - User opt-in required for face recognition
 - Easy opt-out with complete data deletion
 - Face data isolated per user (no cross-user learning)
@@ -3067,6 +3245,7 @@ Endpoint Limits:
 - GDPR/CCPA compliant data handling
 
 **Security Measures:**
+
 - Face embeddings encrypted at rest
 - Access controls on face database (stricter than photos)
 - Audit logging for all face-related operations
@@ -3074,6 +3253,7 @@ Endpoint Limits:
 - No API access to raw face embeddings (only search/match)
 
 **User Controls:**
+
 ```json
 // User privacy settings
 {
@@ -3083,9 +3263,10 @@ Endpoint Limits:
   "allow_face_tagging_by_others": false,
   "hide_my_face_from_suggestions": false
 }
-```
+```text
 
 **Data Deletion:**
+
 ```python
 def delete_face_data(user_id):
     """
@@ -3107,11 +3288,12 @@ def delete_face_data(user_id):
     
     # Update user preferences
     db.execute("UPDATE users SET face_recognition_enabled = FALSE WHERE user_id = ?", user_id)
-```
+```text
 
 **5. Secure Sandbox**
 
 **For Future ML Features (object detection, scene recognition):**
+
 - Isolated processing environment (Kubernetes pods)
 - No network access during processing
 - Input sanitization and validation
@@ -3181,6 +3363,7 @@ def delete_face_data(user_id):
 This Google Photos system design demonstrates a scalable, reliable architecture capable of serving 500M users with billions of photos and face recognition for millions of people. The hybrid database approach (Cassandra for metadata, PostgreSQL for relational data, Milvus for face embeddings) optimizes for different access patterns. Asynchronous processing via Kafka enables high upload throughput while maintaining system responsiveness.
 
 Key design decisions prioritize:
+
 - **Scalability:** Horizontal scaling across all layers, including ML pipelines
 - **Performance:** Multi-tier caching, CDN, optimized queries, GPU-accelerated face processing
 - **Reliability:** Multi-region deployment, redundancy, fault tolerance
@@ -3189,6 +3372,7 @@ Key design decisions prioritize:
 - **Privacy:** User control over face data, GDPR/CCPA compliance, opt-in/opt-out capabilities
 
 **Face Recognition Capabilities:**
+
 - Automatic face detection and clustering
 - 99.6% accuracy using FaceNet embeddings
 - Sub-second face search across millions of faces
@@ -3198,6 +3382,7 @@ Key design decisions prioritize:
 The architecture is production-ready for MVP with face recognition as a core differentiator, while providing clear paths for advanced features (object detection, semantic search, real-time collaboration, advanced editing) in future phases.
 
 **Resource Summary:**
+
 - 1,400 API servers for 700K QPS
 - 2,000 image processing workers
 - 324 GPU workers for face recognition
@@ -3211,4 +3396,3 @@ The architecture is production-ready for MVP with face recognition as a core dif
 **Document Version:** 1.0  
 **Last Updated:** October 1, 2025  
 **Author:** System Design Interview Preparation
-

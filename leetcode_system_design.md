@@ -1,4 +1,5 @@
 # LEETCODE SYSTEM DESIGN
+
 ## Online Coding Platform with Judge System
 
 **Document Purpose:** This file contains a comprehensive system design for a LeetCode-like online coding platform that allows users to solve coding problems, submit solutions, and get real-time feedback on their code execution.
@@ -59,26 +60,31 @@
 ### Non-Functional Requirements
 
 **Availability:**
+
 - 99.9% uptime (8.76 hours downtime per year)
 - Judge system should handle failures gracefully
 
 **Performance:**
+
 - Code execution results within 10 seconds for 95% of submissions
 - Problem listing page load < 2 seconds
 - Support concurrent code executions
 
 **Scalability:**
+
 - Support 10 million registered users
 - Handle 100,000 daily active users
 - Process 500,000 submissions per day
 
 **Security:**
+
 - Sandboxed code execution environment
 - Prevention of malicious code execution
 - No access to system resources from user code
 - Rate limiting on submissions
 
 **Consistency:**
+
 - Eventual consistency acceptable for leaderboards
 - Strong consistency for submission results
 - Strong consistency for user account data
@@ -88,6 +94,7 @@
 ### Clarifying Questions & Assumptions
 
 **Scale Questions:**
+
 - **Q:** How many daily active users?
   - **A:** Assuming 100,000 DAU
 - **Q:** What's the expected growth rate?
@@ -96,6 +103,7 @@
   - **A:** Global, primarily US, Europe, Asia
 
 **Usage Pattern Questions:**
+
 - **Q:** What's the read/write ratio?
   - **A:** 80:20 (browsing vs submitting)
 - **Q:** Average submissions per active user?
@@ -104,6 +112,7 @@
   - **A:** Evenings and weekends, 3x average load
 
 **Feature Scope Questions:**
+
 - **Q:** Do we need real-time collaboration features?
   - **A:** No, out of scope for MVP
 - **Q:** Do we need video explanations?
@@ -114,6 +123,7 @@
   - **A:** Phase 2, not in MVP
 
 **Technical Questions:**
+
 - **Q:** Which programming languages to support?
   - **A:** Python, Java, C++, JavaScript (can add more later)
 - **Q:** Maximum code execution time?
@@ -127,7 +137,7 @@
 
 ### Traffic Estimates
 
-```
+```text
 Daily Active Users (DAU): 100,000
 Active users submitting code: 100,000 × 100% = 100,000 users
 
@@ -146,11 +156,11 @@ Peak problem views per second (3x): 36 QPS
 Code execution requests (including test runs): 500,000 × 2 = 1,000,000 executions/day
 Average executions per second: 1,000,000 / 86,400 ≈ 12 QPS
 Peak executions per second (3x): 36 QPS
-```
+```text
 
 ### Storage Estimates
 
-```
+```text
 PROBLEM DATA:
 - Total problems in system: 3,000 problems
 - Average problem size: 5 KB (description, examples, constraints)
@@ -184,11 +194,11 @@ TOTAL STORAGE (3 years):
 - Users: 20 GB
 - Submissions: 1.5 TB
 - Total: ≈ 1.5 TB (submissions dominate)
-```
+```text
 
 ### Resource Estimates
 
-```
+```text
 CONCURRENT EXECUTIONS AT PEAK:
 - Peak execution QPS: 36
 - Average execution time: 3 seconds
@@ -208,11 +218,11 @@ DATABASE CONNECTIONS:
 - API servers: 20 instances × 50 connections = 1,000 connections
 - Background services: 200 connections
 - Total: 1,200 connections (well within PostgreSQL limits)
-```
+```text
 
 ### Bandwidth Estimates
 
-```
+```text
 SUBMISSION REQUEST:
 - Code: 2 KB
 - Metadata: 500 bytes
@@ -229,7 +239,7 @@ PROBLEM VIEW REQUEST:
 Peak bandwidth (submissions): 18 QPS × 3.5 KB = 63 KB/s ≈ 0.5 Mbps
 Peak bandwidth (problem views): 36 QPS × 5.5 KB = 198 KB/s ≈ 1.6 Mbps
 Total peak bandwidth: ≈ 2 Mbps (negligible)
-```
+```text
 
 ---
 
@@ -320,11 +330,12 @@ graph TB
     
     JudgeSvc -->|Monitor| Queue
     JudgeSvc -->|Scale| Worker1
-```
+```text
 
 ### Data Flow Explanation
 
 **User Browsing Problems:**
+
 1. User accesses the platform through browser
 2. CDN serves static assets (HTML, CSS, JS, images)
 3. Browser makes API request to load balancer
@@ -335,6 +346,7 @@ graph TB
 8. Response flows back through API server to user
 
 **Code Submission Flow:**
+
 1. User submits code through the web interface
 2. Request hits load balancer
 3. Load balancer routes to API server
@@ -371,6 +383,7 @@ graph TB
 ### Database Design
 
 #### Users Table
+
 ```sql
 users
 - user_id (PK, UUID)
@@ -390,9 +403,10 @@ Indexes:
 - UNIQUE INDEX idx_username (username)
 - UNIQUE INDEX idx_email (email)
 - INDEX idx_created_at (created_at)
-```
+```text
 
 #### Problems Table
+
 ```sql
 problems
 - problem_id (PK, UUID)
@@ -415,9 +429,10 @@ Indexes:
 - INDEX idx_difficulty (difficulty)
 - INDEX idx_created_at (created_at)
 - INDEX idx_acceptance_rate (acceptance_rate)
-```
+```text
 
 #### Problem_Tags Table (Many-to-Many)
+
 ```sql
 problem_tags
 - problem_id (FK -> problems.problem_id)
@@ -427,9 +442,10 @@ problem_tags
 Indexes:
 - PRIMARY KEY (problem_id, tag_id)
 - INDEX idx_tag_id (tag_id)
-```
+```text
 
 #### Tags Table
+
 ```sql
 tags
 - tag_id (PK, UUID)
@@ -442,9 +458,10 @@ Indexes:
 - PRIMARY KEY (tag_id)
 - UNIQUE INDEX idx_name (name)
 - UNIQUE INDEX idx_slug (slug)
-```
+```text
 
 #### Submissions Table
+
 ```sql
 submissions
 - submission_id (PK, UUID)
@@ -469,9 +486,10 @@ Indexes:
 - INDEX idx_user_submitted (user_id, submitted_at DESC)
 - INDEX idx_problem_submitted (problem_id, submitted_at DESC)
 - INDEX idx_status (status)
-```
+```text
 
 #### Test_Cases Table
+
 ```sql
 test_cases
 - test_case_id (PK, UUID)
@@ -489,9 +507,10 @@ Indexes:
 - PRIMARY KEY (test_case_id)
 - INDEX idx_problem_order (problem_id, order_index)
 - INDEX idx_problem_sample (problem_id, is_sample)
-```
+```text
 
 #### User_Problem_Status Table
+
 ```sql
 user_problem_status
 - user_id (FK -> users.user_id)
@@ -507,9 +526,10 @@ Indexes:
 - PRIMARY KEY (user_id, problem_id)
 - INDEX idx_user_status (user_id, status)
 - INDEX idx_solved_at (solved_at)
-```
+```text
 
 #### User_Statistics Table
+
 ```sql
 user_statistics
 - user_id (PK, FK -> users.user_id)
@@ -526,9 +546,10 @@ Indexes:
 - PRIMARY KEY (user_id)
 - INDEX idx_ranking (ranking)
 - INDEX idx_problems_solved (problems_solved DESC)
-```
+```text
 
 #### Sessions Table (Could use Redis, but showing SQL structure)
+
 ```sql
 sessions
 - session_id (PK, UUID)
@@ -545,9 +566,10 @@ Indexes:
 - INDEX idx_user_id (user_id)
 - INDEX idx_token_hash (token_hash)
 - INDEX idx_expires_at (expires_at)
-```
+```text
 
 **Database Sharding Strategy:**
+
 - Users DB: Shard by user_id (consistent hashing)
 - Problems DB: Can remain unsharded initially (only 3K problems)
 - Submissions DB: Shard by user_id (most queries are user-specific)
@@ -561,7 +583,8 @@ Indexes:
 
 **Base URL:** `https://api.leetcode.com/v1`
 
-**Authentication:** 
+**Authentication:**
+
 - JWT (JSON Web Tokens) for stateless authentication
 - Access token valid for 15 minutes
 - Refresh token valid for 7 days
@@ -570,6 +593,7 @@ Indexes:
 **Versioning Strategy:** URL path versioning (`/v1/`, `/v2/`)
 
 **Rate Limiting:**
+
 - Anonymous: 20 requests/minute
 - Authenticated users: 100 requests/minute
 - Premium users: 500 requests/minute
@@ -580,18 +604,21 @@ Indexes:
 #### Authentication Endpoints
 
 ##### 1. Register User
-```
+
+```http
 POST /v1/auth/register
-```
+```text
 
 **Request Headers:**
+
 ```json
 {
   "Content-Type": "application/json"
 }
-```
+```text
 
 **Request Body:**
+
 ```json
 {
   "username": "johndoe",
@@ -599,9 +626,10 @@ POST /v1/auth/register
   "password": "SecureP@ss123",
   "full_name": "John Doe"
 }
-```
+```text
 
 **Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -620,9 +648,10 @@ POST /v1/auth/register
     }
   }
 }
-```
+```text
 
 **Response (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -632,24 +661,27 @@ POST /v1/auth/register
     "field": "username"
   }
 }
-```
+```text
 
 ---
 
 ##### 2. Login
-```
+
+```http
 POST /v1/auth/login
-```
+```text
 
 **Request Body:**
+
 ```json
 {
   "email": "john@example.com",
   "password": "SecureP@ss123"
 }
-```
+```text
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -666,23 +698,26 @@ POST /v1/auth/login
     }
   }
 }
-```
+```text
 
 ---
 
 ##### 3. Refresh Token
-```
+
+```http
 POST /v1/auth/refresh
-```
+```text
 
 **Request Body:**
+
 ```json
 {
   "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
-```
+```text
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -691,40 +726,45 @@ POST /v1/auth/refresh
     "expires_in": 900
   }
 }
-```
+```text
 
 ---
 
 ##### 4. Logout
-```
+
+```http
 POST /v1/auth/logout
-```
+```text
 
 **Request Headers:**
+
 ```json
 {
   "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
-```
+```text
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
   "message": "Logged out successfully"
 }
-```
+```text
 
 ---
 
 #### Problem Endpoints
 
 ##### 5. List Problems
-```
+
+```http
 GET /v1/problems
-```
+```text
 
 **Query Parameters:**
+
 - `difficulty` (string, optional): `easy`, `medium`, `hard`
 - `tags` (string, optional): Comma-separated tag slugs
 - `status` (string, optional): `solved`, `attempted`, `todo` (requires auth)
@@ -735,14 +775,17 @@ GET /v1/problems
 - `order` (string, default: `asc`): `asc`, `desc`
 
 **Request Headers:**
+
 ```json
 {
   "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." 
 }
-```
+```text
+
 *(Optional, for personalized status)*
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -771,21 +814,24 @@ GET /v1/problems
     }
   }
 }
-```
+```text
 
 **Caching:** Cache-Control: `public, max-age=300` (5 minutes)
 
 ---
 
 ##### 6. Get Problem Details
-```
+
+```http
 GET /v1/problems/{slug}
-```
+```text
 
 **Path Parameters:**
+
 - `slug` (string): Problem slug (e.g., "two-sum")
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -822,9 +868,10 @@ GET /v1/problems/{slug}
     }
   }
 }
-```
+```text
 
 **Response (404 Not Found):**
+
 ```json
 {
   "success": false,
@@ -833,18 +880,20 @@ GET /v1/problems/{slug}
     "message": "Problem not found"
   }
 }
-```
+```text
 
 **Caching:** Cache-Control: `public, max-age=3600` (1 hour)
 
 ---
 
 ##### 7. Get Problem Statistics
-```
+
+```http
 GET /v1/problems/{slug}/statistics
-```
+```text
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -866,35 +915,39 @@ GET /v1/problems/{slug}/statistics
     }
   }
 }
-```
+```text
 
 ---
 
 #### Submission Endpoints
 
 ##### 8. Submit Code
-```
+
+```http
 POST /v1/submissions
-```
+```text
 
 **Request Headers:**
+
 ```json
 {
   "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "Content-Type": "application/json"
 }
-```
+```text
 
 **Request Body:**
+
 ```json
 {
   "problem_id": "550e8400-e29b-41d4-a716-446655440001",
   "language": "python",
   "code": "class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        hashmap = {}\n        for i, num in enumerate(nums):\n            complement = target - num\n            if complement in hashmap:\n                return [hashmap[complement], i]\n            hashmap[num] = i"
 }
-```
+```text
 
 **Response (202 Accepted):**
+
 ```json
 {
   "success": true,
@@ -905,9 +958,10 @@ POST /v1/submissions
     "message": "Submission received and queued for judging"
   }
 }
-```
+```text
 
 **Response (429 Too Many Requests):**
+
 ```json
 {
   "success": false,
@@ -917,25 +971,28 @@ POST /v1/submissions
     "retry_after": 30
   }
 }
-```
+```text
 
 **Rate Limiting:** 10 submissions per minute per user
 
 ---
 
 ##### 9. Get Submission Status
-```
+
+```http
 GET /v1/submissions/{submission_id}
-```
+```text
 
 **Request Headers:**
+
 ```json
 {
   "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
-```
+```text
 
 **Response (200 OK) - Pending:**
+
 ```json
 {
   "success": true,
@@ -948,9 +1005,10 @@ GET /v1/submissions/{submission_id}
     "submitted_at": "2025-10-01T10:35:00Z"
   }
 }
-```
+```text
 
 **Response (200 OK) - Completed:**
+
 ```json
 {
   "success": true,
@@ -970,9 +1028,10 @@ GET /v1/submissions/{submission_id}
     "judged_at": "2025-10-01T10:35:03Z"
   }
 }
-```
+```text
 
 **Response (200 OK) - Failed:**
+
 ```json
 {
   "success": true,
@@ -990,27 +1049,30 @@ GET /v1/submissions/{submission_id}
     "judged_at": "2025-10-01T10:35:03Z"
   }
 }
-```
+```text
 
 **Polling:** Client should poll every 1-2 seconds while status is `pending` or `running`
 
 ---
 
 ##### 10. Run Code (Test Against Sample Cases)
-```
+
+```http
 POST /v1/problems/{slug}/run
-```
+```text
 
 **Request Body:**
+
 ```json
 {
   "language": "python",
   "code": "class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        return [0, 1]",
   "test_input": "[2,7,11,15]\n9"
 }
-```
+```text
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1024,9 +1086,10 @@ POST /v1/problems/{slug}/run
     "stderr": ""
   }
 }
-```
+```text
 
 **Response (200 OK) - Runtime Error:**
+
 ```json
 {
   "success": true,
@@ -1038,24 +1101,27 @@ POST /v1/problems/{slug}/run
     "stderr": "Traceback (most recent call last):\n  ..."
   }
 }
-```
+```text
 
 **Rate Limiting:** 30 runs per minute per user
 
 ---
 
 ##### 11. Get User Submissions
-```
+
+```http
 GET /v1/users/{username}/submissions
-```
+```text
 
 **Query Parameters:**
+
 - `problem_id` (string, optional): Filter by problem
 - `status` (string, optional): Filter by status
 - `page` (integer, default: 1)
 - `limit` (integer, default: 20, max: 100)
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1081,23 +1147,26 @@ GET /v1/users/{username}/submissions
     }
   }
 }
-```
+```text
 
 ---
 
 ##### 12. Get Submission Code
-```
+
+```http
 GET /v1/submissions/{submission_id}/code
-```
+```text
 
 **Request Headers:**
+
 ```json
 {
   "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
-```
+```text
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1107,18 +1176,20 @@ GET /v1/submissions/{submission_id}/code
     "code": "class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        hashmap = {}\n        for i, num in enumerate(nums):\n            complement = target - num\n            if complement in hashmap:\n                return [hashmap[complement], i]\n            hashmap[num] = i"
   }
 }
-```
+```text
 
 ---
 
 #### User Profile Endpoints
 
 ##### 13. Get User Profile
-```
+
+```http
 GET /v1/users/{username}
-```
+```text
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1147,16 +1218,18 @@ GET /v1/users/{username}
     ]
   }
 }
-```
+```text
 
 ---
 
 ##### 14. Get User Statistics
-```
+
+```http
 GET /v1/users/{username}/statistics
-```
+```text
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1180,18 +1253,20 @@ GET /v1/users/{username}/statistics
     }
   }
 }
-```
+```text
 
 ---
 
 #### Tag Endpoints
 
 ##### 15. List Tags
-```
+
+```http
 GET /v1/tags
-```
+```text
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1212,7 +1287,7 @@ GET /v1/tags
     ]
   }
 }
-```
+```text
 
 **Caching:** Cache-Control: `public, max-age=86400` (24 hours)
 
@@ -1221,17 +1296,20 @@ GET /v1/tags
 #### Search Endpoint
 
 ##### 16. Search Problems
-```
+
+```http
 GET /v1/search
-```
+```text
 
 **Query Parameters:**
+
 - `q` (string, required): Search query
 - `type` (string, default: `all`): `problems`, `users`, `all`
 - `page` (integer, default: 1)
 - `limit` (integer, default: 20, max: 50)
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1252,13 +1330,14 @@ GET /v1/search
     }
   }
 }
-```
+```text
 
 ---
 
 ### Cross-Cutting API Concerns
 
 **Standard Error Response Format:**
+
 ```json
 {
   "success": false,
@@ -1269,9 +1348,10 @@ GET /v1/search
     "details": {}
   }
 }
-```
+```text
 
 **Common HTTP Status Codes:**
+
 - `200 OK` - Successful GET, PUT, PATCH
 - `201 Created` - Successful POST (resource created)
 - `202 Accepted` - Async operation accepted
@@ -1285,30 +1365,35 @@ GET /v1/search
 - `503 Service Unavailable` - Service temporarily unavailable
 
 **Pagination Strategy:**
+
 - Offset-based pagination for problems (supports random access)
 - Cursor-based pagination for submissions (time-series data)
 - Default limit: 20, max limit: 100
 
 **Idempotency:**
+
 - Use idempotency keys for submission endpoints
 - Header: `Idempotency-Key: {unique_key}`
 - Prevents duplicate submissions
 
 **Compression:**
+
 - Support gzip and brotli compression
 - Request header: `Accept-Encoding: gzip, br`
 - Response header: `Content-Encoding: gzip`
 
 **Security Headers:**
-```
+
+```text
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 X-XSS-Protection: 1; mode=block
 Content-Security-Policy: default-src 'self'
-```
+```text
 
 **CORS Policy:**
+
 - Allow origins: `*.leetcode.com`
 - Allow methods: `GET, POST, PUT, PATCH, DELETE, OPTIONS`
 - Allow headers: `Authorization, Content-Type, Idempotency-Key`
@@ -1321,6 +1406,7 @@ Content-Security-Policy: default-src 'self'
 **Decision:** REST vs GraphQL
 **Choice:** REST API
 **Pros:**
+
 - Simpler to implement and maintain
 - Better caching support (HTTP caching)
 - Standardized and well-understood
@@ -1336,6 +1422,7 @@ Content-Security-Policy: default-src 'self'
 **Decision:** Synchronous vs Asynchronous Code Execution
 **Choice:** Asynchronous (queue-based)
 **Pros:**
+
 - Decouples submission from execution
 - Better resource utilization
 - Can handle traffic spikes
@@ -1352,6 +1439,7 @@ Content-Security-Policy: default-src 'self'
 **Decision:** Offset vs Cursor Pagination
 **Choice:** Offset for problems, Cursor for submissions
 **Pros (Offset):**
+
 - Allows random page access
 - Simple to implement
 - Good for small, stable datasets
@@ -1367,6 +1455,7 @@ Content-Security-Policy: default-src 'self'
 **Decision:** Endpoint Granularity
 **Choice:** Separate endpoints for different resources
 **Pros:**
+
 - Clear separation of concerns
 - Easier to version and evolve
 - Better caching strategies per resource
@@ -1387,7 +1476,7 @@ Execute user-submitted code in a secure, isolated environment and evaluate it ag
 
 **Internal Architecture:**
 
-```
+```text
 Judge Worker Container
 ├── Job Listener (pulls from queue)
 ├── Language Runtime Manager
@@ -1399,9 +1488,10 @@ Judge Worker Container
 ├── Resource Monitor (CPU, Memory, Time)
 ├── Test Case Runner
 └── Result Reporter
-```
+```text
 
 **Execution Flow:**
+
 1. **Job Reception:** Worker pulls submission job from RabbitMQ/Kafka queue
 2. **Code Retrieval:** Fetches user code from S3
 3. **Test Case Loading:** Retrieves all test cases for the problem from S3
@@ -1429,18 +1519,21 @@ Judge Worker Container
 9. **Result Update:** Update submission status in database
 
 **Technology Choices:**
+
 - **Containerization:** Docker for isolation
 - **Security:** gVisor or Kata Containers for additional sandboxing
 - **Resource Limiting:** cgroups for CPU/memory limits
 - **Timeout Handling:** Process monitoring with SIGKILL
 
 **Scaling Strategy:**
+
 - Horizontal scaling: Add more worker instances
 - Auto-scaling based on queue depth
 - Separate worker pools per language (optional optimization)
 - Kubernetes for orchestration
 
 **Failure Handling:**
+
 - Worker crash: Job returns to queue (using message acknowledgment)
 - Timeout: Kill container, mark as TLE
 - Out of memory: Mark as MLE
@@ -1448,6 +1541,7 @@ Judge Worker Container
 - Network failures: Retry mechanism with exponential backoff
 
 **Security Measures:**
+
 1. **Sandbox Isolation:**
    - No network access
    - Limited system calls (seccomp filters)
@@ -1472,13 +1566,13 @@ Judge Worker Container
 
 **Redis Cache Architecture:**
 
-```
+```text
 Redis Cluster
 ├── Problem Cache (Hot problems)
 ├── User Session Cache
 ├── Rate Limit Counter Cache
 └── Leaderboard Cache
-```
+```text
 
 **What to Cache:**
 
@@ -1543,6 +1637,7 @@ Redis Cluster
 - **Event-driven:** Publish invalidation events via message queue
 
 **Cache Eviction Policy:**
+
 - **Algorithm:** LRU (Least Recently Used)
 - **Memory Limit:** 80% threshold triggers eviction
 
@@ -1553,6 +1648,7 @@ Redis Cluster
 **Decision:** SQL vs NoSQL for Submissions
 **Choice:** PostgreSQL (SQL)
 **Pros:**
+
 - ACID transactions for data consistency
 - Complex queries (user stats, rankings)
 - Strong data integrity
@@ -1568,6 +1664,7 @@ Redis Cluster
 **Decision:** Message Queue vs Direct Worker Communication
 **Choice:** RabbitMQ/Kafka Message Queue
 **Pros:**
+
 - Decouples submission service from workers
 - Load balancing across workers
 - Retry and dead-letter handling
@@ -1584,6 +1681,7 @@ Redis Cluster
 **Decision:** S3 vs Database for Code Storage
 **Choice:** S3 Object Storage
 **Pros:**
+
 - Cost-effective for large blobs
 - Unlimited scalability
 - Built-in redundancy
@@ -1599,6 +1697,7 @@ Redis Cluster
 **Decision:** WebSocket vs Polling for Submission Status
 **Choice:** Polling (with potential WebSocket upgrade path)
 **Pros (Polling):**
+
 - Simpler to implement
 - No persistent connections
 - Works with standard HTTP caching
@@ -1614,6 +1713,7 @@ Redis Cluster
 **Decision:** Microservices vs Monolith
 **Choice:** Microservices Architecture
 **Pros:**
+
 - Independent scaling (scale judge workers separately)
 - Technology diversity (different languages per service)
 - Fault isolation
@@ -1630,6 +1730,7 @@ Redis Cluster
 **Decision:** Synchronous vs Asynchronous User Statistics Update
 **Choice:** Asynchronous (Event-Driven)
 **Pros:**
+
 - Faster submission response
 - Decouples statistics calculation
 - Can handle calculation failures independently
@@ -1651,6 +1752,7 @@ Redis Cluster
 During peak hours or contests, submission queue can grow faster than workers can process, leading to long wait times.
 
 **Solution:**
+
 - **Auto-scaling:** Scale worker pool based on queue depth
   - Target: Queue depth < 100 jobs
   - Scale up when queue > 200 for 2 minutes
@@ -1662,6 +1764,7 @@ During peak hours or contests, submission queue can grow faster than workers can
 - **Resource Allocation:** Increase worker pool size during known peak times
 
 **Monitoring:**
+
 - Metric: Queue depth, average wait time, worker utilization
 - Alert: Wait time > 10 seconds
 - Dashboard: Real-time queue visualization
@@ -1674,6 +1777,7 @@ During peak hours or contests, submission queue can grow faster than workers can
 High submission rate (36 QPS peak) can cause write contention on submissions table, especially with index updates.
 
 **Solution:**
+
 - **Database Sharding:** Shard submissions by user_id
   - Each shard handles subset of users
   - Consistent hashing for shard selection
@@ -1683,6 +1787,7 @@ High submission rate (36 QPS peak) can cause write contention on submissions tab
 - **Read Replicas:** Offload submission history queries to read replicas
 
 **Monitoring:**
+
 - Metric: Write latency (p95, p99), lock wait time
 - Alert: p95 write latency > 100ms
 - Dashboard: Database throughput and latency graphs
@@ -1695,12 +1800,14 @@ High submission rate (36 QPS peak) can cause write contention on submissions tab
 When cache expires for popular problems, multiple requests simultaneously hit the database, causing load spike.
 
 **Solution:**
+
 - **Cache Warming:** Proactively refresh cache before expiry
 - **Probabilistic Early Expiration:** Randomly refresh cache slightly before TTL
 - **Request Coalescing:** Deduplicate simultaneous requests for same resource
 - **Longer TTL for Popular Items:** Adaptive TTL based on access frequency
 
 **Monitoring:**
+
 - Metric: Cache hit rate, database query rate
 - Alert: Cache hit rate < 85%
 - Dashboard: Cache performance metrics
@@ -1713,12 +1820,14 @@ When cache expires for popular problems, multiple requests simultaneously hit th
 Workers fetching code and test cases from S3 can hit bandwidth limits during high traffic.
 
 **Solution:**
+
 - **Local Caching:** Cache test cases on worker nodes
 - **CloudFront CDN:** Cache test cases in CDN (they don't change)
 - **Batching:** Fetch multiple test cases in single request
 - **S3 Transfer Acceleration:** Enable for faster uploads/downloads
 
 **Monitoring:**
+
 - Metric: S3 request latency, bandwidth usage
 - Alert: S3 latency p95 > 500ms
 
@@ -1730,12 +1839,14 @@ Workers fetching code and test cases from S3 can hit bandwidth limits during hig
 If message queue goes down, no submissions can be processed.
 
 **Solution:**
+
 - **Queue Clustering:** RabbitMQ cluster with multiple nodes
 - **Replication:** Kafka with replication factor 3
 - **Fallback Mechanism:** Temporary database-backed queue
 - **Health Checks:** Continuous monitoring with automatic failover
 
 **Monitoring:**
+
 - Metric: Queue health, message throughput, consumer lag
 - Alert: Queue unavailable
 - Dashboard: Queue cluster health
@@ -1749,6 +1860,7 @@ If message queue goes down, no submissions can be processed.
 **Current State:** Single region deployment
 
 **Improvement:**
+
 - **Multi-Region Deployment:**
   - US East, US West, Europe, Asia data centers
   - Route users to nearest region (latency-based routing)
@@ -1772,6 +1884,7 @@ If message queue goes down, no submissions can be processed.
 **Current State:** API servers serve all content
 
 **Improvement:**
+
 - **CDN Integration:**
   - CloudFront/Cloudflare for static assets
   - Cache problem descriptions, images, code templates
@@ -1788,6 +1901,7 @@ If message queue goes down, no submissions can be processed.
 #### 3. Database Query Optimization
 
 **Improvements:**
+
 - **Materialized Views:** Pre-compute leaderboards, popular problems
 - **Denormalization:** Store frequently accessed data redundantly
   - Problem title in submissions table (avoid JOIN)
@@ -1801,6 +1915,7 @@ If message queue goes down, no submissions can be processed.
 **Current State:** Polling for submission status
 
 **Improvement:**
+
 - **WebSocket Connection:**
   - Establish WebSocket after submission
   - Push status updates in real-time
@@ -1823,6 +1938,7 @@ If message queue goes down, no submissions can be processed.
 **Current State:** Single Redis instance
 
 **Improvement:**
+
 - **Redis Cluster:**
   - Multiple Redis nodes for horizontal scaling
   - Data sharding across nodes
@@ -1840,6 +1956,7 @@ If message queue goes down, no submissions can be processed.
 #### Metrics to Track
 
 **System Metrics:**
+
 - **Latency:**
   - API response time (p50, p95, p99)
   - Database query time
@@ -1855,6 +1972,7 @@ If message queue goes down, no submissions can be processed.
   - Judge system errors
 
 **Business Metrics:**
+
 - **User Engagement:**
   - Daily active users
   - Submissions per user
@@ -1865,6 +1983,7 @@ If message queue goes down, no submissions can be processed.
   - Average time to solve
 
 **Infrastructure Metrics:**
+
 - **Compute:**
   - CPU utilization
   - Memory usage
@@ -1880,24 +1999,28 @@ If message queue goes down, no submissions can be processed.
 #### Alerting Strategy
 
 **Critical Alerts (Page immediately):**
+
 - API availability < 99.9%
 - Database connection failures
 - Message queue unavailable
 - Judge workers all down
 
 **Warning Alerts (Notify, don't page):**
+
 - API latency p95 > 500ms
 - Queue depth > 500
 - Cache hit rate < 80%
 - Error rate > 2%
 
 **Info Alerts (Log only):**
+
 - Auto-scaling events
 - Cache expiration
 - Routine maintenance
 
 **Alert Conditions:**
-```
+
+```text
 Alert: High API Latency
 Condition: p95 latency > 500ms for 5 minutes
 Severity: Warning
@@ -1912,7 +2035,7 @@ Alert: Database Write Latency
 Condition: Write p99 > 200ms for 5 minutes
 Severity: Warning
 Action: Check for slow queries, lock contention
-```
+```text
 
 ---
 
@@ -1921,6 +2044,7 @@ Action: Check for slow queries, lock contention
 #### 1. Code Execution Security
 
 **Measures:**
+
 - **Sandboxing:** Docker containers with gVisor/Kata
 - **Resource Limits:** CPU, memory, disk, network
 - **Network Isolation:** No outbound connections
@@ -1929,6 +2053,7 @@ Action: Check for slow queries, lock contention
 - **Read-Only Filesystem:** Except /tmp
 
 **Threats Mitigated:**
+
 - Malicious code execution
 - Resource exhaustion attacks
 - Data exfiltration
@@ -1939,6 +2064,7 @@ Action: Check for slow queries, lock contention
 #### 2. API Security
 
 **Measures:**
+
 - **Authentication:** JWT tokens with short expiry
 - **Authorization:** Role-based access control (RBAC)
 - **Rate Limiting:** Per-user, per-IP, per-endpoint
@@ -1952,6 +2078,7 @@ Action: Check for slow queries, lock contention
 #### 3. Data Security
 
 **Measures:**
+
 - **Encryption at Rest:**
   - Database encryption (AWS RDS encryption)
   - S3 server-side encryption
@@ -1972,6 +2099,7 @@ Action: Check for slow queries, lock contention
 #### 4. DDoS Protection
 
 **Measures:**
+
 - **Rate Limiting:** Multiple layers
   - WAF (CloudFlare/AWS WAF)
   - API Gateway rate limiting
@@ -1985,6 +2113,7 @@ Action: Check for slow queries, lock contention
 #### 5. Secure Sandbox Isolation
 
 **Techniques:**
+
 - **Container Technology:** Docker with seccomp/AppArmor
 - **Hypervisor-Based:** gVisor for syscall filtering
 - **Resource Quotas:** Strict CPU/memory/disk limits
@@ -2017,7 +2146,7 @@ Action: Check for slow queries, lock contention
 
 4. **Interview Preparation Mode:**
    - Mock interviews
-  - Timed problem sets
+   - Timed problem sets
    - Company-specific problem lists
 
 5. **Code Review System:**
@@ -2097,6 +2226,7 @@ The system can handle **100,000 DAU**, **500,000 submissions/day**, and scale to
 ---
 
 **Interview Tips:**
+
 - Emphasize security in code execution sandbox
 - Discuss trade-offs between sync/async execution
 - Explain caching strategy for different data types
@@ -2107,10 +2237,10 @@ The system can handle **100,000 DAU**, **500,000 submissions/day**, and scale to
 ---
 
 **Document Metadata:**
+
 - **Created:** October 1, 2025
 - **System:** LeetCode Clone
 - **Scale:** 100K DAU, 500K submissions/day
 - **Focus Areas:** Security, Scalability, Performance
 
 ---
-
