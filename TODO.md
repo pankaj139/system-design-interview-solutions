@@ -4,18 +4,18 @@
 
 **Last Updated:** October 1, 2025
 
-**Progress:** 4/52 (7.7% Complete)
+**Progress:** 5/52 (9.6% Complete)
 
 ---
 
 ## 📊 Progress Overview
 
 ```
-✅ Completed: 4
+✅ Completed: 5
 🚧 In Progress: 0
-📝 Planned: 48
+📝 Planned: 47
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 7.7%
+[███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 9.6%
 ```
 
 ---
@@ -54,20 +54,19 @@
 - **Key Features:** Consistent hashing, master-replica replication, multiple data types, optional persistence (RDB + AOF), pub/sub messaging, memory management with eviction policies
 - **Lines:** 2,800+ (comprehensive)
 
+### 5. ✅ Rate Limiter for API Gateway System Design
+- **Status:** Complete
+- **File:** `rate_limiter_system_design.md`
+- **Completed:** October 1, 2025
+- **Scale:** 10M requests/day, 348 QPS peak (3x burst), 100K API keys
+- **Key Features:** Sliding window counter algorithm, multi-region deployment with eventual consistency, three-tier pricing support, graceful degradation, real-time rate limit status, comprehensive algorithm comparison (Token Bucket, Fixed Window, Sliding Log, Leaky Bucket, Sliding Window Counter)
+- **Lines:** 1,900+ (comprehensive)
+
 ---
 
-## 📋 Pending Designs (48)
+## 📋 Pending Designs (47)
 
 ### 🔥 High Priority - Core Infrastructure (Next 3)
-
-#### 5. ⬜ Rate Limiter (API Gateway)
-- **Status:** Not Started
-- **Priority:** P0 - Critical
-- **Difficulty:** ⭐⭐ Medium
-- **Estimated Time:** 2 hours
-- **Key Concepts:** Token bucket, leaky bucket, sliding window, distributed rate limiting
-- **Common Follow-ups:** User vs IP limiting, distributed counters, Redis implementation
-- **Notes:** Asked in almost every interview
 
 #### 6. ⬜ Content Delivery Network (CDN)
 - **Status:** Not Started
@@ -304,35 +303,28 @@
 
 ### 🔐 Security & Authentication
 
-#### 35. ⬜ Rate Limiting Algorithm (Token/Leaky Bucket)
-- **Status:** Not Started
-- **Priority:** P0 - Critical
-- **Difficulty:** ⭐⭐ Medium
-- **Estimated Time:** 2 hours
-- **Key Concepts:** Algorithm implementation, distributed counters, Redis, sliding window
-
-#### 36. ⬜ Single Sign-On (SSO)
+#### 35. ⬜ Single Sign-On (SSO)
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
 - **Estimated Time:** 3 hours
 - **Key Concepts:** OAuth2, SAML, JWT, identity provider, session management, security
 
-#### 37. ⬜ Global Authentication Service
+#### 36. ⬜ Global Authentication Service
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
 - **Estimated Time:** 3-4 hours
 - **Key Concepts:** Multi-region auth, token management, session replication, security
 
-#### 38. ⬜ Firewall System
+#### 37. ⬜ Firewall System
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐ Hard
 - **Estimated Time:** 3 hours
 - **Key Concepts:** Packet filtering, rule engine, DPI, logging, threat detection
 
-#### 39. ⬜ Buffer Overflow Prevention
+#### 38. ⬜ Buffer Overflow Prevention
 - **Status:** Not Started
 - **Priority:** P3 - Low
 - **Difficulty:** ⭐⭐ Medium
@@ -343,21 +335,21 @@
 
 ### 📊 Monitoring & Observability
 
-#### 40. ⬜ Distributed Metrics Logging System
+#### 39. ⬜ Distributed Metrics Logging System
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
 - **Estimated Time:** 3-4 hours
 - **Key Concepts:** Log aggregation, time-series DB, query language, retention, indexing
 
-#### 41. ⬜ Health Monitoring System for Servers
+#### 40. ⬜ Health Monitoring System for Servers
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
 - **Estimated Time:** 3 hours
 - **Key Concepts:** Metrics collection, alerting, dashboards, anomaly detection, distributed tracing
 
-#### 42. ⬜ Performance Metrics Collection at Scale
+#### 41. ⬜ Performance Metrics Collection at Scale
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -368,28 +360,28 @@
 
 ### 📦 Storage & File Systems
 
-#### 43. ⬜ Text Storage Service (Pastebin)
+#### 42. ⬜ Text Storage Service (Pastebin)
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐ Medium
 - **Estimated Time:** 2-3 hours
 - **Key Concepts:** Object storage, URL generation, expiration, access control, syntax highlighting
 
-#### 44. ⬜ File Storage Service (Dropbox/Google Drive)
+#### 43. ⬜ File Storage Service (Dropbox/Google Drive)
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Chunking, deduplication, sync algorithm, versioning, conflict resolution
 
-#### 45. ⬜ Distributed Storage System
+#### 44. ⬜ Distributed Storage System
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Replication, sharding, consistency, erasure coding, HDFS-like architecture
 
-#### 46. ⬜ In-Memory Database
+#### 45. ⬜ In-Memory Database
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -400,28 +392,28 @@
 
 ### 🏢 Enterprise & Real-World Systems
 
-#### 47. ⬜ Parking Lot System
+#### 46. ⬜ Parking Lot System
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐ Medium
 - **Estimated Time:** 2 hours
 - **Key Concepts:** Capacity management, pricing, payment, availability tracking, OOP design
 
-#### 48. ⬜ Online Voting/Election System
+#### 47. ⬜ Online Voting/Election System
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
 - **Estimated Time:** 4 hours
 - **Key Concepts:** Security, anonymity, verification, auditing, fraud prevention, consensus
 
-#### 49. ⬜ Elevator System
+#### 48. ⬜ Elevator System
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐ Medium
 - **Estimated Time:** 2 hours
 - **Key Concepts:** Scheduling algorithms, optimization, state machine, OOP design
 
-#### 50. ⬜ Smart Elevator (Optimization)
+#### 49. ⬜ Smart Elevator (Optimization)
 - **Status:** Not Started
 - **Priority:** P3 - Low
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -432,14 +424,14 @@
 
 ### 🏗️ Architecture & Patterns
 
-#### 51. ⬜ Microservices Architecture
+#### 50. ⬜ Microservices Architecture
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
 - **Estimated Time:** 4 hours
 - **Key Concepts:** Service boundaries, communication, service discovery, API gateway, resilience
 
-#### 52. ⬜ Monolithic vs Microservices Comparison
+#### 51. ⬜ Monolithic vs Microservices Comparison
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐ Medium
@@ -577,15 +569,15 @@ Before marking a design as complete, ensure:
 
 **Active Design:** None
 
-**Next Up:** Rate Limiter (API Gateway)
+**Next Up:** Content Delivery Network (CDN)
 
 **Target Completion:** [Set date]
 
 ---
 
-**Last Activity:** October 1, 2025 - Completed Distributed Cache (Redis/Memcached) System Design
+**Last Activity:** October 1, 2025 - Completed Rate Limiter for API Gateway System Design
 
-**Next Milestone:** Complete 5 P0 designs (Phase 1) - 2/5 done
+**Next Milestone:** Complete 5 P0 designs (Phase 1) - 3/5 done
 
 **Target:** Complete all 52 designs by [Set target date]
 

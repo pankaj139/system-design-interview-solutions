@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (4/52)
+## ✅ Completed Designs (5/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 **Status:** ✅ Complete
@@ -99,7 +99,24 @@ High-performance in-memory distributed caching system with replication, sharding
 
 ---
 
-## 📋 Upcoming Designs (48)
+### 5. [Rate Limiter for API Gateway System Design](./rate_limiter_system_design.md)
+**Status:** ✅ Complete
+
+Distributed rate limiter for API gateway with multi-tier support, burst handling, and multi-region deployment.
+
+**Key Features:**
+- Sliding window counter algorithm for accuracy and performance balance
+- Multi-region deployment with eventual consistency (US-East, US-West, EU)
+- Three-tier pricing support (Free: 100/hour, Pro: 1000/hour, Enterprise: unlimited)
+- Graceful degradation with fallback modes
+- Real-time rate limit status via API and response headers
+- Comprehensive algorithm comparison (Token Bucket, Fixed Window, Sliding Log, etc.)
+
+**Scale:** 10M requests/day, 348 QPS peak (3x burst), 100K API keys
+
+---
+
+## 📋 Upcoming Designs (47)
 
 ### Core Infrastructure & Storage
 
@@ -159,8 +176,7 @@ High-performance in-memory distributed caching system with replication, sharding
 
 ### Security & Authentication
 
-- [ ] **Design an API rate limiter**
-- [ ] **Design a rate limiting algorithm** (token bucket/leaky bucket)
+- [x] **Design an API rate limiter**
 - [ ] **Design SSO (Single Sign-On)**
 - [ ] **Design a global authentication service**
 - [ ] **Design a firewall system for network security**
@@ -342,11 +358,11 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 4/52 (7.7%)
+**Completion Status:** 5/52 (9.6%)
 
-**Last Design Completed:** Distributed Cache (Redis/Memcached)
+**Last Design Completed:** Rate Limiter for API Gateway
 
-**Next Up:** Rate Limiter (API Gateway)
+**Next Up:** Content Delivery Network (CDN)
 
 ---
 
