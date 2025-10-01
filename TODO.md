@@ -4,18 +4,18 @@
 
 **Last Updated:** October 1, 2025
 
-**Progress:** 7/52 (13.5% Complete)
+**Progress:** 8/52 (15.4% Complete)
 
 ---
 
 ## 📊 Progress Overview
 
 ```text
-✅ Completed: 7
+✅ Completed: 8
 🚧 In Progress: 0
-📝 Planned: 45
+📝 Planned: 44
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[█████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 13.5%
+[█████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 15.4%
 ```
 
 ---
@@ -85,9 +85,18 @@
 - **Key Features:** Consistent hashing with virtual nodes (128 per node), quorum-based replication (R=2, W=2, N=3) with tunable consistency, vector clocks for conflict resolution, gossip protocol for failure detection, hinted handoff (3-hour retention), Merkle trees for anti-entropy (10-minute rebuild), AP system favoring availability, multi-datacenter async replication
 - **Lines:** 1,790+ (comprehensive)
 
+### 8. ✅ Pub/Sub Messaging System (Kafka) System Design
+
+- **Status:** Complete
+- **File:** `pubsub_messaging_system_design.md`
+- **Completed:** October 1, 2025
+- **Scale:** 10M messages/sec, 100+ topics, 1000+ partitions, 30 days retention (10 PB), 10K+ producers/consumers
+- **Key Features:** Topic partitioning (hash-based, key-based, round-robin), consumer groups with rebalancing protocol (range, round-robin, sticky assignment), offset management (auto-commit, manual sync/async, exactly-once semantics), log-structured storage with segment management and compaction, leader-follower replication with ISR protocol, producer batching and compression (gzip, snappy, lz4, zstd), back-pressure and flow control, compacted topics for changelog streams
+- **Lines:** 1,850+ (comprehensive)
+
 ---
 
-## 📋 Pending Designs (45)
+## 📋 Pending Designs (44)
 
 ### 💬 Messaging & Real-Time Systems (Next Priority)
 
@@ -103,15 +112,7 @@
 - **Estimated Time:** 3-4 hours
 - **Key Concepts:** WebSocket, message queue, read receipts, group chat, end-to-end encryption
 
-#### 9. ⬜ Pub/Sub Messaging System (Kafka)
-
-- **Status:** Not Started
-- **Priority:** P1 - High
-- **Difficulty:** ⭐⭐⭐⭐ Very Hard
-- **Estimated Time:** 4-5 hours
-- **Key Concepts:** Topics, partitions, consumer groups, offset management, durability
-
-#### 10. ⬜ Notification System
+#### 9. ⬜ Notification System
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -119,7 +120,7 @@
 - **Estimated Time:** 2-3 hours
 - **Key Concepts:** Push notifications, FCM/APNs, fan-out, priority queues, delivery guarantees
 
-#### 11. ⬜ Distributed Stream Processing System
+#### 10. ⬜ Distributed Stream Processing System
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -131,7 +132,7 @@
 
 ### 📱 Social Media & Content Platforms
 
-#### 12. ⬜ Social Media Platform (Instagram/Twitter)
+#### 11. ⬜ Social Media Platform (Instagram/Twitter)
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -139,7 +140,7 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Feed generation, follower/following, media storage, timeline algorithms
 
-#### 13. ⬜ Newsfeed System
+#### 12. ⬜ Newsfeed System
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -147,7 +148,7 @@
 - **Estimated Time:** 3-4 hours
 - **Key Concepts:** Fan-out on write vs read, ranking algorithms, personalization, caching
 
-#### 14. ⬜ Video Streaming Service (Netflix/YouTube)
+#### 13. ⬜ Video Streaming Service (Netflix/YouTube)
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -155,7 +156,7 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Adaptive bitrate, CDN, transcoding, content delivery, recommendations
 
-#### 15. ⬜ Find Friends on Social Network
+#### 14. ⬜ Find Friends on Social Network
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -167,7 +168,7 @@
 
 ### 🔍 Search & Discovery
 
-#### 16. ⬜ Web Crawler
+#### 15. ⬜ Web Crawler
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -175,7 +176,7 @@
 - **Estimated Time:** 3-4 hours
 - **Key Concepts:** BFS/DFS, URL frontier, politeness, deduplication, distributed crawling
 
-#### 17. ⬜ Search Engine
+#### 16. ⬜ Search Engine
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -183,7 +184,7 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Inverted index, ranking algorithms, crawling, indexing, query processing
 
-#### 18. ⬜ Autocomplete/Typeahead System
+#### 17. ⬜ Autocomplete/Typeahead System
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -191,7 +192,7 @@
 - **Estimated Time:** 2-3 hours
 - **Key Concepts:** Trie data structure, caching, ranking, prefix matching
 
-#### 19. ⬜ Proximity Service (Yelp)
+#### 18. ⬜ Proximity Service (Yelp)
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -199,7 +200,7 @@
 - **Estimated Time:** 3-4 hours
 - **Key Concepts:** Geohashing, QuadTree, R-tree, spatial indexing, nearby search
 
-#### 20. ⬜ Google Maps
+#### 19. ⬜ Google Maps
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -207,7 +208,7 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Graph algorithms, Dijkstra, A*, road network, ETA, routing
 
-#### 21. ⬜ Recommendation Engine
+#### 20. ⬜ Recommendation Engine
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -215,7 +216,7 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Collaborative filtering, content-based, matrix factorization, ML pipelines
 
-#### 22. ⬜ Book Review Aggregator
+#### 21. ⬜ Book Review Aggregator
 
 - **Status:** Not Started
 - **Priority:** P3 - Low
@@ -227,7 +228,7 @@
 
 ### 🛒 E-commerce & Payments
 
-#### 23. ⬜ E-commerce Website (Amazon)
+#### 22. ⬜ E-commerce Website (Amazon)
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -235,7 +236,7 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Product catalog, inventory, cart, checkout, orders, payments, recommendations
 
-#### 24. ⬜ Payment Gateway
+#### 23. ⬜ Payment Gateway
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -243,7 +244,7 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Transaction processing, idempotency, reconciliation, fraud detection, PCI compliance
 
-#### 25. ⬜ Shopping Cart System
+#### 24. ⬜ Shopping Cart System
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -251,7 +252,7 @@
 - **Estimated Time:** 2 hours
 - **Key Concepts:** Session management, inventory reservation, cart persistence, consistency
 
-#### 26. ⬜ Ticket Booking System
+#### 25. ⬜ Ticket Booking System
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -259,7 +260,7 @@
 - **Estimated Time:** 3-4 hours
 - **Key Concepts:** Seat locking, concurrency control, payment integration, inventory management
 
-#### 27. ⬜ Warehouse Inventory System
+#### 26. ⬜ Warehouse Inventory System
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -267,7 +268,7 @@
 - **Estimated Time:** 3 hours
 - **Key Concepts:** Stock management, location tracking, FIFO/LIFO, replenishment, analytics
 
-#### 28. ⬜ Promotion/Cashback System
+#### 27. ⬜ Promotion/Cashback System
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -279,7 +280,7 @@
 
 ### 🚗 On-Demand Services
 
-#### 29. ⬜ Ride-Sharing Service (Uber)
+#### 28. ⬜ Ride-Sharing Service (Uber)
 
 - **Status:** Not Started
 - **Priority:** P0 - Critical
@@ -287,7 +288,7 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Geolocation, matching algorithm, real-time tracking, ETA, pricing, dispatch
 
-#### 30. ⬜ Food Delivery System (Zomato/Swiggy)
+#### 29. ⬜ Food Delivery System (Zomato/Swiggy)
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -295,7 +296,7 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Restaurant catalog, order management, delivery routing, real-time tracking
 
-#### 31. ⬜ Restaurant Registration System
+#### 30. ⬜ Restaurant Registration System
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -303,7 +304,7 @@
 - **Estimated Time:** 2 hours
 - **Key Concepts:** Queue management, wait time estimation, notifications, capacity planning
 
-#### 32. ⬜ Shortest Delivery Routes
+#### 31. ⬜ Shortest Delivery Routes
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -315,7 +316,7 @@
 
 ### 🎮 Gaming & Entertainment
 
-#### 33. ⬜ Online Multiplayer Game Backend
+#### 32. ⬜ Online Multiplayer Game Backend
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -323,7 +324,7 @@
 - **Estimated Time:** 4 hours
 - **Key Concepts:** Real-time sync, state management, matchmaking, lag compensation, cheat detection
 
-#### 34. ⬜ Blackjack/Poker Gaming Site
+#### 33. ⬜ Blackjack/Poker Gaming Site
 
 - **Status:** Not Started
 - **Priority:** P3 - Low
@@ -335,7 +336,7 @@
 
 ### 🔐 Security & Authentication
 
-#### 35. ⬜ Single Sign-On (SSO)
+#### 34. ⬜ Single Sign-On (SSO)
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -343,7 +344,7 @@
 - **Estimated Time:** 3 hours
 - **Key Concepts:** OAuth2, SAML, JWT, identity provider, session management, security
 
-#### 36. ⬜ Global Authentication Service
+#### 35. ⬜ Global Authentication Service
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -351,7 +352,7 @@
 - **Estimated Time:** 3-4 hours
 - **Key Concepts:** Multi-region auth, token management, session replication, security
 
-#### 37. ⬜ Firewall System
+#### 36. ⬜ Firewall System
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -359,7 +360,7 @@
 - **Estimated Time:** 3 hours
 - **Key Concepts:** Packet filtering, rule engine, DPI, logging, threat detection
 
-#### 38. ⬜ Buffer Overflow Prevention
+#### 37. ⬜ Buffer Overflow Prevention
 
 - **Status:** Not Started
 - **Priority:** P3 - Low
@@ -371,7 +372,7 @@
 
 ### 📊 Monitoring & Observability
 
-#### 39. ⬜ Distributed Metrics Logging System
+#### 38. ⬜ Distributed Metrics Logging System
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -379,7 +380,7 @@
 - **Estimated Time:** 3-4 hours
 - **Key Concepts:** Log aggregation, time-series DB, query language, retention, indexing
 
-#### 40. ⬜ Health Monitoring System for Servers
+#### 39. ⬜ Health Monitoring System for Servers
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -387,7 +388,7 @@
 - **Estimated Time:** 3 hours
 - **Key Concepts:** Metrics collection, alerting, dashboards, anomaly detection, distributed tracing
 
-#### 41. ⬜ Performance Metrics Collection at Scale
+#### 40. ⬜ Performance Metrics Collection at Scale
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -399,7 +400,7 @@
 
 ### 📦 Storage & File Systems
 
-#### 42. ⬜ Text Storage Service (Pastebin)
+#### 41. ⬜ Text Storage Service (Pastebin)
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -407,7 +408,7 @@
 - **Estimated Time:** 2-3 hours
 - **Key Concepts:** Object storage, URL generation, expiration, access control, syntax highlighting
 
-#### 43. ⬜ File Storage Service (Dropbox/Google Drive)
+#### 42. ⬜ File Storage Service (Dropbox/Google Drive)
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -415,7 +416,7 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Chunking, deduplication, sync algorithm, versioning, conflict resolution
 
-#### 44. ⬜ Distributed Storage System
+#### 43. ⬜ Distributed Storage System
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -423,7 +424,7 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Replication, sharding, consistency, erasure coding, HDFS-like architecture
 
-#### 45. ⬜ In-Memory Database
+#### 44. ⬜ In-Memory Database
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -435,7 +436,7 @@
 
 ### 🏢 Enterprise & Real-World Systems
 
-#### 46. ⬜ Parking Lot System
+#### 45. ⬜ Parking Lot System
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -443,7 +444,7 @@
 - **Estimated Time:** 2 hours
 - **Key Concepts:** Capacity management, pricing, payment, availability tracking, OOP design
 
-#### 47. ⬜ Online Voting/Election System
+#### 46. ⬜ Online Voting/Election System
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -451,7 +452,7 @@
 - **Estimated Time:** 4 hours
 - **Key Concepts:** Security, anonymity, verification, auditing, fraud prevention, consensus
 
-#### 48. ⬜ Elevator System
+#### 47. ⬜ Elevator System
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -459,7 +460,7 @@
 - **Estimated Time:** 2 hours
 - **Key Concepts:** Scheduling algorithms, optimization, state machine, OOP design
 
-#### 49. ⬜ Smart Elevator (Optimization)
+#### 48. ⬜ Smart Elevator (Optimization)
 
 - **Status:** Not Started
 - **Priority:** P3 - Low
@@ -471,7 +472,7 @@
 
 ### 🏗️ Architecture & Patterns
 
-#### 50. ⬜ Microservices Architecture
+#### 49. ⬜ Microservices Architecture
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -479,7 +480,7 @@
 - **Estimated Time:** 4 hours
 - **Key Concepts:** Service boundaries, communication, service discovery, API gateway, resilience
 
-#### 51. ⬜ Monolithic vs Microservices Comparison
+#### 50. ⬜ Monolithic vs Microservices Comparison
 
 - **Status:** Not Started
 - **Priority:** P1 - High
@@ -643,8 +644,8 @@ Before marking a design as complete, ensure:
 
 ---
 
-**Last Activity:** October 1, 2025 - Completed Distributed Key-Value Store (DynamoDB/Cassandra) System Design
+**Last Activity:** October 1, 2025 - Completed Pub/Sub Messaging System (Kafka) System Design
 
-**Next Milestone:** Complete 10 designs by end of Q4 2025 - 7/10 done
+**Next Milestone:** Complete 10 designs by end of Q4 2025 - 8/10 done
 
 **Target:** Complete all 52 designs by Q4 2026

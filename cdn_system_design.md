@@ -1059,28 +1059,28 @@ Content-Security-Policy: default-src 'none'
 
 ### API Trade-Offs
 
-**Decision: REST vs GraphQL**
+#### Decision: REST vs GraphQL
 
 - **Choice:** REST
 - **Pros:** Simpler for CDN use cases, better caching at HTTP level, wider client support
 - **Cons:** Multiple requests for related resources, over-fetching data
 - **Justification:** CDN operations are straightforward CRUD operations. REST's simplicity and HTTP-level caching align with CDN principles. Most customers prefer REST for infrastructure APIs.
 
-**Decision: Synchronous vs Asynchronous Purge**
+#### Decision: Synchronous vs Asynchronous Purge
 
 - **Choice:** Asynchronous (202 Accepted)
 - **Pros:** Non-blocking, handles global propagation gracefully, better UX for bulk operations
 - **Cons:** Requires status polling, slightly more complex client logic
 - **Justification:** Global cache purge takes 3-5 seconds. Async pattern prevents client timeouts and allows customers to track progress.
 
-**Decision: URL-based vs Header-based Versioning**
+#### Decision: URL-based vs Header-based Versioning
 
 - **Choice:** URL-based (`/v1/`, `/v2/`)
 - **Pros:** Explicit, easier to test, visible in logs, simpler client implementation
 - **Cons:** Less RESTful, URL pollution
 - **Justification:** Operational simplicity wins. URL versioning is standard for infrastructure APIs and makes debugging easier.
 
-**Decision: Cursor vs Offset Pagination**
+#### Decision: Cursor vs Offset Pagination
 
 - **Choice:** Cursor-based
 - **Pros:** Consistent results during data changes, better performance for large datasets
@@ -1256,7 +1256,7 @@ class LFUWithDecay:
 
 **Trade-Offs Analysis:**
 
-**Decision: Cache Eviction Policy**
+#### Decision: Cache Eviction Policy
 
 - **Choice:** LFU with Popularity Decay
 - **Pros:**
@@ -1320,7 +1320,7 @@ Cons:
 - Doesn't scale for 10M objects
 ```
 
-**Decision: Origin Pull with Prewarming Option**
+#### Decision: Origin Pull with Prewarming Option
 
 - **Choice:** Default to origin pull, offer push API for critical content
 - **Justification:**
@@ -1373,7 +1373,7 @@ Limitations:
 - Can cause connection disruption during failover
 ```
 
-**Decision: GeoDNS + Anycast Hybrid**
+#### Decision: GeoDNS + Anycast Hybrid
 
 - **Choice:** Use both technologies in combination
 - **Implementation:**
@@ -1437,7 +1437,7 @@ Origin load:
 
 **Trade-Offs:**
 
-**Decision: Three-Tier vs Two-Tier Hierarchy**
+#### Decision: Three-Tier vs Two-Tier Hierarchy
 
 - **Choice:** Three-tier (edge → mid-tier → origin)
 - **Pros:**
@@ -1543,7 +1543,7 @@ Timing:
 
 **Trade-Offs:**
 
-**Decision: Message Queue vs Direct HTTP**
+#### Decision: Message Queue vs Direct HTTP
 
 - **Choice:** Kafka message queue
 - **Pros:**
@@ -1558,7 +1558,7 @@ Timing:
   - Requires Kafka expertise
 - **Justification:** Must guarantee purge reaches all 100 edges within 5 seconds. Direct HTTP to 100 edges risks timeouts and partial failures. Kafka provides reliability and parallelism needed for 5-second SLA.
 
-**Decision: Eventual Consistency for Invalidation**
+#### Decision: Eventual Consistency for Invalidation
 
 - **Choice:** Accept eventual consistency (5 second window)
 - **Pros:**

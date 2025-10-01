@@ -103,7 +103,7 @@
 
 ### Traffic Estimates
 
-```
+```text
 Daily Active Users (DAU): 500M
 Users uploading photos: 20% of DAU = 100M users
 Average uploads per user: 5 photos/day
@@ -127,7 +127,7 @@ Peak view QPS (3x): ~693,000 views/second
 
 ### Storage Estimates
 
-```
+```text
 Photo Storage:
 Average photo size: 3MB
 Daily photo storage: 500M photos × 3MB = 1.5 PB/day
@@ -162,7 +162,7 @@ Total: ~2,420 PB/year (~2.4 EB/year)
 
 ### Bandwidth Estimates
 
-```
+```text
 Upload Bandwidth:
 Photos: 500M × 3MB / 86,400s = 17.4 GB/s
 Videos: 50M × 100MB / 86,400s = 57.9 GB/s
@@ -178,7 +178,7 @@ Total Peak Bandwidth: ~35 TB/s
 
 ### Resource Estimates
 
-```
+```text
 API Servers:
 Peak QPS: ~700K requests/second
 Assuming 1,000 QPS per server: 700 servers
@@ -395,7 +395,7 @@ graph TB
 
 **Photos Metadata Table:**
 
-```
+```text
 Partition Key: user_id
 Clustering Key: upload_date (DESC), photo_id
 
@@ -428,7 +428,7 @@ Columns:
 
 **Videos Metadata Table:**
 
-```
+```text
 Partition Key: user_id
 Clustering Key: upload_date (DESC), video_id
 
@@ -579,7 +579,7 @@ results = collection.search(
 
 **Cache Keys Structure:**
 
-```
+```text
 photo_metadata:{photo_id} -> JSON (TTL: 24h)
 user_photos:{user_id}:{page} -> List of photo_ids (TTL: 1h)
 album_photos:{album_id}:{page} -> List of photo_ids (TTL: 1h)
@@ -722,7 +722,7 @@ POST /photos/upload
 
 **Request (Form Data):**
 
-```
+```text
 photo: [binary file]
 file_name: "vacation.jpg"
 capture_date: "2025-09-15T14:30:00Z" (optional)
@@ -910,7 +910,7 @@ POST /photos/batch-upload
 
 **Request (Form Data):**
 
-```
+```text
 photos: [array of binary files, max 50 per request]
 album_id: "uuid" (optional)
 ```
@@ -1720,7 +1720,7 @@ POST /search/by-face
 
 **Request (Form Data):**
 
-```
+```text
 reference_photo: [binary file or photo_id]
 face_id: "face-uuid" (optional, if using existing face)
 threshold: 0.75 (optional, similarity threshold 0.0-1.0, default: 0.75)
@@ -1874,7 +1874,7 @@ POST /photos/{photo_id}/tag-person
 
 **Rate Limiting Headers:**
 
-```
+```text
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 847
 X-RateLimit-Reset: 1696156800
@@ -1906,28 +1906,28 @@ X-RateLimit-Reset: 1696156800
 
 ### API Trade-Offs
 
-**Decision: REST vs GraphQL**
+#### Decision: REST vs GraphQL
 
 - **Choice:** REST API
 - **Pros:** Simpler to implement, better caching, wider client support, predictable performance
 - **Cons:** Multiple requests for complex queries, over-fetching data
 - **Justification:** Photo management has predictable access patterns with well-defined resources. REST's caching benefits are crucial for serving millions of photo URLs.
 
-**Decision: Synchronous vs Asynchronous Upload Processing**
+#### Decision: Synchronous vs Asynchronous Upload Processing
 
 - **Choice:** Hybrid approach - synchronous upload, asynchronous processing
 - **Pros:** Immediate upload confirmation, non-blocking thumbnail generation, better resource utilization
 - **Cons:** Delayed availability of thumbnails and metadata
 - **Justification:** Users need quick upload feedback, but thumbnail generation and metadata extraction can happen asynchronously without impacting UX.
 
-**Decision: Pagination Strategy**
+#### Decision: Pagination Strategy
 
 - **Choice:** Offset-based pagination with page numbers
 - **Pros:** Simple to implement, allows jumping to specific pages, familiar to users
 - **Cons:** Performance degrades with deep pagination, inconsistent results if data changes
 - **Justification:** Most users browse recent photos (first few pages), making offset pagination performant for 95% of use cases.
 
-**Decision: Endpoint Granularity**
+#### Decision: Endpoint Granularity
 
 - **Choice:** Resource-oriented with separate endpoints for different resources
 - **Pros:** Clear responsibility, easier to cache, better rate limiting control
@@ -2707,7 +2707,7 @@ def update_photo_metadata(photo_id, metadata):
 
 ### 6.6 Key Trade-Offs Analysis
 
-**Trade-Off 1: SQL vs NoSQL for Metadata**
+#### Trade-Off 1: SQL vs NoSQL for Metadata
 
 **Decision:** Cassandra (NoSQL) for photo metadata, PostgreSQL (SQL) for user/album data
 
@@ -2739,7 +2739,7 @@ def update_photo_metadata(photo_id, metadata):
 
 ---
 
-**Trade-Off 2: Synchronous vs Asynchronous Processing**
+#### Trade-Off 2: Synchronous vs Asynchronous Processing
 
 **Decision:** Asynchronous processing via Kafka
 
@@ -2760,7 +2760,7 @@ def update_photo_metadata(photo_id, metadata):
 
 ---
 
-**Trade-Off 3: Storage Location - S3 vs Custom Storage**
+#### Trade-Off 3: Storage Location - S3 vs Custom Storage
 
 **Decision:** AWS S3 with CDN
 
@@ -2782,7 +2782,7 @@ def update_photo_metadata(photo_id, metadata):
 
 ---
 
-**Trade-Off 4: Search - Elasticsearch vs Database Search**
+#### Trade-Off 4: Search - Elasticsearch vs Database Search
 
 **Decision:** Elasticsearch for search
 
@@ -2803,7 +2803,7 @@ def update_photo_metadata(photo_id, metadata):
 
 ---
 
-**Trade-Off 5: Video Processing**
+#### Trade-Off 5: Video Processing
 
 **Decision:** AWS Elastic Transcoder for video processing (post-MVP: AWS MediaConvert)
 
@@ -2828,7 +2828,7 @@ def update_photo_metadata(photo_id, metadata):
 
 ### 7.1 Potential Bottlenecks
 
-**Bottleneck 1: Database Write Contention**
+#### Bottleneck 1: Database Write Contention
 
 **Problem:**
 
@@ -2851,7 +2851,7 @@ def update_photo_metadata(photo_id, metadata):
 
 ---
 
-**Bottleneck 2: S3 Request Rate**
+#### Bottleneck 2: S3 Request Rate
 
 **Problem:**
 
@@ -2874,7 +2874,7 @@ def update_photo_metadata(photo_id, metadata):
 
 ---
 
-**Bottleneck 3: Thumbnail Generation Lag**
+#### Bottleneck 3: Thumbnail Generation Lag
 
 **Problem:**
 
@@ -2897,7 +2897,7 @@ def update_photo_metadata(photo_id, metadata):
 
 ---
 
-**Bottleneck 4: Search Index Lag**
+#### Bottleneck 4: Search Index Lag
 
 **Problem:**
 
@@ -2920,7 +2920,7 @@ def update_photo_metadata(photo_id, metadata):
 
 ---
 
-**Bottleneck 5: Single Points of Failure**
+#### Bottleneck 5: Single Points of Failure
 
 **Problem:**
 
@@ -2946,7 +2946,7 @@ def update_photo_metadata(photo_id, metadata):
 
 ### 7.2 Scalability Improvements
 
-**1. Geographic Distribution**
+#### 1. Geographic Distribution
 
 **Strategy:**
 
@@ -2963,7 +2963,7 @@ def update_photo_metadata(photo_id, metadata):
 
 **Implementation:**
 
-```
+```text
 US-East (Primary):
 - Full stack deployment
 - Hot storage replication to EU/Asia
@@ -2981,7 +2981,7 @@ Asia-Pacific (Secondary):
 
 ---
 
-**2. Advanced Caching**
+#### 2. Advanced Caching
 
 **Strategy:**
 
@@ -3012,7 +3012,7 @@ exports.handler = async (event, context) => {
 
 ---
 
-**3. Real-Time Features**
+#### 3. Real-Time Features
 
 **Strategy:**
 
@@ -3044,7 +3044,7 @@ graph LR
 
 ---
 
-**4. Query Optimization**
+#### 4. Query Optimization
 
 **Photo Timeline Query Optimization:**
 
@@ -3156,7 +3156,7 @@ Info (Dashboard):
 
 ### 7.4 Security Considerations
 
-**1. Authentication & Authorization**
+#### 1. Authentication & Authorization
 
 **Implementation:**
 
@@ -3185,7 +3185,7 @@ def authorize_photo_access(user_id, photo_id):
 
 ---
 
-**2. Data Protection**
+#### 2. Data Protection
 
 **Encryption:**
 
@@ -3209,7 +3209,7 @@ def authorize_photo_access(user_id, photo_id):
 
 ---
 
-**3. DDoS Protection**
+#### 3. DDoS Protection
 
 **Strategy:**
 
@@ -3234,7 +3234,7 @@ Endpoint Limits:
 
 ---
 
-**4. Face Recognition Privacy**
+#### 4. Face Recognition Privacy
 
 **Privacy-First Design:**
 
@@ -3291,7 +3291,7 @@ def delete_face_data(user_id):
     db.execute("UPDATE users SET face_recognition_enabled = FALSE WHERE user_id = ?", user_id)
 ```
 
-**5. Secure Sandbox**
+#### 5. Secure Sandbox
 
 **For Future ML Features (object detection, scene recognition):**
 

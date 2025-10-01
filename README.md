@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (7/52)
+## ✅ Completed Designs (8/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -168,7 +168,28 @@ Highly available distributed key-value store for e-commerce with multi-datacente
 
 ---
 
-## 📋 Upcoming Designs (45)
+### 8. [Pub/Sub Messaging System (like Kafka)](./pubsub_messaging_system_design.md)
+
+**Status:** ✅ Complete
+
+Distributed message queue for event streaming across microservices with high throughput and durability.
+
+**Key Features:**
+
+- Topic partitioning with hash-based and key-based strategies
+- Consumer groups with rebalancing protocol (range, round-robin, sticky assignment)
+- Offset management (auto-commit, manual sync/async, exactly-once semantics)
+- Log-structured storage with segment management and compaction
+- Leader-follower replication with ISR (In-Sync Replicas) protocol
+- Producer batching, compression (gzip, snappy, lz4, zstd), and partitioning
+- Back-pressure and flow control mechanisms
+- Compacted topics for changelog streams
+
+**Scale:** 10M messages/sec, 100+ topics, 1000+ partitions, 30 days retention (10 PB), 10K+ producers/consumers
+
+---
+
+## 📋 Upcoming Designs (44)
 
 ### Core Infrastructure & Storage
 
@@ -183,7 +204,7 @@ Highly available distributed key-value store for e-commerce with multi-datacente
 
 ### Messaging & Communication
 
-- [ ] **Design a pub/sub messaging system** (like Kafka)
+- [x] **Design a pub/sub messaging system** (like Kafka)
 - [ ] **Design a chat application** (like WhatsApp)
 - [ ] **Design a notification system**
 - [ ] **Design a distributed stream processing system**
@@ -414,9 +435,9 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 7/52 (13.5%)
+**Completion Status:** 8/52 (15.4%)
 
-**Last Design Completed:** Distributed Key-Value Store (DynamoDB/Cassandra)
+**Last Design Completed:** Pub/Sub Messaging System (Kafka)
 
 **Next Up:** Chat Application (WhatsApp)
 
