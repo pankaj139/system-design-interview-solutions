@@ -137,7 +137,7 @@
 
 ### Traffic Estimates
 
-```
+```text
 Daily Active Users (DAU): 100,000
 Active users submitting code: 100,000 × 100% = 100,000 users
 
@@ -160,7 +160,7 @@ Peak executions per second (3x): 36 QPS
 
 ### Storage Estimates
 
-```
+```text
 PROBLEM DATA:
 - Total problems in system: 3,000 problems
 - Average problem size: 5 KB (description, examples, constraints)
@@ -198,7 +198,7 @@ TOTAL STORAGE (3 years):
 
 ### Resource Estimates
 
-```
+```text
 CONCURRENT EXECUTIONS AT PEAK:
 - Peak execution QPS: 36
 - Average execution time: 3 seconds
@@ -222,7 +222,7 @@ DATABASE CONNECTIONS:
 
 ### Bandwidth Estimates
 
-```
+```text
 SUBMISSION REQUEST:
 - Code: 2 KB
 - Metadata: 500 bytes
@@ -782,7 +782,7 @@ GET /v1/problems
 }
 ```
 
-*(Optional, for personalized status)*
+#### (Optional, for personalized status)
 
 **Response (200 OK):**
 
@@ -1384,7 +1384,7 @@ GET /v1/search
 
 **Security Headers:**
 
-```
+```text
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
@@ -1497,7 +1497,7 @@ Execute user-submitted code in a secure, isolated environment and evaluate it ag
 
 **Internal Architecture:**
 
-```
+```text
 Judge Worker Container
 ├── Job Listener (pulls from queue)
 ├── Language Runtime Manager
@@ -1587,7 +1587,7 @@ Judge Worker Container
 
 **Redis Cache Architecture:**
 
-```
+```text
 Redis Cluster
 ├── Problem Cache (Hot problems)
 ├── User Session Cache
@@ -2041,7 +2041,7 @@ If message queue goes down, no submissions can be processed.
 
 **Alert Conditions:**
 
-```
+```text
 Alert: High API Latency
 Condition: p95 latency > 500ms for 5 minutes
 Severity: Warning

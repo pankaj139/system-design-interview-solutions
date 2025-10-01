@@ -125,7 +125,7 @@ Usage:
 
 ### Traffic Estimates
 
-```
+```text
 Target Operations: 1M ops/sec (starting), 10M ops/sec (peak)
 
 Read/Write Distribution:
@@ -142,7 +142,7 @@ Operations per day:
 
 ### Storage Estimates
 
-```
+```text
 Average Data Size:
 - Key size: 50 bytes
 - Value size: 1KB
@@ -166,7 +166,7 @@ With Overhead (metadata, pointers, hash tables):
 
 ### Resource Estimates
 
-```
+```text
 Number of Nodes Needed:
 
 For Performance (100K ops/sec per node):
@@ -194,7 +194,7 @@ CPU Requirements:
 
 ### Bandwidth Estimates
 
-```
+```text
 Average Request Size:
 - GET request: 50 bytes (key only)
 - SET request: 1.05KB (key + value)
@@ -292,6 +292,7 @@ graph TB
 ### Data Flow Explanation
 
 **Write Operation Flow:**
+
 1. **Client Request**: Application sends SET command with key-value pair to client library
 2. **Key Hashing**: Client library applies consistent hashing to determine target shard
 3. **Route to Master**: Request is routed to the appropriate master node
@@ -301,6 +302,7 @@ graph TB
 7. **Response**: Master returns success acknowledgment to client
 
 **Read Operation Flow:**
+
 1. **Client Request**: Application sends GET command with key to client library
 2. **Key Hashing**: Client library applies consistent hashing to determine target shard
 3. **Route to Node**: Request is routed to master node (or replica for read-heavy workloads)
@@ -309,6 +311,7 @@ graph TB
 6. **Response**: Return value to client (or null if expired/missing)
 
 **Failover Flow:**
+
 1. **Failure Detection**: Sentinel nodes detect master failure through heartbeat timeout
 2. **Quorum Decision**: Sentinels reach quorum agreement on failure
 3. **Replica Promotion**: Sentinel promotes a replica to master
@@ -323,7 +326,8 @@ graph TB
 ### In-Memory Data Structures
 
 **Hash Table (Primary Storage):**
-```
+
+```text
 Structure: dict (hash table with chaining)
 - Entry:
   - key (string, pointer to key object)
@@ -338,7 +342,8 @@ Implementation:
 ```
 
 **Key Object:**
-```
+
+```text
 Key Structure:
 - type (uint8: STRING, LIST, SET, ZSET, HASH)
 - encoding (uint8: RAW, INT, HT, ZIPLIST, etc.)
@@ -349,7 +354,7 @@ Key Structure:
 
 **Value Objects by Type:**
 
-```
+```text
 1. String Value:
    - len (uint32: string length)
    - data (char array: actual string data)
@@ -384,7 +389,8 @@ Key Structure:
 ### Expiration Management
 
 **Expiration Dictionary:**
-```
+
+```text
 Structure: Separate hash table for keys with TTL
 - Entry:
   - key (pointer to key object)
@@ -399,7 +405,8 @@ Eviction Strategies:
 ### Persistence Structures
 
 **RDB Snapshot Format:**
-```
+
+```text
 Header:
 - Magic string: "REDIS"
 - Version: uint16
@@ -420,7 +427,8 @@ Footer:
 ```
 
 **AOF Log Format:**
-```
+
+```text
 Format: Redis Protocol (RESP)
 - Command: *<arg_count>\r\n
 - Arguments: $<length>\r\n<data>\r\n
@@ -442,21 +450,24 @@ Rewrite Strategy:
 **Protocol**: Redis Serialization Protocol (RESP) or REST API wrapper
 
 **Connection**:
+
 - TCP socket connection (default port: 6379)
 - Connection pooling recommended
 - Pipelining support for batching
 
 **Authentication**:
-```
+
+```text
 AUTH password
 ```
 
 **Response Format**:
-- Simple Strings: +OK\r\n
-- Errors: -Error message\r\n
-- Integers: :1000\r\n
-- Bulk Strings: $6\r\nfoobar\r\n
-- Arrays: *2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n
+
+- Simple Strings: `+OK\r\n`
+- Errors: `-Error message\r\n`
+- Integers: `:1000\r\n`
+- Bulk Strings: `$6\r\nfoobar\r\n`
+- Arrays: `*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n`
 
 ---
 
@@ -464,11 +475,12 @@ AUTH password
 
 #### SET - Store a key-value pair
 
-```
+```text
 SET key value [EX seconds] [PX milliseconds] [NX|XX]
 ```
 
 **Parameters**:
+
 - `key`: String key (required)
 - `value`: String value (required)
 - `EX seconds`: Set expiration in seconds (optional)
@@ -477,12 +489,14 @@ SET key value [EX seconds] [PX milliseconds] [NX|XX]
 - `XX`: Only set if key exists (optional)
 
 **Request Example**:
-```
+
+```text
 SET user:1001:session "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" EX 3600
 ```
 
 **Response**:
-```
+
+```text
 Success: +OK
 Error: -ERR invalid expiration time
 ```
@@ -498,15 +512,18 @@ GET key
 ```
 
 **Parameters**:
+
 - `key`: String key (required)
 
 **Request Example**:
+
 ```http
 GET user:1001:session
 ```
 
 **Response**:
-```
+
+```text
 Success: $43\r\neyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\r\n
 Not Found: $-1\r\n (null bulk string)
 ```
@@ -517,20 +534,23 @@ Not Found: $-1\r\n (null bulk string)
 
 #### DEL - Delete one or more keys
 
-```
+```text
 DEL key [key ...]
 ```
 
 **Parameters**:
+
 - `key`: One or more keys to delete
 
 **Request Example**:
-```
+
+```text
 DEL user:1001:session user:1001:cart
 ```
 
 **Response**:
-```
+
+```text
 :(integer) 2  # Number of keys deleted
 ```
 
@@ -545,15 +565,18 @@ MGET key [key ...]
 ```
 
 **Parameters**:
+
 - `key`: One or more keys to retrieve
 
 **Request Example**:
+
 ```http
 MGET user:1001:name user:1001:email user:1001:age
 ```
 
 **Response**:
-```
+
+```text
 *3
 $10
 John Smith
@@ -569,20 +592,23 @@ $2
 
 #### MSET - Set multiple key-value pairs
 
-```
+```text
 MSET key value [key value ...]
 ```
 
 **Parameters**:
+
 - `key value`: Pairs of keys and values
 
 **Request Example**:
-```
+
+```text
 MSET user:1001:name "John Smith" user:1001:email "john@example.com"
 ```
 
 **Response**:
-```
+
+```text
 +OK
 ```
 
@@ -594,21 +620,24 @@ MSET user:1001:name "John Smith" user:1001:email "john@example.com"
 
 #### EXPIRE - Set key expiration
 
-```
+```text
 EXPIRE key seconds
 ```
 
 **Parameters**:
+
 - `key`: Key to set expiration on
 - `seconds`: Time to live in seconds
 
 **Request Example**:
-```
+
+```text
 EXPIRE session:abc123 3600
 ```
 
 **Response**:
-```
+
+```text
 :1  # Success
 :0  # Key doesn't exist
 ```
@@ -619,20 +648,23 @@ EXPIRE session:abc123 3600
 
 #### TTL - Get time to live
 
-```
+```text
 TTL key
 ```
 
 **Parameters**:
+
 - `key`: Key to check expiration
 
 **Request Example**:
-```
+
+```text
 TTL session:abc123
 ```
 
 **Response**:
-```
+
+```text
 :3599  # Seconds remaining
 :-1    # Key exists but no expiration
 :-2    # Key doesn't exist
@@ -644,20 +676,23 @@ TTL session:abc123
 
 #### PERSIST - Remove expiration
 
-```
+```text
 PERSIST key
 ```
 
 **Parameters**:
+
 - `key`: Key to remove expiration from
 
 **Request Example**:
-```
+
+```text
 PERSIST user:1001:preferences
 ```
 
 **Response**:
-```
+
+```text
 :1  # Expiration removed
 :0  # Key doesn't exist or no expiration
 ```
@@ -670,20 +705,23 @@ PERSIST user:1001:preferences
 
 #### INCR - Increment integer value
 
-```
+```text
 INCR key
 ```
 
 **Parameters**:
+
 - `key`: Key containing integer value
 
 **Request Example**:
-```
+
+```text
 INCR page:views:homepage
 ```
 
 **Response**:
-```
+
+```text
 :1001  # New value after increment
 ```
 
@@ -693,21 +731,24 @@ INCR page:views:homepage
 
 #### INCRBY - Increment by amount
 
-```
+```text
 INCRBY key increment
 ```
 
 **Parameters**:
+
 - `key`: Key containing integer value
 - `increment`: Amount to add
 
 **Request Example**:
-```
+
+```text
 INCRBY user:1001:points 100
 ```
 
 **Response**:
-```
+
+```text
 :1500  # New value after increment
 ```
 
@@ -717,7 +758,7 @@ INCRBY user:1001:points 100
 
 #### DECR / DECRBY - Decrement operations
 
-```
+```text
 DECR key
 DECRBY key decrement
 ```
@@ -732,21 +773,24 @@ Similar to INCR/INCRBY but subtracts value.
 
 #### LPUSH - Prepend to list
 
-```
+```text
 LPUSH key value [value ...]
 ```
 
 **Parameters**:
+
 - `key`: List key
 - `value`: One or more values to prepend
 
 **Request Example**:
-```
+
+```text
 LPUSH queue:jobs "process-video-123" "send-email-456"
 ```
 
 **Response**:
-```
+
+```text
 :2  # New length of list
 ```
 
@@ -756,21 +800,24 @@ LPUSH queue:jobs "process-video-123" "send-email-456"
 
 #### RPUSH - Append to list
 
-```
+```text
 RPUSH key value [value ...]
 ```
 
 **Parameters**:
+
 - `key`: List key
 - `value`: One or more values to append
 
 **Request Example**:
-```
+
+```text
 RPUSH notifications:user:1001 "New message from Jane"
 ```
 
 **Response**:
-```
+
+```text
 :3  # New length of list
 ```
 
@@ -780,20 +827,23 @@ RPUSH notifications:user:1001 "New message from Jane"
 
 #### LPOP - Remove and return first element
 
-```
+```text
 LPOP key
 ```
 
 **Parameters**:
+
 - `key`: List key
 
 **Request Example**:
-```
+
+```text
 LPOP queue:jobs
 ```
 
 **Response**:
-```
+
+```text
 $17
 process-video-123
 ```
@@ -804,22 +854,25 @@ process-video-123
 
 #### LRANGE - Get range of elements
 
-```
+```text
 LRANGE key start stop
 ```
 
 **Parameters**:
+
 - `key`: List key
 - `start`: Start index (0-based, can be negative)
 - `stop`: Stop index (inclusive)
 
 **Request Example**:
-```
+
+```text
 LRANGE notifications:user:1001 0 9
 ```
 
 **Response**:
-```
+
+```text
 *10
 $23
 New message from Jane
@@ -836,21 +889,24 @@ New follower: Bob
 
 #### SADD - Add members to set
 
-```
+```text
 SADD key member [member ...]
 ```
 
 **Parameters**:
+
 - `key`: Set key
 - `member`: One or more members to add
 
 **Request Example**:
-```
+
+```text
 SADD user:1001:interests "technology" "sports" "music"
 ```
 
 **Response**:
-```
+
+```text
 :3  # Number of members added (excluding duplicates)
 ```
 
@@ -860,20 +916,23 @@ SADD user:1001:interests "technology" "sports" "music"
 
 #### SMEMBERS - Get all set members
 
-```
+```text
 SMEMBERS key
 ```
 
 **Parameters**:
+
 - `key`: Set key
 
 **Request Example**:
-```
+
+```text
 SMEMBERS user:1001:interests
 ```
 
 **Response**:
-```
+
+```text
 *3
 $10
 technology
@@ -889,21 +948,24 @@ music
 
 #### SISMEMBER - Check membership
 
-```
+```text
 SISMEMBER key member
 ```
 
 **Parameters**:
+
 - `key`: Set key
 - `member`: Member to check
 
 **Request Example**:
-```
+
+```text
 SISMEMBER user:1001:interests "technology"
 ```
 
 **Response**:
-```
+
+```text
 :1  # Member exists
 :0  # Member doesn't exist
 ```
@@ -916,21 +978,24 @@ SISMEMBER user:1001:interests "technology"
 
 #### HSET - Set hash field
 
-```
+```text
 HSET key field value [field value ...]
 ```
 
 **Parameters**:
+
 - `key`: Hash key
 - `field value`: Pairs of fields and values
 
 **Request Example**:
-```
+
+```text
 HSET user:1001 name "John Smith" email "john@example.com" age 25
 ```
 
 **Response**:
-```
+
+```text
 :3  # Number of fields added
 ```
 
@@ -945,16 +1010,19 @@ HGET key field
 ```
 
 **Parameters**:
+
 - `key`: Hash key
 - `field`: Field name
 
 **Request Example**:
+
 ```http
 HGET user:1001 name
 ```
 
 **Response**:
-```
+
+```text
 $10
 John Smith
 ```
@@ -965,20 +1033,23 @@ John Smith
 
 #### HGETALL - Get all hash fields and values
 
-```
+```text
 HGETALL key
 ```
 
 **Parameters**:
+
 - `key`: Hash key
 
 **Request Example**:
-```
+
+```text
 HGETALL user:1001
 ```
 
 **Response**:
-```
+
+```text
 *6
 $4
 name
@@ -1002,21 +1073,24 @@ $2
 
 #### ZADD - Add members with scores
 
-```
+```text
 ZADD key score member [score member ...]
 ```
 
 **Parameters**:
+
 - `key`: Sorted set key
 - `score member`: Pairs of scores and members
 
 **Request Example**:
-```
+
+```text
 ZADD leaderboard:global 1500 "player:1001" 1450 "player:1002"
 ```
 
 **Response**:
-```
+
+```text
 :2  # Number of members added
 ```
 
@@ -1026,23 +1100,26 @@ ZADD leaderboard:global 1500 "player:1001" 1450 "player:1002"
 
 #### ZRANGE - Get range by rank
 
-```
+```text
 ZRANGE key start stop [WITHSCORES]
 ```
 
 **Parameters**:
+
 - `key`: Sorted set key
 - `start`: Start rank (0-based)
 - `stop`: Stop rank (inclusive)
 - `WITHSCORES`: Include scores (optional)
 
 **Request Example**:
-```
+
+```text
 ZRANGE leaderboard:global 0 9 WITHSCORES
 ```
 
 **Response**:
-```
+
+```text
 *20
 $12
 player:1003
@@ -1061,21 +1138,24 @@ $4
 
 #### ZRANK - Get member rank
 
-```
+```text
 ZRANK key member
 ```
 
 **Parameters**:
+
 - `key`: Sorted set key
 - `member`: Member to find rank
 
 **Request Example**:
-```
+
+```text
 ZRANK leaderboard:global "player:1001"
 ```
 
 **Response**:
-```
+
+```text
 :5  # Rank (0-based)
 ```
 
@@ -1087,20 +1167,23 @@ ZRANK leaderboard:global "player:1001"
 
 #### KEYS - Find keys by pattern
 
-```
+```text
 KEYS pattern
 ```
 
 **Parameters**:
+
 - `pattern`: Glob-style pattern (* and ? supported)
 
 **Request Example**:
-```
+
+```text
 KEYS user:*:session
 ```
 
 **Response**:
-```
+
+```text
 *3
 $17
 user:1001:session
@@ -1118,22 +1201,25 @@ user:1003:session
 
 #### SCAN - Iterate keys incrementally
 
-```
+```text
 SCAN cursor [MATCH pattern] [COUNT count]
 ```
 
 **Parameters**:
+
 - `cursor`: Cursor position (0 to start)
 - `MATCH pattern`: Filter by pattern (optional)
 - `COUNT count`: Hint for number of keys to return (optional)
 
 **Request Example**:
-```
+
+```text
 SCAN 0 MATCH user:* COUNT 100
 ```
 
 **Response**:
-```
+
+```text
 *2
 $4
 1357  # Next cursor (0 means complete)
@@ -1153,21 +1239,24 @@ user:1002:name
 
 #### PUBLISH - Publish message to channel
 
-```
+```text
 PUBLISH channel message
 ```
 
 **Parameters**:
+
 - `channel`: Channel name
 - `message`: Message to publish
 
 **Request Example**:
-```
+
+```text
 PUBLISH notifications:realtime "New order received"
 ```
 
 **Response**:
-```
+
+```text
 :5  # Number of subscribers that received message
 ```
 
@@ -1177,20 +1266,23 @@ PUBLISH notifications:realtime "New order received"
 
 #### SUBSCRIBE - Subscribe to channels
 
-```
+```text
 SUBSCRIBE channel [channel ...]
 ```
 
 **Parameters**:
+
 - `channel`: One or more channels to subscribe
 
 **Request Example**:
-```
+
+```text
 SUBSCRIBE notifications:realtime alerts:critical
 ```
 
 **Response** (per message):
-```
+
+```text
 *3
 $7
 message
@@ -1206,15 +1298,17 @@ New order received
 
 #### PSUBSCRIBE - Subscribe to patterns
 
-```
+```text
 PSUBSCRIBE pattern [pattern ...]
 ```
 
 **Parameters**:
+
 - `pattern`: One or more channel patterns
 
 **Request Example**:
-```
+
+```text
 PSUBSCRIBE notifications:* alerts:*
 ```
 
@@ -1228,20 +1322,23 @@ PSUBSCRIBE notifications:* alerts:*
 
 #### INFO - Get server information
 
-```
+```text
 INFO [section]
 ```
 
 **Parameters**:
+
 - `section`: Optional section (server, memory, stats, etc.)
 
 **Request Example**:
-```
+
+```text
 INFO memory
 ```
 
 **Response**:
-```
+
+```text
 $200
 # Memory
 used_memory:1073741824
@@ -1256,20 +1353,23 @@ used_memory_peak:1610612736
 
 #### FLUSHDB - Clear current database
 
-```
+```text
 FLUSHDB [ASYNC]
 ```
 
 **Parameters**:
+
 - `ASYNC`: Delete asynchronously (optional)
 
 **Request Example**:
-```
+
+```text
 FLUSHDB ASYNC
 ```
 
 **Response**:
-```
+
+```text
 +OK
 ```
 
@@ -1285,17 +1385,20 @@ CONFIG SET parameter value
 ```
 
 **Parameters**:
+
 - `parameter`: Configuration parameter name
 - `value`: New value (for SET)
 
 **Request Example**:
+
 ```http
 CONFIG GET maxmemory
 CONFIG SET maxmemory 2gb
 ```
 
 **Response**:
-```
+
+```text
 *2
 $9
 maxmemory
@@ -1310,25 +1413,29 @@ $10
 ### Cross-Cutting Concerns
 
 **Rate Limiting**:
+
 - Per-connection limits: 10K commands/sec
 - Global limits: 1M commands/sec per node
 - Implemented at connection handler level
 
 **Error Response Format**:
-```
+
+```text
 -ERR Error message here
 -WRONGTYPE Operation against a key holding the wrong kind of value
 -NOAUTH Authentication required
 ```
 
 **Pipelining**:
+
 - Send multiple commands without waiting for responses
 - Responses returned in order
 - Reduces RTT overhead
 - Example: Send 100 SETs at once, receive 100 responses
 
 **Transactions (Optional)**:
-```
+
+```text
 MULTI           # Start transaction
 SET key1 value1
 SET key2 value2
@@ -1336,16 +1443,19 @@ EXEC            # Execute atomically
 ```
 
 **Blocking Operations**:
+
 - BLPOP/BRPOP: Block until list element available
 - Timeout parameter supported
 - Used for queue implementations
 
 **Memory Management**:
+
 - MAXMEMORY configuration parameter
 - Eviction policies: noeviction, allkeys-lru, volatile-lru, etc.
 - MEMORY commands for detailed analysis
 
 **Security**:
+
 - AUTH command for password authentication
 - ACL (Access Control Lists) for fine-grained permissions
 - Rename dangerous commands (FLUSHDB, FLUSHALL)
@@ -1355,25 +1465,29 @@ EXEC            # Execute atomically
 
 ### API Trade-Offs
 
-**Decision: Binary Protocol (RESP) vs REST API**
+#### Decision: Binary Protocol (RESP) vs REST API
+
 - **Choice**: Binary Protocol (RESP) with optional REST wrapper
 - **Pros**: Minimal parsing overhead, lower latency, smaller payload size
 - **Cons**: Less familiar to developers, requires client library
 - **Justification**: Performance is critical for cache; sub-millisecond latency requires efficient protocol
 
-**Decision: Synchronous vs Asynchronous Replication**
+#### Decision: API Replication Strategy
+
 - **Choice**: Asynchronous replication by default
 - **Pros**: Lower write latency, higher throughput, no blocking
 - **Cons**: Potential data loss on failure, eventual consistency
 - **Justification**: Cache can tolerate some data loss; performance > durability
 
-**Decision: Single-threaded vs Multi-threaded Event Loop**
+#### Decision: Single-threaded vs Multi-threaded Event Loop
+
 - **Choice**: Single-threaded with I/O multiplexing (epoll/kqueue)
 - **Pros**: No lock contention, simpler code, predictable performance
 - **Cons**: Limited to single core for command execution
 - **Justification**: Memory operations are extremely fast; I/O is bottleneck, not CPU
 
-**Decision: Text-based vs Binary Value Storage**
+#### Decision: Text-based vs Binary Value Storage
+
 - **Choice**: Binary-safe storage
 - **Pros**: Can store any data format, no encoding overhead
 - **Cons**: No built-in serialization
@@ -1389,7 +1503,7 @@ EXEC            # Execute atomically
 
 **Architecture**:
 
-```
+```text
 Consistent Hashing Ring:
 
 Hash Space: 0 to 2^32 - 1 (or 2^160 for better distribution)
@@ -1441,17 +1555,19 @@ class ConsistentHashRing:
 
 **Trade-offs**:
 
-**Decision: Consistent Hashing vs Hash Slot-based Sharding**
+#### Decision: Consistent Hashing vs Hash Slot-based Sharding
+
 - **Choice**: Consistent Hashing with Virtual Nodes
 - **Pros**: Smooth scaling, automatic load balancing, minimal key redistribution
 - **Cons**: More complex to implement, requires client-side logic
 - **Justification**: Better for dynamic environments where nodes frequently join/leave
 
-**Decision: Number of Virtual Nodes (150-200 vs 1)**
+#### Decision: Number of Virtual Nodes (150-200 vs 1)
+
 - **Choice**: 150 virtual nodes per physical node
 - **Pros**: More even distribution, better load balancing on node changes
 - **Cons**: Higher memory overhead for ring structure
-- **Justification**: The overhead (150 * 10 nodes * 64 bytes = 96KB) is negligible
+- **Justification**: The overhead (150 \* 10 nodes \* 64 bytes = 96KB) is negligible
 
 ---
 
@@ -1461,7 +1577,7 @@ class ConsistentHashRing:
 
 **Architecture**:
 
-```
+```text
 Replication Topology:
 
 Master-Replica Model:
@@ -1504,7 +1620,7 @@ Master-Replica Model:
 
 **Sentinel-based Failover**:
 
-```
+```text
 Sentinel Cluster (3-5 nodes for quorum):
 
 Responsibilities:
@@ -1544,29 +1660,32 @@ Failover Process:
 
 **Trade-offs**:
 
-**Decision: Synchronous vs Asynchronous Replication**
+#### Decision: Replication Mode Selection
+
 - **Choice**: Asynchronous Replication
-- **Pros**: 
+- **Pros**:
   - Lower write latency (no waiting for replica ACK)
   - Higher throughput
   - Master not blocked by slow replicas
-- **Cons**: 
+- **Cons**:
   - Potential data loss (unreplicated writes lost on master failure)
   - Eventually consistent reads from replicas
 - **Justification**: Cache workloads prioritize performance over durability
 
-**Decision: Sentinel vs Embedded Cluster Mode**
+#### Decision: Sentinel vs Embedded Cluster Mode
+
 - **Choice**: Sentinel-based (similar to Redis Sentinel)
-- **Pros**: 
+- **Pros**:
   - Simpler client implementation
   - Separate failure detection from data nodes
   - Can monitor multiple masters
-- **Cons**: 
+- **Cons**:
   - Additional infrastructure (Sentinel nodes)
   - Slightly slower failover (network round trips)
 - **Justification**: Cleaner separation of concerns, easier to manage
 
-**Decision: Automatic vs Manual Failover**
+#### Decision: Automatic vs Manual Failover
+
 - **Choice**: Automatic Failover with Manual Override
 - **Pros**: Faster recovery, less downtime, no human intervention needed
 - **Cons**: Risk of split-brain scenarios, false positives
@@ -1580,7 +1699,7 @@ Failover Process:
 
 **Architecture**:
 
-```
+```text
 Memory Management Layers:
 
 1. Object-level Memory Tracking:
@@ -1631,7 +1750,7 @@ Memory Management Layers:
 
 **LRU Implementation (Approximate)**:
 
-```
+```text
 Traditional LRU Problems:
 - Requires doubly-linked list + hash map
 - O(1) operations but high memory overhead
@@ -1657,7 +1776,7 @@ Redis-style Approximation:
 
 **Memory Usage Calculation**:
 
-```
+```text
 Per-key Overhead:
 - Hash table entry: 16 bytes (key ptr, value ptr, hash, next)
 - Key object: 16 bytes (type, encoding, lru, refcount, ptr)
@@ -1679,32 +1798,35 @@ Fragmentation:
 
 **Trade-offs**:
 
-**Decision: True LRU vs Approximate LRU**
+#### Decision: True LRU vs Approximate LRU
+
 - **Choice**: Approximate LRU with sampling
-- **Pros**: 
+- **Pros**:
   - Minimal memory overhead (24 bits vs linked list)
   - No performance penalty on every access
   - Good enough for cache workloads
-- **Cons**: 
+- **Cons**:
   - Not perfectly LRU
   - May evict slightly sub-optimal keys
 - **Justification**: Performance and memory savings outweigh perfect accuracy
 
-**Decision: Active vs Passive Expiration**
+#### Decision: Active vs Passive Expiration
+
 - **Choice**: Hybrid (both active and passive)
-- **Pros**: 
+- **Pros**:
   - Passive: No CPU overhead, checked on access
   - Active: Gradually frees memory, doesn't wait for access
-- **Cons**: 
+- **Cons**:
   - Expired keys may linger if not accessed
 - **Justification**: Best of both worlds for cache
 
-**Decision: Memory Limit Hard vs Soft**
+#### Decision: Memory Limit Hard vs Soft
+
 - **Choice**: Hard limit with configurable threshold
-- **Pros**: 
+- **Pros**:
   - Prevents OOM crashes
   - Predictable behavior
-- **Cons**: 
+- **Cons**:
   - May reject writes even if memory available soon
 - **Justification**: Stability over flexibility
 
@@ -1719,7 +1841,8 @@ Fragmentation:
 Two persistence mechanisms:
 
 **1. RDB Snapshots**:
-```
+
+```text
 Process:
 1. Fork child process (copy-on-write)
 2. Child iterates through memory and writes to temp file
@@ -1743,7 +1866,8 @@ Cons:
 ```
 
 **2. AOF (Append-Only File)**:
-```
+
+```text
 Process:
 1. After executing write command, append to AOF buffer
 2. Periodically fsync buffer to disk (configurable)
@@ -1771,7 +1895,8 @@ Cons:
 ```
 
 **Hybrid Approach**:
-```
+
+```text
 Combine RDB + AOF:
 1. Use RDB for fast restarts
 2. Use AOF for durability
@@ -1784,27 +1909,29 @@ Result: Fast restarts + minimal data loss
 
 **Trade-offs**:
 
-**Decision: No Persistence vs RDB vs AOF vs Hybrid**
+#### Decision: No Persistence vs RDB vs AOF vs Hybrid
+
 - **Choice**: Optional (RDB by default, AOF for critical data)
-- **Pros (No Persistence)**: 
+- **Pros (No Persistence)**:
   - Maximum performance
   - Simpler code
-- **Pros (RDB)**: 
+- **Pros (RDB)**:
   - Fast restarts
   - Minimal performance impact
-- **Pros (AOF)**: 
+- **Pros (AOF)**:
   - Better durability
   - Can recover from corruption
-- **Pros (Hybrid)**: 
+- **Pros (Hybrid)**:
   - Best of both worlds
 - **Justification**: Let users choose based on use case; cache typically doesn't need full durability
 
-**Decision: Fork vs Thread-based Persistence**
+#### Decision: Fork vs Thread-based Persistence
+
 - **Choice**: Fork-based (COW)
-- **Pros**: 
+- **Pros**:
   - Isolates persistence from serving traffic
   - No locks needed
-- **Cons**: 
+- **Cons**:
   - Memory spike from COW
   - Fork can be slow on large datasets
 - **Justification**: Better isolation and simpler code
@@ -1814,7 +1941,8 @@ Result: Fast restarts + minimal data loss
 ### Caching Strategy
 
 **Cache-aside Pattern**:
-```
+
+```text
 Application-managed caching:
 
 Read Flow:
@@ -1832,7 +1960,8 @@ Write Flow:
 ```
 
 **Read-through Cache**:
-```
+
+```text
 Cache-managed loading:
 
 Read Flow:
@@ -1846,7 +1975,8 @@ Implementation requires cache to know about database
 ```
 
 **Write-through Cache**:
-```
+
+```text
 Synchronous cache + DB writes:
 
 Write Flow:
@@ -1859,7 +1989,8 @@ Cons: Higher write latency
 ```
 
 **Write-behind Cache**:
-```
+
+```text
 Asynchronous DB writes:
 
 Write Flow:
@@ -1872,6 +2003,7 @@ Cons: Risk of data loss, eventual consistency
 ```
 
 **Recommended Strategy**: **Cache-aside** for most use cases
+
 - Simple to implement
 - Application has full control
 - Can use with any database
@@ -1888,21 +2020,23 @@ Cons: Risk of data loss, eventual consistency
 **Problem**: All writes for a shard go to single master node, limiting write throughput to ~100K ops/sec.
 
 **Solution**:
-1. **Horizontal Sharding**: 
+
+1. **Horizontal Sharding**:
    - Increase number of shards
    - Each shard handles subset of keys
    - Linear scaling of write capacity
 
-2. **Write Batching**: 
+2. **Write Batching**:
    - Use MSET instead of multiple SETs
    - Use pipelining to reduce RTT overhead
    - Can achieve 10x improvement
 
-3. **Client-side Caching**: 
+3. **Client-side Caching**:
    - Cache reads in application layer
    - Reduces write pressure by handling more reads
 
 **Monitoring**:
+
 - Track write QPS per master
 - Alert when approaching 80K ops/sec
 - Monitor command queue length
@@ -1914,21 +2048,23 @@ Cons: Risk of data loss, eventual consistency
 **Problem**: High throughput can saturate 10Gbps network link, especially for large values.
 
 **Solution**:
-1. **Compression**: 
+
+1. **Compression**:
    - Compress large values before storing
    - Trade CPU for bandwidth
    - Typical compression ratio: 3-5x for text
 
-2. **Value Size Optimization**: 
+2. **Value Size Optimization**:
    - Store references instead of full objects
    - Use hash data structure instead of JSON strings
    - Split large values across multiple keys
 
-3. **Local Caching**: 
+3. **Local Caching**:
    - Implement L1 cache in application
    - Reduces network requests for hot keys
 
 **Monitoring**:
+
 - Track network utilization per node
 - Alert when exceeding 8Gbps (80% of capacity)
 - Monitor bandwidth per client
@@ -1940,21 +2076,23 @@ Cons: Risk of data loss, eventual consistency
 **Problem**: Over time, memory becomes fragmented, reducing effective capacity by 20-30%.
 
 **Solution**:
-1. **Active Defragmentation**: 
+
+1. **Active Defragmentation**:
    - Background process to defragment memory
    - Move allocations to consolidate free space
    - Redis 4.0+ feature
 
-2. **Periodic Restarts**: 
+2. **Periodic Restarts**:
    - Schedule maintenance windows
    - Promote replica to master
    - Restart old master to clear fragmentation
 
-3. **Better Allocator**: 
+3. **Better Allocator**:
    - Use jemalloc instead of default libc malloc
    - Designed to minimize fragmentation
 
 **Monitoring**:
+
 - Track fragmentation ratio: (RSS - used_memory) / RSS
 - Alert when ratio > 1.5 (50% waste)
 - Monitor allocation patterns
@@ -1966,22 +2104,24 @@ Cons: Risk of data loss, eventual consistency
 **Problem**: Single popular key (e.g., celebrity user profile) receives massive traffic, overloading single shard.
 
 **Solution**:
-1. **Client-side Caching**: 
+
+1. **Client-side Caching**:
    - Cache hot keys in application memory
    - Short TTL (1-5 seconds)
    - Can handle 100K+ reads/sec per app instance
 
-2. **Read Replicas**: 
+2. **Read Replicas**:
    - Route reads to replicas
    - Distribute load across multiple nodes
    - Slight inconsistency acceptable for reads
 
-3. **Key Replication**: 
+3. **Key Replication**:
    - Store hot key with multiple suffix variations
    - E.g., "hot_key_1", "hot_key_2", ... "hot_key_10"
    - Randomly select variant on read
 
 **Monitoring**:
+
 - Track per-key access frequency
 - Alert when single key exceeds 10K ops/sec
 - Use Redis MONITOR (sparingly) to identify hot keys
@@ -1993,20 +2133,22 @@ Cons: Risk of data loss, eventual consistency
 **Problem**: Very large values (10MB+) cause blocking operations and slow down entire node.
 
 **Solution**:
-1. **Value Size Limits**: 
+
+1. **Value Size Limits**:
    - Enforce max value size (e.g., 1MB)
    - Reject oversized values at API layer
 
-2. **Chunking**: 
+2. **Chunking**:
    - Split large values into chunks
    - Store as list or multiple keys
    - Retrieve in parallel
 
-3. **External Storage**: 
+3. **External Storage**:
    - Store large objects in S3/blob storage
    - Cache only metadata and URLs
 
 **Monitoring**:
+
 - Track value size distribution
 - Alert on values > 1MB
 - Monitor slow commands (>10ms)
@@ -2018,7 +2160,8 @@ Cons: Risk of data loss, eventual consistency
 #### 1. Geographic Distribution
 
 **Multi-Region Deployment**:
-```
+
+```text
 Strategy:
 - Deploy independent clusters in each region
 - US-East, US-West, EU, Asia-Pacific
@@ -2036,7 +2179,8 @@ Implementation:
 ```
 
 **Cross-Region Replication** (Optional):
-```
+
+```text
 Strategy:
 - Async replication from primary to secondary regions
 - Use for disaster recovery or global data
@@ -2057,7 +2201,8 @@ When to Use:
 #### 2. Service Optimization
 
 **Multi-Level Caching**:
-```
+
+```text
 L1 Cache: Application In-Memory
 - Size: 100MB per app instance
 - TTL: 1-10 seconds
@@ -2077,7 +2222,8 @@ Result: 95%+ combined hit rate
 ```
 
 **CDN for Static Data**:
-```
+
+```text
 Use Cases:
 - User profile images
 - Static configuration
@@ -2095,7 +2241,8 @@ Benefits:
 ```
 
 **Query Optimization**:
-```
+
+```text
 Techniques:
 1. Use hash data structure instead of JSON strings
    - Allows field-level updates (HSET)
@@ -2115,7 +2262,8 @@ Techniques:
 #### 3. Real-Time Features
 
 **WebSocket for Cache Invalidation**:
-```
+
+```text
 Problem: Clients cache data, need to know when to invalidate
 
 Solution:
@@ -2135,7 +2283,8 @@ Implementation:
 ```
 
 **Server-Sent Events (SSE) for Monitoring**:
-```
+
+```text
 Use Case: Real-time cache statistics dashboard
 
 Implementation:
@@ -2159,7 +2308,8 @@ Benefits:
 #### Metrics to Track
 
 **System Metrics**:
-```
+
+```text
 Latency:
 - p50, p95, p99 command latency
 - Target: <1ms p99
@@ -2185,7 +2335,8 @@ Memory:
 ```
 
 **Business Metrics**:
-```
+
+```text
 Cache Hit Rate:
 - Hits / (Hits + Misses)
 - Target: >80%
@@ -2207,7 +2358,8 @@ TTL Distribution:
 ```
 
 **Infrastructure Metrics**:
-```
+
+```text
 CPU:
 - User CPU time (should be low, <30%)
 - System CPU time (context switches)
@@ -2229,7 +2381,8 @@ Disk (for persistence):
 #### Alerting Strategy
 
 **Critical Alerts (Page immediately)**:
-```
+
+```text
 Condition: Master node down
 Threshold: No PONG response for 5 seconds
 Action: Sentinel initiates failover
@@ -2246,7 +2399,8 @@ Time Window: Real-time (30-60 second evaluation)
 ```
 
 **Warning Alerts (Slack notification)**:
-```
+
+```text
 Condition: High latency
 Threshold: p99 > 5ms for 5 minutes
 Action: Check slow log, investigate hot keys
@@ -2263,7 +2417,8 @@ Time Window: 5-10 minutes
 ```
 
 **Informational Alerts (Log/dashboard)**:
-```
+
+```text
 Condition: Configuration change
 Threshold: CONFIG SET command executed
 Action: Log for audit trail
@@ -2286,7 +2441,8 @@ Time Window: 30-60 minutes
 #### 1. Authentication & Authorization
 
 **Basic Authentication**:
-```
+
+```text
 CONFIG SET requirepass "strong_password_here"
 AUTH strong_password_here
 
@@ -2296,7 +2452,8 @@ Limitations:
 ```
 
 **ACL (Redis 6+)**:
-```
+
+```text
 Define per-user permissions:
 
 ACL SETUSER readonly on >readonly_pass ~* -@all +@read
@@ -2309,7 +2466,8 @@ Benefits:
 ```
 
 **API Key Authentication** (for REST wrapper):
-```
+
+```text
 HTTP Header: X-API-Key: <key>
 
 Implementation:
@@ -2323,7 +2481,8 @@ Implementation:
 #### 2. Network Security
 
 **Network Isolation**:
-```
+
+```text
 Best Practices:
 - Place cache in private subnet
 - Only allow connections from application tier
@@ -2336,7 +2495,8 @@ Example (AWS):
 ```
 
 **TLS/SSL Encryption**:
-```
+
+```text
 Enable encrypted connections:
 
 redis.conf:
@@ -2359,7 +2519,8 @@ Considerations:
 #### 3. Input Validation
 
 **Command Validation**:
-```
+
+```text
 Risks:
 - Large keys/values causing memory issues
 - Dangerous commands (FLUSHDB, SHUTDOWN)
@@ -2381,7 +2542,8 @@ Mitigations:
 #### 4. DDoS Protection
 
 **Rate Limiting**:
-```
+
+```text
 Implementation:
 - Per-IP connection limits
 - Per-connection command rate limits
@@ -2393,7 +2555,8 @@ timeout 300       # Close idle connections
 ```
 
 **Connection Throttling**:
-```
+
+```text
 Strategy:
 - Use load balancer with rate limiting
 - Implement exponential backoff on clients
@@ -2410,7 +2573,8 @@ AWS NLB:
 #### 5. Data Encryption
 
 **Encryption at Rest** (for persistence):
-```
+
+```text
 Options:
 1. Encrypted disk volumes (AWS EBS encryption)
 2. Application-level encryption before caching
@@ -2422,7 +2586,8 @@ Recommendation:
 ```
 
 **Encryption in Transit**:
-```
+
+```text
 TLS for all connections:
 - Client to cache
 - Master to replica replication
@@ -2441,17 +2606,20 @@ Required for:
 #### 1. Advanced Features
 
 **Geo-Distributed CRDT-based Cache**:
+
 - Support for multi-master writes across regions
 - Conflict-free replicated data types
 - Automatic conflict resolution
 - Use case: Global applications with local writes
 
 **Machine Learning Integration**:
+
 - Predict hot keys before they become hot
 - Adaptive TTL based on access patterns
 - Anomaly detection for unusual access
 
 **Intelligent Caching**:
+
 - Auto-tune eviction policies per key pattern
 - Predictive prefetching
 - Cache warming strategies
@@ -2461,16 +2629,19 @@ Required for:
 #### 2. Performance Optimizations
 
 **I/O Multi-Threading**:
+
 - Keep main thread single-threaded
 - Offload I/O operations to threads
 - Redis 6.0 feature: 2x improvement
 
 **GPU Acceleration**:
+
 - Use GPU for compression/decompression
 - Pattern matching operations
 - Cryptographic operations
 
 **NVMe/Optane Integration**:
+
 - Hybrid memory architecture
 - Hot data in DRAM, warm data in NVMe
 - Expand capacity beyond RAM limits
@@ -2480,16 +2651,19 @@ Required for:
 #### 3. Operational Improvements
 
 **Auto-Scaling**:
+
 - Detect load patterns
 - Automatically add/remove nodes
 - Trigger based on CPU, memory, or QPS
 
 **Chaos Engineering**:
+
 - Randomly kill nodes to test resilience
 - Inject latency to test timeout handling
 - Verify failover procedures
 
 **Backup and Restore**:
+
 - Automated scheduled backups to S3
 - Point-in-time recovery
 - Cross-region backup replication
@@ -2499,17 +2673,20 @@ Required for:
 #### 4. Developer Experience
 
 **Client Libraries**:
+
 - Auto-retry with exponential backoff
 - Connection pooling built-in
 - Automatic sharding and failover handling
 
 **Web UI Dashboard**:
+
 - Real-time metrics visualization
 - Query slow log
 - Key inspection and editing
 - Configuration management
 
 **CLI Tools**:
+
 - redis-benchmark for load testing
 - redis-cli for administration
 - redis-check-rdb for snapshot validation
@@ -2519,26 +2696,31 @@ Required for:
 #### 5. Advanced Use Cases
 
 **Session Store**:
+
 - Store user sessions with automatic expiration
 - Fast login/logout
 - Scalable across multiple web servers
 
 **Leaderboards**:
+
 - Use sorted sets for ranking
 - Real-time score updates
 - Efficient range queries
 
 **Rate Limiting**:
+
 - Sliding window rate limiter
 - Token bucket algorithm
 - Per-user or per-IP limits
 
 **Message Queue**:
+
 - List-based queue (LPUSH/RPOP)
 - Blocking operations (BLPOP)
 - Reliability with ACKs
 
 **Real-Time Analytics**:
+
 - HyperLogLog for cardinality estimation
 - Bitmap for user activity tracking
 - Aggregations with sorted sets
@@ -2561,4 +2743,3 @@ With proper monitoring, security measures, and operational practices, this syste
 ---
 
 **Note**: This design is inspired by Redis and Memcached architectures but represents a generalized approach suitable for educational and interview purposes. Production implementations should consider specific requirements, constraints, and available technologies.
-

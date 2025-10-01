@@ -84,7 +84,7 @@
 
 ### Traffic Estimates
 
-```
+```text
 Daily Active Users (DAU): 100M
 Assumption: 1% of users create new short URLs daily
 URL Creation Rate: 100M * 1% = 1M URLs/day
@@ -106,7 +106,7 @@ Peak Traffic (3x average):
 
 ### Storage Estimates
 
-```
+```text
 URL Storage per Entry:
 - Short URL hash: 7 bytes
 - Original URL: 500 bytes (average)
@@ -128,7 +128,7 @@ With 50% overhead (indexes, replication): ~1.6 TB for 5 years
 
 ### Analytics Storage Estimates
 
-```
+```text
 Click Event Storage:
 - Short URL hash: 7 bytes
 - Timestamp: 8 bytes
@@ -149,7 +149,7 @@ With data retention of 2 years: ~16.6 TB
 
 ### Bandwidth Estimates
 
-```
+```text
 Write Operations:
 - Request size: ~600 bytes (URL + metadata)
 - Response size: ~200 bytes (short URL + metadata)
@@ -173,7 +173,7 @@ Total Daily Bandwidth: ~40 GB/day
 
 ### URL Space Calculation
 
-```
+```text
 Character Set: [a-z, A-Z, 0-9] = 62 characters
 Short URL Length: 6 characters
 
@@ -191,7 +191,7 @@ Conclusion: 7 characters provide ample space
 
 ### Resource Estimates
 
-```
+```text
 Application Servers:
 - Each server handles: 1,000 requests/second
 - Read servers needed: 1,160 / 1,000 = 2 servers (4 with redundancy)
@@ -337,7 +337,7 @@ graph TB
 
 **Table: `url_mappings`**
 
-```
+```text
 Columns:
 - short_url_hash (PK, VARCHAR(7), UNIQUE, INDEXED)
   Primary key, the unique short identifier
@@ -382,7 +382,7 @@ Indexes:
 
 **Table: `users`**
 
-```
+```text
 Columns:
 - user_id (PK, BIGINT, AUTO_INCREMENT)
   Unique user identifier
@@ -414,7 +414,7 @@ Indexes:
 
 **Table: `click_events`** (Cassandra/ClickHouse)
 
-```
+```text
 Columns:
 - event_id (UUID, PK)
   Unique event identifier
@@ -449,14 +449,14 @@ Partitioning:
 
 ### Database Technology Choices
 
-**Primary Database: PostgreSQL**
+#### Primary Database: PostgreSQL
 
 - ACID compliance ensures data integrity
 - Excellent support for indexes and queries
 - Proven scalability with read replicas
 - Strong consistency for URL creation
 
-**Analytics Database: Cassandra or ClickHouse**
+#### Analytics Database: Cassandra or ClickHouse
 
 - Optimized for time-series data
 - High write throughput for click events
@@ -510,7 +510,7 @@ POST /v1/shorten
 
 **Request Headers:**
 
-```
+```http
 Content-Type: application/json
 Authorization: Bearer {api_key} (optional)
 ```
@@ -561,6 +561,7 @@ Authorization: Bearer {api_key} (optional)
 ```
 
 *409 Conflict - Custom alias taken:*
+
 ```json
 {
   "status": "error",
@@ -572,6 +573,7 @@ Authorization: Bearer {api_key} (optional)
 ```
 
 *429 Too Many Requests:*
+
 ```json
 {
   "status": "error",
@@ -609,7 +611,7 @@ Host: tiny.url
 
 **Success Response (302 Found):**
 
-```
+```http
 HTTP/1.1 302 Found
 Location: https://www.example.com/very/long/url/path?param1=value1&param2=value2
 Cache-Control: public, max-age=3600
@@ -630,6 +632,7 @@ Cache-Control: public, max-age=3600
 ```
 
 *410 Gone - URL expired:*
+
 ```json
 {
   "status": "error",
@@ -660,7 +663,7 @@ GET /v1/analytics/{short_code}
 
 **Request Headers:**
 
-```
+```http
 Authorization: Bearer {api_key} (required)
 ```
 
@@ -739,6 +742,7 @@ Authorization: Bearer abc123xyz
 ```
 
 *404 Not Found:*
+
 ```json
 {
   "status": "error",
@@ -763,7 +767,7 @@ GET /v1/urls
 
 **Request Headers:**
 
-```
+```http
 Authorization: Bearer {api_key} (required)
 ```
 
@@ -839,7 +843,7 @@ DELETE /v1/urls/{short_code}
 
 **Request Headers:**
 
-```
+```http
 Authorization: Bearer {api_key} (required)
 ```
 
@@ -877,6 +881,7 @@ Authorization: Bearer abc123xyz
 ```
 
 *404 Not Found:*
+
 ```json
 {
   "status": "error",
@@ -943,7 +948,7 @@ GET /v1/health
 
 **Rate Limit Headers:**
 
-```
+```http
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 856
 X-RateLimit-Reset: 1696161600
@@ -983,7 +988,7 @@ X-RateLimit-Reset: 1696161600
 
 **All API Responses Include:**
 
-```
+```http
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
@@ -1039,28 +1044,28 @@ Access-Control-Max-Age: 86400
 
 ### API Trade-Offs
 
-**Decision: REST vs GraphQL**
+#### Decision: REST vs GraphQL
 
 - **Choice:** REST API
 - **Pros:** Simpler, better HTTP caching, widely understood, perfect for CRUD operations
 - **Cons:** Multiple endpoints, potential over-fetching
 - **Justification:** URL shortener has simple, well-defined resources; REST is ideal for this use case
 
-**Decision: Synchronous Redirection**
+#### Decision: Synchronous Redirection
 
 - **Choice:** Synchronous redirect with async analytics
 - **Pros:** Lowest latency for user, immediate redirect
 - **Cons:** Analytics processing can't block redirect
 - **Justification:** User experience is paramount; analytics can be eventually consistent
 
-**Decision: Offset-based Pagination**
+#### Decision: Offset-based Pagination
 
 - **Choice:** Offset-based for v1, cursor-based for future
 - **Pros:** Simple to implement, easy to understand
 - **Cons:** Performance degrades with large offsets
 - **Justification:** Sufficient for MVP; can upgrade to cursor-based for scale
 
-**Decision: API Versioning in URL Path**
+#### Decision: API Versioning in URL Path
 
 - **Choice:** `/v1/`, `/v2/` in URL path
 - **Pros:** Explicit, easy to route, clear for clients
@@ -1075,7 +1080,7 @@ Access-Control-Max-Age: 86400
 
 **Purpose:** Generate unique, short, URL-safe identifiers for every long URL without collisions.
 
-**Approach: Base62 Encoding with Distributed ID Generation**
+#### Approach: Base62 Encoding with Distributed ID Generation
 
 **Architecture:**
 
@@ -1083,7 +1088,7 @@ The ID Generation Service uses a distributed approach similar to Twitter's Snowf
 
 **ID Structure (64 bits):**
 
-```
+```text
 [1 bit unused][41 bits timestamp][10 bits machine ID][12 bits sequence]
 
 - Timestamp (41 bits): Milliseconds since custom epoch (2025-01-01)
@@ -1172,7 +1177,7 @@ class IDGenerator:
         return timestamp
 ```
 
-**Alternative Approach: MD5 Hash with Collision Detection**
+#### Alternative Approach: MD5 Hash with Collision Detection
 
 For comparison, here's an alternative using hashing:
 
@@ -1235,7 +1240,7 @@ class HashIDGenerator:
 | **Predictability** | Sequential (can be mitigated) | Random |
 | **Chosen Approach** | ✅ Recommended | Alternative |
 
-**Technology Choice: Snowflake-based approach**
+#### Technology Choice: Snowflake-based approach
 
 - No collisions by design
 - No database dependency for generation
@@ -1248,23 +1253,23 @@ class HashIDGenerator:
 
 **Purpose:** Minimize database load and reduce latency for URL redirection by caching URL mappings.
 
-**Architecture: Multi-Tier Caching**
+#### Architecture: Multi-Tier Caching
 
-**Tier 1: CDN (CloudFlare/Akamai)**
+##### Tier 1: CDN (CloudFlare/Akamai)
 
 - Caches HTTP 302 redirects for extremely popular URLs
 - Geographic distribution reduces latency
 - Cache-Control: public, max-age=3600 (1 hour)
 
-**Tier 2: Application-Level Cache (Redis Cluster)**
+##### Tier 2: Application-Level Cache (Redis Cluster)
 
 - In-memory key-value store
 - Stores URL mappings: `short_code -> long_url`
 - Cluster mode for high availability and scalability
 
-**Redis Architecture:**
+#### Redis Architecture
 
-```
+```text
 Redis Cluster Configuration:
 - 6 nodes (3 masters, 3 replicas)
 - Hash slot partitioning (16,384 slots)
@@ -1272,7 +1277,7 @@ Redis Cluster Configuration:
 - Memory: 64GB per node = 384GB total cluster capacity
 ```
 
-**Caching Strategy: Cache-Aside (Lazy Loading)**
+#### Caching Strategy: Cache-Aside (Lazy Loading)
 
 ```python
 """
@@ -1409,7 +1414,7 @@ class CacheWarmer:
 
 **Purpose:** Collect, process, and store click analytics without impacting redirect performance.
 
-**Architecture: Asynchronous Event-Driven Pipeline**
+#### Architecture: Asynchronous Event-Driven Pipeline
 
 ```mermaid
 graph LR
@@ -1885,7 +1890,7 @@ Users far from primary data center experience high latency for both URL creation
 
 **Implementation Strategy:**
 
-```
+```text
 Region Deployment:
 - US-East (Primary): Virginia
 - US-West: Oregon  
@@ -1994,7 +1999,7 @@ class WebSocketHandler:
 
 **System Metrics:**
 
-```
+```text
 Latency Metrics:
 - URL creation latency (P50, P95, P99)
 - Redirect latency (P50, P95, P99)
@@ -2016,7 +2021,7 @@ Error Metrics:
 
 **Business Metrics:**
 
-```
+```text
 - Total URLs created (daily, monthly)
 - Total redirects (daily, monthly)
 - Active URLs
@@ -2027,7 +2032,7 @@ Error Metrics:
 
 **Infrastructure Metrics:**
 
-```
+```text
 - CPU utilization (by service)
 - Memory utilization (by service)
 - Disk I/O
@@ -2041,7 +2046,7 @@ Error Metrics:
 
 **Critical Alerts (Page immediately):**
 
-```
+```text
 - Service availability < 99.9%
 - Redirect latency P99 > 500ms
 - Error rate > 1%
@@ -2051,7 +2056,7 @@ Error Metrics:
 
 **Warning Alerts (Notify, don't page):**
 
-```
+```text
 - Cache hit ratio < 85%
 - Database connection pool > 80% utilized
 - Kafka consumer lag > 10 minutes

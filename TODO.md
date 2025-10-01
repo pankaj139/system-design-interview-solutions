@@ -23,6 +23,7 @@
 ## ✅ Completed Designs
 
 ### 1. ✅ LeetCode System Design
+
 - **Status:** Complete
 - **File:** `leetcode_system_design.md`
 - **Completed:** October 1, 2025
@@ -31,6 +32,7 @@
 - **Lines:** 2,117
 
 ### 2. ✅ Google Photos System Design
+
 - **Status:** Complete
 - **File:** `google_photos_system_design.md`
 - **Completed:** [Date TBD]
@@ -39,6 +41,7 @@
 - **Lines:** 3,215
 
 ### 3. ✅ URL Shortener (TinyURL) System Design
+
 - **Status:** Complete
 - **File:** `url_shortener_system_design.md`
 - **Completed:** October 1, 2025
@@ -47,6 +50,7 @@
 - **Lines:** 2,200+ (comprehensive)
 
 ### 4. ✅ Distributed Cache (Redis/Memcached) System Design
+
 - **Status:** Complete
 - **File:** `distributed_cache_system_design.md`
 - **Completed:** October 1, 2025
@@ -55,6 +59,7 @@
 - **Lines:** 2,800+ (comprehensive)
 
 ### 5. ✅ Rate Limiter for API Gateway System Design
+
 - **Status:** Complete
 - **File:** `rate_limiter_system_design.md`
 - **Completed:** October 1, 2025
@@ -63,6 +68,7 @@
 - **Lines:** 1,900+ (comprehensive)
 
 ### 6. ✅ Content Delivery Network (CDN) System Design
+
 - **Status:** Complete
 - **File:** `cdn_system_design.md`
 - **Completed:** October 1, 2025
@@ -71,6 +77,7 @@
 - **Lines:** 2,600+ (comprehensive)
 
 ### 7. ✅ Distributed Key-Value Store (DynamoDB/Cassandra) System Design
+
 - **Status:** Complete
 - **File:** `distributed_keyvalue_store_system_design.md`
 - **Completed:** October 1, 2025
@@ -89,6 +96,7 @@
 ### 💬 Messaging & Real-Time Systems
 
 #### 8. ⬜ Chat Application (WhatsApp)
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -96,6 +104,7 @@
 - **Key Concepts:** WebSocket, message queue, read receipts, group chat, end-to-end encryption
 
 #### 9. ⬜ Pub/Sub Messaging System (Kafka)
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -103,6 +112,7 @@
 - **Key Concepts:** Topics, partitions, consumer groups, offset management, durability
 
 #### 10. ⬜ Notification System
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐ Medium
@@ -110,6 +120,7 @@
 - **Key Concepts:** Push notifications, FCM/APNs, fan-out, priority queues, delivery guarantees
 
 #### 11. ⬜ Distributed Stream Processing System
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -121,6 +132,7 @@
 ### 📱 Social Media & Content Platforms
 
 #### 12. ⬜ Social Media Platform (Instagram/Twitter)
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -128,6 +140,7 @@
 - **Key Concepts:** Feed generation, follower/following, media storage, timeline algorithms
 
 #### 13. ⬜ Newsfeed System
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -135,6 +148,7 @@
 - **Key Concepts:** Fan-out on write vs read, ranking algorithms, personalization, caching
 
 #### 14. ⬜ Video Streaming Service (Netflix/YouTube)
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -142,6 +156,7 @@
 - **Key Concepts:** Adaptive bitrate, CDN, transcoding, content delivery, recommendations
 
 #### 15. ⬜ Find Friends on Social Network
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐ Medium
@@ -153,6 +168,7 @@
 ### 🔍 Search & Discovery
 
 #### 16. ⬜ Web Crawler
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -160,6 +176,7 @@
 - **Key Concepts:** BFS/DFS, URL frontier, politeness, deduplication, distributed crawling
 
 #### 17. ⬜ Search Engine
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -167,6 +184,7 @@
 - **Key Concepts:** Inverted index, ranking algorithms, crawling, indexing, query processing
 
 #### 18. ⬜ Autocomplete/Typeahead System
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐ Medium
@@ -174,6 +192,7 @@
 - **Key Concepts:** Trie data structure, caching, ranking, prefix matching
 
 #### 19. ⬜ Proximity Service (Yelp)
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -181,6 +200,7 @@
 - **Key Concepts:** Geohashing, QuadTree, R-tree, spatial indexing, nearby search
 
 #### 20. ⬜ Google Maps
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -188,6 +208,7 @@
 - **Key Concepts:** Graph algorithms, Dijkstra, A*, road network, ETA, routing
 
 #### 21. ⬜ Recommendation Engine
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -195,6 +216,7 @@
 - **Key Concepts:** Collaborative filtering, content-based, matrix factorization, ML pipelines
 
 #### 22. ⬜ Book Review Aggregator
+
 - **Status:** Not Started
 - **Priority:** P3 - Low
 - **Difficulty:** ⭐⭐ Medium
@@ -206,6 +228,7 @@
 ### 🛒 E-commerce & Payments
 
 #### 23. ⬜ E-commerce Website (Amazon)
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -213,6 +236,7 @@
 - **Key Concepts:** Product catalog, inventory, cart, checkout, orders, payments, recommendations
 
 #### 24. ⬜ Payment Gateway
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -220,6 +244,7 @@
 - **Key Concepts:** Transaction processing, idempotency, reconciliation, fraud detection, PCI compliance
 
 #### 25. ⬜ Shopping Cart System
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐ Medium
@@ -227,6 +252,7 @@
 - **Key Concepts:** Session management, inventory reservation, cart persistence, consistency
 
 #### 26. ⬜ Ticket Booking System
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -234,6 +260,7 @@
 - **Key Concepts:** Seat locking, concurrency control, payment integration, inventory management
 
 #### 27. ⬜ Warehouse Inventory System
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -241,6 +268,7 @@
 - **Key Concepts:** Stock management, location tracking, FIFO/LIFO, replenishment, analytics
 
 #### 28. ⬜ Promotion/Cashback System
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -252,6 +280,7 @@
 ### 🚗 On-Demand Services
 
 #### 29. ⬜ Ride-Sharing Service (Uber)
+
 - **Status:** Not Started
 - **Priority:** P0 - Critical
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -259,6 +288,7 @@
 - **Key Concepts:** Geolocation, matching algorithm, real-time tracking, ETA, pricing, dispatch
 
 #### 30. ⬜ Food Delivery System (Zomato/Swiggy)
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -266,6 +296,7 @@
 - **Key Concepts:** Restaurant catalog, order management, delivery routing, real-time tracking
 
 #### 31. ⬜ Restaurant Registration System
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐ Medium
@@ -273,6 +304,7 @@
 - **Key Concepts:** Queue management, wait time estimation, notifications, capacity planning
 
 #### 32. ⬜ Shortest Delivery Routes
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -284,6 +316,7 @@
 ### 🎮 Gaming & Entertainment
 
 #### 33. ⬜ Online Multiplayer Game Backend
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -291,6 +324,7 @@
 - **Key Concepts:** Real-time sync, state management, matchmaking, lag compensation, cheat detection
 
 #### 34. ⬜ Blackjack/Poker Gaming Site
+
 - **Status:** Not Started
 - **Priority:** P3 - Low
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -302,6 +336,7 @@
 ### 🔐 Security & Authentication
 
 #### 35. ⬜ Single Sign-On (SSO)
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -309,6 +344,7 @@
 - **Key Concepts:** OAuth2, SAML, JWT, identity provider, session management, security
 
 #### 36. ⬜ Global Authentication Service
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -316,6 +352,7 @@
 - **Key Concepts:** Multi-region auth, token management, session replication, security
 
 #### 37. ⬜ Firewall System
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -323,6 +360,7 @@
 - **Key Concepts:** Packet filtering, rule engine, DPI, logging, threat detection
 
 #### 38. ⬜ Buffer Overflow Prevention
+
 - **Status:** Not Started
 - **Priority:** P3 - Low
 - **Difficulty:** ⭐⭐ Medium
@@ -334,6 +372,7 @@
 ### 📊 Monitoring & Observability
 
 #### 39. ⬜ Distributed Metrics Logging System
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -341,6 +380,7 @@
 - **Key Concepts:** Log aggregation, time-series DB, query language, retention, indexing
 
 #### 40. ⬜ Health Monitoring System for Servers
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -348,6 +388,7 @@
 - **Key Concepts:** Metrics collection, alerting, dashboards, anomaly detection, distributed tracing
 
 #### 41. ⬜ Performance Metrics Collection at Scale
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -359,6 +400,7 @@
 ### 📦 Storage & File Systems
 
 #### 42. ⬜ Text Storage Service (Pastebin)
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐ Medium
@@ -366,6 +408,7 @@
 - **Key Concepts:** Object storage, URL generation, expiration, access control, syntax highlighting
 
 #### 43. ⬜ File Storage Service (Dropbox/Google Drive)
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -373,6 +416,7 @@
 - **Key Concepts:** Chunking, deduplication, sync algorithm, versioning, conflict resolution
 
 #### 44. ⬜ Distributed Storage System
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -380,6 +424,7 @@
 - **Key Concepts:** Replication, sharding, consistency, erasure coding, HDFS-like architecture
 
 #### 45. ⬜ In-Memory Database
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -391,6 +436,7 @@
 ### 🏢 Enterprise & Real-World Systems
 
 #### 46. ⬜ Parking Lot System
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐ Medium
@@ -398,6 +444,7 @@
 - **Key Concepts:** Capacity management, pricing, payment, availability tracking, OOP design
 
 #### 47. ⬜ Online Voting/Election System
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -405,6 +452,7 @@
 - **Key Concepts:** Security, anonymity, verification, auditing, fraud prevention, consensus
 
 #### 48. ⬜ Elevator System
+
 - **Status:** Not Started
 - **Priority:** P2 - Medium
 - **Difficulty:** ⭐⭐ Medium
@@ -412,6 +460,7 @@
 - **Key Concepts:** Scheduling algorithms, optimization, state machine, OOP design
 
 #### 49. ⬜ Smart Elevator (Optimization)
+
 - **Status:** Not Started
 - **Priority:** P3 - Low
 - **Difficulty:** ⭐⭐⭐ Hard
@@ -423,6 +472,7 @@
 ### 🏗️ Architecture & Patterns
 
 #### 50. ⬜ Microservices Architecture
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
@@ -430,6 +480,7 @@
 - **Key Concepts:** Service boundaries, communication, service discovery, API gateway, resilience
 
 #### 51. ⬜ Monolithic vs Microservices Comparison
+
 - **Status:** Not Started
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐ Medium
@@ -441,8 +492,10 @@
 ## 📅 Suggested Learning Path
 
 ### Phase 1: Foundations (Problems 3-7)
+
 **Goal:** Master core infrastructure patterns
 **Timeline:** 2-3 weeks
+
 - URL Shortener
 - Distributed Cache
 - Rate Limiter
@@ -450,8 +503,10 @@
 - Distributed Key-Value Store
 
 ### Phase 2: Scalable Applications (Problems 8-14)
+
 **Goal:** Build complex user-facing systems
 **Timeline:** 3-4 weeks
+
 - Chat Application
 - Pub/Sub System
 - Social Media Platform
@@ -459,8 +514,10 @@
 - Video Streaming
 
 ### Phase 3: Search & Discovery (Problems 16-22)
+
 **Goal:** Master search and recommendation systems
 **Timeline:** 3-4 weeks
+
 - Web Crawler
 - Search Engine
 - Autocomplete
@@ -468,31 +525,39 @@
 - Recommendation Engine
 
 ### Phase 4: E-commerce & Transactions (Problems 23-28)
+
 **Goal:** Handle complex transactions and consistency
 **Timeline:** 3-4 weeks
+
 - E-commerce Website
 - Payment Gateway
 - Shopping Cart
 - Ticket Booking
 
 ### Phase 5: Real-time & On-Demand (Problems 29-32)
+
 **Goal:** Build location-aware real-time systems
 **Timeline:** 2-3 weeks
+
 - Ride-Sharing (Uber)
 - Food Delivery
 - Shortest Routes
 
 ### Phase 6: Infrastructure & Operations (Problems 35-46)
+
 **Goal:** Deep dive into infrastructure and monitoring
 **Timeline:** 4-5 weeks
+
 - SSO & Authentication
 - Monitoring Systems
 - File Storage
 - Distributed Storage
 
 ### Phase 7: Architecture Patterns (Problems 51-52)
+
 **Goal:** Understand architectural trade-offs
 **Timeline:** 1 week
+
 - Microservices Architecture
 - Monolithic vs Microservices
 
@@ -501,11 +566,13 @@
 ## 🎯 Weekly Goals Template
 
 ### Week 1
+
 - [ ] Complete 1 P0 design
 - [ ] Review and iterate on 1 previous design
 - [ ] Study related engineering blogs
 
 ### Week 2
+
 - [ ] Complete 1 P1 design
 - [ ] Practice explaining 2 designs verbally
 - [ ] Compare alternative approaches
@@ -532,11 +599,13 @@ Before marking a design as complete, ensure:
 ## 🔄 Update Instructions
 
 **When starting a design:**
+
 1. Change status from ⬜ to 🚧
 2. Update "In Progress" count
 3. Add start date
 
 **When completing a design:**
+
 1. Change status from 🚧 to ✅
 2. Move to "Completed Designs" section
 3. Update progress percentage
@@ -544,6 +613,7 @@ Before marking a design as complete, ensure:
 5. Update "Next Up" in README.md
 
 **When postponing a design:**
+
 1. Add reason in notes
 2. Adjust priority if needed
 3. Select next design

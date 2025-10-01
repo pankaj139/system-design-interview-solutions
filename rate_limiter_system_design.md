@@ -84,7 +84,7 @@
 
 ### Traffic Estimates
 
-```
+```text
 Daily Active Users (DAU):
 - 100K registered API keys (assume 50% active daily) = 50K DAU
 
@@ -107,7 +107,7 @@ Rate Limit Checks per Second:
 
 ### Storage Estimates
 
-```
+```text
 Per API Key State Storage:
 - API key: 32 bytes (UUID)
 - Current count: 8 bytes (int64)
@@ -135,7 +135,7 @@ Historical Data (30 days):
 
 ### Resource Estimates
 
-```
+```text
 Compute Resources:
 - Rate limiter service: 4 vCPU, 8 GB RAM per instance
 - Instances per region: 3 (for HA and load distribution)
@@ -160,7 +160,7 @@ Concurrent Connections:
 
 ### Bandwidth Estimates
 
-```
+```text
 Rate Limiter Check:
 - Request: API key (32 bytes) + headers (500 bytes) = 532 bytes
 - Response: Status + headers (300 bytes) = 300 bytes
@@ -288,8 +288,8 @@ graph TB
 
 **Cross-Region Synchronization:**
 
-9. **Async Updates:** Each region publishes counter updates to message queue
-10. **Global Aggregation:** Background service aggregates counts across regions and updates Redis
+1. **Async Updates:** Each region publishes counter updates to message queue
+2. **Global Aggregation:** Background service aggregates counts across regions and updates Redis
 
 **Fallback Flow (Redis Unavailable):**
 
@@ -304,7 +304,8 @@ graph TB
 
 ### API Key Metadata Table (PostgreSQL)
 
-**Table: api_keys**
+#### Table: api_keys
+
 ```sql
 CREATE TABLE api_keys (
     api_key_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -323,7 +324,8 @@ CREATE TABLE api_keys (
 );
 ```
 
-**Table: users**
+#### Table: users
+
 ```sql
 CREATE TABLE users (
     user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -339,6 +341,7 @@ CREATE TABLE users (
 ```
 
 **Table: rate_limit_events** (Time-series database - TimescaleDB)
+
 ```sql
 CREATE TABLE rate_limit_events (
     event_id BIGSERIAL,
@@ -365,7 +368,8 @@ CREATE INDEX idx_rate_limit_region ON rate_limit_events (region, timestamp DESC)
 **Key Pattern: `ratelimit:{api_key_hash}:{window_start_epoch}`**
 
 **Structure Type:** Sorted Set (for sliding window log)
-```
+
+```text
 Key: ratelimit:abc123def456:1696118400
 Value: Sorted Set {
     score: timestamp_ms,
@@ -375,7 +379,8 @@ TTL: 3600 seconds (1 hour)
 ```
 
 **Alternative Structure:** Hash (for sliding window counter)
-```
+
+```text
 Key: ratelimit:abc123def456:window
 Hash Fields:
     - bucket_0: count (most recent minute)
@@ -387,7 +392,8 @@ TTL: 3600 seconds
 ```
 
 **Metadata Cache Pattern: `metadata:{api_key_hash}`**
-```
+
+```text
 Key: metadata:abc123def456
 Hash Fields:
     - tier: "pro"
@@ -405,7 +411,8 @@ TTL: 300 seconds (5 minutes)
 **Base URL:** `https://api.example.com/v1`
 
 **Authentication:** API Key in header
-```
+
+```http
 X-API-Key: {api_key}
 ```
 
@@ -414,7 +421,8 @@ X-API-Key: {api_key}
 **Response Format:** JSON
 
 **Standard Rate Limit Headers (returned with every response):**
-```
+
+```http
 X-RateLimit-Limit: 1000          # Max requests per hour
 X-RateLimit-Remaining: 847        # Remaining requests in current window
 X-RateLimit-Reset: 1696122000     # Unix timestamp when limit resets
@@ -435,7 +443,8 @@ GET /v1/ratelimit/status
 ```
 
 **Request Headers:**
-```
+
+```http
 X-API-Key: {api_key}
 ```
 
@@ -443,6 +452,7 @@ X-API-Key: {api_key}
 None
 
 **Response (200 OK):**
+
 ```json
 {
   "api_key": "abc123...",
@@ -471,6 +481,7 @@ None
 ```
 
 **Response (401 Unauthorized):**
+
 ```json
 {
   "error": {
@@ -481,6 +492,7 @@ None
 ```
 
 **Response (503 Service Unavailable - Degraded Mode):**
+
 ```json
 {
   "api_key": "abc123...",
@@ -509,22 +521,26 @@ GET /v1/ratelimit/history
 ```
 
 **Request Headers:**
-```
+
+```http
 X-API-Key: {api_key}
 ```
 
 **Query Parameters:**
+
 - `start_time` (ISO 8601 timestamp, required): Start of time range
 - `end_time` (ISO 8601 timestamp, required): End of time range
 - `granularity` (string, optional): `minute`, `hour`, `day` (default: `hour`)
 - `region` (string, optional): Filter by region (`us-east`, `us-west`, `eu`)
 
 **Example Request:**
+
 ```http
 GET /v1/ratelimit/history?start_time=2025-10-01T00:00:00Z&end_time=2025-10-01T23:59:59Z&granularity=hour
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "api_key": "abc123...",
@@ -564,6 +580,7 @@ GET /v1/ratelimit/history?start_time=2025-10-01T00:00:00Z&end_time=2025-10-01T23
 ```
 
 **Response (400 Bad Request):**
+
 ```json
 {
   "error": {
@@ -584,12 +601,14 @@ GET /v1/resource/{id}
 ```
 
 **Request Headers:**
-```
+
+```http
 X-API-Key: {api_key}
 Content-Type: application/json
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "resource-123",
@@ -600,13 +619,15 @@ Content-Type: application/json
 ```
 
 **Response Headers (Always Included):**
-```
+
+```http
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 846
 X-RateLimit-Reset: 1696122000
 ```
 
 **Response (429 Too Many Requests):**
+
 ```json
 {
   "error": {
@@ -620,7 +641,8 @@ X-RateLimit-Reset: 1696122000
 ```
 
 **Response Headers:**
-```
+
+```http
 X-RateLimit-Limit: 1000
 X-RateLimit-Remaining: 0
 X-RateLimit-Reset: 1696122000
@@ -638,12 +660,14 @@ POST /v1/account/upgrade
 ```
 
 **Request Headers:**
-```
+
+```http
 X-API-Key: {api_key}
 Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "target_tier": "pro",
@@ -652,6 +676,7 @@ Content-Type: application/json
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -670,13 +695,16 @@ Content-Type: application/json
 ### Cross-Cutting Concerns
 
 #### Rate Limiting Strategy
+
 - **Algorithm:** Sliding Window Counter (balance between accuracy and performance)
 - **Window Size:** 1 hour (configurable per tier)
 - **Granularity:** 1-minute buckets (60 buckets per hour)
 - **Enforcement:** Per API key globally across all regions
 
 #### Error Response Format
+
 **Standard Error Structure:**
+
 ```json
 {
   "error": {
@@ -690,13 +718,15 @@ Content-Type: application/json
 ```
 
 #### Pagination
+
 - **Not applicable** for rate limiter status (single object response)
 - **For history endpoint:** Cursor-based pagination
   - Max 1000 data points per request
   - Use `cursor` parameter for next page
 
 #### Security Headers
-```
+
+```http
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
@@ -705,23 +735,28 @@ Content-Security-Policy: default-src 'none'
 ```
 
 #### CORS Policy
+
 - Allow all origins for public API
 - Expose rate limit headers
-```
+
+```http
 Access-Control-Allow-Origin: *
 Access-Control-Expose-Headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
 Access-Control-Max-Age: 3600
 ```
 
 #### Idempotency
+
 - Status check endpoint is naturally idempotent (GET)
 - History endpoint is idempotent (GET)
 - Upgrade endpoint uses idempotency keys for payment operations
 
 #### Compression
+
 - Support gzip and brotli compression
 - Apply to responses > 1KB
-```
+
+```http
 Accept-Encoding: gzip, br
 Content-Encoding: gzip
 ```
@@ -731,24 +766,28 @@ Content-Encoding: gzip
 ### API Trade-Offs
 
 **REST vs GraphQL:**
+
 - **Choice:** REST
 - **Pros:** Simple, cacheable, widely understood, minimal overhead
 - **Cons:** Multiple endpoints for related data
 - **Justification:** Rate limiting is a simple domain with few entities. REST's simplicity and performance align with <10ms latency requirement.
 
 **Synchronous vs Asynchronous:**
+
 - **Choice:** Synchronous for rate limit checks, asynchronous for cross-region sync
 - **Pros:** Immediate feedback, simple client integration
 - **Cons:** Blocking calls add latency
 - **Justification:** Users need immediate allow/deny decision. <10ms overhead makes sync viable.
 
 **Endpoint Granularity:**
+
 - **Choice:** Separate status endpoint + headers on all requests
 - **Pros:** Flexibility, minimal overhead on regular requests
 - **Cons:** Extra endpoint to maintain
 - **Justification:** Power users can check status proactively; casual users see headers passively.
 
 **Data Exposure:**
+
 - **Choice:** Expose regional breakdown in status endpoint
 - **Pros:** Transparency, helps users optimize routing
 - **Cons:** Reveals infrastructure details
@@ -763,11 +802,13 @@ Content-Encoding: gzip
 #### 1. Token Bucket Algorithm
 
 **Concept:**
+
 - Bucket holds tokens; each request consumes one token
 - Tokens added at fixed rate
 - Allows burst traffic up to bucket capacity
 
 **Implementation:**
+
 ```python
 class TokenBucket:
     def __init__(self, capacity, refill_rate):
@@ -792,12 +833,14 @@ class TokenBucket:
 ```
 
 **Pros:**
+
 - Naturally handles burst traffic
 - Simple to implement
 - Smooth traffic distribution
 - O(1) space and time complexity
 
 **Cons:**
+
 - Requires maintaining state per API key
 - Clock synchronization issues in distributed systems
 - Memory overhead for storing bucket state
@@ -809,11 +852,13 @@ class TokenBucket:
 #### 2. Fixed Window Counter
 
 **Concept:**
+
 - Count requests in fixed time windows (e.g., 14:00-15:00)
 - Reset counter at window boundary
 - Simple increment operation
 
 **Implementation:**
+
 ```python
 def fixed_window_check(api_key, limit):
     current_window = int(time.time() / 3600)  # hourly windows
@@ -827,12 +872,14 @@ def fixed_window_check(api_key, limit):
 ```
 
 **Pros:**
+
 - Extremely simple to implement
 - Memory efficient
 - Fast (single Redis operation)
 - Easy to reason about
 
 **Cons:**
+
 - **Boundary burst problem:** User can make 2× limit requests (limit at 14:59, limit at 15:00)
 - Not accurate for sliding time periods
 - Unfair to users making requests near boundaries
@@ -844,11 +891,13 @@ def fixed_window_check(api_key, limit):
 #### 3. Sliding Window Log
 
 **Concept:**
+
 - Store timestamp of each request
 - Count requests in past N seconds
 - Most accurate but expensive
 
 **Implementation:**
+
 ```python
 def sliding_window_log(api_key, limit, window_seconds):
     key = f"ratelimit:{api_key}"
@@ -870,11 +919,13 @@ def sliding_window_log(api_key, limit, window_seconds):
 ```
 
 **Pros:**
+
 - **Most accurate** - no boundary issues
 - True sliding window
 - Precise request tracking
 
 **Cons:**
+
 - **High memory usage** - stores every request
 - **Expensive** - multiple Redis operations
 - Slower performance (3-4 Redis commands per check)
@@ -887,11 +938,13 @@ def sliding_window_log(api_key, limit, window_seconds):
 #### 4. Sliding Window Counter (Hybrid)
 
 **Concept:**
+
 - Combine fixed windows with weighted calculation
 - Use current + previous window counts
 - Estimate requests in sliding window
 
 **Implementation:**
+
 ```python
 def sliding_window_counter(api_key, limit):
     now = time.time()
@@ -920,6 +973,7 @@ def sliding_window_counter(api_key, limit):
 ```
 
 **Pros:**
+
 - **Good accuracy** (~1-2% error margin)
 - **Memory efficient** - only 2 counters per key
 - **Fast** - 2-3 Redis operations
@@ -927,6 +981,7 @@ def sliding_window_counter(api_key, limit):
 - Balances accuracy and performance
 
 **Cons:**
+
 - Slightly more complex than fixed window
 - Approximate count (not exact)
 - Still has minor boundary effects
@@ -938,11 +993,13 @@ def sliding_window_counter(api_key, limit):
 #### 5. Leaky Bucket Algorithm
 
 **Concept:**
+
 - Requests enter queue at any rate
 - Process requests at fixed rate
 - Queue has maximum size
 
 **Implementation:**
+
 ```python
 class LeakyBucket:
     def __init__(self, capacity, leak_rate):
@@ -967,11 +1024,13 @@ class LeakyBucket:
 ```
 
 **Pros:**
+
 - Smooth output rate
 - Good for traffic shaping
 - Prevents downstream overload
 
 **Cons:**
+
 - Adds latency (queuing delay)
 - Complex in distributed systems
 - Requires queue management
@@ -982,9 +1041,10 @@ class LeakyBucket:
 
 ### Algorithm Selection for Our System
 
-**Choice: Sliding Window Counter**
+#### Choice: Sliding Window Counter
 
 **Rationale:**
+
 1. **Accuracy:** 1-2% error margin meets our requirements
 2. **Performance:** <5ms overhead (meets <10ms requirement)
 3. **Memory:** ~100 bytes per active API key (5.2 MB for 100K keys)
@@ -995,7 +1055,8 @@ class LeakyBucket:
 **Implementation Details:**
 
 **Redis Data Structure:**
-```
+
+```text
 Key: ratelimit:{api_key_hash}:current
 Hash:
   - minute_0: count (current minute)
@@ -1006,6 +1067,7 @@ Hash:
 ```
 
 **Optimization with Granular Buckets:**
+
 ```python
 def sliding_window_with_buckets(api_key_hash, limit, window_seconds=3600):
     """
@@ -1068,6 +1130,7 @@ def sliding_window_with_buckets(api_key_hash, limit, window_seconds=3600):
 ### Challenge: Multi-Region Consistency
 
 **Problem:**
+
 - User in US makes 50 requests to US-East
 - Immediately makes 60 requests to US-West
 - Global limit is 100/hour
@@ -1080,11 +1143,13 @@ def sliding_window_with_buckets(api_key_hash, limit, window_seconds=3600):
 **Approach:** Single Redis instance for all regions
 
 **Pros:**
+
 - Perfect accuracy
 - Strong consistency
 - Simple implementation
 
 **Cons:**
+
 - **High latency:** 50-150ms cross-region roundtrip (violates <10ms requirement)
 - **Single point of failure:** One region down = all down
 - **Network costs:** All traffic goes to one region
@@ -1098,7 +1163,8 @@ def sliding_window_with_buckets(api_key_hash, limit, window_seconds=3600):
 **Approach:** Each region maintains counter; sync before decision
 
 **Flow:**
-```
+
+```text
 1. Request arrives at US-East
 2. US-East queries US-West and EU for their counts
 3. Sum all counts
@@ -1107,10 +1173,12 @@ def sliding_window_with_buckets(api_key_hash, limit, window_seconds=3600):
 ```
 
 **Pros:**
+
 - Perfect accuracy
 - No single point of failure
 
 **Cons:**
+
 - **High latency:** Must wait for all regions (150ms+)
 - **Complexity:** Failure handling for unavailable regions
 - **Cascading failures:** One slow region slows all
@@ -1124,7 +1192,8 @@ def sliding_window_with_buckets(api_key_hash, limit, window_seconds=3600):
 **Approach:** Each region decides independently; sync in background
 
 **Flow:**
-```
+
+```text
 1. Request arrives at US-East
 2. US-East checks local Redis counter
 3. US-East makes decision immediately (<5ms)
@@ -1226,17 +1295,20 @@ class DistributedRateLimiter:
 ```
 
 **Pros:**
+
 - ✅ **Low latency:** <5ms (local decision only)
 - ✅ **High availability:** Regional independence
 - ✅ **Good accuracy:** 1-2% error (acceptable)
 - ✅ **Scalability:** No cross-region sync on hot path
 
 **Cons:**
+
 - **Eventual consistency:** Counts may be stale (100-500ms lag)
 - **Over-allowance:** User might exceed limit by 2-3% during sync delay
 - **Complexity:** Background sync jobs required
 
 **Mitigation for Over-Allowance:**
+
 - Apply 2% safety margin to limits (98 instead of 100)
 - Use fast message queue (Kafka, Kinesis) for <100ms propagation
 - Regional limits prevent massive over-allowance
@@ -1250,17 +1322,20 @@ class DistributedRateLimiter:
 **Approach:** Pre-allocate quota to each region
 
 **Example:**
+
 - Global limit: 1000/hour
 - US-East: 400/hour
 - US-West: 400/hour
 - EU: 200/hour
 
 **Pros:**
+
 - No synchronization needed
 - Perfect isolation
 - Very low latency
 
 **Cons:**
+
 - **Waste:** User in US-East can't use EU's unused quota
 - **Poor user experience:** Hitting regional limit despite global quota available
 - **Manual tuning:** Must adjust allocations based on traffic patterns
@@ -1289,6 +1364,7 @@ consumer_groups:
 ```
 
 **Update Event Schema:**
+
 ```json
 {
   "api_key_hash": "abc123def456...",
@@ -1301,6 +1377,7 @@ consumer_groups:
 ```
 
 **Sync Worker Logic:**
+
 ```python
 def sync_worker():
     """
@@ -1373,6 +1450,7 @@ def check_with_degradation(api_key_hash, limit):
 ```
 
 **Monitoring & Alerting:**
+
 - Alert if sync lag > 500ms (p95)
 - Alert if message queue backlog > 10,000
 - Dashboard showing per-region accuracy deviation
@@ -1388,12 +1466,14 @@ def check_with_degradation(api_key_hash, limit):
 **Choice:** Sliding Window Counter
 
 **Pros:**
+
 - Balances accuracy (~98-99%) with performance (<5ms)
 - Memory efficient (50 bytes per key)
 - Handles burst traffic naturally
 - Distributed-friendly (simple state)
 
 **Cons:**
+
 - Not perfectly accurate (1-2% error)
 - More complex than fixed window
 - Requires periodic cleanup of old buckets
@@ -1411,12 +1491,14 @@ def check_with_degradation(api_key_hash, limit):
 **Choice:** Regional counters with async sync (eventual consistency)
 
 **Pros:**
+
 - <5ms latency (meets <10ms requirement)
 - Regional independence (high availability)
 - No single point of failure
 - Scalable to any number of regions
 
 **Cons:**
+
 - Eventual consistency (100-500ms lag)
 - Possible over-allowance (2-3%) during sync
 - Complex background sync infrastructure
@@ -1435,6 +1517,7 @@ def check_with_degradation(api_key_hash, limit):
 **Choice:** Redis (in-memory key-value store)
 
 **Pros:**
+
 - Ultra-low latency (<1ms operations)
 - Native support for atomic increments
 - TTL support for automatic expiration
@@ -1442,13 +1525,15 @@ def check_with_degradation(api_key_hash, limit):
 - Clustering and replication built-in
 
 **Cons:**
+
 - Limited by memory (more expensive than disk)
 - Data loss risk if not persisted
 - Requires separate metadata store
 
 **Justification:** <10ms latency requirement demands in-memory storage. Redis provides atomic operations crucial for accurate counting without race conditions.
 
-**Alternative Considered:** 
+**Alternative Considered:**
+
 - **PostgreSQL:** Rejected due to 10-50ms latency for disk-based operations
 - **DynamoDB:** Rejected due to 10-20ms latency and pricing for high write throughput
 - **Cassandra:** Rejected due to eventual consistency making accurate counting difficult
@@ -1462,6 +1547,7 @@ def check_with_degradation(api_key_hash, limit):
 **Choice:** REST with standard HTTP headers
 
 **Pros:**
+
 - Universal client support
 - Standard HTTP status codes (429)
 - Caching-friendly
@@ -1469,6 +1555,7 @@ def check_with_degradation(api_key_hash, limit):
 - Headers provide status on every request
 
 **Cons:**
+
 - Multiple endpoints for related operations
 - Less flexible than GraphQL
 - Larger payload than gRPC
@@ -1486,11 +1573,13 @@ def check_with_degradation(api_key_hash, limit):
 **Choice:** Favor Availability and Partition Tolerance over Consistency (AP system)
 
 **Pros:**
+
 - System continues working during network partitions
 - No blocking on cross-region communication
 - Regional independence prevents cascading failures
 
 **Cons:**
+
 - Users may exceed limits by 2-3%
 - Counts may be stale for 100-500ms
 - Requires eventual consistency resolution
@@ -1498,6 +1587,7 @@ def check_with_degradation(api_key_hash, limit):
 **Justification:** Requirements explicitly state "graceful handling when distributed state unavailable" and allow 1-2% error margin. 99.99% availability requirement prioritizes uptime over perfect counting.
 
 **Mitigation:**
+
 - 2% safety margin on limits
 - Fast sync (Kafka <100ms)
 - Monitoring for deviation beyond 2%
@@ -1511,12 +1601,14 @@ def check_with_degradation(api_key_hash, limit):
 **Choice:** Three-layer cache (L1: in-memory, L2: Redis, L3: PostgreSQL)
 
 **Pros:**
+
 - L1 cache: <0.1ms lookups (80% hit rate)
 - L2 cache: <1ms lookups (95% cumulative hit rate)
 - L3 database: 5-10ms lookups (100% hit rate)
 - Reduces database load by 95%
 
 **Cons:**
+
 - Cache invalidation complexity
 - Stale tier information during updates
 - Memory usage for local cache
@@ -1524,6 +1616,7 @@ def check_with_degradation(api_key_hash, limit):
 **Justification:** Metadata changes rarely (tier upgrades). Caching dramatically reduces latency and database load. <10ms budget requires L1/L2 cache for hot paths.
 
 **Invalidation Strategy:**
+
 - TTL: 5 minutes for metadata
 - Active invalidation on tier updates via pub/sub
 - Acceptable staleness for tier info (user upgraded but sees old limit for <5 min)
@@ -1537,12 +1630,14 @@ def check_with_degradation(api_key_hash, limit):
 **Choice:** Very high limit (100,000/hour) rather than true unlimited
 
 **Pros:**
+
 - Protects against abuse or compromised keys
 - Same code path for all tiers (simpler)
 - Still prevents DDoS from single key
 - Monitoring and alerting remain consistent
 
 **Cons:**
+
 - Not truly "unlimited" as marketed
 - Enterprise users could theoretically hit limit
 
@@ -1559,12 +1654,14 @@ def check_with_degradation(api_key_hash, limit):
 **Choice:** Asynchronous batch logging via stream processing
 
 **Pros:**
+
 - No latency impact on request path
 - Can batch inserts (higher throughput)
 - Resilient to database slowness
 - Can replay from stream if needed
 
 **Cons:**
+
 - Events not immediately in database
 - Requires stream processing infrastructure
 - Possible data loss if stream fails
@@ -1572,6 +1669,7 @@ def check_with_degradation(api_key_hash, limit):
 **Justification:** <10ms latency requirement cannot afford synchronous database writes (10-50ms). Historical data is for analytics, not operational decisions, so eventual consistency is acceptable.
 
 **Implementation:**
+
 - Publish events to Kinesis/Kafka
 - Stream processor batches to TimescaleDB
 - 5-second lag acceptable for analytics
@@ -1582,7 +1680,8 @@ def check_with_degradation(api_key_hash, limit):
 
 ### What to Cache
 
-**1. API Key Metadata (L1 + L2 Cache)**
+#### 1. API Key Metadata (L1 + L2 Cache)
+
 - **Data:** Tier, limit, user_id, is_active
 - **L1 Cache:** In-memory LRU (10K most active keys)
 - **L2 Cache:** Redis (all 100K keys)
@@ -1590,13 +1689,15 @@ def check_with_degradation(api_key_hash, limit):
 - **Hit Rate:** 80% L1, 95% L1+L2 combined
 - **Why:** Metadata rarely changes but queried on every request
 
-**2. Rate Limit Counters (Redis Only)**
+#### 2. Rate Limit Counters (Redis Only)
+
 - **Data:** Current window counts
 - **Storage:** Redis (authoritative, not cache)
 - **TTL:** 7200 seconds (2 hours, safety margin)
 - **Why:** Must be accurate and atomic, no higher-tier cache
 
-**3. Shadow Counters (Redis Only)**
+#### 3. Shadow Counters (Redis Only)
+
 - **Data:** Counts from other regions
 - **Storage:** Redis
 - **TTL:** 7200 seconds
@@ -1605,21 +1706,25 @@ def check_with_degradation(api_key_hash, limit):
 
 ### What NOT to Cache
 
-**1. Individual Request Logs**
+#### 1. Individual Request Logs
+
 - **Reason:** High cardinality, no repeated access pattern
 - **Storage:** Stream directly to analytics database
 
-**2. Rate Limit Decisions (Allow/Deny)**
+#### 2. Rate Limit Decisions (Allow/Deny)
+
 - **Reason:** Must be fresh for every request, caching would violate limits
 - **Storage:** N/A (computed on demand)
 
-**3. Real-time Usage Statistics**
+#### 3. Real-time Usage Statistics
+
 - **Reason:** Changes with every request, caching defeats purpose
 - **Storage:** Computed from Redis counters
 
 ### Cache Invalidation Strategy
 
 **API Key Metadata:**
+
 - **Strategy:** TTL-based with active invalidation
 - **Active Invalidation Triggers:**
   - Tier upgrade/downgrade
@@ -1653,13 +1758,14 @@ def invalidate_api_key_cache(api_key_hash):
 ```
 
 **Rate Limit Counters:**
+
 - **Strategy:** Time-based expiration (TTL)
 - **No Active Invalidation:** Counters naturally expire with window
 - **Cleanup:** Redis automatically removes expired keys
 
 ### Cache Sizing
 
-```
+```text
 L1 Cache (In-Memory per Instance):
 - 10K most active keys
 - 50 bytes per entry
@@ -1689,9 +1795,11 @@ Rate Limit Counters (Redis per Region):
 **Problem:** If Redis goes down, entire rate limiting system fails
 
 **Solution:**
+
 - **Redis Cluster:** 3 nodes with automatic failover (99.99% availability)
 - **Redis Sentinel:** Monitor health and trigger failover (<30s)
 - **Fallback Mode:** Switch to local in-memory counters with conservative limits
+
   ```python
   def rate_limit_with_fallback(api_key_hash, limit):
       try:
@@ -1699,9 +1807,10 @@ Rate Limit Counters (Redis per Region):
       except RedisConnectionError:
           logger.error("Redis unavailable, using local fallback")
           return local_memory_rate_limit(api_key_hash, limit // 3)
-```
+  ```
 
 **Monitoring:**
+
 - Alert on Redis connection failures
 - Alert on failover events
 - Track fallback mode activation
@@ -1714,12 +1823,14 @@ Rate Limit Counters (Redis per Region):
 **Problem:** Sync lag > 500ms causes excessive over-allowance (>2%)
 
 **Solution:**
+
 - **Kafka Optimization:**
   - Increase producer batch size (reduce overhead)
   - Use dedicated Kafka cluster (isolated performance)
   - Partition by api_key_hash for ordered delivery
 - **Regional Quotas:** If global sync fails, fall back to regional limits (limit/3)
 - **Adaptive Safety Margin:** Increase margin if sync lag detected
+
   ```python
   def adaptive_safety_margin(api_key_hash, base_limit):
       sync_lag = get_sync_lag_ms(api_key_hash)
@@ -1728,9 +1839,10 @@ Rate Limit Counters (Redis per Region):
       else:
           margin = 0.02  # 2% margin
       return int(base_limit * (1 - margin))
-```
+  ```
 
 **Monitoring:**
+
 - p50, p95, p99 sync lag metrics
 - Alert if p95 > 500ms
 - Dashboard showing regional sync health
@@ -1742,7 +1854,9 @@ Rate Limit Counters (Redis per Region):
 **Problem:** 116 QPS of writes to PostgreSQL for logging can cause contention
 
 **Solution:**
+
 - **Async Batch Writes:** Buffer events and write in batches
+
   ```python
   # Stream processor
   batch_size = 1000
@@ -1750,12 +1864,14 @@ Rate Limit Counters (Redis per Region):
   
   for batch in kinesis.stream(batch_size=batch_size, timeout=batch_timeout):
       postgres.bulk_insert("rate_limit_events", batch)
-```
+  ```
+
 - **TimescaleDB:** Use time-series optimized database
 - **Partitioning:** Partition by timestamp (daily partitions)
 - **Write-Ahead Log:** Tune PostgreSQL WAL settings for write performance
 
 **Monitoring:**
+
 - Database write latency
 - Kinesis consumer lag
 - Alert if lag > 30 seconds
@@ -1767,18 +1883,21 @@ Rate Limit Counters (Redis per Region):
 **Problem:** A few power users (5%) generate 50% of traffic, overwhelming single Redis partition
 
 **Solution:**
+
 - **Consistent Hashing:** Distribute keys across Redis cluster nodes
 - **Read Replicas:** Use Redis replicas for read-heavy operations
 - **Local Caching:** Aggressive L1 caching for top 1% hot keys (90%+ hit rate)
+
   ```python
   # L1 cache with shorter TTL for hot keys
   if is_hot_key(api_key_hash):
       cache_ttl = 1  # 1 second for hot keys (balance freshness vs performance)
   else:
       cache_ttl = 60  # 1 minute for normal keys
-```
+  ```
 
 **Monitoring:**
+
 - Identify top 100 API keys by request volume
 - Alert if single key exceeds 10 QPS
 - Dashboard showing key distribution
@@ -1790,10 +1909,12 @@ Rate Limit Counters (Redis per Region):
 **Problem:** API Gateway → Rate Limiter → Redis adds latency
 
 **Solution:**
+
 - **Co-location:** Deploy rate limiter service on same instances as API gateway
 - **Sidecar Pattern:** Run rate limiter as sidecar container (localhost communication)
 - **Connection Pooling:** Reuse connections to Redis (reduce handshake overhead)
 - **Pipeline Requests:** Use Redis pipelining for multiple operations
+
   ```python
   # Pipeline example
   pipe = redis.pipeline()
@@ -1802,9 +1923,10 @@ Rate Limit Counters (Redis per Region):
   # ... all buckets
   pipe.hincrby(key, current_bucket, 1)
   results = pipe.execute()  # Single round-trip
-```
+  ```
 
 **Monitoring:**
+
 - p50, p95, p99 rate limiter latency
 - Alert if p99 > 10ms
 - Break down by component (gateway→limiter, limiter→redis)
@@ -1820,12 +1942,14 @@ Rate Limit Counters (Redis per Region):
 **Improvement:** Add more regions based on traffic patterns
 
 **Implementation:**
+
 - Add regions: Asia-Pacific (Singapore), South America (São Paulo)
 - Each region fully independent with local Redis
 - Same async sync pattern scales to N regions
 - User routed to nearest region via GeoDNS
 
 **Benefits:**
+
 - Reduced latency for global users
 - Better burst handling (distributed load)
 - Higher availability (more regions = more redundancy)
@@ -1841,12 +1965,14 @@ Rate Limit Counters (Redis per Region):
 **Improvement:** ML-based usage prediction and proactive tier recommendations
 
 **Implementation:**
+
 - Track usage patterns per API key
 - Predict when user will exceed tier limits
 - Proactively suggest tier upgrades
 - Offer burst credits for occasional spikes
 
 **Benefits:**
+
 - Better user experience (fewer surprises)
 - Increased revenue (proactive upsells)
 - Smoother traffic patterns
@@ -1860,6 +1986,7 @@ Rate Limit Counters (Redis per Region):
 **Improvement:** Different limits for different endpoint types
 
 **Example:**
+
 ```json
 {
   "free_tier": {
@@ -1872,11 +1999,13 @@ Rate Limit Counters (Redis per Region):
 ```
 
 **Implementation:**
+
 - Extend Redis key pattern: `ratelimit:{api_key}:{endpoint_type}:{window}`
 - API Gateway categorizes requests by endpoint
 - Check multiple counters per request
 
 **Benefits:**
+
 - Protect expensive operations (search, export)
 - More granular control
 - Better resource allocation
@@ -1892,6 +2021,7 @@ Rate Limit Counters (Redis per Region):
 **Improvement:** WebSocket connection for real-time updates
 
 **Implementation:**
+
 ```javascript
 // Client-side
 const ws = new WebSocket('wss://api.example.com/v1/ratelimit/stream');
@@ -1902,6 +2032,7 @@ ws.onmessage = (event) => {
 ```
 
 **Server-side:**
+
 ```python
 async def stream_rate_limit_status(websocket, api_key_hash):
     """Stream rate limit updates via WebSocket."""
@@ -1912,6 +2043,7 @@ async def stream_rate_limit_status(websocket, api_key_hash):
 ```
 
 **Benefits:**
+
 - Instant feedback for users
 - No polling overhead
 - Better UX for dashboards
@@ -1923,6 +2055,7 @@ async def stream_rate_limit_status(websocket, api_key_hash):
 **Key Metrics to Track:**
 
 **System Health:**
+
 ```yaml
 - rate_limiter.latency.p50/p95/p99: <10ms target
 - rate_limiter.availability: 99.99% target
@@ -1932,6 +2065,7 @@ async def stream_rate_limit_status(websocket, api_key_hash):
 ```
 
 **Business Metrics:**
+
 ```yaml
 - requests.total: Total API requests
 - requests.blocked: Requests denied by rate limiter
@@ -1941,6 +2075,7 @@ async def stream_rate_limit_status(websocket, api_key_hash):
 ```
 
 **Distributed System:**
+
 ```yaml
 - sync.lag_ms.p95: <500ms target
 - sync.events_published: Events sent to Kafka
@@ -1951,18 +2086,21 @@ async def stream_rate_limit_status(websocket, api_key_hash):
 **Alerting Rules:**
 
 **Critical (Page On-Call):**
+
 - Rate limiter latency p99 > 20ms for 5 minutes
 - Rate limiter availability < 99.9% over 1 hour
 - Redis cluster unavailable
 - Sync lag p95 > 1000ms for 5 minutes
 
 **Warning (Slack Alert):**
+
 - Rate limiter latency p95 > 10ms for 10 minutes
 - Block rate > 20% (potential attack or misconfiguration)
 - Sync lag p95 > 500ms for 10 minutes
 - API key tier distribution anomaly (sudden spike in one tier)
 
 **Dashboard Sections:**
+
 1. **System Overview:** Latency, throughput, error rate
 2. **Regional Health:** Per-region metrics and sync status
 3. **Tier Analytics:** Usage by tier, block rates, upgrade opportunities
@@ -1976,12 +2114,14 @@ async def stream_rate_limit_status(websocket, api_key_hash):
 #### 1. API Key Protection
 
 **Measures:**
+
 - Store only SHA-256 hashes in database
 - Never log full API keys (log last 4 chars only)
 - Encrypt API keys in transit (TLS 1.3)
 - Rotate keys regularly (encourage 90-day rotation)
 
 **Implementation:**
+
 ```python
 def hash_api_key(api_key: str) -> str:
     """Hash API key using SHA-256."""
@@ -2004,6 +2144,7 @@ def validate_api_key(provided_key: str) -> dict:
 **Threat:** Attacker creates many free-tier accounts to bypass limits
 
 **Measures:**
+
 - **Email Verification:** Require verified email for API key generation
 - **Payment Method:** Require credit card even for free tier (not charged)
 - **Device Fingerprinting:** Detect multiple accounts from same device
@@ -2016,6 +2157,7 @@ def validate_api_key(provided_key: str) -> dict:
 **Threat:** Distributed attack with valid API keys
 
 **Measures:**
+
 - **Global Rate Limit:** Even enterprise has 100K/hour limit
 - **IP-Based Rate Limiting:** Additional layer for anonymous requests
 - **WAF Integration:** CloudFlare/AWS WAF for network-level protection
@@ -2028,6 +2170,7 @@ def validate_api_key(provided_key: str) -> dict:
 **Threat:** Malicious input in API key header
 
 **Measures:**
+
 - **Input Validation:** API key must match `^[A-Za-z0-9_-]{32,64}$`
 - **Parameterized Queries:** Prevent SQL injection
 - **Redis Command Sanitization:** Use client libraries, not raw commands
@@ -2046,6 +2189,7 @@ def validate_api_key_format(api_key: str) -> bool:
 #### 5. Data Privacy
 
 **Measures:**
+
 - **GDPR Compliance:** User can request data deletion (including rate limit logs)
 - **Data Retention:** Automatic deletion of logs older than 90 days
 - **Access Controls:** Role-based access to rate limit data
@@ -2060,6 +2204,7 @@ def validate_api_key_format(api_key: str) -> bool:
 **Feature:** Detect unusual usage patterns indicating compromised keys or abuse
 
 **Implementation:**
+
 - Train model on historical usage data
 - Real-time inference on request streams
 - Automatic API key suspension on anomaly detection
@@ -2074,6 +2219,7 @@ def validate_api_key_format(api_key: str) -> bool:
 **Feature:** Adjust limits based on system load and user behavior
 
 **Example:**
+
 - During low traffic: Temporarily increase free tier to 150/hour
 - During high traffic: Reduce burst capacity
 - Good citizens (low burst): Reward with higher limits
@@ -2088,6 +2234,7 @@ def validate_api_key_format(api_key: str) -> bool:
 **Feature:** Users earn tokens for good behavior, spend tokens for burst capacity
 
 **Example:**
+
 - Every day without hitting limit: Earn 10 tokens
 - Tokens can be spent for temporary limit increases
 - Gamification encourages good behavior
@@ -2101,6 +2248,7 @@ def validate_api_key_format(api_key: str) -> bool:
 **Feature:** GraphQL-based rate limiting based on query complexity
 
 **Implementation:**
+
 - Calculate query complexity score
 - Deduct from rate limit based on complexity
 - Simple queries cost 1 point, complex queries cost 10+ points
@@ -2114,6 +2262,7 @@ def validate_api_key_format(api_key: str) -> bool:
 **Feature:** Enterprise users can purchase temporary limit increases on-demand
 
 **Example:**
+
 - Pro user needs 10K requests for one-time data migration
 - Purchase "burst pack" for $50 (10K requests valid for 24 hours)
 - Automatic application to account
@@ -2133,11 +2282,13 @@ This rate limiter design prioritizes:
 5. **Operational Excellence:** Comprehensive monitoring and alerting
 
 **Key Trade-Offs Made:**
+
 - **Eventual consistency** over perfect consistency (for latency and availability)
 - **Approximate counting** over exact counting (for performance)
 - **Horizontal scalability** over simplicity (for multi-region support)
 
 **Success Criteria:**
+
 - ✅ 99.99% availability (52 min downtime/year)
 - ✅ <10ms latency overhead (actual: <5ms)
 - ✅ 1-2% counting accuracy (actual: ~1-2%)
@@ -2153,4 +2304,3 @@ This system is production-ready and can scale to 100M+ requests/day with minimal
 **Last Updated:** October 1, 2025  
 **Author:** System Design Framework  
 **Status:** Complete
-
