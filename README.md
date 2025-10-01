@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (7/52)
+## ✅ Completed Designs (8/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -168,7 +168,28 @@ Highly available distributed key-value store for e-commerce with multi-datacente
 
 ---
 
-## 📋 Upcoming Designs (45)
+### 8. [Chat Application System Design](./chat_application_system_design.md)
+
+**Status:** ✅ Complete
+
+Real-time messaging application supporting 500M daily active users with end-to-end encryption and multimedia support.
+
+**Key Features:**
+
+- WebSocket connection management for 100M concurrent connections
+- Message queue architecture with Apache Kafka for reliability
+- Group chat fan-out strategies for up to 256 members
+- Read receipt tracking without performance impact
+- Hot/cold storage strategy (Cassandra + S3)
+- End-to-end encryption using Signal Protocol
+- Push notifications for offline users
+- Cross-platform support (iOS, Android, Web)
+
+**Scale:** 500M DAU, 50B messages/day, 100M concurrent connections, <100ms latency
+
+---
+
+## 📋 Upcoming Designs (44)
 
 ### Core Infrastructure & Storage
 
@@ -184,7 +205,7 @@ Highly available distributed key-value store for e-commerce with multi-datacente
 ### Messaging & Communication
 
 - [ ] **Design a pub/sub messaging system** (like Kafka)
-- [ ] **Design a chat application** (like WhatsApp)
+- [x] **Design a chat application** (like WhatsApp)
 - [ ] **Design a notification system**
 - [ ] **Design a distributed stream processing system**
 
@@ -414,11 +435,11 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 7/52 (13.5%)
+**Completion Status:** 8/52 (15.4%)
 
-**Last Design Completed:** Distributed Key-Value Store (DynamoDB/Cassandra)
+**Last Design Completed:** Chat Application (WhatsApp)
 
-**Next Up:** Chat Application (WhatsApp)
+**Next Up:** Notification System
 
 ---
 
