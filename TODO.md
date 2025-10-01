@@ -4,18 +4,18 @@
 
 **Last Updated:** October 1, 2025
 
-**Progress:** 3/52 (5.8% Complete)
+**Progress:** 4/52 (7.7% Complete)
 
 ---
 
 ## 📊 Progress Overview
 
 ```
-✅ Completed: 3
+✅ Completed: 4
 🚧 In Progress: 0
-📝 Planned: 49
+📝 Planned: 48
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 5.8%
+[███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 7.7%
 ```
 
 ---
@@ -46,20 +46,19 @@
 - **Key Features:** Snowflake ID generation, multi-tier caching, analytics pipeline, geographic distribution
 - **Lines:** 2,200+ (comprehensive)
 
+### 4. ✅ Distributed Cache (Redis/Memcached) System Design
+- **Status:** Complete
+- **File:** `distributed_cache_system_design.md`
+- **Completed:** October 1, 2025
+- **Scale:** 1M ops/sec starting, 10M+ ops/sec peak, 100M+ keys
+- **Key Features:** Consistent hashing, master-replica replication, multiple data types, optional persistence (RDB + AOF), pub/sub messaging, memory management with eviction policies
+- **Lines:** 2,800+ (comprehensive)
+
 ---
 
-## 📋 Pending Designs (49)
+## 📋 Pending Designs (48)
 
-### 🔥 High Priority - Core Infrastructure (Next 4)
-
-#### 4. ⬜ Distributed Cache (Redis/Memcached)
-- **Status:** Not Started
-- **Priority:** P0 - Critical
-- **Difficulty:** ⭐⭐⭐ Hard
-- **Estimated Time:** 3-4 hours
-- **Key Concepts:** Consistent hashing, eviction policies, replication, partitioning
-- **Common Follow-ups:** Cache invalidation, distributed locks, pub/sub
-- **Notes:** Fundamental building block for many systems
+### 🔥 High Priority - Core Infrastructure (Next 3)
 
 #### 5. ⬜ Rate Limiter (API Gateway)
 - **Status:** Not Started
@@ -578,15 +577,15 @@ Before marking a design as complete, ensure:
 
 **Active Design:** None
 
-**Next Up:** Distributed Cache (Redis/Memcached)
+**Next Up:** Rate Limiter (API Gateway)
 
 **Target Completion:** [Set date]
 
 ---
 
-**Last Activity:** October 1, 2025 - Completed URL Shortener (TinyURL) System Design
+**Last Activity:** October 1, 2025 - Completed Distributed Cache (Redis/Memcached) System Design
 
-**Next Milestone:** Complete 5 P0 designs (Phase 1) - 1/5 done
+**Next Milestone:** Complete 5 P0 designs (Phase 1) - 2/5 done
 
 **Target:** Complete all 52 designs by [Set target date]
 

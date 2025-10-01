@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (3/52)
+## ✅ Completed Designs (4/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 **Status:** ✅ Complete
@@ -82,14 +82,31 @@ URL shortening service with analytics, custom aliases, and high-availability arc
 
 ---
 
-## 📋 Upcoming Designs (49)
+### 4. [Distributed Cache (Redis/Memcached) System Design](./distributed_cache_system_design.md)
+**Status:** ✅ Complete
+
+High-performance in-memory distributed caching system with replication, sharding, and persistence.
+
+**Key Features:**
+- Consistent hashing for horizontal scaling
+- Master-replica replication with automatic failover
+- Multiple data types (strings, lists, sets, sorted sets, hashes)
+- Optional persistence (RDB snapshots + AOF)
+- Pub/Sub messaging support
+- Memory management with configurable eviction policies
+
+**Scale:** 1M ops/sec starting, 10M+ ops/sec peak, 100M+ keys
+
+---
+
+## 📋 Upcoming Designs (48)
 
 ### Core Infrastructure & Storage
 
 - [x] **Design a URL shortener** (like TinyURL)
 - [ ] **Design a text storage service** (like Pastebin)
 - [ ] **Design a content delivery network (CDN)**
-- [ ] **Design a distributed cache** (like Redis/Memcached)
+- [x] **Design a distributed cache** (like Redis/Memcached)
 - [ ] **Design a file storage service** (like Dropbox or Google Drive)
 - [ ] **Design a distributed key-value store**
 - [ ] **Design a distributed storage system**
@@ -325,11 +342,11 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 3/52 (5.8%)
+**Completion Status:** 4/52 (7.7%)
 
-**Last Design Completed:** URL Shortener (TinyURL)
+**Last Design Completed:** Distributed Cache (Redis/Memcached)
 
-**Next Up:** Distributed Cache (Redis/Memcached)
+**Next Up:** Rate Limiter (API Gateway)
 
 ---
 
