@@ -4,18 +4,18 @@
 
 **Last Updated:** October 1, 2025
 
-**Progress:** 5/52 (9.6% Complete)
+**Progress:** 6/52 (11.5% Complete)
 
 ---
 
 ## 📊 Progress Overview
 
 ```
-✅ Completed: 5
+✅ Completed: 6
 🚧 In Progress: 0
-📝 Planned: 47
+📝 Planned: 46
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 9.6%
+[████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 11.5%
 ```
 
 ---
@@ -62,20 +62,19 @@
 - **Key Features:** Sliding window counter algorithm, multi-region deployment with eventual consistency, three-tier pricing support, graceful degradation, real-time rate limit status, comprehensive algorithm comparison (Token Bucket, Fixed Window, Sliding Log, Leaky Bucket, Sliding Window Counter)
 - **Lines:** 1,900+ (comprehensive)
 
+### 6. ✅ Content Delivery Network (CDN) System Design
+- **Status:** Complete
+- **File:** `cdn_system_design.md`
+- **Completed:** October 1, 2025
+- **Scale:** 1B requests/day, 100+ edge locations, 500 PB content, >90% cache hit ratio, 99.99% availability per edge
+- **Key Features:** Three-tier cache hierarchy (edge, mid-tier, origin shield), LFU with popularity decay eviction strategy (Zipf distribution optimized), GeoDNS + Anycast hybrid routing, real-time cache invalidation (5-second global purge via Kafka), adaptive bitrate video streaming (HLS/DASH), origin pull with request coalescing, DDoS protection, signed URLs, ML-based predictive caching
+- **Lines:** 2,600+ (comprehensive)
+
 ---
 
-## 📋 Pending Designs (47)
+## 📋 Pending Designs (46)
 
 ### 🔥 High Priority - Core Infrastructure (Next 3)
-
-#### 6. ⬜ Content Delivery Network (CDN)
-- **Status:** Not Started
-- **Priority:** P0 - Critical
-- **Difficulty:** ⭐⭐⭐ Hard
-- **Estimated Time:** 3-4 hours
-- **Key Concepts:** Edge servers, cache hierarchies, origin pull, DNS routing
-- **Common Follow-ups:** Cache invalidation, geographic distribution, cost optimization
-- **Notes:** Complex but extremely common
 
 #### 7. ⬜ Distributed Key-Value Store
 - **Status:** Not Started
@@ -569,15 +568,15 @@ Before marking a design as complete, ensure:
 
 **Active Design:** None
 
-**Next Up:** Content Delivery Network (CDN)
+**Next Up:** Distributed Key-Value Store
 
 **Target Completion:** [Set date]
 
 ---
 
-**Last Activity:** October 1, 2025 - Completed Rate Limiter for API Gateway System Design
+**Last Activity:** October 1, 2025 - Completed Content Delivery Network (CDN) System Design
 
-**Next Milestone:** Complete 5 P0 designs (Phase 1) - 3/5 done
+**Next Milestone:** Complete 5 P0 designs (Phase 1) - 4/5 done
 
 **Target:** Complete all 52 designs by [Set target date]
 
