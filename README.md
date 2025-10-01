@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (2/52)
+## ✅ Completed Designs (3/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 **Status:** ✅ Complete
@@ -66,11 +66,27 @@ Cloud-based photo storage and management service with intelligent features.
 
 ---
 
-## 📋 Upcoming Designs (50)
+### 3. [URL Shortener (TinyURL) System Design](./url_shortener_system_design.md)
+**Status:** ✅ Complete
+
+URL shortening service with analytics, custom aliases, and high-availability architecture.
+
+**Key Features:**
+- Snowflake-based distributed ID generation (no collisions)
+- Multi-tier caching (CDN + Redis cluster)
+- Asynchronous analytics pipeline with Kafka and ClickHouse
+- Geographic distribution for global low latency
+- Comprehensive API with rate limiting
+
+**Scale:** 100M DAU, 1M URL creations/day, 100M redirects/day
+
+---
+
+## 📋 Upcoming Designs (49)
 
 ### Core Infrastructure & Storage
 
-- [ ] **Design a URL shortener** (like TinyURL)
+- [x] **Design a URL shortener** (like TinyURL)
 - [ ] **Design a text storage service** (like Pastebin)
 - [ ] **Design a content delivery network (CDN)**
 - [ ] **Design a distributed cache** (like Redis/Memcached)
@@ -309,11 +325,11 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 2/52 (3.8%)
+**Completion Status:** 3/52 (5.8%)
 
-**Last Design Completed:** LeetCode System Design
+**Last Design Completed:** URL Shortener (TinyURL)
 
-**Next Up:** URL Shortener (TinyURL)
+**Next Up:** Distributed Cache (Redis/Memcached)
 
 ---
 
