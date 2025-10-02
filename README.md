@@ -206,7 +206,7 @@ Distributed message queue for event streaming across microservices with high thr
 
 - [x] **Design a pub/sub messaging system** (like Kafka)
 - [ ] **Design a chat application** (like WhatsApp)
-- [ ] **Design a notification system**
+- [ ] **Design a notification system** — 🚧 In Progress ([Notification System](./notification_system_design.md))
 - [ ] **Design a distributed stream processing system**
 
 ### Social Media & Content
@@ -440,6 +440,7 @@ This is a personal learning repository. However, if you notice errors or have su
 **Last Design Completed:** Pub/Sub Messaging System (Kafka)
 
 **Next Up:** Chat Application (WhatsApp)
+**Current Work:** Notification System
 
 ---
 
