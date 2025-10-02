@@ -8,6 +8,47 @@
 
 ---
 
+## TABLE OF CONTENTS
+
+- [REQUIREMENTS & CLARIFICATION](#requirements--clarification)
+  - [User Stories](#user-stories)
+  - [Functional Requirements](#functional-requirements)
+  - [Non-Functional Requirements](#non-functional-requirements)
+  - [Clarifying Questions & Assumptions](#clarifying-questions--assumptions)
+- [CALCULATIONS](#calculations)
+  - [Traffic Estimates](#traffic-estimates)
+  - [Storage Estimates](#storage-estimates)
+  - [Resource Estimates](#resource-estimates)
+- [HIGH-LEVEL DESIGN](#high-level-design)
+  - [System Architecture](#system-architecture)
+  - [Data Flow](#data-flow)
+- [DEEP DIVE: RATE LIMITING ALGORITHMS](#deep-dive-rate-limiting-algorithms)
+  - [Token Bucket](#token-bucket)
+  - [Leaky Bucket](#leaky-bucket)
+  - [Fixed Window Counter](#fixed-window-counter)
+  - [Sliding Window Log](#sliding-window-log)
+  - [Sliding Window Counter](#sliding-window-counter)
+  - [Algorithm Comparison](#algorithm-comparison)
+- [DEEP DIVE: DISTRIBUTED ARCHITECTURE](#deep-dive-distributed-architecture)
+  - [Multi-Region Synchronization](#multi-region-synchronization)
+- [API DESIGN](#api-design)
+  - [Rate Limit Check](#rate-limit-check)
+  - [Get Limit Status](#get-limit-status)
+- [DATABASE DESIGN](#database-design)
+  - [Redis Schema](#redis-schema)
+  - [PostgreSQL Schema](#postgresql-schema)
+- [SCALABILITY](#scalability)
+  - [Horizontal Scaling](#horizontal-scaling)
+- [RELIABILITY](#reliability)
+  - [Failure Handling](#failure-handling)
+- [MONITORING](#monitoring)
+  - [Key Metrics](#key-metrics)
+- [SECURITY](#security)
+- [TRADE-OFFS](#trade-offs)
+- [SUMMARY](#summary)
+
+---
+
 ## REQUIREMENTS & CLARIFICATION
 
 ### User Stories

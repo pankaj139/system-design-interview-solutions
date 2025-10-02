@@ -4,6 +4,54 @@
 
 ---
 
+## TABLE OF CONTENTS
+
+- [1. REQUIREMENTS & CLARIFICATION](#1-requirements--clarification)
+  - [User Stories](#user-stories)
+  - [Functional Requirements (MVP)](#functional-requirements-mvp)
+  - [Non-Functional Requirements](#non-functional-requirements)
+  - [Clarifying Questions & Assumptions](#clarifying-questions--assumptions)
+- [2. BACK-OF-THE-ENVELOPE CALCULATIONS](#2-back-of-the-envelope-calculations)
+  - [Traffic Estimates](#traffic-estimates)
+  - [Storage Estimates](#storage-estimates)
+  - [Resource Estimates](#resource-estimates)
+  - [Bandwidth Estimates](#bandwidth-estimates)
+- [3. HIGH-LEVEL DESIGN](#3-high-level-design)
+  - [System Architecture](#system-architecture)
+  - [Data Flow](#data-flow)
+- [4. DATABASE DESIGN](#4-database-design)
+  - [Metadata Database](#metadata-database)
+  - [Face Recognition Database](#face-recognition-database)
+- [5. API DESIGN](#5-api-design)
+  - [Upload API](#upload-api)
+  - [Photo Management API](#photo-management-api)
+  - [Search API](#search-api)
+  - [Sharing API](#sharing-api)
+- [6. DEEP DIVE - UPLOAD FLOW](#6-deep-dive---upload-flow)
+  - [Upload Process](#upload-process)
+  - [Deduplication](#deduplication)
+- [7. DEEP DIVE - IMAGE PROCESSING](#7-deep-dive---image-processing)
+  - [Thumbnail Generation](#thumbnail-generation)
+  - [Face Detection](#face-detection)
+- [8. DEEP DIVE - STORAGE ARCHITECTURE](#8-deep-dive---storage-architecture)
+  - [Object Storage](#object-storage)
+  - [Metadata Storage](#metadata-storage)
+- [9. DEEP DIVE - SEARCH](#9-deep-dive---search)
+  - [Search Implementation](#search-implementation)
+- [10. SCALABILITY](#10-scalability)
+  - [Horizontal Scaling](#horizontal-scaling)
+  - [Database Sharding](#database-sharding)
+- [11. SECURITY](#11-security)
+  - [Authentication](#authentication)
+  - [Authorization](#authorization)
+- [12. MONITORING](#12-monitoring)
+  - [Key Metrics](#key-metrics)
+- [13. TRADE-OFFS](#13-trade-offs)
+  - [Design Decisions](#design-decisions)
+- [SUMMARY](#summary)
+
+---
+
 ## 1. REQUIREMENTS & CLARIFICATION
 
 ### User Stories

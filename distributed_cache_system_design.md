@@ -22,6 +22,51 @@ Usage:
 
 ---
 
+## TABLE OF CONTENTS
+
+- [1. REQUIREMENTS & CLARIFICATION](#1-requirements--clarification)
+  - [User Stories](#user-stories)
+  - [Functional Requirements](#functional-requirements)
+  - [Non-Functional Requirements](#non-functional-requirements)
+  - [Clarifying Questions & Assumptions](#clarifying-questions--assumptions)
+- [2. BACK-OF-THE-ENVELOPE CALCULATIONS](#2-back-of-the-envelope-calculations)
+  - [Traffic Estimates](#traffic-estimates)
+  - [Storage Estimates](#storage-estimates)
+  - [Resource Estimates](#resource-estimates)
+  - [Bandwidth Estimates](#bandwidth-estimates)
+- [3. HIGH-LEVEL DESIGN](#3-high-level-design)
+  - [Core Components](#core-components)
+  - [Architecture Diagram](#architecture-diagram)
+  - [Data Flow](#data-flow)
+- [4. DATA STRUCTURES](#4-data-structures)
+  - [String](#string)
+  - [List](#list)
+  - [Set](#set)
+  - [Sorted Set](#sorted-set)
+  - [Hash](#hash)
+- [5. API DESIGN](#5-api-design)
+  - [Basic Operations](#basic-operations)
+  - [Data Structure Operations](#data-structure-operations)
+- [6. DATABASE SCHEMA](#6-database-schema)
+- [7. DEEP DIVE: CONSISTENT HASHING](#7-deep-dive-consistent-hashing)
+  - [Virtual Nodes](#virtual-nodes)
+- [8. DEEP DIVE: REPLICATION](#8-deep-dive-replication)
+  - [Master-Replica Architecture](#master-replica-architecture)
+  - [Replication Lag](#replication-lag)
+- [9. DEEP DIVE: PERSISTENCE](#9-deep-dive-persistence)
+  - [RDB Snapshots](#rdb-snapshots)
+  - [AOF (Append Only File)](#aof-append-only-file)
+- [10. DEEP DIVE: EVICTION POLICIES](#10-deep-dive-eviction-policies)
+- [11. SCALABILITY & PERFORMANCE](#11-scalability--performance)
+  - [Horizontal Scaling](#horizontal-scaling)
+  - [Performance Optimizations](#performance-optimizations)
+- [12. SECURITY](#12-security)
+- [13. MONITORING](#13-monitoring)
+- [14. TRADE-OFFS](#14-trade-offs)
+- [SUMMARY](#summary)
+
+---
+
 ## 1. REQUIREMENTS & CLARIFICATION
 
 ### User Stories

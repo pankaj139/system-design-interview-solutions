@@ -6,6 +6,51 @@
 
 ---
 
+## TABLE OF CONTENTS
+
+- [1. REQUIREMENTS & CLARIFICATION](#1-requirements--clarification)
+  - [User Stories](#user-stories)
+  - [Functional Requirements](#functional-requirements)
+  - [Non-Functional Requirements](#non-functional-requirements)
+  - [Assumptions & Out of Scope](#assumptions--out-of-scope)
+- [2. BACK-OF-THE-ENVELOPE CALCULATIONS](#2-back-of-the-envelope-calculations)
+  - [Traffic Estimates](#traffic-estimates)
+  - [Storage Estimates](#storage-estimates)
+  - [Bandwidth Estimates](#bandwidth-estimates)
+  - [Resource Estimates](#resource-estimates)
+- [3. HIGH-LEVEL DESIGN](#3-high-level-design)
+  - [System Architecture](#system-architecture)
+  - [Data Flow](#data-flow)
+- [4. DEEP DIVE: CONSISTENT HASHING](#4-deep-dive-consistent-hashing)
+  - [Virtual Nodes](#virtual-nodes)
+- [5. DEEP DIVE: REPLICATION](#5-deep-dive-replication)
+  - [Quorum-Based Replication](#quorum-based-replication)
+  - [Sloppy Quorum](#sloppy-quorum)
+- [6. DEEP DIVE: CONFLICT RESOLUTION](#6-deep-dive-conflict-resolution)
+  - [Vector Clocks](#vector-clocks)
+- [7. DEEP DIVE: FAILURE DETECTION](#7-deep-dive-failure-detection)
+  - [Gossip Protocol](#gossip-protocol)
+- [8. DEEP DIVE: ANTI-ENTROPY](#8-deep-dive-anti-entropy)
+  - [Hinted Handoff](#hinted-handoff)
+  - [Merkle Trees](#merkle-trees)
+- [9. API DESIGN](#9-api-design)
+  - [Core Operations](#core-operations)
+- [10. DATA MODEL](#10-data-model)
+  - [Key-Value Structure](#key-value-structure)
+- [11. SCALABILITY](#11-scalability)
+  - [Horizontal Scaling](#horizontal-scaling)
+  - [Multi-Datacenter](#multi-datacenter)
+- [12. RELIABILITY](#12-reliability)
+  - [Failure Scenarios](#failure-scenarios)
+- [13. MONITORING](#13-monitoring)
+  - [Key Metrics](#key-metrics)
+- [14. TRADE-OFFS](#14-trade-offs)
+  - [CAP Theorem](#cap-theorem)
+  - [Design Decisions](#design-decisions)
+- [SUMMARY](#summary)
+
+---
+
 ## 1. REQUIREMENTS & CLARIFICATION
 
 ### User Stories

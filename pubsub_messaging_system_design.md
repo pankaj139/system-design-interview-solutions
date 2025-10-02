@@ -1,86 +1,119 @@
-# Pub/Sub Messaging System Design (Like Kafka)
+# PUB/SUB MESSAGING SYSTEM DESIGN
 
-<!--
-File: pubsub_messaging_system_design.md
-Purpose: Comprehensive system design for a distributed pub/sub messaging system
-        Covers architecture, partitioning, replication, storage, and operational aspects
-        Designed for high-throughput event streaming across microservices
-Author: System Design Documentation
-Last Updated: October 1, 2025
--->
+## Distributed Event Streaming Platform (like Apache Kafka)
 
-## Table of Contents
+**Document Purpose:** This file contains a comprehensive system design for a distributed pub/sub messaging system that enables high-throughput event streaming across microservices. The design covers topic partitioning, consumer groups, replication protocols, log-structured storage, and exactly-once semantics for building a production-grade message queue similar to Apache Kafka.
 
-- [Pub/Sub Messaging System Design (Like Kafka)](#pubsub-messaging-system-design-like-kafka)
-  - [Table of Contents](#table-of-contents)
-  - [1. Problem Statement](#1-problem-statement)
-    - [Functional Requirements](#functional-requirements)
-    - [Non-Functional Requirements](#non-functional-requirements)
-    - [Scale Estimates](#scale-estimates)
-  - [2. High-Level Architecture](#2-high-level-architecture)
-    - [Core Components](#core-components)
-    - [Architecture Diagram](#architecture-diagram)
-  - [3. API Design](#3-api-design)
-    - [Producer API](#producer-api)
-    - [Consumer API](#consumer-api)
-    - [Admin API](#admin-api)
-  - [4. Data Models](#4-data-models)
-    - [Message Structure](#message-structure)
-    - [Topic Metadata](#topic-metadata)
-    - [Consumer Group State](#consumer-group-state)
-  - [5. Deep Dive: Topic Partitioning Strategy](#5-deep-dive-topic-partitioning-strategy)
-    - [Partitioning Methods](#partitioning-methods)
-    - [Partition Assignment](#partition-assignment)
-    - [Rebalancing Protocol](#rebalancing-protocol)
-  - [6. Deep Dive: Consumer Groups and Rebalancing](#6-deep-dive-consumer-groups-and-rebalancing)
-    - [Consumer Group Coordinator](#consumer-group-coordinator)
-    - [Rebalancing Strategies](#rebalancing-strategies)
-    - [Rebalancing Protocol Flow](#rebalancing-protocol-flow)
-  - [7. Deep Dive: Offset Management](#7-deep-dive-offset-management)
-    - [Offset Storage](#offset-storage)
-    - [Commit Strategies](#commit-strategies)
-    - [Exactly-Once Semantics](#exactly-once-semantics)
-  - [8. Deep Dive: Log-Structured Storage](#8-deep-dive-log-structured-storage)
-    - [Segment Management](#segment-management)
-    - [Index Structures](#index-structures)
-    - [Retention and Cleanup](#retention-and-cleanup)
-  - [9. Deep Dive: Replication Protocol](#9-deep-dive-replication-protocol)
-    - [Leader-Follower Architecture](#leader-follower-architecture)
-    - [In-Sync Replicas (ISR)](#in-sync-replicas-isr)
-    - [Failure Scenarios](#failure-scenarios)
-  - [10. Deep Dive: Producer Optimizations](#10-deep-dive-producer-optimizations)
-    - [Batching Strategy](#batching-strategy)
-    - [Compression](#compression)
-    - [Partitioner](#partitioner)
-  - [11. Deep Dive: Back-Pressure and Flow Control](#11-deep-dive-back-pressure-and-flow-control)
-    - [Producer Flow Control](#producer-flow-control)
-    - [Consumer Flow Control](#consumer-flow-control)
-  - [12. Deep Dive: Compacted Topics](#12-deep-dive-compacted-topics)
-    - [Log Compaction Process](#log-compaction-process)
-    - [Use Cases](#use-cases)
-  - [13. Database Schema](#13-database-schema)
-    - [Metadata Storage](#metadata-storage)
-  - [14. Key Algorithms](#14-key-algorithms)
-    - [Consistent Hashing for Partition Assignment](#consistent-hashing-for-partition-assignment)
-    - [High Water Mark Algorithm](#high-water-mark-algorithm)
-  - [15. Scalability and Performance](#15-scalability-and-performance)
-    - [Horizontal Scaling](#horizontal-scaling)
-    - [Performance Optimizations](#performance-optimizations)
-  - [16. Reliability and Fault Tolerance](#16-reliability-and-fault-tolerance)
-    - [Failure Detection](#failure-detection)
-    - [Recovery Mechanisms](#recovery-mechanisms)
-  - [17. Monitoring and Observability](#17-monitoring-and-observability)
-    - [Key Metrics](#key-metrics)
-    - [Alerting Rules](#alerting-rules)
-  - [18. Security Considerations](#18-security-considerations)
-  - [19. Trade-offs and Alternatives](#19-trade-offs-and-alternatives)
-  - [20. Future Enhancements](#20-future-enhancements)
+**Last Updated:** October 1, 2025
 
-## 1. Problem Statement
+---
 
-Design a distributed message queue system for event streaming across microservices that handles high throughput, maintains ordering guarantees, and provides durability with horizontal scalability.
+## TABLE OF CONTENTS
 
-### Functional Requirements
+- [REQUIREMENTS & CLARIFICATION](#requirements--clarification)
+  - [User Stories](#user-stories)
+  - [Functional Requirements (MVP)](#functional-requirements-mvp)
+  - [Non-Functional Requirements](#non-functional-requirements)
+  - [Clarifying Questions & Assumptions](#clarifying-questions--assumptions)
+- [BACK-OF-THE-ENVELOPE CALCULATIONS](#back-of-the-envelope-calculations)
+  - [Traffic Estimates](#traffic-estimates)
+  - [Storage Estimates](#storage-estimates)
+  - [Bandwidth Estimates](#bandwidth-estimates)
+  - [Resource Estimates](#resource-estimates)
+- [HIGH-LEVEL DESIGN](#high-level-design)
+  - [Core Components](#core-components)
+  - [Architecture Diagram](#architecture-diagram)
+  - [Data Flow Explanation](#data-flow-explanation)
+- [API DESIGN](#api-design)
+  - [Producer API](#producer-api)
+  - [Consumer API](#consumer-api)
+  - [Admin API](#admin-api)
+- [DATA MODELS](#data-models)
+  - [Message Structure](#message-structure)
+  - [Topic Metadata](#topic-metadata)
+  - [Consumer Group State](#consumer-group-state)
+- [DEEP DIVE: TOPIC PARTITIONING STRATEGY](#deep-dive-topic-partitioning-strategy)
+  - [Partitioning Methods](#partitioning-methods)
+  - [Partition Assignment](#partition-assignment)
+  - [Rebalancing Protocol](#rebalancing-protocol)
+- [DEEP DIVE: CONSUMER GROUPS & REBALANCING](#deep-dive-consumer-groups--rebalancing)
+  - [Consumer Group Coordinator](#consumer-group-coordinator)
+  - [Rebalancing Strategies](#rebalancing-strategies)
+  - [Rebalancing Protocol Flow](#rebalancing-protocol-flow)
+- [DEEP DIVE: OFFSET MANAGEMENT](#deep-dive-offset-management)
+  - [Offset Storage](#offset-storage)
+  - [Commit Strategies](#commit-strategies)
+  - [Exactly-Once Semantics](#exactly-once-semantics)
+- [DEEP DIVE: LOG-STRUCTURED STORAGE](#deep-dive-log-structured-storage)
+  - [Segment Management](#segment-management)
+  - [Index Structures](#index-structures)
+  - [Retention and Cleanup](#retention-and-cleanup)
+- [DEEP DIVE: REPLICATION PROTOCOL](#deep-dive-replication-protocol)
+  - [Leader-Follower Architecture](#leader-follower-architecture)
+  - [In-Sync Replicas (ISR)](#in-sync-replicas-isr)
+  - [Failure Scenarios](#failure-scenarios)
+- [DEEP DIVE: PRODUCER OPTIMIZATIONS](#deep-dive-producer-optimizations)
+  - [Batching Strategy](#batching-strategy)
+  - [Compression](#compression)
+  - [Partitioner](#partitioner)
+- [DEEP DIVE: BACK-PRESSURE & FLOW CONTROL](#deep-dive-back-pressure--flow-control)
+  - [Producer Flow Control](#producer-flow-control)
+  - [Consumer Flow Control](#consumer-flow-control)
+- [DEEP DIVE: COMPACTED TOPICS](#deep-dive-compacted-topics)
+  - [Log Compaction Process](#log-compaction-process)
+  - [Use Cases](#use-cases)
+- [DATABASE SCHEMA](#database-schema)
+  - [Metadata Storage](#metadata-storage)
+- [KEY ALGORITHMS](#key-algorithms)
+  - [Consistent Hashing for Partition Assignment](#consistent-hashing-for-partition-assignment)
+  - [High Water Mark Algorithm](#high-water-mark-algorithm)
+- [SCALABILITY & PERFORMANCE](#scalability--performance)
+  - [Horizontal Scaling](#horizontal-scaling)
+  - [Performance Optimizations](#performance-optimizations)
+- [RELIABILITY & FAULT TOLERANCE](#reliability--fault-tolerance)
+  - [Failure Detection](#failure-detection)
+  - [Recovery Mechanisms](#recovery-mechanisms)
+- [MONITORING & OBSERVABILITY](#monitoring--observability)
+  - [Key Metrics](#key-metrics)
+  - [Alerting Rules](#alerting-rules)
+- [SECURITY CONSIDERATIONS](#security-considerations)
+  - [Authentication](#authentication)
+  - [Authorization (ACLs)](#authorization-acls)
+  - [Encryption](#encryption)
+  - [Audit Logging](#audit-logging)
+- [TRADE-OFFS & DESIGN DECISIONS](#trade-offs--design-decisions)
+  - [Decision: Replication Factor](#decision-replication-factor)
+  - [Decision: Acknowledgment Level](#decision-acknowledgment-level)
+  - [Decision: Pull vs Push Model](#decision-pull-vs-push-model)
+  - [Alternatives to Kafka](#alternatives-to-kafka)
+- [FUTURE ENHANCEMENTS](#future-enhancements)
+  - [Tiered Storage](#tiered-storage)
+  - [Multi-Region Replication](#multi-region-replication)
+  - [Schema Registry Integration](#schema-registry-integration)
+  - [Stream Processing Integration](#stream-processing-integration)
+- [SUMMARY](#summary)
+
+---
+
+## REQUIREMENTS & CLARIFICATION
+
+### User Stories
+
+**As a microservice developer**, I want to publish events to topics so that other services can asynchronously consume and react to those events.
+
+**As an application architect**, I want consumer groups to process messages in parallel so that I can scale message processing across multiple consumers.
+
+**As a data engineer**, I want to replay historical messages so that I can reprocess data for analytics or recover from processing errors.
+
+**As a platform engineer**, I want automatic partition rebalancing so that new consumers can join without manual intervention.
+
+**As a system operator**, I want message durability with replication so that no data is lost even when brokers fail.
+
+**As a stream processing developer**, I want exactly-once delivery guarantees so that my processing results are accurate without duplicates.
+
+---
+
+### Functional Requirements (MVP)
 
 1. **Message Publishing**: Producers can publish messages to topics
 2. **Message Consumption**: Consumers can subscribe to topics and read messages
@@ -91,17 +124,96 @@ Design a distributed message queue system for event streaming across microservic
 7. **Replication**: Replicate data across multiple brokers for durability
 8. **Ordering Guarantee**: Maintain message order within partitions
 
+**Out of Scope for MVP:**
+
+- Message filtering/routing within broker
+- Complex transactions across topics
+- Message transformation in broker
+- Built-in schema registry
+
+---
+
 ### Non-Functional Requirements
 
-1. **Throughput**: Support 10M messages/second
-2. **Latency**: <10ms publish latency, <50ms consumer lag
-3. **Durability**: Replication factor of 3, no data loss
-4. **Scalability**: 100+ topics, 1000+ partitions, 10K+ producers/consumers
-5. **Storage**: 30 days retention, 10 PB total storage
-6. **Availability**: 99.99% uptime
-7. **Delivery Guarantee**: At-least-once (with exactly-once option)
+**Performance:**
 
-### Scale Estimates
+- Throughput: Support 10M messages/second
+- Publish Latency: <10ms p99
+- Consumer Lag: <50ms under normal load
+- Batch processing for efficiency
+
+**Availability:**
+
+- 99.99% uptime (52 minutes downtime/year)
+- Automatic failover for broker failures
+- No single point of failure
+- Partition leader election < 5 seconds
+
+**Scalability:**
+
+- 100+ topics with 1000+ partitions
+- 10K+ producers and consumers
+- Horizontal scaling by adding brokers
+- Dynamic partition assignment
+
+**Durability:**
+
+- Replication factor of 3 (configurable)
+- No data loss with proper acknowledgment
+- At-least-once delivery guarantee (default)
+- Exactly-once delivery option available
+
+**Storage:**
+
+- 30 days message retention (configurable)
+- 10 PB total storage capacity
+- Log-structured storage for sequential writes
+- Support for compacted topics
+
+---
+
+### Clarifying Questions & Assumptions
+
+**Scale Questions:**
+
+- **Q:** What's the expected message throughput?
+  - **A:** 10M messages/second, scalable to 100M+ with cluster expansion
+- **Q:** How many topics and partitions?
+  - **A:** 100+ topics, 1000+ partitions total
+- **Q:** How long should messages be retained?
+  - **A:** 30 days by default, configurable per topic
+
+**Usage Pattern Questions:**
+
+- **Q:** What's the typical message size?
+  - **A:** Average 1KB, maximum 1MB per message
+- **Q:** What delivery guarantees are needed?
+  - **A:** At-least-once by default, exactly-once for critical workflows
+- **Q:** Are there ordering requirements?
+  - **A:** Yes, within partition ordering is mandatory
+
+**Architecture Questions:**
+
+- **Q:** How many datacenters/regions?
+  - **A:** Single region for MVP, multi-region in future
+- **Q:** What replication factor?
+  - **A:** 3 replicas for production workloads
+- **Q:** Should consumers read from replicas?
+  - **A:** Primarily from leader, replica reads for optimization
+
+**Assumptions:**
+
+- Network bandwidth is sufficient (10Gbps+ per broker)
+- Producers can buffer messages during brief outages
+- Consumers handle idempotent processing for at-least-once
+- Most messages are < 10KB in size
+- Sequential disk I/O is the bottleneck, not CPU
+
+---
+
+## BACK-OF-THE-ENVELOPE CALCULATIONS
+
+### Traffic Estimates
 
 ```text
 Messages per second: 10M
@@ -117,7 +229,81 @@ Consumers: 10K+
 Consumer groups: 100+
 ```
 
-## 2. High-Level Architecture
+### Storage Estimates
+
+```text
+Data per message: 1 KB (average)
+Messages per day: 10M * 86,400 = 864 billion messages/day
+Storage per day: 864B * 1KB = 864 TB/day
+
+Retention period: 30 days
+Storage without replication: 864 TB * 30 = 25.9 PB
+With replication factor 3: 25.9 PB * 3 = 77.7 PB
+
+Per-broker storage (assuming 100 brokers):
+= 77.7 PB / 100 = 777 TB per broker
+= Need 10-20 TB SSD per broker (handling active partitions)
++ Bulk HDD for older segments
+
+Metadata storage (ZooKeeper/KRaft):
+- Topic metadata: ~100 topics * 1KB = 100 KB
+- Partition metadata: 1000 partitions * 2KB = 2 MB
+- Consumer group state: 100 groups * 100KB = 10 MB
+Total metadata: < 50 MB (fits in memory)
+```
+
+### Bandwidth Estimates
+
+```text
+Ingress (Producer to Broker):
+= 10M messages/sec * 1KB = 10 GB/s
+= 80 Gbps
+
+Egress (Broker to Consumer):
+Assuming 3 consumer groups on average per topic:
+= 10 GB/s * 3 = 30 GB/s
+= 240 Gbps
+
+Replication bandwidth (Leader to Followers):
+= 10 GB/s * 2 (two followers per partition)
+= 20 GB/s = 160 Gbps
+
+Total bandwidth per broker (assuming 20 brokers):
+= (80 + 240 + 160) Gbps / 20
+= 24 Gbps per broker
+= Need 25-40 Gbps network cards
+```
+
+### Resource Estimates
+
+```text
+Number of Brokers:
+Based on throughput: 10M msg/s / 100K msg/s per broker = 100 brokers
+Based on storage: 77.7 PB / 10 TB per broker = 7,770 brokers
+Based on partition leadership: 1000 partitions / 50 per broker = 20 brokers
+
+Chosen: 20-30 brokers (scaled for throughput and leadership)
+
+Per Broker Resources:
+- CPU: 16-32 cores (handle network I/O, compression)
+- RAM: 64-128 GB (page cache for hot data)
+- Disk: 10-20 TB NVMe SSD (active segments)
+- Network: 25-40 Gbps
+
+ZooKeeper Cluster:
+- 3-5 nodes for metadata
+- 8 GB RAM per node
+- 100 GB SSD per node
+
+Consumer Requirements:
+- Scale independently
+- 1 consumer per partition for max parallelism
+- 1000 partitions = up to 1000 consumers per group
+```
+
+---
+
+## HIGH-LEVEL DESIGN
 
 ### Core Components
 
@@ -154,57 +340,181 @@ Consumer groups: 100+
 
 ### Architecture Diagram
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                         Producer Cluster                         │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │Producer 1│  │Producer 2│  │Producer 3│  │Producer N│        │
-│  └─────┬────┘  └─────┬────┘  └─────┬────┘  └─────┬────┘        │
-└────────┼─────────────┼─────────────┼─────────────┼──────────────┘
-         │             │             │             │
-         │ Publish     │             │             │
-         ▼             ▼             ▼             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                         Broker Cluster                           │
-│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐    │
-│  │   Broker 1     │  │   Broker 2     │  │   Broker 3     │    │
-│  │  (Controller)  │  │                │  │                │    │
-│  ├────────────────┤  ├────────────────┤  ├────────────────┤    │
-│  │ Topic A-P0 (L) │  │ Topic A-P0 (F) │  │ Topic A-P1 (L) │    │
-│  │ Topic A-P1 (F) │  │ Topic A-P1 (F) │  │ Topic B-P0 (L) │    │
-│  │ Topic B-P0 (F) │  │ Topic B-P1 (L) │  │ Topic B-P1 (F) │    │
-│  └────────────────┘  └────────────────┘  └────────────────┘    │
-│         │                    │                    │              │
-│         │  Replication       │                    │              │
-│         └────────────────────┴────────────────────┘              │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ Metadata
-                          ▼
-              ┌────────────────────┐
-              │   ZooKeeper/KRaft  │
-              │                    │
-              │  - Topic metadata  │
-              │  - Partition map   │
-              │  - Consumer groups │
-              │  - Leader election │
-              └────────────────────┘
-                          │
-                          │ Pull & Commit
-                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       Consumer Groups                            │
-│  ┌──────────────────┐         ┌──────────────────┐              │
-│  │  Consumer Group1 │         │  Consumer Group2 │              │
-│  │  ┌────┐  ┌────┐  │         │  ┌────┐  ┌────┐  │              │
-│  │  │ C1 │  │ C2 │  │         │  │ C1 │  │ C2 │  │              │
-│  │  └────┘  └────┘  │         │  └────┘  └────┘  │              │
-│  └──────────────────┘         └──────────────────┘              │
-└─────────────────────────────────────────────────────────────────┘
-
-Legend: L = Leader, F = Follower, P = Partition
+```mermaid
+graph TB
+    subgraph Producer Cluster
+        P1[Producer 1<br/>Application Server 1]
+        P2[Producer 2<br/>Application Server 2]
+        P3[Producer 3<br/>Application Server 3]
+        PN[Producer N<br/>Microservices]
+    end
+    
+    subgraph Broker Cluster
+        subgraph Broker 1 - Controller
+            B1[Broker 1<br/>Controller Node]
+            B1P0[Topic A-P0<br/>Leader]
+            B1P1[Topic A-P1<br/>Follower]
+            B1P2[Topic B-P0<br/>Follower]
+        end
+        
+        subgraph Broker 2
+            B2[Broker 2<br/>Data Node]
+            B2P0[Topic A-P0<br/>Follower]
+            B2P1[Topic A-P1<br/>Follower]
+            B2P2[Topic B-P1<br/>Leader]
+        end
+        
+        subgraph Broker 3
+            B3[Broker 3<br/>Data Node]
+            B3P0[Topic A-P1<br/>Leader]
+            B3P1[Topic B-P0<br/>Leader]
+            B3P2[Topic B-P1<br/>Follower]
+        end
+    end
+    
+    subgraph Metadata Store
+        ZK[ZooKeeper/KRaft<br/>Cluster Coordinator]
+        ZKData[(Metadata Storage<br/>- Topic configs<br/>- Partition map<br/>- Consumer groups<br/>- Leader election)]
+    end
+    
+    subgraph Consumer Groups
+        subgraph Consumer Group 1
+            CG1C1[Consumer 1<br/>Partition 0,1]
+            CG1C2[Consumer 2<br/>Partition 2,3]
+        end
+        
+        subgraph Consumer Group 2
+            CG2C1[Consumer 1<br/>Partition 0,2]
+            CG2C2[Consumer 2<br/>Partition 1,3]
+        end
+    end
+    
+    subgraph Offset Store
+        OffsetTopic[__consumer_offsets<br/>Internal Topic]
+    end
+    
+    P1 -->|Publish Messages| B1P0
+    P2 -->|Publish Messages| B2P2
+    P3 -->|Publish Messages| B3P0
+    PN -->|Publish Messages| B3P1
+    
+    B1P0 -.->|Replicate| B2P0
+    B1P0 -.->|Replicate| B3P0
+    B3P0 -.->|Replicate| B1P1
+    B3P0 -.->|Replicate| B2P1
+    B2P2 -.->|Replicate| B3P2
+    B3P1 -.->|Replicate| B1P2
+    
+    B1 <-->|Cluster Metadata| ZK
+    B2 <-->|Cluster Metadata| ZK
+    B3 <-->|Cluster Metadata| ZK
+    ZK <--> ZKData
+    
+    B1P0 -->|Poll Messages| CG1C1
+    B3P0 -->|Poll Messages| CG1C2
+    B1P0 -->|Poll Messages| CG2C1
+    B2P2 -->|Poll Messages| CG2C2
+    
+    CG1C1 -->|Commit Offsets| OffsetTopic
+    CG1C2 -->|Commit Offsets| OffsetTopic
+    CG2C1 -->|Commit Offsets| OffsetTopic
+    CG2C2 -->|Commit Offsets| OffsetTopic
+    
+    style B1 fill:#e1f5ff
+    style B1P0 fill:#4caf50
+    style B3P0 fill:#4caf50
+    style B3P1 fill:#4caf50
+    style B2P2 fill:#4caf50
+    style ZK fill:#fff3e0
 ```
 
-## 3. API Design
+### Data Flow Explanation
+
+**Message Publishing Flow:**
+
+1. **Producer sends message**: Producer determines target partition using partitioner (hash-based, key-based, or round-robin)
+2. **Message batching**: Producer buffers messages in memory batch (configurable batch size and linger time)
+3. **Compression**: Batch is compressed (gzip, snappy, lz4, or zstd) before sending
+4. **Leader write**: Message batch sent to partition leader broker
+5. **Log append**: Leader appends to log-structured storage (active segment)
+6. **Replication**: Leader replicates to followers (In-Sync Replicas)
+7. **Acknowledgment**: Based on acks configuration (0, 1, or all)
+8. **High water mark update**: Once all ISR replicas acknowledge, HWM advances
+
+**Message Consumption Flow:**
+
+1. **Consumer subscribes**: Consumer joins consumer group and subscribes to topics
+2. **Partition assignment**: Group coordinator assigns partitions using rebalancing protocol
+3. **Fetch request**: Consumer sends fetch request to partition leaders
+4. **Read from log**: Broker reads messages from log starting at consumer's offset (only up to high water mark)
+5. **Return messages**: Batch of messages returned to consumer
+6. **Process messages**: Consumer application processes messages
+7. **Commit offset**: Consumer commits new offset to `__consumer_offsets` topic (auto or manual)
+8. **Repeat**: Consumer polls for next batch
+
+**Replication Flow:**
+
+1. **Follower fetch**: Followers continuously fetch from leader (fetch request includes current offset)
+2. **Leader response**: Leader sends messages starting from follower's offset
+3. **Follower append**: Follower appends to local log
+4. **Update ISR**: Leader tracks follower progress; removes slow followers from ISR
+5. **High water mark**: HWM = minimum offset among all ISR members
+6. **Consumer visibility**: Only messages up to HWM are visible to consumers
+
+```mermaid
+sequenceDiagram
+    participant P as Producer
+    participant PB as Producer Buffer<br/>(Batch + Compress)
+    participant L as Partition Leader<br/>(Broker 1)
+    participant F1 as Follower 1<br/>(Broker 2)
+    participant F2 as Follower 2<br/>(Broker 3)
+    participant C as Consumer
+    participant OS as Offset Store<br/>(__consumer_offsets)
+    
+    Note over P,PB: Message Production
+    P->>PB: send(key, value)
+    Note over PB: Batch messages<br/>Wait for batch.size<br/>or linger.ms
+    PB->>PB: Compress batch<br/>(gzip/snappy/lz4)
+    PB->>L: ProduceRequest<br/>(batch, acks=all)
+    
+    Note over L: Append to log<br/>Offset: 1000
+    
+    par Replication
+        L->>F1: Replicate (offset 1000)
+        L->>F2: Replicate (offset 1000)
+    end
+    
+    F1->>F1: Append to log
+    F2->>F2: Append to log
+    
+    F1->>L: ACK (offset 1000)
+    F2->>L: ACK (offset 1000)
+    
+    Note over L: Update HWM = 1000<br/>(all ISR replicated)
+    
+    L->>PB: ProduceResponse (success)
+    PB->>P: Future.complete()
+    
+    Note over C,OS: Message Consumption
+    
+    C->>L: FetchRequest<br/>(offset=995, max.bytes=1MB)
+    L->>L: Read from log<br/>(up to HWM=1000)
+    L->>C: FetchResponse<br/>(messages 995-1000)
+    
+    C->>C: Process messages
+    
+    C->>OS: CommitOffset<br/>(partition=0, offset=1001)
+    OS->>C: ACK
+    
+    loop Continuous Replication
+        F1->>L: FetchRequest (offset=1001)
+        F2->>L: FetchRequest (offset=1001)
+    end
+```
+
+---
+
+## API DESIGN
 
 ### Producer API
 
@@ -307,7 +617,9 @@ Content-Type: application/json
 }
 ```
 
-## 4. Data Models
+---
+
+## DATA MODELS
 
 ### Message Structure
 
@@ -373,7 +685,9 @@ Content-Type: application/json
 }
 ```
 
-## 5. Deep Dive: Topic Partitioning Strategy
+---
+
+## DEEP DIVE: TOPIC PARTITIONING STRATEGY
 
 ### Partitioning Methods
 
@@ -481,7 +795,9 @@ Empty → PreparingRebalance → CompletingRebalance → Stable
                   (rebalance trigger)
 ```
 
-## 6. Deep Dive: Consumer Groups and Rebalancing
+---
+
+## DEEP DIVE: CONSUMER GROUPS & REBALANCING
 
 ### Consumer Group Coordinator
 
@@ -596,30 +912,56 @@ def sticky_assignment(current_assignment, partitions, consumers):
 
 ### Rebalancing Protocol Flow
 
-```text
-Phase 1: JoinGroup
-┌──────────┐                    ┌─────────────┐
-│Consumer 1│────JoinRequest────→│ Coordinator │
-└──────────┘                    └─────────────┘
-┌──────────┐                    ┌─────────────┐
-│Consumer 2│────JoinRequest────→│ Coordinator │
-└──────────┘                    └─────────────┘
-
-Phase 2: SyncGroup
-┌─────────────┐                 ┌──────────┐
-│ Coordinator │──Assignment────→│Consumer 1│
-└─────────────┘                 └──────────┘
-┌─────────────┐                 ┌──────────┐
-│ Coordinator │──Assignment────→│Consumer 2│
-└─────────────┘                 └──────────┘
-
-Phase 3: Heartbeat (Stable State)
-┌──────────┐                    ┌─────────────┐
-│Consumer 1│───Heartbeat────────→│ Coordinator │
-└──────────┘←──HeartbeatResp────└─────────────┘
+```mermaid
+sequenceDiagram
+    participant C1 as Consumer 1
+    participant C2 as Consumer 2
+    participant C3 as Consumer 3<br/>(New)
+    participant Coord as Group Coordinator
+    
+    Note over C1,C2: Stable State - Consuming
+    
+    C3->>Coord: JoinGroup Request
+    Note over Coord: Trigger Rebalance
+    
+    Coord->>C1: Stop consuming (rebalance)
+    Coord->>C2: Stop consuming (rebalance)
+    
+    C1->>Coord: JoinGroup Request
+    C2->>Coord: JoinGroup Request
+    C3->>Coord: JoinGroup Request
+    
+    Note over Coord: Wait for all members<br/>(session timeout)
+    
+    Coord->>C1: Select as Group Leader
+    Coord->>C2: JoinGroup Response
+    Coord->>C3: JoinGroup Response
+    
+    C1->>C1: Calculate partition<br/>assignment
+    
+    C1->>Coord: SyncGroup (assignments)
+    C2->>Coord: SyncGroup
+    C3->>Coord: SyncGroup
+    
+    Coord->>C1: SyncGroup Response<br/>[P0, P1]
+    Coord->>C2: SyncGroup Response<br/>[P2, P3]
+    Coord->>C3: SyncGroup Response<br/>[P4, P5]
+    
+    Note over C1,C3: Resume Consuming
+    
+    loop Heartbeat (every 3s)
+        C1->>Coord: Heartbeat
+        Coord->>C1: OK
+        C2->>Coord: Heartbeat
+        Coord->>C2: OK
+        C3->>Coord: Heartbeat
+        Coord->>C3: OK
+    end
 ```
 
-## 7. Deep Dive: Offset Management
+---
+
+## DEEP DIVE: OFFSET MANAGEMENT
 
 ### Offset Storage
 
@@ -828,7 +1170,9 @@ class IdempotentProducer:
         self.sequence_numbers[partition] = seq_num + 1
 ```
 
-## 8. Deep Dive: Log-Structured Storage
+---
+
+## DEEP DIVE: LOG-STRUCTURED STORAGE
 
 ### Segment Management
 
@@ -1038,7 +1382,9 @@ class RetentionManager:
                 self.segments.remove(segment)
 ```
 
-## 9. Deep Dive: Replication Protocol
+---
+
+## DEEP DIVE: REPLICATION PROTOCOL
 
 ### Leader-Follower Architecture
 
@@ -1198,24 +1544,43 @@ def wait_for_acks(self, ack_level, partition):
 
 #### Leader Failure
 
-```text
-Scenario: Leader broker fails
-
-Before:
-Leader: Broker 1 (offset: 100)
-ISR: [1, 2, 3]
-Broker 2 offset: 98
-Broker 3 offset: 99
-
-After:
-1. Controller detects Broker 1 failure (via heartbeat)
-2. Controller selects new leader from ISR (Broker 3)
-3. New ISR: [2, 3]
-4. Producers/consumers update metadata
-5. Broker 2 truncates to offset 99 (leader epoch fence)
-6. System continues operation
-
-Recovery time: <5 seconds
+```mermaid
+sequenceDiagram
+    participant P as Producer
+    participant B1 as Broker 1<br/>(Leader)
+    participant B2 as Broker 2<br/>(Follower)
+    participant B3 as Broker 3<br/>(Follower)
+    participant C as Controller
+    participant ZK as ZooKeeper
+    participant Con as Consumer
+    
+    Note over B1,B3: Normal Operation<br/>Leader: B1, ISR: [1,2,3]<br/>B1 offset: 100, B2: 98, B3: 99
+    
+    P->>B1: Write msg (offset 101)
+    B1->>B2: Replicate
+    B1->>B3: Replicate
+    
+    Note over B1: ❌ Broker 1 Fails
+    
+    C->>ZK: Heartbeat timeout detected
+    Note over C: Elect new leader from ISR
+    
+    C->>C: Select Broker 3<br/>(highest offset in ISR)
+    C->>ZK: Update metadata<br/>Leader: B3, ISR: [2,3]
+    
+    C->>B3: Promote to Leader<br/>Epoch: 2
+    C->>B2: Update metadata
+    
+    Note over B2: Truncate to offset 99<br/>(epoch fencing)
+    
+    B3->>ZK: Confirm leader
+    ZK->>P: Metadata refresh<br/>New leader: B3
+    ZK->>Con: Metadata refresh<br/>New leader: B3
+    
+    P->>B3: Write msg (offset 100)
+    B3->>B2: Replicate
+    
+    Note over B2,B3: System recovered<br/>Leader: B3, ISR: [2,3]<br/>Recovery time: <5s
 ```
 
 #### Follower Failure
@@ -1271,7 +1636,9 @@ class LeaderFencing:
         return request_epoch == current_epoch
 ```
 
-## 10. Deep Dive: Producer Optimizations
+---
+
+## DEEP DIVE: PRODUCER OPTIMIZATIONS
 
 ### Batching Strategy
 
@@ -1429,7 +1796,9 @@ class CustomPartitioner:
             return hash(key) % num_partitions
 ```
 
-## 11. Deep Dive: Back-Pressure and Flow Control
+---
+
+## DEEP DIVE: BACK-PRESSURE & FLOW CONTROL
 
 ### Producer Flow Control
 
@@ -1593,7 +1962,9 @@ class ConsumerPauseResume:
                 if p not in self.paused_partitions]
 ```
 
-## 12. Deep Dive: Compacted Topics
+---
+
+## DEEP DIVE: COMPACTED TOPICS
 
 ### Log Compaction Process
 
@@ -1756,7 +2127,9 @@ DELETE FROM users WHERE id=456
 Consumers maintain materialized view by replaying compacted topic
 ```
 
-## 13. Database Schema
+---
+
+## DATABASE SCHEMA
 
 ### Metadata Storage
 
@@ -1810,7 +2183,9 @@ Consumers maintain materialized view by replaying compacted topic
 }
 ```
 
-## 14. Key Algorithms
+---
+
+## KEY ALGORITHMS
 
 ### Consistent Hashing for Partition Assignment
 
@@ -1930,7 +2305,9 @@ class HighWaterMark:
         return offset <= self.high_water_mark
 ```
 
-## 15. Scalability and Performance
+---
+
+## SCALABILITY & PERFORMANCE
 
 ### Horizontal Scaling
 
@@ -2050,7 +2427,9 @@ class MemoryMappedLog:
         self.mmap[offset:offset+len(data)] = data
 ```
 
-## 16. Reliability and Fault Tolerance
+---
+
+## RELIABILITY & FAULT TOLERANCE
 
 ### Failure Detection
 
@@ -2157,7 +2536,9 @@ class ReplicaRecovery:
         leader.add_to_isr(failed_replica)
 ```
 
-## 17. Monitoring and Observability
+---
+
+## MONITORING & OBSERVABILITY
 
 ### Key Metrics
 
@@ -2252,9 +2633,11 @@ high_priority:
     severity: "warning"
 ```
 
-## 18. Security Considerations
+---
 
-#### Authentication
+## SECURITY CONSIDERATIONS
+
+### Authentication
 
 ```yaml
 # SASL/PLAIN authentication
@@ -2264,7 +2647,7 @@ sasl.username: producer-service
 sasl.password: encrypted_password
 ```
 
-#### Authorization (ACLs)
+### Authorization (ACLs)
 
 ```text
 # Grant producer permissions
@@ -2281,7 +2664,7 @@ kafka-acls --add \
   --group order-processors
 ```
 
-#### Encryption
+### Encryption
 
 ```yaml
 # TLS encryption
@@ -2293,7 +2676,7 @@ ssl.truststore.location: /path/to/truststore.jks
 # At-rest encryption (disk-level)
 ```
 
-#### Audit Logging
+### Audit Logging
 
 ```text
 Log all administrative operations:
@@ -2303,9 +2686,11 @@ Log all administrative operations:
 - Producer authentication failures
 ```
 
-## 19. Trade-offs and Alternatives
+---
 
-#### Decision: Replication Factor
+## TRADE-OFFS & DESIGN DECISIONS
+
+### Decision: Replication Factor
 
 | Option | Pros | Cons |
 |--------|------|------|
@@ -2316,7 +2701,7 @@ Log all administrative operations:
 
 **Choice**: RF=3 provides optimal balance
 
-#### Decision: Acknowledgment Level
+### Decision: Acknowledgment Level
 
 | Level | Throughput | Latency | Durability |
 |-------|-----------|---------|------------|
@@ -2326,7 +2711,7 @@ Log all administrative operations:
 
 **Choice**: acks=all for critical data, acks=1 for high-throughput use cases
 
-#### Decision: Pull vs Push Model
+### Decision: Pull vs Push Model
 
 | Model | Pros | Cons |
 |-------|------|------|
@@ -2335,7 +2720,7 @@ Log all administrative operations:
 
 **Choice**: Pull model allows consumers to control rate
 
-#### Alternatives to Kafka
+### Alternatives to Kafka
 
 ```text
 1. RabbitMQ
@@ -2359,9 +2744,11 @@ Log all administrative operations:
    - Less mature ecosystem
 ```
 
-## 20. Future Enhancements
+---
 
-#### Tiered Storage
+## FUTURE ENHANCEMENTS
+
+### Tiered Storage
 
 ```text
 Move older data to cheaper storage (S3, GCS):
@@ -2375,7 +2762,7 @@ Benefits:
 - Maintain same API
 ```
 
-#### Multi-Region Replication
+### Multi-Region Replication
 
 ```python
 class MultiRegionReplication:
@@ -2400,7 +2787,7 @@ class MultiRegionReplication:
         pass
 ```
 
-#### Schema Registry Integration
+### Schema Registry Integration
 
 ```text
 Centralized schema management:
@@ -2415,7 +2802,7 @@ Benefits:
 - Version management
 ```
 
-#### Stream Processing Integration
+### Stream Processing Integration
 
 ```python
 # Kafka Streams / Flink integration
@@ -2428,17 +2815,52 @@ stream \
 
 ---
 
-## Summary
+## SUMMARY
 
-This design provides a highly scalable, durable, and performant pub/sub messaging system capable of:
+This comprehensive design provides a production-grade distributed pub/sub messaging system capable of:
 
-- **10M messages/sec** throughput via partitioning and batching
-- **<10ms** publish latency with async replication
-- **30 days** retention with 10 PB storage via log-structured storage
-- **3x replication** for durability with ISR protocol
-- **10K+ producers/consumers** via consumer groups and load balancing
-- **At-least-once/exactly-once** delivery guarantees
-- **Horizontal scalability** by adding brokers dynamically
+**Core Capabilities:**
 
-The system handles typical failure scenarios gracefully and provides operational simplicity through proven patterns like leader-follower replication, consumer groups, and offset management.
+- ✅ **10M messages/second** throughput via partitioning and batching
+- ✅ **<10ms p99 latency** for message publication
+- ✅ **<50ms consumer lag** under normal load
+- ✅ **30-day retention** with 10 PB total storage capacity
+- ✅ **3x replication factor** for high durability with no data loss
+- ✅ **10K+ producers and consumers** supported concurrently
+- ✅ **100+ topics, 1000+ partitions** with dynamic scaling
+
+**Delivery Guarantees:**
+
+- At-least-once delivery by default
+- Exactly-once semantics with transactional producers
+- Message ordering within partitions
+- Idempotent producers to prevent duplicates
+
+**Scalability Features:**
+
+- Horizontal scaling by adding brokers dynamically
+- Automatic partition rebalancing across consumers
+- Linear performance scaling with cluster size
+- Support for 20-30 brokers initially, scalable to 100+
+
+**Reliability Mechanisms:**
+
+- Leader-follower replication with ISR protocol
+- Automatic failover with <5 second recovery time
+- High water mark for consumer visibility guarantees
+- Vector clocks and epoch fencing for consistency
+
+**Operational Excellence:**
+
+- Zero-copy transfers for high throughput
+- Memory-mapped files for efficient I/O
+- Log-structured storage for sequential writes
+- Compacted topics for changelog streams
+- Comprehensive monitoring and observability
+
+The system handles typical failure scenarios gracefully through proven distributed systems patterns including consistent hashing, gossip protocols, and quorum-based replication. The design balances throughput, latency, durability, and operational simplicity to provide a robust foundation for event-driven architectures at scale.
+
+---
+
+**Document Status:** ✅ Complete | **Last Updated:** October 1, 2025
 

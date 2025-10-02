@@ -8,6 +8,42 @@
 
 ---
 
+## TABLE OF CONTENTS
+
+- [RULE 1: REQUIREMENTS & CLARIFICATION](#rule-1-requirements--clarification)
+  - [User Stories](#user-stories)
+  - [Functional Requirements (MVP)](#functional-requirements-mvp)
+  - [Non-Functional Requirements](#non-functional-requirements)
+  - [Clarifying Questions & Assumptions](#clarifying-questions--assumptions)
+- [RULE 2: BACK-OF-THE-ENVELOPE CALCULATIONS](#rule-2-back-of-the-envelope-calculations)
+  - [Traffic Estimates](#traffic-estimates)
+  - [Storage Estimates](#storage-estimates)
+  - [Resource Estimates](#resource-estimates)
+  - [Bandwidth Estimates](#bandwidth-estimates)
+- [RULE 3: HIGH-LEVEL DESIGN](#rule-3-high-level-design)
+  - [System Architecture Overview](#system-architecture-overview)
+  - [Data Flow](#data-flow)
+- [RULE 4: DATABASE DESIGN](#rule-4-database-design)
+- [RULE 5: API DESIGN](#rule-5-api-design)
+  - [Authentication Endpoints](#authentication-endpoints)
+  - [Problem Endpoints](#problem-endpoints)
+  - [Submission Endpoints](#submission-endpoints)
+  - [User Profile Endpoints](#user-profile-endpoints)
+- [RULE 6: DEEP DIVE - JUDGE SYSTEM](#rule-6-deep-dive---judge-system)
+  - [Sandboxing Strategy](#sandboxing-strategy)
+  - [Execution Flow](#execution-flow)
+- [RULE 7: DEEP DIVE - CACHING STRATEGY](#rule-7-deep-dive---caching-strategy)
+- [RULE 8: SCALABILITY & BOTTLENECKS](#rule-8-scalability--bottlenecks)
+  - [Horizontal Scaling](#horizontal-scaling)
+  - [Database Sharding](#database-sharding)
+  - [Caching](#caching)
+- [RULE 9: SECURITY CONSIDERATIONS](#rule-9-security-considerations)
+- [RULE 10: MONITORING & OBSERVABILITY](#rule-10-monitoring--observability)
+- [RULE 11: TRADE-OFFS & ALTERNATIVES](#rule-11-trade-offs--alternatives)
+- [SUMMARY](#summary)
+
+---
+
 ## RULE 1: REQUIREMENTS & CLARIFICATION
 
 ### User Stories

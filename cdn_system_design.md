@@ -19,6 +19,56 @@ AUTHOR: System Design Documentation
 
 ---
 
+## TABLE OF CONTENTS
+
+- [1. REQUIREMENTS & CLARIFICATION](#1-requirements--clarification)
+  - [User Stories](#user-stories)
+  - [Functional Requirements](#functional-requirements)
+  - [Non-Functional Requirements](#non-functional-requirements)
+  - [Clarifying Questions & Assumptions](#clarifying-questions--assumptions)
+- [2. BACK-OF-THE-ENVELOPE CALCULATIONS](#2-back-of-the-envelope-calculations)
+  - [Traffic Estimates](#traffic-estimates)
+  - [Storage Estimates](#storage-estimates)
+  - [Bandwidth Estimates](#bandwidth-estimates)
+  - [Cache Hit Ratio Impact](#cache-hit-ratio-impact)
+  - [Resource Estimates](#resource-estimates)
+- [3. HIGH-LEVEL DESIGN](#3-high-level-design)
+  - [System Architecture Diagram](#system-architecture-diagram)
+  - [Data Flow Explanation](#data-flow-explanation)
+- [4. DATABASE DESIGN](#4-database-design)
+  - [Config Database](#config-database)
+  - [Analytics Database](#analytics-database)
+- [5. API DESIGN](#5-api-design)
+  - [Management API](#management-api)
+  - [Cache Invalidation API](#cache-invalidation-api)
+- [6. DEEP DIVE: EDGE CACHE](#6-deep-dive-edge-cache)
+  - [Cache Architecture](#cache-architecture)
+  - [Eviction Strategy](#eviction-strategy)
+- [7. DEEP DIVE: ROUTING](#7-deep-dive-routing)
+  - [GeoDNS](#geodns)
+  - [Anycast](#anycast)
+- [8. DEEP DIVE: CACHE INVALIDATION](#8-deep-dive-cache-invalidation)
+  - [Purge Methods](#purge-methods)
+- [9. DEEP DIVE: VIDEO STREAMING](#9-deep-dive-video-streaming)
+  - [Adaptive Bitrate](#adaptive-bitrate)
+- [10. SCALABILITY](#10-scalability)
+  - [Horizontal Scaling](#horizontal-scaling)
+- [11. RELIABILITY](#11-reliability)
+  - [Failure Handling](#failure-handling)
+- [12. SECURITY](#12-security)
+  - [DDoS Protection](#ddos-protection)
+  - [Signed URLs](#signed-urls)
+- [13. MONITORING](#13-monitoring)
+  - [Key Metrics](#key-metrics)
+- [14. TRADE-OFFS](#14-trade-offs)
+  - [Design Decisions](#design-decisions)
+- [15. FUTURE ENHANCEMENTS](#15-future-enhancements)
+  - [Edge Computing](#edge-computing)
+  - [ML-Based Optimization](#ml-based-optimization)
+- [SUMMARY](#summary)
+
+---
+
 ## 1. REQUIREMENTS & CLARIFICATION
 
 ### User Stories

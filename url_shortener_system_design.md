@@ -8,6 +8,52 @@
 
 ---
 
+## TABLE OF CONTENTS
+
+- [PART 1: REQUIREMENTS AND CLARIFICATION](#part-1-requirements-and-clarification)
+  - [User Stories](#user-stories)
+  - [Functional Requirements (MVP)](#functional-requirements-mvp)
+  - [Non-Functional Requirements](#non-functional-requirements)
+  - [Clarifying Questions and Assumptions](#clarifying-questions-and-assumptions)
+- [PART 2: CAPACITY PLANNING AND CALCULATIONS](#part-2-capacity-planning-and-calculations)
+  - [Traffic Estimates](#traffic-estimates)
+  - [Storage Estimates](#storage-estimates)
+  - [Bandwidth Estimates](#bandwidth-estimates)
+  - [Cache Requirements](#cache-requirements)
+- [PART 3: HIGH-LEVEL ARCHITECTURE](#part-3-high-level-architecture)
+  - [System Components](#system-components)
+  - [Architecture Diagram](#architecture-diagram)
+  - [Data Flow](#data-flow)
+- [PART 4: DATABASE DESIGN](#part-4-database-design)
+  - [Schema Design](#schema-design)
+  - [Database Selection](#database-selection)
+- [PART 5: API DESIGN](#part-5-api-design)
+  - [Create Short URL](#create-short-url)
+  - [Redirect to Long URL](#redirect-to-long-url)
+  - [Analytics API](#analytics-api)
+- [PART 6: DEEP DIVE - SHORT URL GENERATION](#part-6-deep-dive---short-url-generation)
+  - [Algorithm Options](#algorithm-options)
+  - [Snowflake ID Generation](#snowflake-id-generation)
+- [PART 7: DEEP DIVE - CACHING STRATEGY](#part-7-deep-dive---caching-strategy)
+  - [Multi-Layer Caching](#multi-layer-caching)
+  - [Cache Eviction](#cache-eviction)
+- [PART 8: DEEP DIVE - ANALYTICS PIPELINE](#part-8-deep-dive---analytics-pipeline)
+  - [Real-Time vs Batch Processing](#real-time-vs-batch-processing)
+- [PART 9: SCALABILITY AND PERFORMANCE](#part-9-scalability-and-performance)
+  - [Horizontal Scaling](#horizontal-scaling)
+  - [Database Sharding](#database-sharding)
+- [PART 10: SECURITY CONSIDERATIONS](#part-10-security-considerations)
+  - [Rate Limiting](#rate-limiting)
+  - [Malicious URL Prevention](#malicious-url-prevention)
+- [PART 11: MONITORING AND OPERATIONS](#part-11-monitoring-and-operations)
+  - [Key Metrics](#key-metrics)
+  - [Alerting](#alerting)
+- [PART 12: TRADE-OFFS AND ALTERNATIVES](#part-12-trade-offs-and-alternatives)
+  - [Design Decisions](#design-decisions)
+- [SUMMARY](#summary)
+
+---
+
 ## PART 1: REQUIREMENTS AND CLARIFICATION
 
 ### User Stories
