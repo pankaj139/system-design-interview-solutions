@@ -21,21 +21,16 @@
    - [Data Consistency Patterns](#data-consistency-patterns)
 5. [API Design](#api-design)
 6. [Deep-Dive Components](#deep-dive-components)
-   - [Component 1: Feed Generation Service](#1-feed-generation-service)
-   - [Component 2: ML Ranking Engine](#2-ml-ranking-engine)
-   - [Component 3: Fan-out Service](#3-fan-out-service)
-   - [Component 4: Real-time Update Service](#4-real-time-update-service)
-   - [Component 5: Content Filtering Engine](#5-content-filtering-engine)
-   - [Component 6: Cache Management System](#6-cache-management-system)
-   - [Component 7: Celebrity User Handler](#7-celebrity-user-handler)
-   - [Component 8: Pagination Service](#8-pagination-service)
-   - [Component 9: Ad Insertion Engine](#9-ad-insertion-engine)
-   - [Component 10: Analytics Pipeline](#10-analytics-pipeline)
+   - [Component 1: Feed Generation Service](#feed-generation-service-architecture)
+   - [Component 2: Fan-out Strategy](#fan-out-strategy-hybrid-approach)
+   - [Component 3: ML Ranking Engine](#ml-based-personalization-pipeline)
+   - [Component 4: Caching Strategy](#caching-strategy)
+   - [Component 5: Real-time Update Service](#real-time-updates-architecture)
+   - [Component 6: Content Filtering Engine](#post-filtering-and-privacy)
 7. [Trade-Offs Analysis](#trade-offs-analysis)
-8. [Caching Strategy](#caching-strategy)
-9. [Key Algorithms](#key-algorithms)
-10. [Bottlenecks & Improvements](#bottlenecks--improvements)
-    - [Potential Bottlenecks & Solutions](#potential-bottlenecks--solutions)
+8. [Key Algorithms](#key-algorithms)
+9. [Bottlenecks & Improvements](#bottlenecks--improvements)
+    - [Potential Bottlenecks & Solutions](#potential-bottlenecks)
     - [Extended Edge Cases & Failure Scenarios](#extended-edge-cases--failure-scenarios)
     - [Disaster Recovery & Business Continuity](#disaster-recovery--business-continuity)
     - [Deployment Strategy](#deployment-strategy)
@@ -43,10 +38,10 @@
     - [Advanced Optimization Techniques](#advanced-optimization-techniques)
     - [Cost Analysis](#cost-analysis)
     - [SLA/SLO/SLI Definitions](#slaslosli-definitions)
-11. [Security Considerations](#security-considerations)
-12. [Monitoring & Observability](#monitoring--observability)
-13. [Future Enhancements](#future-enhancements)
-14. [Conclusion](#conclusion)
+10. [Security Considerations](#security-considerations)
+11. [Monitoring & Observability](#monitoring--observability)
+12. [Future Enhancements](#future-enhancements)
+13. [Conclusion](#conclusion)
 
 ---
 
@@ -666,7 +661,7 @@ POST /v1/auth/register
 POST /v1/auth/login
 ```
 
-#### Request
+**Request:**
 
 ```json
 {
@@ -1093,21 +1088,21 @@ GET /v1/search/posts
 
 #### API Trade-Offs
 
-**Decision: REST vs GraphQL**
+##### Decision: REST vs GraphQL
 
 - **Choice:** REST API
 - **Pros:** Simpler caching, better tooling support, easier debugging
 - **Cons:** Over-fetching data, multiple requests for complex operations
 - **Justification:** Feed data structure is relatively stable, caching is critical
 
-**Decision: Synchronous vs Asynchronous**
+##### Decision: Synchronous vs Asynchronous
 
 - **Choice:** Hybrid approach
 - **Feed generation:** Synchronous with cache fallback
 - **Post creation:** Asynchronous fan-out
 - **Engagement:** Asynchronous processing
 
-**Decision: Pagination Approach**
+##### Decision: Pagination Approach
 
 - **Choice:** Cursor-based pagination
 - **Pros:** Consistent results, better performance, handles real-time updates
@@ -1297,20 +1292,20 @@ Features:
 
 #### Multi-Level Caching
 
-**Level 1: CDN (CloudFront)**
+##### Level 1: CDN (CloudFront)
 
 - **Content:** Static assets, user profile images, post media
 - **TTL:** 24 hours for images, 1 hour for profile data
 - **Invalidation:** On user profile updates, post deletions
 
-**Level 2: Application Cache (Redis)**
+##### Level 2: Application Cache (Redis)
 
 - **Hot Feeds:** Pre-computed feeds for active users
 - **User Sessions:** Authentication tokens, user preferences
 - **Social Graph:** Friend lists, follower counts
 - **Post Metadata:** Engagement counts, trending posts
 
-**Level 3: Database Query Cache**
+##### Level 3: Database Query Cache
 
 - **Read Replicas:** Query result caching at database level
 - **Connection Pooling:** Persistent connections to reduce latency
@@ -1422,7 +1417,7 @@ Privacy Filters:
 - **Batch Processing:** Periodic cleanup of cached feeds
 - **User Controls:** Granular privacy settings interface
 
-### Trade-offs Analysis
+### Design Trade-offs
 
 #### Decision: Database Choice for Posts
 
@@ -1495,6 +1490,17 @@ Privacy Filters:
 - Cost-effective for long-term storage
 
 **Justification:** Balances performance for active users with cost efficiency for inactive users.
+
+---
+
+## Trade-Offs Analysis
+
+See [Design Trade-offs](#design-trade-offs) section in Deep-Dive Components for detailed analysis of:
+
+- Database Choice for Posts
+- Social Graph Storage
+- Message Queue Technology
+- Feed Storage Strategy
 
 ---
 
