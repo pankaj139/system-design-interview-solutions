@@ -21,12 +21,12 @@
    - [Data Consistency Patterns](#data-consistency-patterns)
 5. [API Design](#api-design)
 6. [Deep-Dive Components](#deep-dive-components)
-   - [Component 1: WebSocket Connection Management](#1-websocket-connection-management)
-   - [Component 2: Message Queue Architecture](#2-message-queue-architecture)
-   - [Component 3: Group Chat Fan-out Strategy](#3-group-chat-fan-out-strategy)
-   - [Component 4: Read Receipt Tracking](#4-read-receipt-tracking)
-   - [Component 5: End-to-End Encryption](#5-end-to-end-encryption-signal-protocol)
-   - [Component 6: Message Storage Strategy](#6-message-storage-strategy)
+   - [Component 1: WebSocket Connection Management](#websocket-connection-management)
+   - [Component 2: Message Queue Architecture](#message-queue-architecture)
+   - [Component 3: Group Chat Fan-out Strategy](#group-chat-fan-out-strategy)
+   - [Component 4: Read Receipt Tracking](#read-receipt-tracking)
+   - [Component 5: End-to-End Encryption](#end-to-end-encryption-signal-protocol)
+   - [Component 6: Message Storage Strategy](#message-storage-strategy)
    - [Component 7: Connection Pool Management](#7-connection-pool-management)
    - [Component 8: Message Ordering & Deduplication](#8-message-ordering--deduplication)
    - [Component 9: Offline Message Sync](#9-offline-message-sync)
@@ -34,7 +34,7 @@
 7. [Trade-Offs Analysis](#trade-offs-analysis)
 8. [Caching Strategy](#caching-strategy)
 9. [Bottlenecks & Improvements](#bottlenecks--improvements)
-   - [Potential Bottlenecks & Solutions](#potential-bottlenecks--solutions)
+   - [Potential Bottlenecks & Solutions](#potential-bottlenecks)
    - [Extended Edge Cases & Failure Scenarios](#extended-edge-cases--failure-scenarios)
    - [Disaster Recovery & Business Continuity](#disaster-recovery--business-continuity)
    - [Deployment Strategy](#deployment-strategy)
@@ -595,6 +595,7 @@ POST /auth/register
 ```
 
 **Request:**
+
 ```json
 {
   "phone_number": "+1234567890",
@@ -605,6 +606,7 @@ POST /auth/register
 ```
 
 **Response (201):**
+
 ```json
 {
   "user_id": "uuid",
@@ -621,6 +623,7 @@ POST /auth/login
 ```
 
 **Request:**
+
 ```json
 {
   "phone_number": "+1234567890",
@@ -630,6 +633,7 @@ POST /auth/login
 ```
 
 **Response (200):**
+
 ```json
 {
   "user_id": "uuid",
@@ -648,12 +652,14 @@ POST /messages
 ```
 
 **Headers:**
+
 ```text
 Authorization: Bearer {access_token}
 Content-Type: application/json
 ```
 
 **Request:**
+
 ```json
 {
   "chat_id": "uuid",
@@ -665,6 +671,7 @@ Content-Type: application/json
 ```
 
 **Response (201):**
+
 ```json
 {
   "message_id": "uuid",
@@ -680,11 +687,13 @@ GET /messages/{chat_id}
 ```
 
 **Query Parameters:**
+
 - `limit`: integer (default: 50, max: 100)
 - `before`: timestamp (for pagination)
 - `after`: timestamp (for new messages)
 
 **Response (200):**
+
 ```json
 {
   "messages": [
@@ -710,6 +719,7 @@ POST /media/upload
 ```
 
 **Request (multipart/form-data):**
+
 ```text
 file: binary_file_data
 chat_id: uuid
@@ -717,6 +727,7 @@ message_type: image|video|voice|file
 ```
 
 **Response (201):**
+
 ```json
 {
   "media_id": "uuid",
@@ -736,6 +747,7 @@ POST /groups
 ```
 
 **Request:**
+
 ```json
 {
   "group_name": "Family Chat",
@@ -745,6 +757,7 @@ POST /groups
 ```
 
 **Response (201):**
+
 ```json
 {
   "group_id": "uuid",
@@ -761,6 +774,7 @@ POST /groups/{group_id}/members
 ```
 
 **Request:**
+
 ```json
 {
   "user_ids": ["uuid1", "uuid2"]
@@ -768,6 +782,7 @@ POST /groups/{group_id}/members
 ```
 
 **Response (200):**
+
 ```json
 {
   "added_members": [
@@ -790,6 +805,7 @@ PUT /users/me/status
 ```
 
 **Request:**
+
 ```json
 {
   "is_online": true,
@@ -798,6 +814,7 @@ PUT /users/me/status
 ```
 
 **Response (200):**
+
 ```json
 {
   "status": "updated"
@@ -811,6 +828,7 @@ GET /users/{user_id}/status
 ```
 
 **Response (200):**
+
 ```json
 {
   "user_id": "uuid",
@@ -831,6 +849,7 @@ Headers: Authorization: Bearer {access_token}
 #### Message Events
 
 **Incoming Message:**
+
 ```json
 {
   "event": "message_received",
@@ -845,6 +864,7 @@ Headers: Authorization: Bearer {access_token}
 ```
 
 **Typing Indicator:**
+
 ```json
 {
   "event": "typing_start",
@@ -857,6 +877,7 @@ Headers: Authorization: Bearer {access_token}
 ```
 
 **Read Receipt:**
+
 ```json
 {
   "event": "message_read",
@@ -872,12 +893,14 @@ Headers: Authorization: Bearer {access_token}
 ### Cross-Cutting Concerns
 
 **Rate Limiting:**
+
 - Authentication: 10 requests/minute
 - Messaging: 1000 messages/minute
 - Media upload: 100 uploads/hour
 - Group operations: 50 requests/minute
 
 **Error Response Format:**
+
 ```json
 {
   "error": {
@@ -890,6 +913,7 @@ Headers: Authorization: Bearer {access_token}
 ```
 
 **Pagination Strategy:**
+
 - Cursor-based pagination for messages (timestamp-based)
 - Offset-based pagination for user lists
 - Maximum page size: 100 items
@@ -901,6 +925,7 @@ Headers: Authorization: Bearer {access_token}
 ### WebSocket Connection Management
 
 **Architecture:**
+
 ```text
 WebSocket Gateway Cluster:
 - Horizontal scaling with session affinity
@@ -910,6 +935,7 @@ WebSocket Gateway Cluster:
 ```
 
 **Connection Handling:**
+
 - Each gateway server handles 10K concurrent connections
 - Connection pooling and multiplexing
 - Heartbeat mechanism (30-second intervals)
@@ -928,6 +954,7 @@ Justification: Real-time messaging requires bidirectional communication for typi
 ### Message Queue Architecture
 
 **Kafka Configuration:**
+
 ```text
 Topics:
 - messages.incoming (partitioned by chat_id)
@@ -941,6 +968,7 @@ Partitioning Strategy:
 ```
 
 **Message Processing Pipeline:**
+
 1. Message received → Kafka producer
 2. Encryption service processes message
 3. Database persistence (Cassandra)
@@ -963,6 +991,7 @@ Justification: Need to handle 1.7M messages/second with guaranteed delivery and 
 **Fan-out Approaches:**
 
 **Push Model (Chosen):**
+
 ```text
 Process:
 1. Message arrives for group
@@ -976,6 +1005,7 @@ Cons: Higher write amplification, storage overhead
 ```
 
 **Pull Model (Alternative):**
+
 ```text
 Process:
 1. Store message once in group timeline
@@ -987,6 +1017,7 @@ Cons: Higher latency, more complex client logic
 ```
 
 **Hybrid Approach:**
+
 - Push for small groups (< 50 members)
 - Pull for large groups (> 50 members)
 - Configurable threshold based on group activity
@@ -994,6 +1025,7 @@ Cons: Higher latency, more complex client logic
 ### Read Receipt Tracking
 
 **Efficient Tracking System:**
+
 ```text
 Data Structure (Redis):
 Key: msg:{message_id}:receipts
@@ -1006,12 +1038,14 @@ Benefits:
 ```
 
 **Implementation:**
+
 1. Assign each user a unique position in bitmap
 2. Set bit when user reads message
 3. Count set bits for read count
 4. Use Redis BITCOUNT for efficient counting
 
 **Privacy Controls:**
+
 - User setting to disable read receipts
 - Group admin controls for read receipt visibility
 - Last-seen privacy settings
@@ -1019,6 +1053,7 @@ Benefits:
 ### End-to-End Encryption (Signal Protocol)
 
 **Key Management:**
+
 ```text
 Components:
 - Identity Keys (long-term, per device)
@@ -1028,12 +1063,14 @@ Components:
 ```
 
 **Encryption Flow:**
+
 1. Key exchange using X3DH protocol
 2. Double Ratchet for ongoing communication
 3. Message encryption with AES-256-GCM
 4. Key rotation for forward secrecy
 
 **Key Storage:**
+
 - Client-side key storage (secure enclave/keychain)
 - Server stores public keys and pre-keys only
 - No server access to private keys or message content
@@ -1053,6 +1090,7 @@ Justification: Security requirements demand proven encryption with forward secre
 **Hot vs Cold Storage:**
 
 **Hot Storage (Redis + Cassandra):**
+
 ```text
 Criteria: Messages from last 7 days
 Storage: Redis cache + Cassandra primary
@@ -1061,6 +1099,7 @@ Retention: 7 days in cache, permanent in Cassandra
 ```
 
 **Cold Storage (S3 + Glacier):**
+
 ```text
 Criteria: Messages older than 30 days
 Storage: S3 Standard → Glacier after 90 days
@@ -1069,6 +1108,7 @@ Retention: Long-term archival
 ```
 
 **Warm Storage (Cassandra):**
+
 ```text
 Criteria: Messages 7-30 days old
 Storage: Cassandra with lower replication factor
@@ -1463,12 +1503,14 @@ Justification: Different group sizes have different characteristics; hybrid appr
 **Multi-Level Caching:**
 
 **L1 Cache (Application Level):**
+
 - User session data
 - Recent message cache (last 50 messages per chat)
 - Group member lists
 - TTL: 5 minutes
 
 **L2 Cache (Redis Cluster):**
+
 - User profiles and status
 - Group metadata
 - Message delivery status
@@ -1476,12 +1518,14 @@ Justification: Different group sizes have different characteristics; hybrid appr
 - TTL: 1 hour to 24 hours
 
 **L3 Cache (CDN):**
+
 - Media files (images, videos)
 - User profile pictures
 - Static assets
 - TTL: 7 days with cache invalidation
 
 **Cache Invalidation:**
+
 - Write-through for critical data (user status)
 - Cache-aside for read-heavy data (messages)
 - Event-driven invalidation via message queue
@@ -1496,7 +1540,8 @@ Justification: Different group sizes have different characteristics; hybrid appr
 #### Database Write Contention
 
 **Problem:** High write load on message database during peak hours
-**Solution:** 
+**Solution:**
+
 - Horizontal sharding by chat_id
 - Write-optimized Cassandra configuration
 - Batch writes for group message fan-out
@@ -1508,6 +1553,7 @@ Justification: Different group sizes have different characteristics; hybrid appr
 
 **Problem:** Single server connection limits (10K per server)
 **Solution:**
+
 - Auto-scaling WebSocket gateway cluster
 - Connection load balancing with consistent hashing
 - Connection pooling and multiplexing
@@ -1519,6 +1565,7 @@ Justification: Different group sizes have different characteristics; hybrid appr
 
 **Problem:** Kafka consumer lag during traffic spikes
 **Solution:**
+
 - Dynamic partition scaling
 - Consumer group auto-scaling
 - Priority queues for different message types
@@ -1530,6 +1577,7 @@ Justification: Different group sizes have different characteristics; hybrid appr
 
 **Problem:** CPU overhead from Signal Protocol operations
 **Solution:**
+
 - Hardware security modules (HSM) for key operations
 - Async encryption processing
 - Key caching and pre-computation
@@ -1542,6 +1590,7 @@ Justification: Different group sizes have different characteristics; hybrid appr
 #### Geographic Distribution
 
 **Multi-Region Deployment:**
+
 ```text
 Regions: US-East, US-West, EU-West, Asia-Pacific
 Strategy: Active-Active with data locality
@@ -1550,6 +1599,7 @@ Routing: GeoDNS-based routing to nearest region
 ```
 
 **Data Replication:**
+
 - User data replicated to home region + 1 backup
 - Messages replicated within region only
 - Media files distributed via global CDN
@@ -1558,12 +1608,14 @@ Routing: GeoDNS-based routing to nearest region
 #### Advanced Caching
 
 **Intelligent Prefetching:**
+
 - ML-based prediction of message access patterns
 - Preload recent conversations for active users
 - Predictive media caching based on user behavior
 - Smart cache warming during low-traffic periods
 
 **Edge Caching:**
+
 - Deploy cache nodes closer to users
 - Regional message caches for popular groups
 - Edge-based user presence tracking
@@ -1572,12 +1624,14 @@ Routing: GeoDNS-based routing to nearest region
 #### Real-Time Optimizations
 
 **WebSocket Improvements:**
+
 - HTTP/3 and QUIC protocol support
 - Connection multiplexing
 - Adaptive compression based on network conditions
 - Smart reconnection with exponential backoff
 
 **Message Delivery Optimization:**
+
 - Priority queues (urgent vs normal messages)
 - Batch delivery for multiple messages
 - Smart routing based on user activity patterns
@@ -1588,6 +1642,7 @@ Routing: GeoDNS-based routing to nearest region
 #### System Metrics
 
 **Performance Metrics:**
+
 ```text
 Latency Percentiles:
 - P50, P95, P99 message delivery latency
@@ -1609,6 +1664,7 @@ Error Rates:
 ```
 
 **Business Metrics:**
+
 ```text
 User Engagement:
 - Daily/Monthly active users
@@ -1626,18 +1682,21 @@ Reliability Metrics:
 #### Alerting Strategy
 
 **Critical Alerts (Immediate Response):**
+
 - Message delivery rate < 99.9%
 - System availability < 99.95%
 - Database connection failures > 1%
 - WebSocket connection success rate < 99%
 
 **Warning Alerts (15-minute response):**
+
 - Message latency P95 > 200ms
 - Queue lag > 10 seconds
 - Error rate > 0.1%
 - CPU/Memory utilization > 80%
 
 **Monitoring Tools:**
+
 - Prometheus + Grafana for metrics
 - ELK stack for log analysis
 - Jaeger for distributed tracing
@@ -1648,12 +1707,14 @@ Reliability Metrics:
 #### Input Validation and Sanitization
 
 **Message Content:**
+
 - Input length limits (text: 4KB, media: 100MB)
 - Content type validation
 - Malware scanning for file uploads
 - XSS prevention for web clients
 
 **API Security:**
+
 - Request rate limiting per user/IP
 - Input parameter validation
 - SQL injection prevention
@@ -1662,12 +1723,14 @@ Reliability Metrics:
 #### Authentication & Authorization
 
 **Multi-Factor Authentication:**
+
 - SMS-based verification for registration
 - TOTP support for enhanced security
 - Biometric authentication on mobile
 - Device registration and management
 
 **Authorization Model:**
+
 - JWT tokens with short expiration (1 hour)
 - Refresh token rotation
 - Device-specific tokens
@@ -1676,12 +1739,14 @@ Reliability Metrics:
 #### Data Protection
 
 **Encryption at Rest:**
+
 - Database encryption (AES-256)
 - File system encryption
 - Encrypted backups
 - Key rotation policies
 
 **Encryption in Transit:**
+
 - TLS 1.3 for all API communications
 - Certificate pinning for mobile apps
 - HSTS headers for web clients
@@ -1690,12 +1755,14 @@ Reliability Metrics:
 #### DDoS Protection
 
 **Network Level:**
+
 - CloudFlare DDoS protection
 - Rate limiting at CDN level
 - IP-based blocking for malicious traffic
 - Geographic traffic filtering
 
 **Application Level:**
+
 - User-based rate limiting
 - Connection throttling
 - Request queuing and prioritization
@@ -2095,18 +2162,21 @@ Alert Fatigue Prevention:
 #### Advanced Features
 
 **AI-Powered Features:**
+
 - Smart reply suggestions
 - Message translation
 - Spam and abuse detection
 - Content moderation automation
 
 **Enhanced Group Features:**
+
 - Group video calls
 - Screen sharing
 - File collaboration
 - Advanced admin controls
 
 **Business Features:**
+
 - Business accounts with analytics
 - Broadcast lists for announcements
 - Integration with CRM systems
@@ -2115,12 +2185,14 @@ Alert Fatigue Prevention:
 #### Performance Optimizations
 
 **Next-Generation Protocols:**
+
 - HTTP/3 and QUIC adoption
 - WebRTC for peer-to-peer messaging
 - 5G optimization for mobile clients
 - Edge computing for regional processing
 
 **Machine Learning Integration:**
+
 - Predictive message caching
 - Intelligent load balancing
 - Anomaly detection for security
@@ -2129,18 +2201,21 @@ Alert Fatigue Prevention:
 #### User Experience Improvements
 
 **Cross-Platform Sync:**
+
 - Real-time sync across all devices
 - Seamless handoff between devices
 - Universal clipboard for media
 - Consistent UI/UX across platforms
 
 **Accessibility Features:**
+
 - Voice-to-text transcription
 - Text-to-speech for messages
 - High contrast mode support
 - Screen reader compatibility
 
 **Advanced Search:**
+
 - Full-text search across all messages
 - Media search by content
 - Date and user-based filtering
@@ -2161,6 +2236,7 @@ This chat application system design supports 500M daily active users with 50B me
 The system is designed to handle 3x peak traffic loads and can scale further through geographic distribution and advanced caching strategies. Security and privacy are built into the core architecture, ensuring user data protection while maintaining high performance standards.
 
 **Key Success Factors:**
+
 1. Proper database sharding and caching strategies
 2. Efficient WebSocket connection management
 3. Robust message queue architecture for reliability

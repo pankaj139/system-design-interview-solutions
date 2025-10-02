@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (13/52)
+## ✅ Completed Designs (14/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -378,6 +378,27 @@ Personalized newsfeed system for social media platforms with real-time updates a
 
 ---
 
+### 14. [Distributed Stream Processing System (Flink/Storm)](./distributed_stream_processing_system_design.md)
+
+**Status:** ✅ Complete
+
+Real-time stream processing platform for fraud detection with exactly-once semantics, complex event processing, and fault tolerance.
+
+**Key Features:**
+
+- Exactly-once processing guarantees with two-phase commit
+- Stateful operations with distributed state management (RocksDB)
+- Multiple windowing strategies (tumbling, sliding, session)
+- Watermark-based late event handling
+- Complex Event Processing (CEP) with pattern matching
+- Automatic checkpointing and fault recovery
+- Dynamic scaling and backpressure handling
+- Stream joins and aggregations
+
+**Scale:** 1M events/sec, 1TB state, 500 task managers, <1s latency (p99)
+
+---
+
 ## 🚀 How to Use This Repository
 
 ### For Interview Preparation
@@ -559,6 +580,6 @@ These designs are inspired by real-world systems, engineering blogs, and system 
 
 ---
 
-**Happy Learning! 🚀**
+## Happy Learning! 🚀
 
 *Remember: System design is not about memorizing solutions, but understanding trade-offs and making informed decisions based on requirements.*
