@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (11/52)
+## ✅ Completed Designs (12/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -251,7 +251,29 @@ Text snippet storage and sharing service with expiration, syntax highlighting, a
 
 ---
 
-## 📋 Upcoming Designs (41)
+### 12. [File Storage Service System Design (Dropbox)](./file_storage_system_design.md)
+
+**Status:** ✅ Complete
+
+Cloud file storage and synchronization service with real-time sync, versioning, and conflict resolution.
+
+**Key Features:**
+
+- File chunking (4 MB) with deduplication for storage efficiency
+- Delta sync algorithm for bandwidth optimization (90% reduction)
+- Hybrid database architecture (PostgreSQL + Cassandra)
+- Version history (30 days) with efficient storage
+- Conflict detection and resolution strategies
+- Client-side encryption for end-to-end privacy
+- Real-time sync via WebSocket with <1 second latency
+- File sharing with granular permissions
+- S3 integration with multi-tier storage optimization
+
+**Scale:** 100M users, 100 PB data, <1s sync latency, 99.9% uptime
+
+---
+
+## 📋 Upcoming Designs (40)
 
 ### Core Infrastructure & Storage
 
@@ -259,7 +281,7 @@ Text snippet storage and sharing service with expiration, syntax highlighting, a
 - [x] **Design a text storage service** (like Pastebin)
 - [x] **Design a content delivery network (CDN)**
 - [x] **Design a distributed cache** (like Redis/Memcached)
-- [ ] **Design a file storage service** (like Dropbox or Google Drive)
+- [x] **Design a file storage service** (like Dropbox or Google Drive)
 - [x] **Design a distributed key-value store**
 - [ ] **Design a distributed storage system**
 - [ ] **Design an in-memory database**
@@ -497,9 +519,9 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 11/52 (21.2%)
+**Completion Status:** 12/52 (23.1%)
 
-**Last Design Completed:** Text Storage Service (Pastebin)
+**Last Design Completed:** File Storage Service (Dropbox)
 
 **Next Up:** Notification System
 **Current Work:** None
