@@ -144,7 +144,7 @@ TTL: 7 days
   "event": "message_received",
   "data": {
     "message_id": "uuid",
-    "chat_id": "uuid", 
+    "chat_id": "uuid",
     "content": "encrypted_content",
     "timestamp": "ISO8601"
   }

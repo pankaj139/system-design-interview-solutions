@@ -225,7 +225,7 @@
 Layer 1: CDN (CloudFlare)
 - WAF, 1000 req/min per IP, bot challenges
 
-Layer 2: API Gateway  
+Layer 2: API Gateway
 - 100 req/min per IP, payload limits
 
 Layer 3: Application
@@ -290,7 +290,7 @@ Current: Redis cluster (6 nodes, 64GB each)
 Future: Multi-tier caching
 
 Tier 1: Application cache (1000 hottest, <1ms)
-Tier 2: Redis distributed (current, <10ms)  
+Tier 2: Redis distributed (current, <10ms)
 Tier 3: CDN edge cache (<20ms)
 Result: 99% hit rate, <10ms average
 ```
