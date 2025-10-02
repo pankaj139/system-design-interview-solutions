@@ -13,10 +13,39 @@
 1. [Requirements & Clarification](#requirements--clarification)
 2. [Back-of-the-Envelope Calculations](#back-of-the-envelope-calculations)
 3. [High-Level Design](#high-level-design)
+   - [System Architecture Diagram](#system-architecture-diagram)
+   - [Data Flow Explanation](#data-flow-explanation)
+   - [Load Balancing Strategy](#load-balancing-strategy)
 4. [Database Design](#database-design)
+   - [Database Sharding Strategy](#database-sharding-strategy)
+   - [Data Consistency Patterns](#data-consistency-patterns)
 5. [API Design](#api-design)
-6. [Deep-Dive Components & Trade-offs](#deep-dive-components--trade-offs)
-7. [Bottlenecks & Improvements](#bottlenecks--improvements)
+6. [Deep-Dive Components](#deep-dive-components)
+   - [Component 1: WebSocket Connection Management](#1-websocket-connection-management)
+   - [Component 2: Message Queue Architecture](#2-message-queue-architecture)
+   - [Component 3: Group Chat Fan-out Strategy](#3-group-chat-fan-out-strategy)
+   - [Component 4: Read Receipt Tracking](#4-read-receipt-tracking)
+   - [Component 5: End-to-End Encryption](#5-end-to-end-encryption-signal-protocol)
+   - [Component 6: Message Storage Strategy](#6-message-storage-strategy)
+   - [Component 7: Connection Pool Management](#7-connection-pool-management)
+   - [Component 8: Message Ordering & Deduplication](#8-message-ordering--deduplication)
+   - [Component 9: Offline Message Sync](#9-offline-message-sync)
+   - [Component 10: Multi-Device Synchronization](#10-multi-device-synchronization)
+7. [Trade-Offs Analysis](#trade-offs-analysis)
+8. [Caching Strategy](#caching-strategy)
+9. [Bottlenecks & Improvements](#bottlenecks--improvements)
+   - [Potential Bottlenecks & Solutions](#potential-bottlenecks--solutions)
+   - [Extended Edge Cases & Failure Scenarios](#extended-edge-cases--failure-scenarios)
+   - [Disaster Recovery & Business Continuity](#disaster-recovery--business-continuity)
+   - [Deployment Strategy](#deployment-strategy)
+   - [Testing Strategy](#testing-strategy)
+   - [Advanced Optimization Techniques](#advanced-optimization-techniques)
+   - [Cost Analysis](#cost-analysis)
+   - [SLA/SLO/SLI Definitions](#slaslosli-definitions)
+10. [Security Considerations](#security-considerations)
+11. [Monitoring & Observability](#monitoring--observability)
+12. [Future Enhancements](#future-enhancements)
+13. [Conclusion](#conclusion)
 
 ---
 
@@ -258,6 +287,62 @@ graph TB
 9. **Offline Handling**: Push notification service handles offline users
 10. **Multimedia Storage**: Large files stored in S3 with CDN distribution
 
+### Load Balancing Strategy
+
+**Multi-Layer Load Balancing:**
+
+```text
+Layer 1: DNS Load Balancing
+- GeoDNS routing to nearest region
+- Health check-based failover
+- Weighted round-robin for traffic distribution
+
+Layer 2: Application Load Balancer (ALB)
+- SSL termination and certificate management
+- Path-based routing (/api/v1/* → API servers, /ws/* → WebSocket servers)
+- Health checks with custom endpoints
+- Session affinity for WebSocket connections
+
+Layer 3: Internal Load Balancing
+- Service mesh (Istio) for microservice communication
+- Circuit breaker patterns for fault tolerance
+- Retry logic with exponential backoff
+- Load balancing algorithms: Least connections for WebSocket, Round-robin for API
+```
+
+**WebSocket Connection Load Balancing:**
+
+```text
+Challenge: WebSocket connections are stateful and long-lived
+Solution: Consistent hashing with session affinity
+
+Implementation:
+1. Hash user_id to determine WebSocket server
+2. Store mapping in Redis for failover scenarios
+3. Graceful connection migration during server maintenance
+4. Connection pooling to optimize resource usage
+
+Failover Strategy:
+- Health checks every 30 seconds
+- Automatic failover within 10 seconds
+- Connection state backup in Redis
+- Client-side reconnection with exponential backoff
+```
+
+**Database Load Balancing:**
+
+```text
+Read Replicas:
+- 3 read replicas per master for PostgreSQL
+- Read traffic distributed via pgpool-II
+- Lag monitoring to ensure data consistency
+
+Write Distribution:
+- Sharding for horizontal write scaling
+- Connection pooling (PgBouncer) for connection management
+- Query routing based on shard key (user_id, chat_id)
+```
+
 ---
 
 ## Database Design
@@ -351,6 +436,141 @@ Value: {
   "active_sessions": [session_ids]
 }
 TTL: 1 hour
+```
+
+### Database Sharding Strategy
+
+**Message Database Sharding (Cassandra):**
+
+```text
+Sharding Strategy: Hash-based partitioning by chat_id
+Rationale: Messages in same chat need to be co-located for efficient retrieval
+
+Partition Function: hash(chat_id) % num_shards
+Number of Shards: 128 (allows for future expansion)
+Replication Factor: 3 (across different availability zones)
+
+Shard Distribution:
+- Shard 0-31: US-East datacenter
+- Shard 32-63: US-West datacenter  
+- Shard 64-95: EU datacenter
+- Shard 96-127: Asia-Pacific datacenter
+
+Hot Partition Handling:
+- Monitor partition sizes and query patterns
+- Split hot partitions using consistent hashing
+- Use virtual nodes (256 per physical node) for better distribution
+```
+
+**User Database Sharding (PostgreSQL):**
+
+```text
+Sharding Strategy: Range-based partitioning by user_id
+Rationale: User operations are typically isolated per user
+
+Shard Key: user_id (UUID)
+Sharding Function: user_id ranges mapped to shards
+Number of Shards: 64 (16 per region)
+
+Shard Mapping:
+- Shard 0: user_id 00000000-1fffffff
+- Shard 1: user_id 20000000-3fffffff
+- ...and so on
+
+Cross-Shard Operations:
+- Friend relationships span shards → use distributed transactions
+- Group memberships → denormalize group member lists
+- Search operations → use dedicated search service (Elasticsearch)
+```
+
+**Group Database Sharding:**
+
+```text
+Sharding Strategy: Hybrid approach
+- Small groups (<50 members): Hash by group_id
+- Large groups (>50 members): Separate partition per group
+
+Large Group Handling:
+- Dedicated partitions for viral groups
+- Read replicas for popular groups
+- Separate fan-out service for large groups
+```
+
+### Data Consistency Patterns
+
+**Consistency Requirements by Data Type:**
+
+```text
+Strong Consistency (ACID):
+- User authentication data
+- Payment transactions
+- Group membership changes
+- Message ordering within a chat
+
+Eventual Consistency:
+- User online status
+- Read receipts
+- Typing indicators
+- Message delivery confirmations
+
+Causal Consistency:
+- Message threads and replies
+- Group message ordering
+- User activity timeline
+```
+
+**Message Ordering Consistency:**
+
+```text
+Problem: Ensuring message order in distributed system
+Solution: Hybrid timestamp approach
+
+Implementation:
+1. Logical timestamps (Lamport clocks) for causality
+2. Physical timestamps for total ordering
+3. Sequence numbers per chat for deterministic ordering
+
+Message ID Format: {chat_id}_{logical_timestamp}_{physical_timestamp}_{sender_id}
+
+Conflict Resolution:
+- Use sender_id as tiebreaker for simultaneous messages
+- Client-side ordering based on logical timestamps
+- Server-side validation and reordering if needed
+```
+
+**Cross-Region Consistency:**
+
+```text
+Pattern: Multi-Master with Conflict Resolution
+
+Implementation:
+- Each region acts as master for local users
+- Async replication between regions (eventual consistency)
+- Vector clocks for conflict detection
+- Last-writer-wins for simple conflicts
+- Application-level resolution for complex conflicts
+
+Conflict Examples:
+- Simultaneous group member additions → merge both
+- Message deletion vs message edit → deletion wins
+- User status updates → latest timestamp wins
+```
+
+**Transaction Patterns:**
+
+```text
+Saga Pattern for Distributed Transactions:
+Example: Group message sending
+
+Step 1: Validate group membership (User Service)
+Step 2: Store message (Message Service) 
+Step 3: Fan-out to members (Fanout Service)
+Step 4: Update delivery status (Status Service)
+
+Compensation Actions:
+- If Step 3 fails → mark message as failed, retry later
+- If Step 4 fails → message delivered but status unknown
+- Use idempotency keys to prevent duplicate processing
 ```
 
 ---
@@ -676,7 +896,7 @@ Headers: Authorization: Bearer {access_token}
 
 ---
 
-## Deep-Dive Components & Trade-offs
+## Deep-Dive Components
 
 ### WebSocket Connection Management
 
@@ -854,6 +1074,388 @@ Criteria: Messages 7-30 days old
 Storage: Cassandra with lower replication factor
 Access Pattern: Medium frequency
 Retention: 30 days active storage
+```
+
+### 7. Connection Pool Management
+
+**Challenge:** Managing 100M concurrent WebSocket connections efficiently
+
+**Architecture:**
+
+```text
+Connection Pool Hierarchy:
+- Global Pool: Tracks all active connections
+- Regional Pools: Connections per geographic region  
+- Server Pools: Connections per WebSocket server
+- User Pools: Connections per user (multi-device support)
+
+Pool Configuration:
+- Max connections per server: 10,000
+- Connection timeout: 30 seconds idle
+- Heartbeat interval: 30 seconds
+- Reconnection backoff: exponential (1s, 2s, 4s, 8s, max 30s)
+```
+
+**Connection State Management:**
+
+```text
+Connection Metadata (Redis):
+Key: conn:{connection_id}
+Value: {
+  "user_id": "uuid",
+  "device_id": "device_uuid", 
+  "server_id": "ws_server_01",
+  "connected_at": timestamp,
+  "last_heartbeat": timestamp,
+  "session_data": {...}
+}
+TTL: 1 hour (auto-cleanup on disconnect)
+
+User Connection Mapping (Redis):
+Key: user:{user_id}:connections
+Value: Set of connection_ids
+TTL: 24 hours
+```
+
+**Connection Lifecycle:**
+
+```text
+1. Connection Establishment:
+   - WebSocket handshake
+   - JWT token validation
+   - User authentication
+   - Connection registration in pool
+   - Subscribe to user's message channels
+
+2. Connection Maintenance:
+   - Periodic heartbeat (ping/pong)
+   - Connection health monitoring
+   - Automatic reconnection on failure
+   - Load balancing adjustments
+
+3. Connection Termination:
+   - Graceful disconnect handling
+   - Connection cleanup from pools
+   - Unsubscribe from channels
+   - Update user online status
+```
+
+### 8. Message Ordering & Deduplication
+
+**Message Ordering Challenge:**
+
+```text
+Problem: Ensuring consistent message order across distributed system
+- Network delays cause out-of-order delivery
+- Multiple client devices sending simultaneously
+- Server processing delays vary
+
+Solution: Multi-level ordering strategy
+```
+
+**Ordering Implementation:**
+
+```text
+Level 1: Client-Side Ordering
+- Each client maintains local sequence number
+- Messages tagged with client_sequence_id
+- Client buffers out-of-order messages
+
+Level 2: Server-Side Ordering  
+- Server assigns global sequence number per chat
+- Uses atomic counter in Redis for sequence generation
+- Messages stored with both client and server sequence
+
+Level 3: Delivery Ordering
+- Messages delivered in server sequence order
+- Client reorders based on server sequence
+- Gap detection triggers message re-request
+```
+
+**Deduplication Strategy:**
+
+```text
+Idempotency Key Generation:
+Key Format: {user_id}_{client_sequence_id}_{timestamp}
+
+Deduplication Process:
+1. Check Redis for existing message with same idempotency key
+2. If exists, return existing message_id (no-op)
+3. If new, process message and store idempotency mapping
+4. TTL on idempotency keys: 24 hours
+
+Edge Cases:
+- Client retry with same key → return original response
+- Network partition → client may send duplicate
+- Server failure → idempotency ensures no duplicates
+```
+
+**Conflict Resolution:**
+
+```text
+Simultaneous Message Scenarios:
+1. Same user, multiple devices → use device_id as tiebreaker
+2. Multiple users, same timestamp → use user_id lexicographic order
+3. Message edit vs delete → delete operation wins
+4. Group member add/remove conflicts → merge operations
+
+Vector Clock Implementation:
+- Each client maintains vector clock
+- Messages include vector timestamp
+- Server detects causality violations
+- Conflict resolution based on business rules
+```
+
+### 9. Offline Message Sync
+
+**Offline Scenario Handling:**
+
+```text
+User Offline Patterns:
+- Mobile app backgrounded (iOS/Android)
+- Network connectivity lost
+- Device powered off
+- Airplane mode enabled
+
+Sync Requirements:
+- Deliver all missed messages on reconnection
+- Maintain message order
+- Handle large message backlogs efficiently
+- Support partial sync for bandwidth optimization
+```
+
+**Sync Architecture:**
+
+```text
+Offline Message Storage:
+- Messages stored in user's message queue (Redis Streams)
+- Queue per user: user:{user_id}:offline_messages
+- Message retention: 30 days
+- Automatic cleanup after successful delivery
+
+Sync Protocol:
+1. Client sends last_seen_message_id on reconnection
+2. Server queries messages after last_seen timestamp
+3. Messages sent in batches (50 messages per batch)
+4. Client acknowledges each batch
+5. Server removes acknowledged messages from queue
+```
+
+**Efficient Sync Implementation:**
+
+```text
+Incremental Sync:
+- Client stores watermark of last synced message
+- Server sends only messages after watermark
+- Batch processing to avoid overwhelming client
+- Compression for large message payloads
+
+Delta Sync for Groups:
+- Track group membership changes during offline period
+- Send membership delta before message sync
+- Handle messages from users no longer in group
+- Update local group state before message processing
+
+Bandwidth Optimization:
+- Message prioritization (direct messages > group messages)
+- Metadata-only sync for large media files
+- Progressive download of media content
+- Adaptive batch sizes based on connection quality
+```
+
+### 10. Multi-Device Synchronization
+
+**Multi-Device Challenges:**
+
+```text
+Synchronization Requirements:
+- Real-time sync across all user devices
+- Consistent read receipts and message status
+- Unified notification management
+- Seamless handoff between devices
+
+Device Types:
+- Primary devices: iPhone, Android phone
+- Secondary devices: iPad, desktop app, web browser
+- Each device maintains independent connection
+```
+
+**Sync Architecture:**
+
+```text
+Device Registration:
+- Each device gets unique device_id
+- Device capabilities stored (push notifications, media support)
+- Device priority for notification routing
+- Active device detection based on recent activity
+
+Message Sync Protocol:
+1. Message sent from Device A
+2. Server broadcasts to all user's devices
+3. Other devices receive message and update UI
+4. Read receipt from any device syncs to all devices
+5. Typing indicators shared across devices
+```
+
+**State Synchronization:**
+
+```text
+Synchronized State:
+- Message read/unread status
+- Chat mute/unmute settings
+- User online status
+- Typing indicators
+- Draft messages
+
+Sync Implementation:
+- Redis Pub/Sub for real-time state updates
+- State changes published to user:{user_id}:sync channel
+- All devices subscribe to sync channel
+- Conflict resolution using last-writer-wins with timestamps
+
+Device-Specific State:
+- Notification preferences (per device)
+- UI settings and themes
+- Local draft messages
+- Cached media files
+```
+
+**Notification Orchestration:**
+
+```text
+Smart Notification Routing:
+- Detect active device based on recent activity
+- Send push notifications only to inactive devices
+- Suppress notifications on active device
+- Handle notification when user switches devices
+
+Priority Rules:
+1. If user active on any device → no push notifications
+2. If multiple devices inactive → send to primary device only
+3. If primary device unavailable → send to all devices
+4. Desktop notifications have lower priority than mobile
+
+Implementation:
+- Track last_activity_timestamp per device
+- Device considered active if activity within 5 minutes
+- Notification service queries device activity before sending
+- Real-time activity updates via WebSocket heartbeat
+```
+
+## Trade-Offs Analysis
+
+### Major Architectural Decisions
+
+#### Decision 1: WebSocket vs Server-Sent Events (SSE)
+
+```text
+Choice: WebSocket
+Pros: 
+- Bidirectional communication for typing indicators and read receipts
+- Lower latency for real-time messaging
+- Better mobile app support
+- Single connection for all real-time features
+
+Cons:
+- More complex connection management
+- Higher server resource usage
+- Requires sticky sessions for load balancing
+- More difficult to debug and monitor
+
+Justification: Real-time messaging requires bidirectional communication, making WebSocket the clear choice despite complexity.
+```
+
+#### Decision 2: Message Queue Technology
+
+```text
+Choice: Apache Kafka
+Pros:
+- High throughput (millions of messages/second)
+- Durability and replication
+- Message replay capability
+- Partitioning for scalability
+- Strong ecosystem and tooling
+
+Cons:
+- Operational complexity
+- Higher resource requirements
+- Learning curve for developers
+- Potential over-engineering for simple use cases
+
+Alternatives Considered:
+- RabbitMQ: Easier to operate but lower throughput
+- Amazon SQS: Managed service but vendor lock-in
+- Redis Pub/Sub: Simple but no durability guarantees
+
+Justification: Need to handle 1.7M messages/second with guaranteed delivery and replay capability.
+```
+
+#### Decision 3: Database Architecture
+
+```text
+Choice: Multi-Database Approach (PostgreSQL + Cassandra + Redis)
+Pros:
+- Optimized for different data patterns
+- PostgreSQL for ACID transactions (users, groups)
+- Cassandra for high-write throughput (messages)
+- Redis for caching and real-time state
+
+Cons:
+- Increased operational complexity
+- Multiple systems to monitor and maintain
+- Data consistency challenges across systems
+- Higher infrastructure costs
+
+Alternative: Single Database (PostgreSQL with sharding)
+Pros: Simpler operations, ACID guarantees
+Cons: Limited write scalability, single point of failure
+
+Justification: Message volume (50B/day) requires specialized storage, while user data needs ACID properties.
+```
+
+#### Decision 4: End-to-End Encryption Protocol
+
+```text
+Choice: Signal Protocol
+Pros:
+- Battle-tested security (used by WhatsApp, Signal)
+- Forward secrecy and deniability
+- Open source and well-documented
+- Strong cryptographic properties
+
+Cons:
+- Implementation complexity
+- Key management overhead
+- Performance impact on message processing
+- Debugging difficulties (encrypted data)
+
+Alternative: Custom Encryption
+Pros: Full control, optimized for use case
+Cons: Security risks, development time, lack of peer review
+
+Justification: Security is critical for messaging app; proven protocol reduces risk.
+```
+
+#### Decision 5: Group Chat Fan-out Strategy
+
+```text
+Choice: Hybrid Approach (Push + Pull)
+Push Model (Small Groups <50 members):
+- Immediate message delivery
+- Simple client implementation
+- Higher server resource usage
+
+Pull Model (Large Groups >50 members):
+- Lower server resource usage
+- Client polls for new messages
+- Higher latency, more complex client logic
+
+Hybrid Benefits:
+- Optimized for different group sizes
+- Handles viral groups efficiently
+- Balances performance and resource usage
+
+Justification: Different group sizes have different characteristics; hybrid approach optimizes for both.
 ```
 
 ### Caching Strategy
@@ -1098,6 +1700,395 @@ Reliability Metrics:
 - Connection throttling
 - Request queuing and prioritization
 - Circuit breaker patterns
+
+### Extended Edge Cases & Failure Scenarios
+
+**Network Partition Scenarios:**
+
+```text
+Split-Brain Problem:
+- Multiple regions become isolated
+- Each region continues operating independently
+- Conflicting state updates occur
+
+Resolution Strategy:
+- Implement quorum-based decisions
+- Designate primary region for conflict resolution
+- Use vector clocks to detect conflicts
+- Merge conflicts when partitions heal
+
+Example: User sends message in Region A, simultaneously receives message in Region B
+Solution: Use logical timestamps and merge both events in causal order
+```
+
+**Cascading Failure Prevention:**
+
+```text
+Circuit Breaker Implementation:
+- Monitor service health and response times
+- Open circuit when failure threshold exceeded
+- Provide fallback responses during outages
+- Gradually restore service with half-open state
+
+Bulkhead Pattern:
+- Isolate critical resources (connection pools, threads)
+- Prevent one failing component from affecting others
+- Separate thread pools for different operations
+- Resource quotas per service/user
+
+Timeout and Retry Strategies:
+- Exponential backoff with jitter
+- Maximum retry limits to prevent amplification
+- Different timeout values for different operations
+- Dead letter queues for permanently failed messages
+```
+
+**Data Corruption Scenarios:**
+
+```text
+Message Corruption Detection:
+- Checksums for message integrity
+- Cryptographic signatures for authenticity
+- Regular data validation jobs
+- Automated corruption detection and repair
+
+Recovery Procedures:
+- Restore from backup if corruption detected
+- Re-sync affected users from replicas
+- Notify users of potential message loss
+- Implement message recovery from other participants
+```
+
+### Disaster Recovery & Business Continuity
+
+**Multi-Region Disaster Recovery:**
+
+```text
+Recovery Time Objective (RTO): 15 minutes
+Recovery Point Objective (RPO): 5 minutes
+
+Primary-Secondary Region Setup:
+- Active-Active for user traffic distribution
+- Active-Passive for critical data stores
+- Cross-region replication with 5-minute lag
+- Automated failover for critical services
+
+Failover Procedures:
+1. Detect primary region failure (health checks)
+2. Promote secondary region to primary
+3. Update DNS routing to secondary region
+4. Restore services in order of criticality
+5. Sync data when primary region recovers
+```
+
+**Data Backup Strategy:**
+
+```text
+Backup Tiers:
+- Hot Backup: Real-time replication to secondary region
+- Warm Backup: Hourly snapshots to object storage
+- Cold Backup: Daily full backups to long-term storage
+
+Backup Verification:
+- Automated backup integrity checks
+- Regular restore testing (monthly)
+- Point-in-time recovery capabilities
+- Cross-region backup distribution
+
+Recovery Scenarios:
+- Single server failure: Auto-failover to replica
+- Database corruption: Restore from latest clean backup
+- Region failure: Failover to secondary region
+- Complete disaster: Restore from cold backup
+```
+
+### Deployment Strategy
+
+**Blue-Green Deployment:**
+
+```text
+Deployment Process:
+1. Deploy new version to Green environment
+2. Run automated tests on Green environment
+3. Gradually shift traffic from Blue to Green (canary)
+4. Monitor metrics and error rates
+5. Complete cutover or rollback if issues detected
+
+Benefits:
+- Zero-downtime deployments
+- Quick rollback capability
+- Full testing before production traffic
+- Reduced deployment risk
+
+Challenges:
+- Database schema changes require careful planning
+- Stateful services (WebSocket) need connection migration
+- Double infrastructure cost during deployment
+```
+
+**Canary Deployment for WebSocket Services:**
+
+```text
+Gradual Rollout Strategy:
+- Start with 1% of new connections to new version
+- Monitor connection success rates and latency
+- Gradually increase to 5%, 10%, 25%, 50%, 100%
+- Rollback immediately if metrics degrade
+
+Connection Migration:
+- New connections go to new version
+- Existing connections remain on old version
+- Graceful shutdown of old version after all connections migrate
+- Emergency connection migration for critical issues
+```
+
+### Testing Strategy
+
+**Load Testing:**
+
+```text
+Performance Testing Scenarios:
+- Normal load: 580K messages/second
+- Peak load: 1.7M messages/second (3x normal)
+- Stress test: 5M messages/second (failure point)
+- Endurance test: 24-hour sustained peak load
+
+WebSocket Connection Testing:
+- 100M concurrent connections simulation
+- Connection establishment rate testing
+- Heartbeat and keepalive testing
+- Graceful disconnect handling
+
+Tools:
+- Artillery.io for WebSocket load testing
+- JMeter for API load testing
+- Custom scripts for message throughput testing
+```
+
+**Chaos Engineering:**
+
+```text
+Failure Injection Scenarios:
+- Random server shutdowns
+- Network partition simulation
+- Database connection failures
+- Message queue unavailability
+- High latency injection
+
+Chaos Experiments:
+- Kill random WebSocket servers during peak traffic
+- Simulate network splits between regions
+- Inject message delivery delays
+- Corrupt random messages in transit
+- Overload specific database shards
+
+Monitoring During Chaos:
+- Message delivery success rates
+- Connection recovery times
+- User experience impact
+- System recovery capabilities
+```
+
+### Cost Analysis
+
+**Infrastructure Costs (Monthly):**
+
+```text
+Compute Resources:
+- WebSocket servers (1000 instances): $50,000
+- API servers (500 instances): $25,000
+- Message processing workers (2000 instances): $100,000
+- Load balancers and networking: $15,000
+
+Storage Costs:
+- Cassandra cluster (100 nodes): $80,000
+- PostgreSQL cluster (50 nodes): $40,000
+- Redis cluster (200 nodes): $60,000
+- Object storage (S3): $30,000
+
+Network and CDN:
+- Data transfer costs: $40,000
+- CDN for media delivery: $25,000
+
+Total Monthly Infrastructure: $465,000
+Cost per DAU: $0.93
+Cost per message: $0.000009
+```
+
+**Cost Optimization Strategies:**
+
+```text
+Resource Optimization:
+- Auto-scaling based on traffic patterns
+- Reserved instances for predictable workloads
+- Spot instances for batch processing
+- Resource right-sizing based on utilization
+
+Data Optimization:
+- Message compression to reduce storage
+- Intelligent data tiering (hot/warm/cold)
+- Automated cleanup of old data
+- Deduplication for media files
+
+Network Optimization:
+- Regional data centers to reduce transfer costs
+- CDN optimization for media delivery
+- Compression for API responses
+- Connection pooling and reuse
+```
+
+### SLA/SLO/SLI Definitions
+
+**Service Level Indicators (SLIs):**
+
+```text
+Availability SLIs:
+- API availability: % of successful API requests
+- WebSocket availability: % of successful connections
+- Message delivery: % of messages delivered within SLA
+
+Performance SLIs:
+- Message delivery latency: P95 < 100ms
+- API response time: P95 < 200ms
+- Connection establishment time: P95 < 1s
+
+Reliability SLIs:
+- Message delivery success rate: > 99.9%
+- Data durability: > 99.999%
+- System uptime: > 99.95%
+```
+
+**Service Level Objectives (SLOs):**
+
+```text
+Availability SLOs:
+- 99.95% API availability (21.6 minutes downtime/month)
+- 99.9% WebSocket availability (43.2 minutes downtime/month)
+- 99.9% message delivery success rate
+
+Performance SLOs:
+- 95% of messages delivered within 100ms
+- 95% of API requests respond within 200ms
+- 95% of connections established within 1 second
+
+Capacity SLOs:
+- Support 100M concurrent connections
+- Handle 1.7M messages/second peak load
+- Store 30 days of message history per user
+```
+
+**Service Level Agreements (SLAs):**
+
+```text
+Customer-Facing SLAs:
+- 99.9% service availability
+- < 100ms message delivery latency (P95)
+- 99.9% message delivery guarantee
+- 24/7 customer support response
+
+SLA Penalties:
+- 99.5-99.9% availability: 10% service credit
+- 99.0-99.5% availability: 25% service credit
+- < 99.0% availability: 50% service credit
+
+Exclusions:
+- Scheduled maintenance windows
+- Force majeure events
+- Customer-caused outages
+- Third-party service failures
+```
+
+## Security Considerations
+
+**Advanced Authentication & Authorization:**
+
+```text
+Multi-Factor Authentication:
+- SMS-based verification for registration
+- TOTP (Time-based One-Time Password) support
+- Biometric authentication on mobile devices
+- Hardware security key support (WebAuthn)
+
+Zero-Trust Architecture:
+- All internal communications encrypted (mTLS)
+- Service-to-service authentication required
+- Network segmentation and micro-perimeters
+- Continuous security monitoring and validation
+
+OAuth 2.0 + PKCE Implementation:
+- Authorization code flow with PKCE for mobile apps
+- Refresh token rotation for enhanced security
+- Scope-based permissions for third-party integrations
+- JWT tokens with short expiration times
+```
+
+**Advanced Threat Protection:**
+
+```text
+DDoS Protection:
+- Rate limiting at multiple layers (CDN, load balancer, application)
+- Behavioral analysis to detect attack patterns
+- Automatic IP blocking for malicious traffic
+- Capacity planning for large-scale attacks
+
+Abuse Detection:
+- ML-based spam detection for messages
+- Behavioral analysis for fake accounts
+- Content moderation for inappropriate material
+- Automated account suspension for violations
+
+Security Monitoring:
+- Real-time security event correlation (SIEM)
+- Anomaly detection for unusual patterns
+- Automated incident response workflows
+- Regular security audits and penetration testing
+```
+
+## Monitoring & Observability
+
+**Comprehensive Metrics Collection:**
+
+```text
+Application Metrics:
+- Message throughput (messages/second)
+- Connection counts (active, establishing, terminating)
+- API response times and error rates
+- Queue depths and processing delays
+
+Business Metrics:
+- Daily/Monthly active users
+- Message delivery success rates
+- User engagement metrics
+- Feature adoption rates
+
+Infrastructure Metrics:
+- CPU, memory, disk, network utilization
+- Database performance (query times, connection pools)
+- Cache hit rates and eviction rates
+- Load balancer health and distribution
+```
+
+**Advanced Alerting Strategy:**
+
+```text
+Alert Severity Levels:
+- P0 (Critical): Service down, data loss, security breach
+- P1 (High): Performance degradation, partial outage
+- P2 (Medium): Capacity warnings, non-critical failures
+- P3 (Low): Maintenance reminders, optimization opportunities
+
+Alert Routing:
+- P0 alerts: Immediate PagerDuty notification + SMS
+- P1 alerts: PagerDuty notification during business hours
+- P2 alerts: Email notification to on-call team
+- P3 alerts: Daily digest email to engineering team
+
+Alert Fatigue Prevention:
+- Dynamic thresholds based on historical patterns
+- Alert correlation to reduce noise
+- Automatic alert suppression during maintenance
+- Regular alert review and tuning sessions
+```
 
 ### Future Enhancements
 
