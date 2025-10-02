@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (10/52)
+## ✅ Completed Designs (11/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -230,12 +230,33 @@ Real-time messaging application with end-to-end encryption, multimedia support, 
 
 ---
 
-## 📋 Upcoming Designs (42)
+### 11. [Text Storage Service System Design (Pastebin)](./text_storage_service_system_design.md)
+
+**Status:** ✅ Complete
+
+Text snippet storage and sharing service with expiration, syntax highlighting, and access control.
+
+**Key Features:**
+
+- Base62 URL generation with counter-based approach
+- Object storage architecture (S3) with hybrid database storage
+- Hybrid expiration handling (lazy + active deletion)
+- Multi-tier caching (application, Redis, CDN)
+- Client-side syntax highlighting for 20+ languages
+- Private/public/unlisted paste support with access keys
+- Rate limiting with token bucket algorithm
+- Geographic distribution with multi-region deployment
+
+**Scale:** 10M pastes/day, 1B reads/day, <100ms creation, <50ms retrieval, 100K concurrent users
+
+---
+
+## 📋 Upcoming Designs (41)
 
 ### Core Infrastructure & Storage
 
 - [x] **Design a URL shortener** (like TinyURL)
-- [ ] **Design a text storage service** (like Pastebin)
+- [x] **Design a text storage service** (like Pastebin)
 - [x] **Design a content delivery network (CDN)**
 - [x] **Design a distributed cache** (like Redis/Memcached)
 - [ ] **Design a file storage service** (like Dropbox or Google Drive)
@@ -476,9 +497,9 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 10/52 (19.2%)
+**Completion Status:** 11/52 (21.2%)
 
-**Last Design Completed:** Chat Application (WhatsApp)
+**Last Design Completed:** Text Storage Service (Pastebin)
 
 **Next Up:** Notification System
 **Current Work:** None
