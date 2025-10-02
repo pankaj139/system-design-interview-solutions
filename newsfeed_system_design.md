@@ -1,10 +1,11 @@
 # Newsfeed System Design (Facebook/LinkedIn Feed)
 
-**File Purpose:** Comprehensive system design document for a personalized newsfeed system supporting 300M daily active users with real-time updates, personalized ranking, and sub-300ms load times. This document covers fan-out strategies, hybrid approaches for celebrity users, ML-based personalization, and complete architecture design.
+**File Purpose:** Comprehensive system design document for a personalized newsfeed system supporting 300M daily active users with real-time updates, personalized ranking, and sub-300ms load times. This document covers fan-out strategies, hybrid approaches for celebrity users, ML-based personalization, pagination service, ad insertion engine, analytics pipeline, and complete architecture design including 10 deep-dive components.
 
 **Last Updated:** October 2, 2025  
 **Author:** System Design Documentation  
-**Use Case:** Social media newsfeed system design for large-scale platforms
+**Use Case:** Social media newsfeed system design for large-scale platforms  
+**Recent Updates:** Added Components 7-10: Celebrity User Handler, Pagination Service, Ad Insertion Engine, and Analytics Pipeline
 
 ---
 
@@ -27,6 +28,10 @@
    - [Component 4: Caching Strategy](#caching-strategy)
    - [Component 5: Real-time Update Service](#real-time-updates-architecture)
    - [Component 6: Content Filtering Engine](#post-filtering-and-privacy)
+   - [Component 7: Celebrity User Handler](#celebrity-user-handler)
+   - [Component 8: Pagination Service](#pagination-service)
+   - [Component 9: Ad Insertion Engine](#ad-insertion-engine)
+   - [Component 10: Analytics Pipeline](#analytics-pipeline)
 7. [Trade-Offs Analysis](#trade-offs-analysis)
 8. [Key Algorithms](#key-algorithms)
 9. [Bottlenecks & Improvements](#bottlenecks--improvements)
@@ -1416,6 +1421,1319 @@ Privacy Filters:
 - **Real-time Filtering:** Applied during feed generation
 - **Batch Processing:** Periodic cleanup of cached feeds
 - **User Controls:** Granular privacy settings interface
+
+### Celebrity User Handler
+
+#### Celebrity User Classification
+
+**User Tier System:**
+
+```text
+User Tiers:
+├── Regular Users (0-10K followers)
+│   ├── Fan-out on Write strategy
+│   ├── Standard feed generation
+│   └── Normal priority processing
+├── Popular Users (10K-100K followers)
+│   ├── Hybrid fan-out strategy
+│   ├── Enhanced analytics tracking
+│   └── Medium priority processing
+├── Influencers (100K-1M followers)
+│   ├── Mostly Fan-out on Read
+│   ├── Dedicated processing queues
+│   └── High priority processing
+├── Celebrity Users (1M-10M followers)
+│   ├── Fan-out on Read only
+│   ├── Dedicated celebrity queues
+│   └── VIP processing tier
+└── Mega-Celebrities (>10M followers)
+    ├── Special handling architecture
+    ├── Isolated processing infrastructure
+    └── Real-time broadcast system
+```
+
+#### Celebrity Post Processing Architecture
+
+**Specialized Processing Pipeline:**
+
+```text
+Celebrity Post Flow:
+1. Post Creation
+   ├── Immediate validation and sanitization
+   ├── Celebrity queue assignment
+   ├── Priority processing flag
+   └── Dedicated Kafka partition
+
+2. Fan-out Strategy Selection
+   ├── Follower count check
+   ├── System load assessment
+   ├── Time-based optimization
+   └── Strategy selection (typically pull-based)
+
+3. Post Distribution
+   ├── Tiered Distribution
+   │   ├── Tier 1: Active followers (last 24 hours) - Immediate push
+   │   ├── Tier 2: Semi-active (last 7 days) - Cache warming
+   │   ├── Tier 3: Inactive followers - On-demand generation
+   │   └── Tier 4: Dormant users - No pre-computation
+   ├── Rate-Limited Fan-out
+   │   ├── Maximum 100K writes/second per celebrity
+   │   ├── Batched cache updates
+   │   ├── Distributed across multiple workers
+   │   └── Progressive delivery over time
+   └── Notification Strategy
+       ├── Push notifications to highly engaged followers
+       ├── In-app badges for active users
+       ├── Email digest for semi-active users
+       └── No notification for dormant users
+
+4. Trending Detection
+   ├── Real-time engagement monitoring
+   ├── Viral content identification
+   ├── Cache prewarming for trending posts
+   └── CDN optimization for hot content
+```
+
+#### Celebrity Feed Generation Optimization
+
+**Pull-Based Feed Generation for Celebrity Content:**
+
+```text
+Optimization Strategies:
+├── Celebrity Post Cache
+│   ├── Dedicated Redis cluster for celebrity content
+│   ├── Sorted set by timestamp for each celebrity
+│   ├── Pre-computed engagement scores
+│   ├── 1-hour TTL with background refresh
+│   └── Multi-tier caching (L1: Hot celebrities, L2: All celebrities)
+├── Follower Segmentation
+│   ├── Active followers cached in memory
+│   ├── Engagement-based prioritization
+│   ├── Geographic clustering for regional optimization
+│   └── Time-zone aware delivery
+├── Query Optimization
+│   ├── Materialized views for celebrity timelines
+│   ├── Denormalized data for fast access
+│   ├── Read replicas dedicated to celebrity queries
+│   └── Query result caching (15-minute TTL)
+└── Load Balancing
+    ├── Dedicated celebrity feed generation workers
+    ├── Separate celebrity database connections
+    ├── Priority queue for celebrity content
+    └── Resource isolation from regular users
+```
+
+#### Celebrity Write Amplification Prevention
+
+**Problem:** A celebrity with 10M followers posting causes 10M cache writes
+
+**Solutions:**
+
+```text
+Write Amplification Mitigation:
+├── Lazy Evaluation
+│   ├── Don't pre-compute feeds for all followers
+│   ├── Generate feed on-demand when user requests
+│   ├── Cache generated feeds for reuse
+│   └── Expire after 15-30 minutes
+├── Sampled Fan-out
+│   ├── Only push to highly engaged followers (<10% of total)
+│   ├── Identify based on recent interaction history
+│   ├── Machine learning to predict engagement likelihood
+│   └── Others receive on pull
+├── Batch Processing
+│   ├── Group follower notifications in batches
+│   ├── Process in background jobs
+│   ├── Rate-limited to prevent system overload
+│   └── Priority-based delivery
+└── Hybrid Caching
+    ├── Cache celebrity timeline separately
+    ├── Merge with user's regular feed on request
+    ├── Reduce duplicate cache entries
+    └── Efficient memory utilization
+```
+
+#### Celebrity Content Verification
+
+**Enhanced Verification System:**
+
+```text
+Verification Features:
+├── Content Authenticity
+│   ├── Verified badge display
+│   ├── Official account indicators
+│   ├── Impersonation prevention
+│   └── Account security monitoring
+├── Priority Content Moderation
+│   ├── Pre-publication review for sensitive content
+│   ├── Faster moderation queue processing
+│   ├── Dedicated moderation team
+│   └── Real-time monitoring for policy violations
+├── Analytics & Insights
+│   ├── Real-time engagement tracking
+│   ├── Audience demographics
+│   ├── Reach and impression metrics
+│   └── Content performance analytics
+└── Rate Limiting Exceptions
+    ├── Higher posting limits
+    ├── Enhanced media upload quotas
+    ├── Extended video duration limits
+    ├── API rate limit exceptions
+    └── Broadcast features access
+```
+
+#### Celebrity Failure Scenarios
+
+**High Availability Considerations:**
+
+```text
+Failure Scenarios & Solutions:
+├── Viral Content Overload
+│   ├── Detection: Sudden spike in engagement metrics
+│   ├── Response: Auto-scaling celebrity processing workers
+│   ├── Mitigation: Cache warming and CDN optimization
+│   └── Fallback: Graceful degradation to simpler ranking
+├── Celebrity Database Hotspot
+│   ├── Detection: High query load on specific shards
+│   ├── Response: Dynamic read replica scaling
+│   ├── Mitigation: Query result caching
+│   └── Fallback: Serve cached results with staleness
+├── Celebrity Cache Invalidation Storm
+│   ├── Detection: Mass cache invalidations
+│   ├── Response: Rate-limited invalidation processing
+│   ├── Mitigation: Batch invalidation updates
+│   └── Fallback: Serve stale cache during regeneration
+└── Celebrity Account Compromise
+    ├── Detection: Unusual posting patterns, content anomalies
+    ├── Response: Automatic account suspension
+    ├── Mitigation: Enhanced security measures
+    └── Recovery: Verified recovery process
+```
+
+### Pagination Service
+
+#### Cursor-Based Pagination Architecture
+
+**Pagination Strategy:**
+
+```text
+Cursor-Based vs Offset-Based Comparison:
+
+Offset-Based Pagination:
+├── Query: SELECT * FROM posts ORDER BY created_at DESC OFFSET 100 LIMIT 20
+├── Pros: Simple implementation, direct page access
+├── Cons: Performance degrades with deep pagination
+│   ├── Database must scan all rows before offset
+│   ├── Inconsistent results during concurrent writes
+│   └── Not suitable for real-time feeds
+└── Use Case: Static content, small datasets
+
+Cursor-Based Pagination (Chosen):
+├── Query: SELECT * FROM posts WHERE (created_at, post_id) < (cursor) LIMIT 20
+├── Pros: Consistent performance, handles real-time updates
+│   ├── Uses indexes effectively (no full scan)
+│   ├── Consistent results during concurrent operations
+│   └── Optimal for infinite scroll feeds
+├── Cons: More complex implementation, no direct page access
+└── Use Case: Real-time feeds, large datasets
+```
+
+#### Cursor Implementation
+
+**Cursor Structure:**
+
+```text
+Cursor Encoding:
+├── Components:
+│   ├── Timestamp: Post creation time (milliseconds)
+│   ├── Post ID: Unique post identifier (UUID)
+│   ├── User ID: For user-specific pagination state
+│   ├── Score: ML ranking score for consistency
+│   └── Version: Cursor format version for evolution
+├── Encoding Format:
+│   ├── JSON object containing all components
+│   ├── Base64 encoding for URL safety
+│   ├── Optional encryption for security
+│   └── Checksum for tamper detection
+└── Example:
+    Raw: {"ts":1696245600000,"pid":"123e4567","uid":"550e8400","s":0.87,"v":2}
+    Encoded: eyJ0cyI6MTY5NjI0NTYwMDAwMCwicGlkIjoiMTIzZTQ1NjciLCJ1aWQiOiI1NTBlODQwMCIsInMiOjAuODcsInYiOjJ9
+```
+
+**Cursor Generation Algorithm:**
+
+```python
+def generate_cursor(post, user_id, ranking_score):
+    """
+    Generate pagination cursor for a post.
+    
+    Args:
+        post: Post object containing id and created_at
+        user_id: Current user's ID
+        ranking_score: ML-generated ranking score
+        
+    Returns:
+        Base64-encoded cursor string
+    """
+    cursor_data = {
+        "ts": post.created_at.timestamp() * 1000,  # milliseconds
+        "pid": str(post.post_id),
+        "uid": str(user_id),
+        "s": round(ranking_score, 4),
+        "v": CURSOR_VERSION
+    }
+    
+    json_str = json.dumps(cursor_data, separators=(',', ':'))
+    encoded = base64.urlsafe_b64encode(json_str.encode('utf-8'))
+    checksum = hashlib.sha256(encoded + SECRET_KEY).hexdigest()[:8]
+    
+    return encoded.decode('utf-8') + '.' + checksum
+
+
+def parse_cursor(cursor_string):
+    """
+    Parse and validate cursor string.
+    
+    Args:
+        cursor_string: Base64-encoded cursor
+        
+    Returns:
+        Decoded cursor data dictionary
+        
+    Raises:
+        InvalidCursorException: If cursor is invalid or tampered
+    """
+    try:
+        encoded, checksum = cursor_string.rsplit('.', 1)
+        expected_checksum = hashlib.sha256(
+            encoded.encode('utf-8') + SECRET_KEY
+        ).hexdigest()[:8]
+        
+        if checksum != expected_checksum:
+            raise InvalidCursorException("Cursor checksum mismatch")
+        
+        decoded = base64.urlsafe_b64decode(encoded)
+        cursor_data = json.loads(decoded)
+        
+        # Validate cursor structure
+        required_fields = ['ts', 'pid', 'uid', 's', 'v']
+        if not all(field in cursor_data for field in required_fields):
+            raise InvalidCursorException("Missing required fields")
+        
+        return cursor_data
+    except Exception as e:
+        raise InvalidCursorException(f"Invalid cursor: {str(e)}")
+```
+
+#### Pagination Query Optimization
+
+**Database Query Strategy:**
+
+```text
+Efficient Pagination Queries:
+
+1. Index Strategy:
+   ├── Composite Index: (created_at DESC, post_id DESC)
+   ├── Covering Index: Include frequently accessed columns
+   ├── Partial Index: Only active posts (is_deleted = false)
+   └── Index Maintenance: Regular ANALYZE and REINDEX
+
+2. Query Pattern:
+   SELECT post_id, user_id, content, created_at, engagement_score
+   FROM posts
+   WHERE (created_at, post_id) < (cursor_timestamp, cursor_post_id)
+     AND is_deleted = false
+     AND privacy_level IN ('public', 'friends')
+   ORDER BY created_at DESC, post_id DESC
+   LIMIT 20;
+
+3. Query Optimization Techniques:
+   ├── Use composite index for WHERE and ORDER BY
+   ├── Limit result set to exactly what's needed
+   ├── Avoid SELECT * to reduce data transfer
+   ├── Use prepared statements for query plan caching
+   └── Monitor query execution plans regularly
+```
+
+#### Pagination Caching Strategy
+
+**Multi-Level Pagination Caching:**
+
+```text
+Cache Levels:
+├── L1: Page Result Cache
+│   ├── Cache Key: feed:{user_id}:{cursor_hash}
+│   ├── Value: Array of post objects
+│   ├── TTL: 5 minutes
+│   ├── Purpose: Exact page result caching
+│   └── Invalidation: On cursor expiration
+├── L2: Feed Window Cache
+│   ├── Cache Key: feed_window:{user_id}:{page_num}
+│   ├── Value: Last N pages of feed (sliding window)
+│   ├── TTL: 15 minutes
+│   ├── Purpose: Support back/forward navigation
+│   └── Invalidation: On new content or user actions
+├── L3: Cursor State Cache
+│   ├── Cache Key: cursor_state:{user_id}
+│   ├── Value: Current pagination state
+│   ├── TTL: 1 hour
+│   ├── Purpose: Resume pagination after interruption
+│   └── Invalidation: User-initiated refresh
+└── L4: Pre-computed Pages
+    ├── Cache Key: feed_pages:{user_id}:*
+    ├── Value: First 3 pages pre-computed
+    ├── TTL: 10 minutes
+    ├── Purpose: Instant load for initial pages
+    └── Invalidation: Background refresh
+```
+
+#### Infinite Scroll Implementation
+
+**Client-Side Pagination Logic:**
+
+```javascript
+/**
+ * Infinite scroll pagination manager for newsfeed.
+ * Handles automatic loading of next page when user scrolls near bottom.
+ * 
+ * Usage:
+ *   const paginator = new FeedPaginator('/v1/feed', authToken);
+ *   await paginator.loadInitialPage();
+ *   paginator.enableInfiniteScroll();
+ * 
+ * Returns:
+ *   Array of feed posts with automatic pagination
+ */
+class FeedPaginator {
+    constructor(apiEndpoint, authToken) {
+        this.apiEndpoint = apiEndpoint;
+        this.authToken = authToken;
+        this.currentCursor = null;
+        this.hasMore = true;
+        this.isLoading = false;
+        this.posts = [];
+        this.scrollThreshold = 0.8; // Load more at 80% scroll
+    }
+
+    async loadInitialPage() {
+        this.posts = [];
+        this.currentCursor = null;
+        this.hasMore = true;
+        return await this.loadNextPage();
+    }
+
+    async loadNextPage() {
+        if (!this.hasMore || this.isLoading) {
+            return [];
+        }
+
+        this.isLoading = true;
+        
+        try {
+            const url = new URL(this.apiEndpoint);
+            if (this.currentCursor) {
+                url.searchParams.set('cursor', this.currentCursor);
+            }
+            url.searchParams.set('limit', '20');
+
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            this.posts.push(...data.posts);
+            this.currentCursor = data.pagination.next_cursor;
+            this.hasMore = data.pagination.has_more;
+
+            return data.posts;
+        } catch (error) {
+            console.error('Pagination error:', error);
+            throw error;
+        } finally {
+            this.isLoading = false;
+        }
+    }
+
+    enableInfiniteScroll() {
+        window.addEventListener('scroll', () => {
+            const scrollPosition = window.scrollY + window.innerHeight;
+            const pageHeight = document.documentElement.scrollHeight;
+            const scrollPercentage = scrollPosition / pageHeight;
+
+            if (scrollPercentage >= this.scrollThreshold && !this.isLoading && this.hasMore) {
+                this.loadNextPage().catch(console.error);
+            }
+        });
+    }
+
+    // Prefetch next page for faster loading
+    async prefetchNextPage() {
+        if (this.hasMore && !this.isLoading) {
+            // Prefetch in background without blocking
+            this.loadNextPage().catch(() => {
+                // Silent fail for prefetch
+            });
+        }
+    }
+}
+```
+
+#### Pagination Edge Cases
+
+**Handling Complex Scenarios:**
+
+```text
+Edge Case Solutions:
+├── Deleted Posts During Pagination
+│   ├── Problem: Posts deleted while user is paginating
+│   ├── Solution: Cursor remains valid, deleted posts filtered out
+│   ├── Impact: Page may have fewer items than requested
+│   └── Handling: Client requests next page automatically if too few items
+├── New Posts Inserted
+│   ├── Problem: New posts appear at top during pagination
+│   ├── Solution: Cursor-based pagination is immune to insertions
+│   ├── Impact: Consistent pagination results
+│   └── Handling: "New posts available" banner at top
+├── Ranking Score Changes
+│   ├── Problem: ML ranking scores updated during pagination
+│   ├── Solution: Include score in cursor for consistency
+│   ├── Impact: User sees snapshot of rankings at initial load time
+│   └── Handling: Refresh to see updated rankings
+├── Concurrent Feed Updates
+│   ├── Problem: User's feed modified while paginating
+│   ├── Solution: Version-based cursor with consistency checks
+│   ├── Impact: Detect inconsistencies and handle gracefully
+│   └── Handling: Offer refresh option to user
+├── Expired Cursors
+│   ├── Problem: User returns after long absence, cursor invalid
+│   ├── Solution: Cursor TTL validation on server
+│   ├── Impact: Restart pagination from beginning
+│   └── Handling: Return 410 Gone status, client reloads from start
+└── Deep Pagination Performance
+    ├── Problem: User scrolls very deep (1000+ posts)
+    ├── Solution: Cursor-based approach maintains performance
+    ├── Impact: Consistent query time regardless of depth
+    └── Handling: Optional "Back to Top" button for navigation
+```
+
+### Ad Insertion Engine
+
+#### Ad Insertion Architecture
+
+**System Components:**
+
+```text
+Ad Insertion System:
+├── Ad Campaign Manager
+│   ├── Campaign configuration and scheduling
+│   ├── Budget and bid management
+│   ├── Targeting criteria definition
+│   └── Performance tracking
+├── Ad Targeting Engine
+│   ├── User profile analysis
+│   ├── Behavioral targeting
+│   ├── Contextual targeting
+│   └── Lookalike audience matching
+├── Ad Ranking Service
+│   ├── Bid-based ranking
+│   ├── Relevance scoring
+│   ├── User experience optimization
+│   └── Budget pacing
+├── Ad Delivery Service
+│   ├── Real-time ad selection
+│   ├── Frequency capping
+│   ├── Ad creative serving
+│   └── Impression tracking
+└── Ad Analytics Pipeline
+    ├── Impression tracking
+    ├── Click-through rate calculation
+    ├── Conversion attribution
+    └── Revenue reporting
+```
+
+#### Ad Selection Algorithm
+
+**Multi-Factor Ranking System:**
+
+```text
+Ad Scoring Formula:
+Ad_Score = (Bid_Amount × pCTR × pCVR × Quality_Score × Relevance_Score) / User_Ad_Fatigue
+
+Components:
+├── Bid Amount (20% weight)
+│   ├── Advertiser's cost-per-click bid
+│   ├── Budget availability check
+│   ├── Pacing algorithm for budget distribution
+│   └── Dynamic bid adjustments
+├── Predicted Click-Through Rate (25% weight)
+│   ├── ML model predicting user click likelihood
+│   ├── Features: User demographics, behavior, context
+│   ├── Historical performance data
+│   └── Real-time feature updates
+├── Predicted Conversion Rate (25% weight)
+│   ├── ML model predicting conversion likelihood
+│   ├── Attribution window: 7 days
+│   ├── Multi-touch attribution
+│   └── Conversion value estimation
+├── Quality Score (15% weight)
+│   ├── Ad creative quality assessment
+│   ├── Landing page experience
+│   ├── Historical ad performance
+│   └── User feedback signals
+├── Relevance Score (10% weight)
+│   ├── Semantic similarity to user interests
+│   ├── Contextual relevance to feed content
+│   ├── Demographic match
+│   └── Geographic relevance
+└── User Ad Fatigue (5% penalty)
+    ├── Recent ad exposure count
+    ├── Time since last ad
+    ├── Ad category diversity
+    └── User ad interaction history
+```
+
+**Ad Selection Implementation:**
+
+```python
+def select_ads_for_feed(user_id, feed_posts, num_ads=3):
+    """
+    Select and insert ads into user's feed.
+    
+    Args:
+        user_id: User ID for personalization
+        feed_posts: List of organic feed posts
+        num_ads: Number of ads to insert
+        
+    Returns:
+        List of selected ad objects with insertion positions
+    """
+    # Get user profile and targeting data
+    user_profile = get_user_profile(user_id)
+    user_interests = get_user_interests(user_id)
+    recent_ad_exposure = get_recent_ad_exposure(user_id, hours=24)
+    
+    # Retrieve eligible ad campaigns
+    eligible_ads = get_eligible_campaigns(
+        user_profile=user_profile,
+        location=user_profile.location,
+        exclude_campaigns=recent_ad_exposure
+    )
+    
+    # Score each ad
+    scored_ads = []
+    for ad in eligible_ads:
+        score = calculate_ad_score(
+            ad=ad,
+            user_profile=user_profile,
+            user_interests=user_interests,
+            ad_fatigue=calculate_ad_fatigue(recent_ad_exposure)
+        )
+        scored_ads.append((ad, score))
+    
+    # Sort by score and select top ads
+    scored_ads.sort(key=lambda x: x[1], reverse=True)
+    selected_ads = [ad for ad, score in scored_ads[:num_ads]]
+    
+    # Determine insertion positions
+    insertion_positions = calculate_insertion_positions(
+        feed_length=len(feed_posts),
+        num_ads=num_ads,
+        strategy='uniform'  # or 'weighted', 'random'
+    )
+    
+    return [(ad, pos) for ad, pos in zip(selected_ads, insertion_positions)]
+
+
+def calculate_ad_score(ad, user_profile, user_interests, ad_fatigue):
+    """
+    Calculate relevance score for ad.
+    
+    Args:
+        ad: Ad campaign object
+        user_profile: User demographic and profile data
+        user_interests: User interest categories and topics
+        ad_fatigue: User's current ad fatigue factor
+        
+    Returns:
+        Float score for ad ranking
+    """
+    # Predicted CTR from ML model
+    predicted_ctr = ml_model.predict_ctr(
+        ad_features=ad.features,
+        user_features=user_profile.features
+    )
+    
+    # Predicted CVR from ML model
+    predicted_cvr = ml_model.predict_cvr(
+        ad_id=ad.campaign_id,
+        user_id=user_profile.user_id
+    )
+    
+    # Quality score based on historical performance
+    quality_score = calculate_quality_score(ad)
+    
+    # Relevance score based on interest match
+    relevance_score = calculate_relevance(
+        ad_categories=ad.target_categories,
+        user_interests=user_interests
+    )
+    
+    # Combine factors
+    base_score = (
+        ad.bid_amount * 0.20 *
+        predicted_ctr * 0.25 *
+        predicted_cvr * 0.25 *
+        quality_score * 0.15 *
+        relevance_score * 0.10
+    )
+    
+    # Apply ad fatigue penalty
+    final_score = base_score * (1 - ad_fatigue * 0.05)
+    
+    return final_score
+```
+
+#### Ad Insertion Strategy
+
+**Positioning Algorithm:**
+
+```text
+Ad Placement Strategy:
+├── Uniform Distribution
+│   ├── Insert ads at fixed intervals (every 5-7 organic posts)
+│   ├── Formula: position = (feed_length / (num_ads + 1)) * ad_index
+│   ├── Pros: Predictable, even distribution
+│   └── Cons: May disrupt user experience at fixed points
+├── Weighted Distribution
+│   ├── More ads in high-engagement sections
+│   ├── Analyze scroll depth and engagement patterns
+│   ├── Place ads where user attention is highest
+│   └── Dynamic adjustment based on user behavior
+├── Content-Aware Placement
+│   ├── Insert ads between similar content types
+│   ├── Avoid interrupting high-engagement content
+│   ├── Match ad format to surrounding content
+│   └── Consider content sentiment and topics
+└── Performance-Based Placement
+    ├── A/B test different placement strategies
+    ├── Optimize for user engagement AND revenue
+    ├── Personalized placement per user segment
+    └── Real-time adjustment based on session behavior
+```
+
+#### Ad Targeting System
+
+**Multi-Dimensional Targeting:**
+
+```text
+Targeting Criteria:
+├── Demographic Targeting
+│   ├── Age range: 18-24, 25-34, 35-44, 45-54, 55+
+│   ├── Gender: Male, Female, Non-binary, All
+│   ├── Location: Country, state, city, radius
+│   ├── Language preferences
+│   └── Education level and occupation
+├── Behavioral Targeting
+│   ├── Past purchase behavior
+│   ├── Content engagement patterns
+│   ├── Device usage (mobile, desktop, tablet)
+│   ├── Time of day activity patterns
+│   └── Social interaction behaviors
+├── Interest-Based Targeting
+│   ├── Explicit interests (user-declared)
+│   ├── Implicit interests (inferred from behavior)
+│   ├── Topic categories (sports, technology, fashion, etc.)
+│   ├── Brand affinities
+│   └── Lifestyle segments
+├── Contextual Targeting
+│   ├── Current feed content analysis
+│   ├── Recent search queries
+│   ├── Seasonal and trending topics
+│   ├── Real-time events
+│   └── Weather-based targeting
+├── Retargeting
+│   ├── Website visitors
+│   ├── Cart abandoners
+│   ├── Previous ad interactions
+│   ├── Customer lookalikes
+│   └── Conversion funnel stage
+└── Custom Audiences
+    ├── Uploaded customer lists
+    ├── Email-based matching
+    ├── CRM integration
+    ├── Lookalike audience generation
+    └── Exclusion lists (existing customers, competitors)
+```
+
+#### Ad Frequency Capping
+
+**User Experience Optimization:**
+
+```text
+Frequency Controls:
+├── Global Frequency Cap
+│   ├── Maximum 1 ad per 5 organic posts (20% ad load)
+│   ├── Maximum 10 ads per session
+│   ├── Maximum 30 ads per day per user
+│   └── Automatic reduction for low-engagement users
+├── Campaign-Level Frequency Cap
+│   ├── Same ad: Max 1 impression per 24 hours
+│   ├── Same campaign: Max 3 impressions per day
+│   ├── Same advertiser: Max 5 impressions per day
+│   └── Configurable by advertiser
+├── Category-Level Frequency Cap
+│   ├── Same category: Max 3 ads per session
+│   ├── Ensure ad diversity across categories
+│   ├── Prevent category saturation
+│   └── Balance advertiser competition
+└── Adaptive Frequency Capping
+    ├── Reduce frequency for users showing ad fatigue
+    ├── Increase frequency for high-engagement users
+    ├── ML-based optimal frequency prediction
+    └── Real-time adjustment based on behavior
+```
+
+#### Ad Performance Tracking
+
+**Metrics Collection System:**
+
+```text
+Tracking Events:
+├── Impression Tracking
+│   ├── Ad served and visible in viewport
+│   ├── Viewability threshold: 50% visible for 1 second
+│   ├── Timestamp and duration
+│   └── User engagement context
+├── Interaction Tracking
+│   ├── Click-through events
+│   ├── Video ad views and completion rate
+│   ├── Carousel swipes and interactions
+│   └── Hover events and dwell time
+├── Conversion Tracking
+│   ├── Post-click conversions
+│   ├── View-through conversions
+│   ├── Multi-touch attribution
+│   └── Conversion value and revenue
+└── Engagement Quality
+    ├── Time spent viewing ad
+    ├── Scroll depth for native ads
+    ├── User feedback (hide, report, like)
+    └── Follow-on actions (profile visit, follow)
+```
+
+**Ad Analytics Pipeline:**
+
+```text
+Analytics Architecture:
+├── Real-time Stream Processing
+│   ├── Kafka for event ingestion
+│   ├── Spark Streaming for aggregation
+│   ├── Redis for real-time counters
+│   └── WebSocket for live dashboard updates
+├── Batch Processing
+│   ├── Daily aggregation jobs (Spark)
+│   ├── Attribution modeling (Python ML pipeline)
+│   ├── Audience insights generation
+│   └── Performance report generation
+├── Storage Layer
+│   ├── Time-series database (InfluxDB) for metrics
+│   ├── Data warehouse (Redshift/BigQuery) for analytics
+│   ├── OLAP cube for multi-dimensional analysis
+│   └── Cold storage (S3) for raw event logs
+└── Reporting Layer
+    ├── Advertiser dashboard (real-time metrics)
+    ├── Campaign performance reports
+    ├── A/B test analysis
+    └── Revenue analytics and forecasting
+```
+
+#### Ad Quality and Policy
+
+**Content Moderation:**
+
+```text
+Ad Approval Process:
+├── Automated Review
+│   ├── Image content analysis (nudity, violence)
+│   ├── Text sentiment analysis
+│   ├── Prohibited content detection
+│   ├── Brand safety checks
+│   └── Malware and phishing detection
+├── Manual Review
+│   ├── Sensitive categories (political, health)
+│   ├── High-budget campaigns
+│   ├── Flagged content
+│   └── New advertiser verification
+├── Continuous Monitoring
+│   ├── Landing page monitoring
+│   ├── User feedback analysis
+│   ├── Performance anomaly detection
+│   └── Policy violation detection
+└── Enforcement Actions
+    ├── Ad rejection with reason
+    ├── Campaign suspension
+    ├── Advertiser account warning
+    └── Permanent ban for severe violations
+```
+
+### Analytics Pipeline
+
+#### Analytics Architecture Overview
+
+**End-to-End Analytics System:**
+
+```text
+Analytics Pipeline Components:
+├── Data Collection Layer
+│   ├── Event Generation
+│   │   ├── User interaction events (clicks, likes, shares)
+│   │   ├── System events (feed generation, cache hits)
+│   │   ├── Business events (ad impressions, conversions)
+│   │   └── Performance metrics (latency, errors)
+│   ├── Data Ingestion
+│   │   ├── Client-side SDK (JavaScript, iOS, Android)
+│   │   ├── Server-side logging
+│   │   ├── Message queue (Kafka) for event streaming
+│   │   └── Load balancer logs and CDN logs
+│   └── Data Validation
+│       ├── Schema validation
+│       ├── Deduplication
+│       ├── PII detection and masking
+│       └── Data quality checks
+├── Stream Processing Layer
+│   ├── Apache Kafka (Event Bus)
+│   │   ├── Topic: user_interactions
+│   │   ├── Topic: feed_events
+│   │   ├── Topic: ad_events
+│   │   └── Topic: system_metrics
+│   ├── Apache Flink / Spark Streaming
+│   │   ├── Real-time aggregations
+│   │   ├── Session tracking
+│   │   ├── Anomaly detection
+│   │   └── Real-time metrics calculation
+│   └── Stream Outputs
+│       ├── Real-time dashboards
+│       ├── Alerting system
+│       ├── Feature store updates
+│       └── Data lake ingestion
+├── Batch Processing Layer
+│   ├── Data Lake (S3 / HDFS)
+│   │   ├── Raw event storage (Parquet format)
+│   │   ├── Partitioned by date and event type
+│   │   ├── Retention: 2 years hot, 5 years cold
+│   │   └── Immutable append-only storage
+│   ├── Apache Spark (Batch Jobs)
+│   │   ├── Daily aggregation jobs
+│   │   ├── User behavior modeling
+│   │   ├── Content performance analysis
+│   │   └── Cohort analysis
+│   └── Data Warehouse (Redshift / BigQuery)
+│       ├── Dimensional data model
+│       ├── Pre-aggregated metrics
+│       ├── User and content dimensions
+│       └── Optimized for OLAP queries
+├── Machine Learning Pipeline
+│   ├── Feature Engineering
+│   │   ├── User features (demographics, behavior)
+│   │   ├── Content features (type, engagement, quality)
+│   │   ├── Temporal features (time of day, day of week)
+│   │   └── Contextual features (device, location)
+│   ├── Model Training
+│   │   ├── Feed ranking models
+│   │   ├── CTR prediction models
+│   │   ├── Churn prediction models
+│   │   └── Recommendation models
+│   ├── Model Serving
+│   │   ├── Real-time inference
+│   │   ├── Batch predictions
+│   │   ├── A/B testing framework
+│   │   └── Model monitoring
+│   └── Feature Store
+│       ├── Online features (Redis)
+│       ├── Offline features (S3/Parquet)
+│       ├── Feature versioning
+│       └── Feature lineage tracking
+└── Visualization & Reporting Layer
+    ├── Business Intelligence Tools
+    │   ├── Tableau / Looker for dashboards
+    │   ├── Jupyter notebooks for ad-hoc analysis
+    │   ├── Custom dashboards for real-time metrics
+    │   └── Automated report generation
+    ├── Operational Dashboards
+    │   ├── System health monitoring
+    │   ├── SLA/SLO tracking
+    │   ├── Cost analytics
+    │   └── Capacity planning
+    └── Product Analytics
+        ├── User engagement metrics
+        ├── Feature adoption tracking
+        ├── Funnel analysis
+        └── Retention cohort analysis
+```
+
+#### Event Schema Design
+
+**Standardized Event Structure:**
+
+```json
+{
+  "event_id": "evt_123e4567-e89b-12d3-a456-426614174000",
+  "event_type": "feed_interaction",
+  "event_name": "post_like",
+  "timestamp": "2025-10-02T10:30:00.123Z",
+  "user": {
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "session_id": "sess_789abc-def012-345678",
+    "device_id": "dev_mobile_ios_12345",
+    "is_authenticated": true
+  },
+  "context": {
+    "device_type": "mobile",
+    "platform": "ios",
+    "app_version": "2.1.5",
+    "os_version": "iOS 17.0",
+    "screen_resolution": "1170x2532",
+    "network_type": "wifi",
+    "location": {
+      "country": "US",
+      "state": "CA",
+      "city": "San Francisco",
+      "lat": 37.7749,
+      "lon": -122.4194
+    }
+  },
+  "properties": {
+    "post_id": "123e4567-e89b-12d3-a456-426614174000",
+    "post_author_id": "author_550e8400",
+    "post_type": "image",
+    "engagement_type": "like",
+    "position_in_feed": 3,
+    "time_since_impression": 2.5,
+    "is_sponsored": false
+  },
+  "metadata": {
+    "server_timestamp": "2025-10-02T10:30:00.125Z",
+    "ingestion_timestamp": "2025-10-02T10:30:00.150Z",
+    "schema_version": "2.1",
+    "source": "mobile_app"
+  }
+}
+```
+
+#### Real-Time Analytics Processing
+
+**Stream Processing Implementation:**
+
+```python
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import window, col, count, avg, sum
+
+def process_real_time_engagement_metrics():
+    """
+    Real-time processing of user engagement metrics using Spark Streaming.
+    
+    Processes engagement events from Kafka and calculates:
+    - Posts per minute
+    - Engagement rate per minute
+    - Trending posts detection
+    - User activity patterns
+    
+    Returns:
+    Streams processed metrics to Redis and monitoring dashboards
+    """
+    spark = SparkSession.builder \
+        .appName("FeedEngagementAnalytics") \
+        .getOrCreate()
+    
+    # Read from Kafka stream
+    engagement_stream = spark \
+        .readStream \
+        .format("kafka") \
+        .option("kafka.bootstrap.servers", "kafka:9092") \
+        .option("subscribe", "user_interactions,feed_events") \
+        .option("startingOffsets", "latest") \
+        .load()
+    
+    # Parse JSON events
+    from pyspark.sql.types import StructType, StructField, StringType, TimestampType
+    
+    schema = StructType([
+        StructField("event_id", StringType()),
+        StructField("event_type", StringType()),
+        StructField("timestamp", TimestampType()),
+        StructField("user", StructType([
+            StructField("user_id", StringType()),
+        ])),
+        StructField("properties", StructType([
+            StructField("post_id", StringType()),
+            StructField("engagement_type", StringType()),
+            StructField("position_in_feed", IntegerType()),
+        ]))
+    ])
+    
+    parsed_events = engagement_stream \
+        .selectExpr("CAST(value AS STRING) as json") \
+        .select(from_json(col("json"), schema).alias("data")) \
+        .select("data.*")
+    
+    # Calculate engagement metrics per minute
+    engagement_metrics = parsed_events \
+        .withWatermark("timestamp", "1 minute") \
+        .groupBy(
+            window(col("timestamp"), "1 minute"),
+            col("properties.engagement_type")
+        ) \
+        .agg(
+            count("*").alias("event_count"),
+            countDistinct("user.user_id").alias("unique_users"),
+            countDistinct("properties.post_id").alias("unique_posts")
+        )
+    
+    # Detect trending posts (posts with spike in engagement)
+    trending_posts = parsed_events \
+        .withWatermark("timestamp", "5 minutes") \
+        .groupBy(
+            window(col("timestamp"), "5 minutes", "1 minute"),
+            col("properties.post_id")
+        ) \
+        .agg(
+            count("*").alias("engagement_count"),
+            countDistinct("user.user_id").alias("unique_engagers")
+        ) \
+        .filter(col("engagement_count") > 100)  # Threshold for trending
+    
+    # Write metrics to multiple sinks
+    
+    # 1. Redis for real-time dashboards
+    engagement_metrics.writeStream \
+        .outputMode("update") \
+        .foreachBatch(write_to_redis) \
+        .start()
+    
+    # 2. Data lake for historical analysis
+    engagement_metrics.writeStream \
+        .format("parquet") \
+        .option("path", "s3://analytics-lake/engagement-metrics/") \
+        .option("checkpointLocation", "s3://checkpoints/engagement/") \
+        .partitionBy("window") \
+        .start()
+    
+    # 3. Monitoring system for alerts
+    trending_posts.writeStream \
+        .foreachBatch(send_trending_alerts) \
+        .start()
+    
+    spark.streams.awaitAnyTermination()
+
+
+def write_to_redis(batch_df, batch_id):
+    """Write batch of metrics to Redis for real-time access."""
+    import redis
+    r = redis.Redis(host='redis-cluster', port=6379)
+    
+    for row in batch_df.collect():
+        key = f"metrics:engagement:{row.window.start.strftime('%Y%m%d%H%M')}:{row.engagement_type}"
+        metrics = {
+            'count': row.event_count,
+            'unique_users': row.unique_users,
+            'unique_posts': row.unique_posts,
+            'timestamp': row.window.start.isoformat()
+        }
+        r.hset(key, mapping=metrics)
+        r.expire(key, 3600)  # 1 hour TTL
+```
+
+#### Key Analytics Metrics
+
+**User Engagement Metrics:**
+
+```text
+Core Engagement KPIs:
+├── Daily Active Users (DAU)
+│   ├── Unique users who open app and view feed
+│   ├── Segmented by platform (mobile, web)
+│   ├── Geographic breakdown
+│   └── Trend analysis (7-day, 30-day moving average)
+├── Session Metrics
+│   ├── Average session duration
+│   ├── Sessions per user per day
+│   ├── Bounce rate (single-page sessions)
+│   └── Session depth (posts viewed per session)
+├── Feed Engagement
+│   ├── Feed scroll depth (average posts viewed)
+│   ├── Time spent in feed
+│   ├── Refresh rate (pull-to-refresh actions)
+│   └── Feed completion rate
+├── Content Interaction
+│   ├── Like rate: (likes / impressions) × 100
+│   ├── Comment rate: (comments / impressions) × 100
+│   ├── Share rate: (shares / impressions) × 100
+│   ├── Click-through rate for links
+│   └── Video view rate and completion rate
+├── User Retention
+│   ├── Day 1, Day 7, Day 30 retention rates
+│   ├── Cohort analysis by signup date
+│   ├── Churn rate and churn prediction
+│   └── Resurrection rate (re-activated users)
+└── Content Creation
+    ├── Posts per user per day
+    ├── Posting frequency distribution
+    ├── Content type mix (text, image, video, link)
+    └── Post quality score distribution
+```
+
+**Content Performance Metrics:**
+
+```text
+Content Analytics:
+├── Post Engagement
+│   ├── Total impressions per post
+│   ├── Unique viewers per post
+│   ├── Engagement rate: (interactions / impressions) × 100
+│   ├── Viral coefficient: shares / impressions
+│   └── Time to peak engagement
+├── Content Quality
+│   ├── ML-based quality score
+│   ├── User sentiment (positive/negative reactions)
+│   ├── Dwell time on post
+│   └── Completion rate for long-form content
+├── Trending Analysis
+│   ├── Trending topics and hashtags
+│   ├── Viral content detection
+│   ├── Trending velocity (rate of engagement growth)
+│   └── Geographic trending patterns
+└── Content Mix
+    ├── Distribution by content type
+    ├── Performance by content type
+    ├── Optimal posting times
+    └── Content saturation analysis
+```
+
+**System Performance Metrics:**
+
+```text
+Technical Performance:
+├── Latency Metrics
+│   ├── P50, P95, P99 feed generation time
+│   ├── API response time distribution
+│   ├── Database query performance
+│   └── Cache hit/miss latency
+├── Throughput Metrics
+│   ├── Requests per second (RPS)
+│   ├── Feed generations per second
+│   ├── Posts created per second
+│   └── Events processed per second
+├── Reliability Metrics
+│   ├── Error rate by endpoint
+│   ├── 5xx error rate
+│   ├── Timeout rate
+│   └── Circuit breaker activations
+├── Resource Utilization
+│   ├── CPU utilization by service
+│   ├── Memory usage and GC metrics
+│   ├── Database connection pool usage
+│   └── Cache memory utilization
+└── Infrastructure Metrics
+    ├── Server count by service
+    ├── Auto-scaling events
+    ├── Deployment frequency
+    └── Mean time to recovery (MTTR)
+```
+
+#### Analytics Use Cases
+
+**Business Intelligence:**
+
+```text
+BI Applications:
+├── Executive Dashboard
+│   ├── DAU/MAU trends and forecasts
+│   ├── Revenue metrics (ad revenue, ARPU)
+│   ├── User growth and retention
+│   └── Competitive benchmarking
+├── Product Analytics
+│   ├── Feature adoption rates
+│   ├── A/B test results and statistical significance
+│   ├── Funnel conversion analysis
+│   └── User journey mapping
+├── Content Strategy
+│   ├── Optimal posting times analysis
+│   ├── Content type performance comparison
+│   ├── Trending topics and themes
+│   └── Influencer impact analysis
+├── Monetization Analytics
+│   ├── Ad performance by placement
+│   ├── Revenue per user by segment
+│   ├── Ad load impact on engagement
+│   └── Advertiser ROI analysis
+└── Operational Intelligence
+    ├── Capacity planning forecasts
+    ├── Cost per user analysis
+    ├── Infrastructure optimization opportunities
+    └── Incident root cause analysis
+```
+
+**Machine Learning Applications:**
+
+```text
+ML-Powered Analytics:
+├── Predictive Analytics
+│   ├── Churn prediction (identify at-risk users)
+│   ├── LTV prediction (lifetime value forecasting)
+│   ├── Content virality prediction
+│   └── Engagement probability modeling
+├── Recommendation Systems
+│   ├── Friend recommendations
+│   ├── Content recommendations
+│   ├── Hashtag suggestions
+│   └── Optimal posting time recommendations
+├── Anomaly Detection
+│   ├── Unusual user behavior detection
+│   ├── Spam and bot detection
+│   ├── System performance anomalies
+│   └── Fraud detection (fake engagement)
+└── Segmentation
+    ├── User clustering by behavior
+    ├── Content categorization
+    ├── Persona identification
+    └── Lookalike audience modeling
+```
+
+#### Data Privacy & Compliance
+
+**Analytics Governance:**
+
+```text
+Privacy Considerations:
+├── Data Anonymization
+│   ├── PII masking in analytics pipelines
+│   ├── Aggregated metrics only (no individual tracking)
+│   ├── K-anonymity for small user segments
+│   └── Differential privacy for sensitive analytics
+├── Regulatory Compliance
+│   ├── GDPR: Right to access, delete, and portability
+│   ├── CCPA: California consumer privacy rights
+│   ├── COPPA: Children's online privacy protection
+│   └── Data residency requirements by region
+├── Data Retention
+│   ├── Raw events: 90 days hot, 2 years cold
+│   ├── Aggregated metrics: 5 years
+│   ├── User deletion: Complete data removal within 30 days
+│   └── Legal hold process for investigations
+└── Access Control
+    ├── Role-based access to analytics data
+    ├── Audit logging for data access
+    ├── Data classification (public, internal, confidential)
+    └── Encryption at rest and in transit
+```
 
 ### Design Trade-offs
 
