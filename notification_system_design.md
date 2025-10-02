@@ -38,10 +38,15 @@
   - [Preference API](#preference-api)
   - [Token Management API](#token-management-api)
   - [Webhook Endpoints](#webhook-endpoints)
+  - [Query Notification Status](#query-notification-status)
+  - [Template Management API](#template-management-api)
+  - [Admin/Analytics API](#adminanalytics-api)
+  - [Error Responses](#error-responses)
   
 - [DATA MODEL & SCHEMA](#data-model--schema)
-  - [Core Tables/Collections](#core-tablescollections)
-  - [Indexes](#indexes)
+  - [PostgreSQL Schema](#postgresql-schema-user-data-preferences-templates)
+  - [ClickHouse Schema](#clickhouse-schema-analyticstime-series)
+  - [Redis Data Structures](#redis-data-structures)
   
 - [DEEP DIVE: FCM & APNs INTEGRATION](#deep-dive-fcm--apns-integration)
   - [FCM (Firebase Cloud Messaging)](#fcm-firebase-cloud-messaging---android)
@@ -642,66 +647,505 @@ POST /v1/webhooks/email/events  // delivered/opened/clicked/spam/complaint
 POST /v1/webhooks/sms/events    // delivered/failed
 ```
 
+### Query Notification Status
+
+```http
+GET /v1/notifications/{enqueue_id}
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "enqueue_id": "enq_abc123",
+  "event_type": "new_comment",
+  "status": "processing",
+  "total_recipients": 2000000,
+  "sent": 1950000,
+  "delivered": 1900000,
+  "failed": 50000,
+  "pending": 50000,
+  "created_at": "2025-10-02T10:00:00Z",
+  "updated_at": "2025-10-02T10:05:00Z"
+}
+```
+
+### Template Management API
+
+#### Create Template
+
+```http
+POST /v1/templates
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "template_id": "new_comment_push_v2",
+  "channel": "push",
+  "locale": "en-US",
+  "version": "2.0",
+  "title": "{{commenter_name}} commented on your post",
+  "body": "{{comment_preview}}",
+  "variables": {
+    "commenter_name": {"type": "string", "required": true},
+    "comment_preview": {"type": "string", "required": true, "max_length": 100},
+    "post_id": {"type": "string", "required": true}
+  },
+  "action": {
+    "type": "deep_link",
+    "url": "app://post/{{post_id}}"
+  }
+}
+```
+
+**Response (201 Created):**
+
+```json
+{
+  "template_id": "new_comment_push_v2",
+  "version": "2.0",
+  "created_at": "2025-10-02T10:00:00Z"
+}
+```
+
+#### Get Template
+
+```http
+GET /v1/templates/{template_id}?version=2.0&locale=en-US
+Authorization: Bearer <admin_token>
+```
+
+#### Update Template
+
+```http
+PUT /v1/templates/{template_id}
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "version": "2.1",
+  "body": "{{commenter_name}} replied: {{comment_preview}}"
+}
+```
+
+#### List Templates
+
+```http
+GET /v1/templates?channel=push&locale=en-US&page=1&limit=50
+Authorization: Bearer <admin_token>
+```
+
+### Admin/Analytics API
+
+#### Get Delivery Stats
+
+```http
+GET /v1/analytics/delivery-stats?start=2025-10-01&end=2025-10-02&channel=push&priority=normal
+Authorization: Bearer <admin_token>
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "period": {
+    "start": "2025-10-01T00:00:00Z",
+    "end": "2025-10-02T00:00:00Z"
+  },
+  "channel": "push",
+  "priority": "normal",
+  "stats": {
+    "sent": 600000000,
+    "delivered": 594000000,
+    "failed": 6000000,
+    "opened": 180000000,
+    "clicked": 60000000,
+    "delivery_rate": 0.99,
+    "open_rate": 0.303,
+    "click_rate": 0.1,
+    "avg_delivery_time_seconds": 2.3,
+    "p95_delivery_time_seconds": 4.1,
+    "p99_delivery_time_seconds": 8.2
+  }
+}
+```
+
+#### Get User Notification History
+
+```http
+GET /v1/users/{user_id}/notifications?page=1&limit=20&channel=push&status=delivered
+Authorization: Bearer <token>
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "user_id": "u1",
+  "notifications": [
+    {
+      "notification_id": "notif_123",
+      "channel": "push",
+      "priority": "normal",
+      "template_id": "new_comment_push",
+      "status": "delivered",
+      "sent_at": "2025-10-02T10:00:00Z",
+      "delivered_at": "2025-10-02T10:00:02Z",
+      "opened_at": "2025-10-02T10:05:00Z",
+      "title": "Alice commented on your post",
+      "body": "Great photo!"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 150
+  }
+}
+```
+
+### Error Responses
+
+**400 Bad Request:**
+
+```json
+{
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "Validation failed",
+    "details": [
+      {
+        "field": "priority",
+        "error": "must be one of: urgent, high, normal, low"
+      }
+    ]
+  }
+}
+```
+
+**401 Unauthorized:**
+
+```json
+{
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Invalid or expired token"
+  }
+}
+```
+
+**429 Too Many Requests:**
+
+```json
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded",
+    "retry_after_seconds": 60,
+    "limit": 100,
+    "window": "1 hour"
+  }
+}
+```
+
+**500 Internal Server Error:**
+
+```json
+{
+  "error": {
+    "code": "INTERNAL_ERROR",
+    "message": "An internal error occurred",
+    "request_id": "req_abc123"
+  }
+}
+```
+
 ---
 
 ## DATA MODEL & SCHEMA
 
-### Core Tables/Collections
+### PostgreSQL Schema (User Data, Preferences, Templates)
 
-```text
-users
-  - user_id (PK)
+#### users Table
 
-device_tokens
-  - user_id (PK part)
-  - device_id (PK part)
-  - platform (ios|android)
-  - token (unique, indexed)
-  - last_seen_at, expires_at, is_valid
+```sql
+CREATE TABLE users (
+    user_id UUID PRIMARY KEY,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
 
-notification_preferences
-  - user_id (PK)
-  - channels: jsonb
-  - categories: jsonb
-  - quiet_hours: start, end, tz
-  - updated_at
-
-templates
-  - template_id (PK)
-  - channel (push|email|sms|in_app)
-  - locale (en-US, ...)
-  - version
-  - body, subject (for email), variables: jsonb
-  - updated_at
-
-notifications
-  - notification_id (PK)
-  - event_type, priority, channels: jsonb
-  - audience_ref (segment or list id)
-  - created_at
-
-notification_jobs
-  - job_id (PK)
-  - notification_id (FK)
-  - user_id
-  - channel
-  - status (queued|sent|delivered|failed|suppressed|bounced)
-  - provider_message_id
-  - attempts, next_retry_at
-  - created_at, updated_at
-
-analytics_events (time-series/OLAP)
-  - event_id
-  - job_id, user_id, channel, event_type (sent|delivered|opened|clicked|bounce|complaint)
-  - ts
+CREATE INDEX idx_users_created_at ON users(created_at);
 ```
 
-### Indexes
+#### device_tokens Table
 
-- `device_tokens(token)` unique, `device_tokens(user_id, is_valid)`
-- `notification_jobs(user_id, channel, status)` for per-user draining
-- `notification_jobs(status, next_retry_at)` for retry sweeps
-- `analytics_events(channel, event_type, ts)` for dashboard queries
+```sql
+CREATE TABLE device_tokens (
+    user_id UUID NOT NULL,
+    device_id VARCHAR(255) NOT NULL,
+    platform VARCHAR(20) NOT NULL CHECK (platform IN ('ios', 'android')),
+    token TEXT NOT NULL,
+    app_version VARCHAR(50),
+    device_model VARCHAR(100),
+    os_version VARCHAR(50),
+    is_valid BOOLEAN NOT NULL DEFAULT TRUE,
+    last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    registered_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, device_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX idx_device_tokens_token ON device_tokens(token) WHERE is_valid = TRUE;
+CREATE INDEX idx_device_tokens_user_valid ON device_tokens(user_id, is_valid);
+CREATE INDEX idx_device_tokens_platform ON device_tokens(platform, is_valid);
+CREATE INDEX idx_device_tokens_expires ON device_tokens(expires_at) WHERE expires_at IS NOT NULL;
+```
+
+**Rationale:** Composite PK on (user_id, device_id) allows multiple devices per user. Unique index on token ensures no duplicates for active tokens. Partial index on expires_at for cleanup jobs.
+
+#### notification_preferences Table
+
+```sql
+CREATE TABLE notification_preferences (
+    user_id UUID PRIMARY KEY,
+    quiet_hours_start TIME,
+    quiet_hours_end TIME,
+    timezone VARCHAR(50) DEFAULT 'UTC',
+    channels JSONB NOT NULL DEFAULT '{}',
+    categories JSONB NOT NULL DEFAULT '{}',
+    global_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_prefs_updated ON notification_preferences(updated_at);
+CREATE INDEX idx_prefs_quiet_hours ON notification_preferences(quiet_hours_start, quiet_hours_end) 
+    WHERE quiet_hours_start IS NOT NULL;
+```
+
+**Example JSONB Structure:**
+
+```json
+channels: {
+  "push": {"enabled": true},
+  "email": {"enabled": false},
+  "sms": {"enabled": false},
+  "in_app": {"enabled": true}
+}
+
+categories: {
+  "marketing": {"enabled": false, "max_per_day": 0},
+  "social": {"enabled": true, "max_per_hour": 5},
+  "transactional": {"enabled": true, "max_per_hour": 100}
+}
+```
+
+#### templates Table
+
+```sql
+CREATE TABLE templates (
+    template_id VARCHAR(100) NOT NULL,
+    version VARCHAR(20) NOT NULL,
+    channel VARCHAR(20) NOT NULL CHECK (channel IN ('push', 'email', 'sms', 'in_app')),
+    locale VARCHAR(10) NOT NULL DEFAULT 'en-US',
+    title TEXT,
+    body TEXT NOT NULL,
+    subject TEXT,
+    variables JSONB NOT NULL DEFAULT '{}',
+    action JSONB,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (template_id, version, locale)
+);
+
+CREATE INDEX idx_templates_channel ON templates(channel, is_active);
+CREATE INDEX idx_templates_locale ON templates(locale, is_active);
+```
+
+**Rationale:** Composite PK allows versioning and localization. Same template can have multiple versions and translations.
+
+#### notifications Table
+
+```sql
+CREATE TABLE notifications (
+    notification_id UUID PRIMARY KEY,
+    enqueue_id VARCHAR(100) UNIQUE NOT NULL,
+    event_type VARCHAR(100) NOT NULL,
+    priority VARCHAR(20) NOT NULL CHECK (priority IN ('urgent', 'high', 'normal', 'low')),
+    channels JSONB NOT NULL,
+    audience_type VARCHAR(50) NOT NULL,
+    audience_ref TEXT,
+    context JSONB,
+    template_id VARCHAR(100),
+    idempotency_key VARCHAR(255) UNIQUE,
+    status VARCHAR(50) NOT NULL DEFAULT 'processing',
+    total_recipients INT DEFAULT 0,
+    sent_count INT DEFAULT 0,
+    delivered_count INT DEFAULT 0,
+    failed_count INT DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_enqueue ON notifications(enqueue_id);
+CREATE INDEX idx_notifications_idempotency ON notifications(idempotency_key) WHERE idempotency_key IS NOT NULL;
+CREATE INDEX idx_notifications_created ON notifications(created_at DESC);
+CREATE INDEX idx_notifications_event_type ON notifications(event_type, created_at DESC);
+```
+
+#### notification_jobs Table (Sharded by user_id)
+
+```sql
+CREATE TABLE notification_jobs (
+    job_id UUID PRIMARY KEY,
+    notification_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    channel VARCHAR(20) NOT NULL,
+    priority VARCHAR(20) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'queued',
+    template_id VARCHAR(100),
+    rendered_payload JSONB,
+    provider VARCHAR(50),
+    provider_message_id VARCHAR(255),
+    attempts INT NOT NULL DEFAULT 0,
+    max_attempts INT NOT NULL DEFAULT 3,
+    next_retry_at TIMESTAMP,
+    error_code VARCHAR(50),
+    error_message TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    sent_at TIMESTAMP,
+    delivered_at TIMESTAMP,
+    FOREIGN KEY (notification_id) REFERENCES notifications(notification_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_jobs_notification ON notification_jobs(notification_id, status);
+CREATE INDEX idx_jobs_user_channel ON notification_jobs(user_id, channel, status);
+CREATE INDEX idx_jobs_status ON notification_jobs(status, created_at DESC);
+CREATE INDEX idx_jobs_retry ON notification_jobs(status, next_retry_at) 
+    WHERE status = 'pending_retry';
+CREATE INDEX idx_jobs_provider ON notification_jobs(provider, provider_message_id) 
+    WHERE provider_message_id IS NOT NULL;
+```
+
+**Partitioning Strategy:**
+
+```sql
+-- Partition by user_id hash for horizontal scaling
+CREATE TABLE notification_jobs_p0 PARTITION OF notification_jobs 
+    FOR VALUES WITH (MODULUS 10, REMAINDER 0);
+    
+CREATE TABLE notification_jobs_p1 PARTITION OF notification_jobs 
+    FOR VALUES WITH (MODULUS 10, REMAINDER 1);
+    
+-- ... p2 through p9
+```
+
+### ClickHouse Schema (Analytics/Time-Series)
+
+```sql
+CREATE TABLE analytics_events (
+    event_id UUID,
+    job_id UUID,
+    notification_id UUID,
+    user_id UUID,
+    channel String,
+    priority String,
+    event_type Enum8(
+        'enqueued' = 1,
+        'sent' = 2,
+        'delivered' = 3,
+        'opened' = 4,
+        'clicked' = 5,
+        'bounced' = 6,
+        'complained' = 7,
+        'failed' = 8
+    ),
+    provider String,
+    error_code String,
+    template_id String,
+    device_platform String,
+    user_agent String,
+    ip_address IPv4,
+    country_code FixedString(2),
+    timestamp DateTime,
+    processing_time_ms UInt32
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (channel, event_type, timestamp)
+TTL timestamp + INTERVAL 90 DAY;
+
+-- Materialized view for real-time aggregation
+CREATE MATERIALIZED VIEW analytics_hourly_stats
+ENGINE = SummingMergeTree()
+PARTITION BY toYYYYMM(hour)
+ORDER BY (channel, priority, hour)
+AS SELECT
+    channel,
+    priority,
+    toStartOfHour(timestamp) AS hour,
+    countIf(event_type = 'sent') AS sent_count,
+    countIf(event_type = 'delivered') AS delivered_count,
+    countIf(event_type = 'opened') AS opened_count,
+    countIf(event_type = 'clicked') AS clicked_count,
+    countIf(event_type = 'failed') AS failed_count,
+    avg(processing_time_ms) AS avg_processing_time_ms
+FROM analytics_events
+GROUP BY channel, priority, hour;
+```
+
+### Redis Data Structures
+
+#### Preference Cache
+
+```text
+Key: pref:user:{user_id}
+Type: Hash
+TTL: 300 seconds (5 minutes)
+Value: {
+    "quiet_hours_start": "22:00",
+    "quiet_hours_end": "07:00",
+    "timezone": "America/Los_Angeles",
+    "channels": "{\"push\":{\"enabled\":true},...}",
+    "categories": "{\"social\":{\"enabled\":true,\"max_per_hour\":5},...}"
+}
+```
+
+#### Idempotency Store
+
+```text
+Key: idempotency:{idempotency_key}
+Type: String
+TTL: 86400 seconds (24 hours)
+Value: {notification_id}
+```
+
+#### Rate Limiter (Sliding Window)
+
+```text
+Key: ratelimit:{user_id}:{channel}:{category}:{window}
+Type: Sorted Set
+TTL: window duration + buffer
+Members: {timestamp}:{request_id}
+Scores: timestamp (unix milliseconds)
+```
+
+#### Template Cache
+
+```text
+Key: template:{template_id}:{version}:{locale}
+Type: String
+TTL: None (manual invalidation)
+Value: JSON string of template
+```
 
 ---
 
