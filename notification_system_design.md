@@ -20,11 +20,18 @@
   - [Traffic Estimates](#traffic-estimates)
   - [Storage Estimates](#storage-estimates)
   - [Bandwidth & Cost Estimates](#bandwidth--cost-estimates)
+  - [Resource Estimates](#resource-estimates)
   
 - [HIGH-LEVEL DESIGN](#high-level-design)
   - [Core Components](#core-components)
   - [Architecture Diagram](#architecture-diagram)
   - [Data Flow](#data-flow)
+  
+- [SEQUENCE DIAGRAMS](#sequence-diagrams)
+  - [Notification Flow - Happy Path](#notification-flow---happy-path)
+  - [Push Notification with Retry](#push-notification-with-retry)
+  - [Fan-out for Large Broadcast](#fan-out-for-large-broadcast)
+  - [Quiet Hours Handling](#quiet-hours-handling)
   
 - [API DESIGN](#api-design)
   - [Producer API](#producer-api)
@@ -91,28 +98,73 @@
 
 ### User Stories
 
-- As a user, I want to receive notifications via Push, SMS, Email, and In-app based on my preferences.
-- As a user, I want quiet hours so notifications are suppressed or delayed during certain times.
-- As a user, I want to opt out per channel and per category (e.g., marketing vs transactional).
-- As a system, I want to deliver urgent notifications immediately, ahead of normal and low priority items.
-- As a system, I want to batch low-priority notifications to reduce noise and cost.
-- As a system, I want reliable delivery with retries and backoff when providers fail.
-- As a system, I want analytics on sent, delivered, opened, and clicked events.
+**As a social media user**, I want to receive notifications about comments, likes, and mentions via push notifications so that I stay engaged with my content and community in real-time.
+
+**As a mobile app user**, I want to control which types of notifications I receive on each channel so that I only get relevant updates without being overwhelmed.
+
+**As a user with multiple devices**, I want notifications delivered to all my active devices so that I don't miss important updates regardless of which device I'm using.
+
+**As a user who values sleep**, I want to set quiet hours so that non-urgent notifications are delayed until morning and don't disturb me at night.
+
+**As a privacy-conscious user**, I want to opt out of marketing notifications while still receiving transactional alerts so that I control my notification experience.
+
+**As a product manager**, I want to send urgent security alerts that bypass quiet hours so that users are immediately informed of critical account issues.
+
+**As a marketing team member**, I want to schedule batch notifications for optimal engagement times so that campaigns reach users when they're most likely to interact.
+
+**As a developer**, I want to track notification delivery, open rates, and click-through rates so that I can measure campaign effectiveness and debug delivery issues.
+
+**As a system operator**, I want automatic retries with exponential backoff so that temporary provider outages don't result in lost notifications.
+
+**As a platform engineer**, I want to fan out notifications to millions of users efficiently so that viral content doesn't overwhelm the notification system.
+
+**As a compliance officer**, I want audit logs for all notification opt-ins and opt-outs so that we maintain GDPR/CAN-SPAM compliance.
 
 ### Functional Requirements (MVP)
 
-- Channels: Push (FCM/APNs), SMS, Email, In-app.
-- Scale: 100M users; 1B notifications/day.
-  - Average ≈ 11.6K notifications/sec; plan for 10× peak.
-- Priority levels: urgent, high, normal, low with separate queues and SLAs.
-- User preferences: per-channel, per-category, per-frequency; quiet hours.
-- Rate limiting: per-user, per-channel, per-category; anti-spam and frequency capping.
-- Batching: aggregate low-priority notifications by user/channel when applicable.
-- Personalization & templates: per-locale, per-variant with variable substitution.
-- Token management: device token registration/rotation/expiry handling.
-- Delivery tracking: provider response status; webhook ingestion for delivery/open/click.
-- Retry & backoff: exponential backoff with jitter; max attempts per channel.
-- Idempotency: dedupe to avoid duplicates on retries or fan-out races.
+**Core Notification Delivery:**
+
+1. **Multi-Channel Support**: Send notifications via Push (FCM/APNs), SMS, Email, and In-app
+2. **Message Publishing**: Accept notification events from producer services via REST/gRPC API
+3. **Fan-out Service**: Expand audience segments to individual recipients (support 1M+ recipients per event)
+4. **Priority Levels**: Four-tier priority system (urgent, high, normal, low) with separate queues
+5. **Template Management**: Store and render templates with variable substitution and localization
+6. **Device Token Management**: Register, update, and expire device tokens for push notifications
+
+**User Preferences & Controls:**
+
+- **Preference Management**: Store per-user preferences for channels, categories, and frequency
+- **Quiet Hours**: Respect user-defined quiet hours per timezone
+- **Opt-in/Opt-out**: Support granular opt-out per channel and per category
+- **Rate Limiting**: Apply per-user, per-channel, per-category limits to prevent spam
+
+**Delivery & Tracking:**
+
+- **Reliable Delivery**: Retry failed notifications with exponential backoff
+- **Batching**: Aggregate low-priority notifications to reduce costs and noise
+- **Delivery Tracking**: Track sent, delivered, opened, clicked events per notification
+- **Idempotency**: Deduplicate notifications using idempotency keys
+- **Webhook Ingestion**: Receive delivery receipts from FCM, APNs, Email, and SMS providers
+
+**Scale Targets:**
+
+- Support 100M users with 1B notifications/day
+- Average: 11,574 notifications/sec; Peak: 115,740 notifications/sec (10× burst)
+- Channel mix: Push 60%, In-app 20%, Email 10%, SMS 10%
+- Priority mix: Urgent 1%, High 9%, Normal 60%, Low 30%
+
+**Out of Scope for MVP:**
+
+- Rich interactive notifications (buttons, carousels) - Phase 2
+- Video/audio attachments in notifications - Future
+- Voice calls or SMS verification - Different system
+- Custom notification sounds per user - Mobile app responsibility
+- Notification scheduling (send at specific future time) - Can use delayed events
+- Two-way SMS conversations - Not a notification use case
+- Push notification to desktop browsers - Focus on mobile first
+- Notification threading/grouping - Phase 2
+- A/B testing framework - Phase 2
+- ML-based send-time optimization - Phase 3
 
 ### Non-Functional Requirements
 
@@ -174,6 +226,124 @@ Provider costs (very rough):
   - SMS: $0.005–$0.05 per SMS (region-dependent) → batching/frequency capping critical
 ```
 
+### Resource Estimates
+
+**Server Requirements:**
+
+```text
+API Servers (Notification API):
+  - Request rate: 11,574 avg, 115,740 peak req/s
+  - Assume 1 server handles 5K req/s
+  - Servers needed: 24 (peak capacity with 2× headroom)
+  - Instance type: c5.2xlarge (8 vCPU, 16 GB RAM)
+  - Total: 24 instances × $0.34/hr × 730 hrs = ~$5,961/month
+
+Fan-out Workers:
+  - Process 1B fan-outs/day (average 5K recipients per event = 5M fan-out ops/day)
+  - Assume 1 worker handles 500 fan-outs/sec
+  - Workers needed: 10 workers (with burst capacity)
+  - Instance type: c5.xlarge (4 vCPU, 8 GB RAM)
+  - Total: 10 instances × $0.17/hr × 730 hrs = ~$1,241/month
+
+Channel Workers (Push/SMS/Email/In-app):
+  - Push: 600M/day ÷ 86400 = 6,944 req/s avg, 69,440 peak
+  - Assume 1 worker handles 1K req/s (with provider I/O)
+  - Workers needed: 70 workers per channel (across all priorities)
+  - Total: 70 instances × 4 channels = 280 instances
+  - Instance type: c5.large (2 vCPU, 4 GB RAM)
+  - Total: 280 × $0.085/hr × 730 hrs = ~$17,374/month
+
+Preference/Template Services:
+  - Cache-heavy, 95%+ hit rate
+  - 4 instances per service (HA)
+  - Instance type: r5.large (2 vCPU, 16 GB RAM)
+  - Total: 8 instances × $0.126/hr × 730 hrs = ~$735/month
+```
+
+**Database Requirements:**
+
+```text
+PostgreSQL (User Preferences, Templates, Tokens):
+  - Storage: ~100 GB (preferences + templates + tokens)
+  - IOPS: 10K provisioned
+  - Instance: db.r5.xlarge (4 vCPU, 32 GB RAM)
+  - Primary + 2 read replicas
+  - Total: ~$1,200/month (primary) + ~$800/month (replicas) = ~$2,000/month
+
+ClickHouse / BigQuery (Analytics):
+  - Storage: 450 GB/day × 90 days = 40.5 TB
+  - Compression: 10× → 4 TB
+  - Query cost: ~$5 per TB scanned
+  - Storage cost: ~$0.02/GB/month
+  - Total: 4,000 GB × $0.02 = ~$80/month + query costs ~$500/month = ~$580/month
+
+Redis Cluster (Caching & Rate Limiting):
+  - Preference cache: 50 GB
+  - Template cache: 10 GB
+  - Rate limiter: 20 GB
+  - Idempotency store: 20 GB
+  - Total: 100 GB with replication = 200 GB
+  - Instance: 6 nodes (3 master + 3 replica) cache.r5.large
+  - Total: 6 × $0.126/hr × 730 hrs = ~$552/month
+```
+
+**Message Queue (Kafka/RabbitMQ):**
+
+```text
+Kafka Cluster:
+  - 16 priority queues (4 channels × 4 priorities)
+  - Throughput: 115K messages/sec peak
+  - Retention: 7 days (for reprocessing)
+  - Storage: 1B messages/day × 1 KB avg × 7 days = 7 TB
+  - Nodes: 12 brokers (3× replication)
+  - Instance type: r5.xlarge (4 vCPU, 32 GB RAM)
+  - Total: 12 × $0.252/hr × 730 hrs = ~$2,206/month
+```
+
+**Object Storage (S3/GCS):**
+
+```text
+Event Logs & Archives:
+  - 6 TB/month (event logs) + 21 TB/month (payloads) = 27 TB/month
+  - Retention: 90 days
+  - Total: 27 TB × 3 months = 81 TB
+  - S3 Standard: $0.023/GB = 81,000 GB × $0.023 = ~$1,863/month
+  - Lifecycle policy: move to Glacier after 30 days (reduce to ~$600/month)
+```
+
+**Total Monthly Infrastructure Cost:**
+
+```text
+Compute (API + Workers):           ~$25,300
+Databases (PostgreSQL + Redis):    ~$2,500
+Analytics (ClickHouse):            ~$580
+Message Queue (Kafka):             ~$2,200
+Storage (S3):                      ~$600
+Load Balancers & Networking:       ~$1,000
+Monitoring & Logging:              ~$500
+───────────────────────────────────────────
+Total Infrastructure:              ~$32,680/month
+
+Provider Costs:
+- Push (FCM/APNs): Free (infrastructure only)
+- Email (100M/day): 100M × $0.0005 = ~$50,000/month
+- SMS (100M/day): 100M × $0.02 (avg) = ~$2,000,000/month
+───────────────────────────────────────────
+Total with Providers:              ~$2,082,680/month
+
+Cost per notification: $2,082,680 / 1B = ~$0.002 per notification
+Cost without SMS/Email: ~$32,680 / 1B = ~$0.00003 per notification (push/in-app only)
+```
+
+**Cost Optimization Strategies:**
+
+- Use batching for SMS/Email to reduce count by 30-50%
+- Reserved instances: save 30-40% on compute
+- Spot instances for non-critical workers: save 60-70%
+- Compress and archive logs: save 70% on storage
+- Use cheaper email providers (SendGrid bulk): $0.0001/email
+- SMS: negotiate bulk rates or use cheaper providers for low-priority
+
 ---
 
 ## HIGH-LEVEL DESIGN
@@ -224,6 +394,168 @@ Provider costs (very rough):
 4. Jobs are placed into channel×priority queues; scheduler drains with quotas.
 5. Channel workers personalize via Template Service and send to providers with retry/backoff.
 6. Webhooks update status; events flow to analytics for delivery/open/click funnels.
+
+---
+
+## SEQUENCE DIAGRAMS
+
+### Notification Flow - Happy Path
+
+```mermaid
+sequenceDiagram
+    participant P as Producer Service
+    participant API as Notification API
+    participant Redis as Redis Cache
+    participant Orch as Orchestrator
+    participant PrefSvc as Preference Service
+    participant Fanout as Fan-out Worker
+    participant Queue as Priority Queue
+    participant Worker as Channel Worker
+    participant Template as Template Service
+    participant FCM as FCM/APNs
+    participant Analytics as Analytics Pipeline
+
+    P->>API: POST /v1/notifications<br/>{event: "new_comment", users: [...]}
+    API->>Redis: Check idempotency key
+    Redis-->>API: Not seen (cache miss)
+    API->>Redis: Store idempotency key (24h TTL)
+    API->>Orch: Enqueue event
+    API-->>P: 202 Accepted {enqueue_id}
+    
+    Orch->>PrefSvc: Batch get preferences (users)
+    PrefSvc->>Redis: Get from cache
+    Redis-->>PrefSvc: 95% cache hit
+    PrefSvc-->>Orch: User preferences
+    
+    Orch->>Orch: Apply quiet hours<br/>Map to channels & priorities
+    Orch->>Fanout: Fan-out request
+    
+    Fanout->>Fanout: Partition by user_id hash
+    Fanout->>Queue: Batch enqueue jobs (5K chunks)<br/>Push.Normal queue
+    
+    Worker->>Queue: Poll jobs (batch 100)
+    Worker->>Template: Get template & render
+    Template-->>Worker: Rendered payload
+    
+    Worker->>FCM: Send push notification<br/>HTTP/2 with auth
+    FCM-->>Worker: 200 OK {message_id}
+    
+    Worker->>Analytics: Emit "sent" event
+    
+    Note over FCM,Worker: Async delivery receipt
+    FCM->>Worker: Webhook: delivered
+    Worker->>Analytics: Emit "delivered" event
+    
+    Analytics->>Analytics: Aggregate metrics<br/>Update dashboards
+```
+
+### Push Notification with Retry
+
+```mermaid
+sequenceDiagram
+    participant Worker as Channel Worker
+    participant FCM as FCM Provider
+    participant DB as Notification Jobs DB
+    participant DLQ as Dead Letter Queue
+    participant Metrics as Metrics
+
+    Worker->>FCM: Send push (attempt 1)
+    FCM-->>Worker: 503 Service Unavailable
+    
+    Worker->>Worker: Classify error: Retryable
+    Worker->>Worker: Calculate backoff<br/>delay = 2^0 * 2s = 2s
+    Worker->>DB: Update job<br/>{attempts: 1, next_retry_at: now+2s}
+    Worker->>Metrics: Increment retry_attempts_total
+    
+    Note over Worker: Wait 2 seconds
+    
+    Worker->>FCM: Send push (attempt 2)
+    FCM-->>Worker: 429 Rate Limited
+    
+    Worker->>Worker: Calculate backoff<br/>delay = 2^1 * 2s = 4s
+    Worker->>DB: Update job<br/>{attempts: 2, next_retry_at: now+4s}
+    
+    Note over Worker: Wait 4 seconds
+    
+    Worker->>FCM: Send push (attempt 3)
+    FCM-->>Worker: 200 OK {message_id}
+    
+    Worker->>DB: Update job<br/>{status: "sent", provider_id}
+    Worker->>Metrics: Record success<br/>delivery_latency_seconds
+```
+
+### Fan-out for Large Broadcast
+
+```mermaid
+sequenceDiagram
+    participant Orch as Orchestrator
+    participant S3 as Blob Storage (S3)
+    participant Fanout1 as Fan-out Worker 1
+    participant Fanout2 as Fan-out Worker 2
+    participant FanoutN as Fan-out Worker N
+    participant Queue as Priority Queues
+
+    Note over Orch: Large broadcast:<br/>10M recipients
+    
+    Orch->>Orch: Detect large fan-out<br/>(recipients > 1M)
+    Orch->>S3: Upload recipient list<br/>key: fanout_job_123
+    S3-->>Orch: s3://bucket/fanout_job_123
+    
+    Orch->>Fanout1: {job_id, s3_key, partition: 0-999}
+    Orch->>Fanout2: {job_id, s3_key, partition: 1000-1999}
+    Orch->>FanoutN: {job_id, s3_key, partition: 9000-9999}
+    
+    par Parallel Fan-out
+        Fanout1->>S3: Stream read partition 0-999
+        S3-->>Fanout1: User IDs stream
+        Fanout1->>Fanout1: Dedupe, apply rate limits
+        Fanout1->>Queue: Batch enqueue (5K/batch)
+    and
+        Fanout2->>S3: Stream read partition 1000-1999
+        S3-->>Fanout2: User IDs stream
+        Fanout2->>Fanout2: Dedupe, apply rate limits
+        Fanout2->>Queue: Batch enqueue (5K/batch)
+    and
+        FanoutN->>S3: Stream read partition 9000-9999
+        S3-->>FanoutN: User IDs stream
+        FanoutN->>FanoutN: Dedupe, apply rate limits
+        FanoutN->>Queue: Batch enqueue (5K/batch)
+    end
+    
+    Note over Fanout1,FanoutN: Fan-out complete in parallel<br/>10M users in ~2 minutes
+```
+
+### Quiet Hours Handling
+
+```mermaid
+sequenceDiagram
+    participant Orch as Orchestrator
+    participant Pref as Preference Service
+    participant Queue as Scheduled Queue
+    participant Worker as Channel Worker
+    participant User as User Device
+
+    Orch->>Pref: Get user preferences
+    Pref-->>Orch: {quiet_hours: {start: "22:00", end: "07:00", tz: "PST"},<br/>priority: "normal"}
+    
+    Orch->>Orch: Check current time in user tz<br/>Current: 23:00 PST (in quiet hours)
+    
+    alt Priority is Urgent
+        Note over Orch: Bypass quiet hours<br/>with audit log
+        Orch->>Queue: Enqueue immediately
+        Orch->>Orch: Log audit event<br/>(quiet hours bypassed)
+    else Priority is Normal/Low
+        Note over Orch: Respect quiet hours
+        Orch->>Orch: Calculate not_before<br/>07:00 PST tomorrow
+        Orch->>Queue: Enqueue with delay<br/>{not_before: tomorrow 07:00 PST}
+    end
+    
+    Note over Queue,Worker: Wait until 07:00 PST
+    
+    Worker->>Queue: Poll (time >= not_before)
+    Queue-->>Worker: Job ready
+    Worker->>User: Deliver notification
+```
 
 ---
 
