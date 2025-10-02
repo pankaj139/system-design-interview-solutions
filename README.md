@@ -2,7 +2,7 @@
 
 **Repository Purpose:** This repository contains comprehensive, production-ready system design solutions for the most commonly asked interview questions at top tech companies. Each design follows a structured framework covering requirements, calculations, architecture, APIs, databases, trade-offs, and scalability considerations.
 
-**Last Updated:** October 1, 2025
+**Last Updated:** October 2, 2025
 
 ---
 
@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (8/52)
+## ✅ Completed Designs (9/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -189,7 +189,27 @@ Distributed message queue for event streaming across microservices with high thr
 
 ---
 
-## 📋 Upcoming Designs (44)
+### 9. [Social Media Platform System Design (Instagram/Twitter)](./social_media_platform_system_design.md)
+
+**Status:** ✅ Complete
+
+Large-scale social media platform with photo/video sharing, feed generation, and real-time engagement features.
+
+**Key Features:**
+
+- Hybrid fanout strategy (fan-out on write for regular users, fan-out on read for celebrities)
+- Multi-database approach (PostgreSQL, Cassandra, Neo4j, Redis, Elasticsearch, ClickHouse)
+- Media processing pipeline with 100K workers (FFmpeg-based)
+- ML-based feed ranking algorithm with personalization
+- Real-time updates via WebSocket and Redis Pub/Sub
+- Comprehensive API design (30+ endpoints)
+- Celebrity problem solution for accounts with 100M+ followers
+
+**Scale:** 500M DAU, 200M posts/day, 10B feed impressions/day, 99.9% uptime
+
+---
+
+## 📋 Upcoming Designs (43)
 
 ### Core Infrastructure & Storage
 
@@ -211,7 +231,7 @@ Distributed message queue for event streaming across microservices with high thr
 
 ### Social Media & Content
 
-- [ ] **Design a social media platform** (like Instagram or Twitter)
+- [x] **Design a social media platform** (like Instagram or Twitter)
 - [ ] **Design a feed/newsfeed system**
 - [ ] **Design a video streaming service** (like Netflix or YouTube)
 - [ ] **Design a system to find friends on social networks**
@@ -435,12 +455,12 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 8/52 (15.4%)
+**Completion Status:** 9/52 (17.3%)
 
-**Last Design Completed:** Pub/Sub Messaging System (Kafka)
+**Last Design Completed:** Social Media Platform (Instagram/Twitter)
 
 **Next Up:** Chat Application (WhatsApp)
-**Current Work:** Notification System
+**Current Work:** None
 
 ---
 
