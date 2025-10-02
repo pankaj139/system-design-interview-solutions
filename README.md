@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (9/52)
+## ✅ Completed Designs (10/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -209,7 +209,28 @@ Large-scale social media platform with photo/video sharing, feed generation, and
 
 ---
 
-## 📋 Upcoming Designs (43)
+### 10. [Chat Application System Design (WhatsApp)](./chat_application_system_design.md)
+
+**Status:** ✅ Complete
+
+Real-time messaging application with end-to-end encryption, multimedia support, and global scale.
+
+**Key Features:**
+
+- WebSocket connection management for 100M concurrent users
+- Signal Protocol implementation for end-to-end encryption
+- Message queue architecture with Kafka for reliability
+- Group chat fan-out strategies (up to 256 members)
+- Read receipt tracking without performance impact
+- Hot/warm/cold storage strategy for message retention
+- Push notifications for offline users
+- Cross-platform support (iOS, Android, Web)
+
+**Scale:** 500M DAU, 50B messages/day, <100ms delivery latency, 99.9% delivery guarantee
+
+---
+
+## 📋 Upcoming Designs (42)
 
 ### Core Infrastructure & Storage
 
@@ -225,7 +246,7 @@ Large-scale social media platform with photo/video sharing, feed generation, and
 ### Messaging & Communication
 
 - [x] **Design a pub/sub messaging system** (like Kafka)
-- [ ] **Design a chat application** (like WhatsApp)
+- [x] **Design a chat application** (like WhatsApp)
 - [ ] **Design a notification system** — 🚧 In Progress ([Notification System](./notification_system_design.md))
 - [ ] **Design a distributed stream processing system**
 
@@ -455,11 +476,11 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 9/52 (17.3%)
+**Completion Status:** 10/52 (19.2%)
 
-**Last Design Completed:** Social Media Platform (Instagram/Twitter)
+**Last Design Completed:** Chat Application (WhatsApp)
 
-**Next Up:** Chat Application (WhatsApp)
+**Next Up:** Notification System
 **Current Work:** None
 
 ---
