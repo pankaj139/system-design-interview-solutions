@@ -1630,7 +1630,7 @@ Conflict Resolution:
 #### Problem: Feed Generation Latency
 
 **Description:** ML ranking service becomes bottleneck during peak traffic
-**Solution:** 
+**Solution:**
 
 - Pre-compute feeds for active users during off-peak hours
 - Implement multiple ML model replicas with load balancing
