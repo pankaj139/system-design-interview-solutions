@@ -254,4 +254,3 @@ For N=3 replicas:
 2. **Scale**: Add virtual nodes, optimize Merkle trees
 3. **Multi-DC**: Cross-datacenter replication with local quorums
 4. **Advanced**: Compression, encryption, secondary indexes
-

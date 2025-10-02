@@ -76,14 +76,15 @@
 ## 💡 Interview Tips
 
 **Emphasize:**
+
 - Tiered storage for cost optimization
 - ML-based auto-tagging for search
 - CDN for fast global delivery
 - Deduplication for storage efficiency
 
 **Be Ready For:**
+
 - "How to handle uploads?" → Direct to S3, async processing pipeline
 - "How to search photos?" → ML tagging + Elasticsearch full-text search
 - "How to share albums?" → Permission table, shareable links with tokens
 - "How to optimize costs?" → Tiered storage, deduplication, compression
-

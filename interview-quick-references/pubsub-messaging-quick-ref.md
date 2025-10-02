@@ -91,14 +91,15 @@
 ## 💡 Interview Tips
 
 **Emphasize:**
+
 - Topic/subscription model for fan-out
 - At-least-once delivery with retries
 - Push vs pull trade-offs
 - Dead letter queue for failed messages
 
 **Be Ready For:**
+
 - "How to ensure delivery?" → Retries with exponential backoff + ACKs
 - "What if subscriber is down?" → Push retries or pull when back online
 - "How to scale?" → Partition topics, parallel workers
 - "Message ordering?" → Per-key ordering via partitioning
-

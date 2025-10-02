@@ -118,12 +118,14 @@
 ## 💡 Interview Tips
 
 **Start Here:**
+
 1. Draw multi-tier architecture (Edge → Regional → Origin)
 2. Explain GeoDNS routing
 3. Discuss cache invalidation strategies
 4. Calculate storage needed
 
 **Emphasize:**
+
 - GeoDNS for geographic routing
 - Multi-tier caching for efficiency
 - Cache invalidation strategies
@@ -131,6 +133,7 @@
 - >90% cache hit rate target
 
 **Be Ready For:**
+
 - "How to route users?" → GeoDNS + Anycast to nearest PoP
 - "How to invalidate cache?" → TTL + Purge API + versioned URLs
 - "What if origin is slow?" → Longer TTL, shield, origin optimization
@@ -139,6 +142,7 @@
 - "How to pre-warm cache?" → Push model before events
 
 **Don't Forget:**
+
 - Mention cache hit rate as key metric (>90%)
 - Discuss TTL strategy (static: 1 year, dynamic: 5 min)
 - Address cache key design (URL + headers)
@@ -159,9 +163,9 @@ Example: 1B × 100KB × 3 / 200 = 1.5TB per PoP
 ```
 
 **Common Mistakes:**
+
 - Not using GeoDNS (poor global latency)
 - No origin shield (vulnerable to cache miss storms)
 - Poor cache key design (low hit rate)
 - No invalidation strategy (stale content)
 - Single-tier caching (high origin load)
-

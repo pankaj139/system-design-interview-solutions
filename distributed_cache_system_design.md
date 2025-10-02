@@ -44,25 +44,27 @@ Usage:
   - [Set](#set)
   - [Sorted Set](#sorted-set)
   - [Hash](#hash)
-- [5. API DESIGN](#5-api-design)
+- [5. DATABASE DESIGN](#5-database-design)
+- [6. DATABASE SCHEMA](#6-database-schema)
+- [7. API DESIGN](#7-api-design)
   - [Basic Operations](#basic-operations)
   - [Data Structure Operations](#data-structure-operations)
-- [6. DATABASE SCHEMA](#6-database-schema)
-- [7. DEEP DIVE: CONSISTENT HASHING](#7-deep-dive-consistent-hashing)
+- [8. DEEP DIVE: CONSISTENT HASHING](#8-deep-dive-consistent-hashing)
   - [Virtual Nodes](#virtual-nodes)
-- [8. DEEP DIVE: REPLICATION](#8-deep-dive-replication)
+- [9. DEEP DIVE: REPLICATION](#9-deep-dive-replication)
   - [Master-Replica Architecture](#master-replica-architecture)
   - [Replication Lag](#replication-lag)
-- [9. DEEP DIVE: PERSISTENCE](#9-deep-dive-persistence)
+- [10. DEEP DIVE: PERSISTENCE](#10-deep-dive-persistence)
   - [RDB Snapshots](#rdb-snapshots)
   - [AOF (Append Only File)](#aof-append-only-file)
-- [10. DEEP DIVE: EVICTION POLICIES](#10-deep-dive-eviction-policies)
-- [11. SCALABILITY & PERFORMANCE](#11-scalability--performance)
+- [11. DEEP DIVE: EVICTION POLICIES](#11-deep-dive-eviction-policies)
+- [12. BOTTLENECKS & IMPROVEMENTS](#12-bottlenecks--improvements)
+- [13. SCALABILITY & PERFORMANCE](#13-scalability--performance)
   - [Horizontal Scaling](#horizontal-scaling)
   - [Performance Optimizations](#performance-optimizations)
-- [12. SECURITY](#12-security)
-- [13. MONITORING](#13-monitoring)
-- [14. TRADE-OFFS](#14-trade-offs)
+- [14. SECURITY](#14-security)
+- [15. MONITORING](#15-monitoring)
+- [16. TRADE-OFFS](#16-trade-offs)
 - [SUMMARY](#summary)
 
 ---
@@ -264,6 +266,18 @@ Peak Bandwidth (3x):
 
 ## 3. HIGH-LEVEL DESIGN
 
+### Core Components
+
+The distributed cache system consists of the following core components:
+
+1. **Cache Nodes**: In-memory storage nodes that store key-value pairs
+2. **Client Library**: Handles consistent hashing and routing logic
+3. **Sentinel/Coordinator**: Monitors node health and manages failover
+4. **Persistence Layer**: Optional disk-based storage for durability
+5. **Monitoring System**: Tracks metrics, logs, and performance
+
+### Architecture Diagram
+
 ### Architecture Overview
 
 ```mermaid
@@ -334,7 +348,9 @@ graph TB
     M1 -->|Logs| Logs
 ```
 
-### Data Flow Explanation
+### Data Flow
+
+#### Data Flow Explanation
 
 **Write Operation Flow:**
 
@@ -366,7 +382,152 @@ graph TB
 
 ---
 
-## 4. DATABASE DESIGN
+## 4. DATA STRUCTURES
+
+This section covers the core data structures supported by the distributed cache system.
+
+### String
+
+**Description**: The simplest data type - stores a string value against a key.
+
+**Use Cases**:
+
+- Session tokens
+- Configuration values
+- Counters (when used with INCR/DECR)
+- Cache database query results
+
+**Operations**:
+
+- `SET key value`: Store a string value
+- `GET key`: Retrieve a string value
+- `INCR key`: Increment numeric string by 1
+- `DECR key`: Decrement numeric string by 1
+
+**Example**:
+
+```text
+SET user:1001:session "abc123xyz"
+GET user:1001:session → "abc123xyz"
+SET page_views 0
+INCR page_views → 1
+```
+
+### List
+
+**Description**: Ordered collection of strings, implemented as a linked list.
+
+**Use Cases**:
+
+- Activity feeds
+- Message queues
+- Recent items list
+- Undo/redo stacks
+
+**Operations**:
+
+- `LPUSH key value`: Add to head of list
+- `RPUSH key value`: Add to tail of list
+- `LPOP key`: Remove and return head element
+- `RPOP key`: Remove and return tail element
+- `LRANGE key start stop`: Get range of elements
+
+**Example**:
+
+```text
+LPUSH notifications:user:1001 "New message"
+LPUSH notifications:user:1001 "Friend request"
+LRANGE notifications:user:1001 0 9 → ["Friend request", "New message"]
+```
+
+### Set
+
+**Description**: Unordered collection of unique strings, implemented as a hash table.
+
+**Use Cases**:
+
+- Unique visitor tracking
+- Tags on posts
+- Friend lists
+- Deduplication
+
+**Operations**:
+
+- `SADD key member`: Add member to set
+- `SREM key member`: Remove member from set
+- `SISMEMBER key member`: Check if member exists
+- `SMEMBERS key`: Get all members
+- `SINTER key1 key2`: Intersection of sets
+- `SUNION key1 key2`: Union of sets
+
+**Example**:
+
+```text
+SADD post:1001:tags "redis" "cache" "database"
+SADD post:1002:tags "redis" "performance"
+SINTER post:1001:tags post:1002:tags → ["redis"]
+```
+
+### Sorted Set
+
+**Description**: Collection of unique strings ordered by a numeric score.
+
+**Use Cases**:
+
+- Leaderboards
+- Priority queues
+- Time-series data
+- Auto-complete
+
+**Operations**:
+
+- `ZADD key score member`: Add member with score
+- `ZRANGE key start stop`: Get range by rank
+- `ZRANGEBYSCORE key min max`: Get range by score
+- `ZRANK key member`: Get rank of member
+- `ZINCRBY key increment member`: Increment score
+
+**Example**:
+
+```text
+ZADD leaderboard 1000 "player1"
+ZADD leaderboard 1500 "player2"
+ZADD leaderboard 1200 "player3"
+ZRANGE leaderboard 0 -1 WITHSCORES → ["player1", 1000, "player3", 1200, "player2", 1500]
+ZRANK leaderboard "player2" → 2
+```
+
+### Hash
+
+**Description**: Map of field-value pairs, similar to a nested object.
+
+**Use Cases**:
+
+- User profiles
+- Product details
+- Configuration objects
+- Structured data
+
+**Operations**:
+
+- `HSET key field value`: Set field in hash
+- `HGET key field`: Get field value
+- `HMSET key field1 value1 field2 value2`: Set multiple fields
+- `HGETALL key`: Get all field-value pairs
+- `HDEL key field`: Delete field
+
+**Example**:
+
+```text
+HSET user:1001 name "John Doe"
+HSET user:1001 email "john@example.com"
+HSET user:1001 age 30
+HGETALL user:1001 → {"name": "John Doe", "email": "john@example.com", "age": "30"}
+```
+
+---
+
+## 5. DATABASE DESIGN
 
 ### In-Memory Data Structures
 
@@ -488,7 +649,41 @@ Rewrite Strategy:
 
 ---
 
-## 5. API DESIGN
+## 6. DATABASE SCHEMA
+
+The distributed cache primarily operates on in-memory data structures, but for persistence and configuration, we maintain the following schemas:
+
+**Cache Metadata Schema:**
+
+```text
+Table: cache_nodes
+- node_id (STRING, PK): Unique identifier for cache node
+- ip_address (STRING): IP address of the node
+- port (INTEGER): Port number
+- status (ENUM): online, offline, degraded
+- role (ENUM): master, replica
+- shard_id (STRING): Shard identifier
+- last_heartbeat (TIMESTAMP): Last health check timestamp
+- memory_used (BIGINT): Current memory usage in bytes
+- memory_total (BIGINT): Total available memory in bytes
+
+Table: cluster_config
+- config_key (STRING, PK): Configuration parameter name
+- config_value (STRING): Configuration value
+- updated_at (TIMESTAMP): Last update timestamp
+- updated_by (STRING): Who made the update
+
+Table: replication_info
+- master_node_id (STRING, PK): Master node identifier
+- replica_node_id (STRING, PK): Replica node identifier
+- replication_offset (BIGINT): Current replication offset
+- replication_lag (INTEGER): Lag in milliseconds
+- status (ENUM): syncing, synced, disconnected
+```
+
+---
+
+## 7. API DESIGN
 
 ### Base Configuration
 
@@ -516,7 +711,11 @@ AUTH password
 
 ---
 
-### Core String Operations
+### Basic Operations
+
+This section covers the fundamental cache operations for storing and retrieving data.
+
+#### Core String Operations
 
 #### SET - Store a key-value pair
 
@@ -814,7 +1013,11 @@ Similar to INCR/INCRBY but subtracts value.
 
 ---
 
-### List Operations
+### Data Structure Operations
+
+This section covers operations for complex data structures (Lists, Sets, Hashes, Sorted Sets).
+
+#### List Operations
 
 #### LPUSH - Prepend to list
 
@@ -1540,9 +1743,9 @@ EXEC            # Execute atomically
 
 ---
 
-## 6. DEEP-DIVE COMPONENTS & TRADE-OFFS
+## 8. DEEP DIVE: CONSISTENT HASHING
 
-### Component 1: Consistent Hashing for Sharding
+This section explores consistent hashing as the core mechanism for distributing data across cache nodes.
 
 **Purpose**: Distribute keys evenly across multiple cache nodes while minimizing redistribution when nodes are added/removed.
 
@@ -1598,7 +1801,7 @@ class ConsistentHashRing:
         return self.ring[self.sorted_keys[idx]]
 ```
 
-**Trade-offs**:
+### Trade-offs
 
 #### Decision: Consistent Hashing vs Hash Slot-based Sharding
 
@@ -1614,9 +1817,29 @@ class ConsistentHashRing:
 - **Cons**: Higher memory overhead for ring structure
 - **Justification**: The overhead (150 \* 10 nodes \* 64 bytes = 96KB) is negligible
 
+### Virtual Nodes
+
+**Implementation**: Each physical node is represented by multiple virtual nodes (typically 150-200) on the hash ring.
+
+**Benefits**:
+
+- More even distribution of keys across nodes
+- When a node fails, its load distributes to multiple other nodes
+- When a node is added, it steals keys from multiple nodes
+
+**Trade-offs**:
+
+- Slightly more memory overhead for ring structure
+- Additional computation for hashing virtual nodes
+- Better load balancing outweighs the overhead
+
 ---
 
-### Component 2: Replication and Failover
+## 9. DEEP DIVE: REPLICATION
+
+This section covers how data is replicated across nodes for high availability and fault tolerance.
+
+### Master-Replica Architecture
 
 **Purpose**: Provide high availability by maintaining replicas and automatically promoting them on failure.
 
@@ -1717,6 +1940,29 @@ Failover Process:
   - Eventually consistent reads from replicas
 - **Justification**: Cache workloads prioritize performance over durability
 
+### Replication Lag
+
+**Definition**: The time delay between a write on the master and its application on replicas.
+
+**Causes**:
+
+- Network latency between master and replicas
+- High write throughput exceeding replica processing capacity
+- Replica performing expensive operations (snapshots, slow queries)
+
+**Monitoring**:
+
+- Track replication offset difference between master and replicas
+- Alert when lag exceeds threshold (e.g., > 5 seconds)
+- Monitor replica catch-up rate
+
+**Mitigation Strategies**:
+
+- Increase replica resources (CPU, network bandwidth)
+- Implement backpressure on master when lag is too high
+- Use multiple replicas to distribute read load
+- Consider synchronous replication for critical operations (at performance cost)
+
 #### Decision: Sentinel vs Embedded Cluster Mode
 
 - **Choice**: Sentinel-based (similar to Redis Sentinel)
@@ -1738,7 +1984,93 @@ Failover Process:
 
 ---
 
-### Component 3: Memory Management and Eviction
+## 10. DEEP DIVE: PERSISTENCE
+
+This section covers optional persistence mechanisms to provide durability guarantees.
+
+### RDB Snapshots
+
+**Description**: Point-in-time snapshots of the entire dataset saved to disk.
+
+**How it Works**:
+
+1. Fork child process (copy-on-write)
+2. Child process writes memory snapshot to disk
+3. Parent continues serving requests
+4. On completion, rename temp file to replace old snapshot
+
+**Configuration**:
+
+```text
+# Save snapshot if X changes in Y seconds
+save 900 1    # After 900 sec if at least 1 key changed
+save 300 10   # After 300 sec if at least 10 keys changed
+save 60 10000 # After 60 sec if at least 10000 keys changed
+```
+
+**Pros**:
+
+- Compact single file representing entire dataset
+- Fast restarts (faster than AOF replay)
+- Minimal impact on performance (COW mechanism)
+
+**Cons**:
+
+- Data loss risk (changes since last snapshot)
+- Fork can be expensive on large datasets
+- Not suitable for minimal data loss requirements
+
+**Use Cases**:
+
+- Backup and disaster recovery
+- Replica initialization
+- Development/testing environments
+
+### AOF (Append Only File)
+
+**Description**: Log of every write operation received by the server.
+
+**How it Works**:
+
+1. Server receives write command
+2. Command appended to AOF buffer
+3. Buffer flushed to disk based on fsync policy
+4. On restart, replay all commands to rebuild state
+
+**Fsync Policies**:
+
+- `always`: Fsync after every command (slowest, most durable)
+- `everysec`: Fsync once per second (balanced, recommended)
+- `no`: Let OS decide when to flush (fastest, least durable)
+
+**AOF Rewrite**:
+
+- Problem: AOF grows indefinitely
+- Solution: Periodically rewrite AOF with current state
+- Trigger: When AOF size exceeds threshold (e.g., 100% of base size)
+
+**Pros**:
+
+- Minimal data loss (especially with `always` policy)
+- Append-only (safer against corruption)
+- Human-readable format (debugging friendly)
+- Can be replayed to restore state
+
+**Cons**:
+
+- Larger file size than RDB
+- Slower restarts (need to replay all commands)
+- More I/O overhead during operation
+
+**Use Cases**:
+
+- When durability is critical
+- Audit logging requirements
+- Need to rebuild state from history
+
+---
+
+## 11. DEEP DIVE: EVICTION POLICIES
 
 **Purpose**: Efficiently manage limited memory resources and automatically evict data when memory limit is reached.
 
@@ -1841,7 +2173,7 @@ Fragmentation:
 - Mitigated by jemalloc and periodic defragmentation
 ```
 
-**Trade-offs**:
+### Trade-offs
 
 #### Decision: True LRU vs Approximate LRU
 
@@ -2056,7 +2388,7 @@ Cons: Risk of data loss, eventual consistency
 
 ---
 
-## 7. BOTTLENECKS & IMPROVEMENTS
+## 12. BOTTLENECKS & IMPROVEMENTS
 
 ### Potential Bottlenecks
 
@@ -2769,6 +3101,277 @@ Required for:
 - HyperLogLog for cardinality estimation
 - Bitmap for user activity tracking
 - Aggregations with sorted sets
+
+---
+
+## 13. SCALABILITY & PERFORMANCE
+
+This section covers strategies for scaling the distributed cache and optimizing performance.
+
+### Horizontal Scaling
+
+**Sharding Strategy**:
+
+- Add more shards to distribute load across more nodes
+- Use consistent hashing to minimize key redistribution
+- Each shard is independent and can scale separately
+
+**Process**:
+
+1. Add new cache nodes to the cluster
+2. Update consistent hash ring with new nodes
+3. Migrate keys from existing nodes to new nodes
+4. Update client configuration
+
+**Benefits**:
+
+- Linear scalability for both reads and writes
+- No single point of contention
+- Can add capacity on demand
+
+**Challenges**:
+
+- Key migration during rebalancing
+- Ensuring data consistency during migration
+- Client library updates
+
+### Performance Optimizations
+
+**1. Pipelining**:
+
+- Send multiple commands without waiting for responses
+- Reduces network round trips
+- Can achieve 10x improvement in throughput
+
+**2. Connection Pooling**:
+
+- Reuse TCP connections across requests
+- Avoid connection setup overhead
+- Typical pool size: 5-10 connections per client
+
+**3. Client-side Caching**:
+
+- Cache frequently accessed keys in application memory
+- Short TTL (1-10 seconds) to handle staleness
+- Can serve 100K+ requests/sec per instance
+
+**4. Read Replicas**:
+
+- Distribute read traffic across multiple replicas
+- Offload master from read-heavy workloads
+- Use for hot keys and analytics queries
+
+**5. Command Optimization**:
+
+- Use MGET/MSET instead of multiple GET/SET
+- Use HMGET/HMSET for hash fields
+- Avoid expensive commands (KEYS, FLUSHALL) in production
+
+---
+
+## 14. SECURITY
+
+This section covers security considerations for protecting cache data and preventing unauthorized access.
+
+**Authentication**:
+
+- Require password/token for client connections
+- Support multiple authentication mechanisms (password, TLS client certs)
+- Rotate credentials regularly
+
+**Authorization**:
+
+- Role-based access control (RBAC)
+- Different permissions for read/write/admin operations
+- Per-key or per-pattern access rules
+
+**Encryption**:
+
+- TLS/SSL for data in transit
+- Encrypt sensitive data before storing (application-level)
+- Optional encryption at rest for persistent snapshots
+
+**Network Security**:
+
+- Deploy cache nodes in private network (VPC)
+- Use security groups/firewall rules to restrict access
+- No public internet exposure
+
+**Audit Logging**:
+
+- Log all administrative operations
+- Track authentication failures
+- Monitor suspicious patterns (brute force, data exfiltration)
+
+**DDoS Protection**:
+
+- Rate limiting per client/IP
+- Connection limits
+- Command execution limits
+
+---
+
+## 15. MONITORING
+
+This section covers observability and monitoring strategies for the distributed cache.
+
+**Key Metrics**:
+
+1. **Performance Metrics**:
+   - Latency (p50, p99, p99.9)
+   - Throughput (ops/sec)
+   - Hit rate (cache hits / total requests)
+   - Command execution time
+
+2. **Resource Metrics**:
+   - Memory usage (used/total)
+   - CPU utilization
+   - Network bandwidth (in/out)
+   - Disk I/O (for persistence)
+
+3. **Availability Metrics**:
+   - Uptime percentage
+   - Failover count
+   - Replication lag
+   - Connection errors
+
+4. **Data Metrics**:
+   - Total keys
+   - Evicted keys count
+   - Expired keys count
+   - Key distribution across shards
+
+**Monitoring Tools**:
+
+- Prometheus for metrics collection
+- Grafana for visualization
+- ELK Stack for log aggregation
+- PagerDuty/Opsgenie for alerting
+
+**Alerts**:
+
+- High latency (p99 > 5ms)
+- Low hit rate (< 80%)
+- High memory usage (> 85%)
+- Replication lag (> 5 seconds)
+- Node failures
+- Abnormal traffic patterns
+
+**Health Checks**:
+
+- Liveness probe: Check process is running
+- Readiness probe: Check can serve traffic
+- Sentinel health checks for automatic failover
+
+---
+
+## 16. TRADE-OFFS
+
+This section summarizes key design trade-offs made in the distributed cache system.
+
+### Key Trade-offs
+
+#### 1. Consistency vs Availability
+
+**Decision**: Favor availability (AP in CAP theorem)
+
+- Use asynchronous replication (eventual consistency)
+- Accept potential data loss on master failure
+- **Why**: Cache workloads prioritize speed over perfect consistency
+
+#### 2. Memory vs Durability
+
+**Decision**: Primarily in-memory with optional persistence
+
+- No durability guarantees by default
+- Optional RDB/AOF for critical use cases
+- **Why**: Caches are designed for speed; source of truth is elsewhere
+
+#### 3. Simplicity vs Features
+
+**Decision**: Simple data model with rich data structures
+
+- No complex transactions or joins
+- Support common patterns (strings, lists, sets, hashes)
+- **Why**: Keeps performance predictable and implementation simple
+
+#### 4. Exact LRU vs Approximate LRU
+
+**Decision**: Approximate LRU for eviction
+
+- Sample keys instead of tracking all accesses
+- 24 bits per key vs full linked list
+- **Why**: 99% accuracy with 1% memory overhead
+
+#### 5. Synchronous vs Asynchronous Replication
+
+**Decision**: Asynchronous replication
+
+- Master doesn't wait for replica ACKs
+- Risk of data loss on failover
+- **Why**: 10x better write throughput for cache workloads
+
+#### 6. Client-side vs Server-side Sharding
+
+**Decision**: Client-side sharding (consistent hashing in client library)
+
+- Client calculates target shard
+- No proxy layer overhead
+- **Why**: Lower latency, fewer failure points
+
+#### 7. Active vs Passive Expiration
+
+**Decision**: Hybrid approach (both active and passive)
+
+- Check expiration on access (passive)
+- Periodic background cleanup (active)
+- **Why**: Balance between CPU usage and memory efficiency
+
+---
+
+## SUMMARY
+
+The distributed cache system design presented in this document provides a comprehensive blueprint for building high-performance, scalable caching solutions. Here are the key takeaways:
+
+**Core Design Principles**:
+
+1. **In-memory storage** for sub-millisecond latency
+2. **Consistent hashing** for scalable sharding
+3. **Master-replica replication** for high availability
+4. **Multiple data structures** for flexible use cases
+5. **Optional persistence** for durability when needed
+
+**Performance Characteristics**:
+
+- **Latency**: < 1ms for most operations
+- **Throughput**: 100K+ ops/sec per node
+- **Scalability**: Linear scaling through sharding
+- **Availability**: 99.99% with proper replication
+
+**Best For**:
+
+- Session storage
+- Database query caching
+- Real-time analytics
+- Leaderboards and counters
+- Pub/sub messaging
+
+**Not Suitable For**:
+
+- Primary data storage (use database instead)
+- Strong consistency requirements
+- Complex transactions
+- Large binary objects (> 10MB)
+
+**Production Considerations**:
+
+- Monitor cache hit rates and adjust capacity
+- Set appropriate TTLs for different data types
+- Use persistence for critical data
+- Implement proper security controls
+- Plan for failure scenarios
+
+This design balances trade-offs to optimize for the 90% use case of high-performance caching while remaining flexible enough to adapt to specific requirements.
 
 ---
 

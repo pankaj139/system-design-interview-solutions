@@ -227,4 +227,3 @@ Frequency: Every 60s (trade-off: overhead vs recovery)
 - No checkpointing (data loss on failure)
 - Too many partitions (coordination overhead)
 - Poor partition key (hot partitions)
-

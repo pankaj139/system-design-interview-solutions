@@ -109,12 +109,14 @@ Memory overhead: ~50 bytes per key-value
 - **What:** Application manages cache population (not write-through)
 - **Why:** Gives application control, prevents cache pollution
 - **Detail:**
+
   ```text
   1. Check cache for key
   2. If miss: Query database
   3. Store result in cache with TTL
   4. On write: Invalidate cache, write to DB
   ```
+
 - **Alternative:** Write-through (slower writes), write-behind (complexity)
 
 ### Point 4: Replication for Availability
@@ -258,4 +260,3 @@ Monitor: Should be < 20% of insertions
 - Network partition → Serve from other nodes, some misses
 - Memory full → Eviction kicks in, hit rate drops
 - Cold start → Gradual cache warming, DB load spike
-

@@ -94,14 +94,15 @@
 ## 💡 Interview Tips
 
 **Emphasize:**
+
 - Block-level deduplication for bandwidth savings
 - Delta sync for efficiency
 - Conflict detection with version vectors
 - Metadata separation for performance
 
 **Be Ready For:**
+
 - "How to sync 1GB file change?" → Only upload modified blocks
 - "What if edited on 2 devices?" → Detect conflict, create copies
 - "How to share files?" → Shared folder with permission table
 - "How to version files?" → Keep block history, lazy deletion
-
