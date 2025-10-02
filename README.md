@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (12/52)
+## ✅ Completed Designs (13/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -271,9 +271,28 @@ Cloud file storage and synchronization service with real-time sync, versioning, 
 
 **Scale:** 100M users, 100 PB data, <1s sync latency, 99.9% uptime
 
+### 13. [Newsfeed System Design (Facebook/LinkedIn Feed)](./newsfeed_system_design.md)
+
+**Status:** ✅ Complete
+
+Personalized newsfeed system for social media platforms with real-time updates and ML-based ranking.
+
+**Key Features:**
+
+- Hybrid fan-out strategy (write vs read optimization for different user tiers)
+- ML-powered personalization with engagement prediction models
+- Multi-level caching (CDN, Redis, database) for sub-300ms load times
+- Real-time updates via WebSocket with polling fallback
+- Celebrity user handling (>1M followers) with specialized fan-out
+- Comprehensive pagination with cursor-based infinite scroll
+- Privacy filtering and content moderation pipeline
+- Geographic distribution with multi-region deployment
+
+**Scale:** 300M DAU, 100M posts/day, <300ms feed load time, 99.9% uptime
+
 ---
 
-## 📋 Upcoming Designs (40)
+## 📋 Upcoming Designs (39)
 
 ### Core Infrastructure & Storage
 
@@ -296,7 +315,7 @@ Cloud file storage and synchronization service with real-time sync, versioning, 
 ### Social Media & Content
 
 - [x] **Design a social media platform** (like Instagram or Twitter)
-- [ ] **Design a feed/newsfeed system**
+- [x] **Design a feed/newsfeed system** (like Facebook/LinkedIn Feed)
 - [ ] **Design a video streaming service** (like Netflix or YouTube)
 - [ ] **Design a system to find friends on social networks**
 
@@ -519,9 +538,9 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 12/52 (23.1%)
+**Completion Status:** 13/52 (25.0%)
 
-**Last Design Completed:** File Storage Service (Dropbox)
+**Last Design Completed:** Newsfeed System (Facebook/LinkedIn Feed)
 
 **Next Up:** Notification System
 **Current Work:** None

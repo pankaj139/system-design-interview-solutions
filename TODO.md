@@ -4,18 +4,18 @@
 
 **Last Updated:** October 2, 2025
 
-**Progress:** 12/52 (23.1% Complete)
+**Progress:** 13/52 (25.0% Complete)
 
 ---
 
 ## 📊 Progress Overview
 
 ```text
-✅ Completed: 12
+✅ Completed: 13
 🚧 In Progress: 0
-📝 Planned: 40
+📝 Planned: 39
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[█████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 23.1%
+[██████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 25.0%
 ```
 
 ---
@@ -130,9 +130,18 @@
 - **Key Features:** File chunking (4 MB) with deduplication for storage efficiency, delta sync algorithm for bandwidth optimization (90% reduction), hybrid database architecture (PostgreSQL + Cassandra), version history (30 days) with efficient storage, conflict detection and resolution strategies, client-side encryption for end-to-end privacy, real-time sync via WebSocket with <1 second latency, file sharing with granular permissions, S3 integration with multi-tier storage optimization
 - **Lines:** 2,500+ (comprehensive)
 
+### 13. ✅ Newsfeed System Design (Facebook/LinkedIn Feed)
+
+- **Status:** Complete
+- **File:** `newsfeed_system_design.md`
+- **Completed:** October 2, 2025
+- **Scale:** 300M DAU, 100M posts/day, <300ms feed load time, 99.9% uptime
+- **Key Features:** Hybrid fan-out strategy (write vs read optimization for different user tiers), ML-powered personalization with engagement prediction models, multi-level caching (CDN, Redis, database) for sub-300ms load times, real-time updates via WebSocket with polling fallback, celebrity user handling (>1M followers) with specialized fan-out, comprehensive pagination with cursor-based infinite scroll, privacy filtering and content moderation pipeline, geographic distribution with multi-region deployment
+- **Lines:** 3,800+ (comprehensive)
+
 ---
 
-## 📋 Pending Designs (40)
+## 📋 Pending Designs (39)
 
 ### 💬 Messaging & Real-Time Systems (Next Priority)
 
@@ -170,13 +179,14 @@
 - **Actual Time:** 4 hours
 - **Key Concepts:** Feed generation, follower/following, media storage, timeline algorithms, hybrid fanout
 
-#### 11. ⬜ Newsfeed System
+#### 11. ✅ Newsfeed System (Facebook/LinkedIn Feed)
 
-- **Status:** Not Started
+- **Status:** Complete
+- **Completed:** October 2, 2025
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐ Hard
-- **Estimated Time:** 3-4 hours
-- **Key Concepts:** Fan-out on write vs read, ranking algorithms, personalization, caching
+- **Actual Time:** 4 hours
+- **Key Concepts:** Fan-out on write vs read, ranking algorithms, personalization, caching, ML-based ranking
 
 #### 13. ⬜ Video Streaming Service (Netflix/YouTube)
 
@@ -676,8 +686,8 @@ Before marking a design as complete, ensure:
 
 ---
 
-**Last Activity:** October 2, 2025 - Completed File Storage Service System Design (Dropbox)
+**Last Activity:** October 2, 2025 - Completed Newsfeed System Design (Facebook/LinkedIn Feed)
 
-**Next Milestone:** Complete 12 designs by end of Q4 2025 - 12/12 done ✅
+**Next Milestone:** Complete 15 designs by end of Q4 2025 - 13/15 in progress
 
 **Target:** Complete all 52 designs by Q4 2026
