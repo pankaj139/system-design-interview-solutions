@@ -11,14 +11,32 @@
 1. [Requirements & Clarification](#requirements--clarification)
 2. [Back-of-the-Envelope Calculations](#back-of-the-envelope-calculations)
 3. [High-Level Design](#high-level-design)
+   - [System Architecture Diagram](#system-architecture-diagram)
+   - [Data Flow Explanation](#data-flow-explanation)
+   - [Load Balancing Strategy](#load-balancing-strategy)
 4. [Database Design](#database-design)
+   - [Data Consistency Patterns (Extended)](#data-consistency-patterns-extended)
 5. [API Design](#api-design)
 6. [Deep-Dive Components](#deep-dive-components)
+   - [Component 1: Feed Generation System](#component-1-feed-generation-system)
+   - [Component 2: Media Processing Pipeline](#component-2-media-processing-pipeline)
+   - [Component 3: Fanout Service](#component-3-fanout-service)
+   - [Component 4: WebSocket Server Architecture](#websocket-server-architecture-deep-dive)
+   - [Component 5: Notification Service](#notification-service-deep-dive)
 7. [Trade-Offs Analysis](#trade-offs-analysis)
 8. [Caching Strategy](#caching-strategy)
 9. [Bottlenecks & Improvements](#bottlenecks--improvements)
+   - [Potential Bottlenecks & Solutions](#potential-bottlenecks--solutions)
+   - [Extended Edge Cases & Failure Scenarios](#extended-edge-cases--failure-scenarios)
+   - [Disaster Recovery & Business Continuity](#disaster-recovery--business-continuity)
+   - [Deployment Strategy](#deployment-strategy)
+   - [Testing Strategy](#testing-strategy)
+   - [Advanced Optimization Techniques](#advanced-optimization-techniques)
+   - [Cost Analysis](#cost-analysis)
+   - [SLA/SLO/SLI Definitions](#slaslosli-definitions)
 10. [Security Considerations](#security-considerations)
 11. [Future Enhancements](#future-enhancements)
+12. [Conclusion](#conclusion)
 
 ---
 
@@ -484,6 +502,239 @@ graph TB
 
 ---
 
+## Load Balancing Strategy
+
+### Layer 4 vs Layer 7 Load Balancing
+
+**Decision Matrix:**
+
+```text
+Layer 4 (Transport Layer):
+Use for: Database connections, high-throughput services
+Pros:
+  - Faster (no packet inspection)
+  - Lower latency
+  - Higher throughput
+Cons:
+  - No content-based routing
+  - No SSL termination
+  - Limited health checks
+
+Layer 7 (Application Layer):
+Use for: API Gateway, HTTP services
+Pros:
+  - Content-based routing
+  - SSL termination
+  - Advanced health checks
+  - Request rewriting
+Cons:
+  - Higher latency
+  - More CPU intensive
+  - Lower throughput
+```
+
+**Our Configuration:**
+
+```yaml
+# L7 Load Balancer (API Gateway)
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway-lb
+spec:
+  type: LoadBalancer
+  selector:
+    app: api-gateway
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8443
+      protocol: TCP
+  sessionAffinity: None
+  loadBalancerSourceRanges:
+    - 0.0.0.0/0
+  
+# L7 Configuration (Nginx)
+upstream api_servers {
+    least_conn;  # Least connections algorithm
+    
+    server api-1.internal:8080 weight=10 max_fails=3 fail_timeout=30s;
+    server api-2.internal:8080 weight=10 max_fails=3 fail_timeout=30s;
+    server api-3.internal:8080 weight=10 max_fails=3 fail_timeout=30s;
+    
+    # Health check
+    check interval=3000 rise=2 fall=3 timeout=1000;
+}
+
+server {
+    listen 443 ssl http2;
+    
+    # SSL configuration
+    ssl_certificate /etc/ssl/certs/socialmedia.crt;
+    ssl_certificate_key /etc/ssl/private/socialmedia.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    
+    # Connection pooling
+    keepalive_timeout 65;
+    keepalive_requests 100;
+    
+    location /api/ {
+        proxy_pass http://api_servers;
+        proxy_http_version 1.1;
+        
+        # Header forwarding
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Timeouts
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # Retry logic
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_next_upstream_tries 3;
+    }
+}
+```
+
+### Health Check Mechanisms
+
+**Multi-Layer Health Checks:**
+
+```python
+class HealthCheckService:
+    def __init__(self):
+        self.checks = {
+            'shallow': self.shallow_health_check,
+            'deep': self.deep_health_check,
+            'dependency': self.dependency_health_check
+        }
+    
+    def shallow_health_check(self):
+        """Quick check - is the service responding?"""
+        return {
+            'status': 'healthy',
+            'timestamp': time.time(),
+            'version': '1.2.3'
+        }
+    
+    def deep_health_check(self):
+        """Comprehensive check - are all components working?"""
+        checks = {}
+        overall_healthy = True
+        
+        # Check database connectivity
+        try:
+            db.execute('SELECT 1')
+            checks['database'] = 'healthy'
+        except Exception as e:
+            checks['database'] = f'unhealthy: {e}'
+            overall_healthy = False
+        
+        # Check cache connectivity
+        try:
+            redis.ping()
+            checks['cache'] = 'healthy'
+        except Exception as e:
+            checks['cache'] = f'unhealthy: {e}'
+            overall_healthy = False
+        
+        # Check message queue
+        try:
+            kafka.list_topics(timeout=1)
+            checks['message_queue'] = 'healthy'
+        except Exception as e:
+            checks['message_queue'] = f'unhealthy: {e}'
+            overall_healthy = False
+        
+        # Check disk space
+        disk_usage = psutil.disk_usage('/')
+        if disk_usage.percent > 90:
+            checks['disk_space'] = f'unhealthy: {disk_usage.percent}% used'
+            overall_healthy = False
+        else:
+            checks['disk_space'] = 'healthy'
+        
+        # Check memory
+        memory = psutil.virtual_memory()
+        if memory.percent > 90:
+            checks['memory'] = f'unhealthy: {memory.percent}% used'
+            overall_healthy = False
+        else:
+            checks['memory'] = 'healthy'
+        
+        return {
+            'status': 'healthy' if overall_healthy else 'unhealthy',
+            'checks': checks,
+            'timestamp': time.time()
+        }
+    
+    def dependency_health_check(self):
+        """Check external dependencies"""
+        checks = {}
+        
+        # Check S3 connectivity
+        try:
+            s3.head_bucket(Bucket='socialmedia-media')
+            checks['s3'] = 'healthy'
+        except:
+            checks['s3'] = 'unhealthy'
+        
+        # Check CDN
+        try:
+            response = requests.head('https://cdn.socialmedia.com/health', timeout=2)
+            checks['cdn'] = 'healthy' if response.status_code == 200 else 'unhealthy'
+        except:
+            checks['cdn'] = 'unhealthy'
+        
+        return {
+            'status': 'healthy' if all(v == 'healthy' for v in checks.values()) else 'degraded',
+            'checks': checks,
+            'timestamp': time.time()
+        }
+```
+
+### Session Affinity (Sticky Sessions)
+
+**When to Use:**
+
+```text
+Use sticky sessions for:
+- WebSocket connections
+- Stateful operations
+- Temporary session data
+
+DON'T use for:
+- REST APIs (should be stateless)
+- High-availability requirements
+- Geographic distribution
+```
+
+**Implementation:**
+
+```nginx
+# Nginx sticky sessions using IP hash
+upstream websocket_servers {
+    ip_hash;  # Same client always goes to same server
+    
+    server ws-1.internal:8080;
+    server ws-2.internal:8080;
+    server ws-3.internal:8080;
+}
+
+# Alternative: Cookie-based sticky sessions
+upstream api_servers {
+    server api-1.internal:8080;
+    server api-2.internal:8080;
+    
+    sticky cookie srv_id expires=1h domain=.socialmedia.com path=/;
+}
+```
+
+---
+
 ## Database Design
 
 ### Database Selection Strategy
@@ -815,6 +1066,183 @@ Rationale:
 - Distribute load evenly
 - Allow independent scaling
 - Fault isolation
+```
+
+---
+
+## Data Consistency Patterns (Extended)
+
+### Read-After-Write Consistency
+
+**Scenario:** User creates post and immediately refreshes feed
+
+**Problem:**
+
+```text
+T0: User creates post
+T1: Post written to primary DB (us-east)
+T2: User refreshes feed (routed to us-west replica)
+T3: Replication lag → Post not yet in replica
+T4: User doesn't see their own post!
+```
+
+#### Solution: Route to Primary for Recent Writes
+
+```python
+class ConsistentReadRouter:
+    def __init__(self):
+        self.write_tracking = {}  # user_id -> timestamp
+        self.replication_lag_threshold = 2  # seconds
+    
+    def record_write(self, user_id):
+        """Track when user performed write"""
+        self.write_tracking[user_id] = time.time()
+    
+    def route_read(self, user_id, operation):
+        """Route read to ensure consistency"""
+        last_write = self.write_tracking.get(user_id)
+        
+        if last_write:
+            time_since_write = time.time() - last_write
+            
+            if time_since_write < self.replication_lag_threshold:
+                # Route to primary for consistency
+                return self.read_from_primary(operation)
+            else:
+                # Replication should have caught up
+                del self.write_tracking[user_id]
+                return self.read_from_replica(operation)
+        else:
+            # No recent writes, use replica
+            return self.read_from_replica(operation)
+
+# Usage
+@router.post('/posts')
+def create_post(post_data, user_id):
+    post = db_primary.create_post(post_data)
+    
+    # Track write
+    consistent_router.record_write(user_id)
+    
+    return post
+
+@router.get('/feed')
+def get_feed(user_id):
+    # Route intelligently
+    return consistent_router.route_read(user_id, lambda: fetch_feed(user_id))
+```
+
+### Conflict Resolution with CRDTs
+
+**Scenario:** Offline-first mobile app allows likes while offline
+
+**Problem:**
+
+```text
+Device A (offline):
+- User likes post #123
+- Stores locally: likes[123] = true
+
+Device B (offline):
+- Same user unlikes post #123
+- Stores locally: likes[123] = false
+
+Both sync later → Conflict!
+```
+
+#### Solution: Conflict-Free Replicated Data Type (CRDT)
+
+```python
+class LWW_Element_Set:
+    """
+    Last-Write-Wins Element Set CRDT
+    Each element has a timestamp
+    """
+    def __init__(self):
+        self.add_set = {}  # element -> timestamp
+        self.remove_set = {}  # element -> timestamp
+    
+    def add(self, element, timestamp=None):
+        """Add element with timestamp"""
+        if timestamp is None:
+            timestamp = time.time()
+        
+        self.add_set[element] = max(
+            self.add_set.get(element, 0),
+            timestamp
+        )
+    
+    def remove(self, element, timestamp=None):
+        """Remove element with timestamp"""
+        if timestamp is None:
+            timestamp = time.time()
+        
+        self.remove_set[element] = max(
+            self.remove_set.get(element, 0),
+            timestamp
+        )
+    
+    def contains(self, element):
+        """Check if element exists"""
+        add_time = self.add_set.get(element, 0)
+        remove_time = self.remove_set.get(element, 0)
+        
+        # Element exists if:
+        # - It was added AND
+        # - (Never removed OR add timestamp > remove timestamp)
+        return add_time > 0 and add_time > remove_time
+    
+    def merge(self, other):
+        """Merge with another CRDT (commutative, associative, idempotent)"""
+        result = LWW_Element_Set()
+        
+        # Merge add sets (take max timestamp)
+        all_elements = set(self.add_set.keys()) | set(other.add_set.keys())
+        for element in all_elements:
+            result.add_set[element] = max(
+                self.add_set.get(element, 0),
+                other.add_set.get(element, 0)
+            )
+        
+        # Merge remove sets (take max timestamp)
+        all_elements = set(self.remove_set.keys()) | set(other.remove_set.keys())
+        for element in all_elements:
+            result.remove_set[element] = max(
+                self.remove_set.get(element, 0),
+                other.remove_set.get(element, 0)
+            )
+        
+        return result
+
+# Usage for like system
+class DistributedLikeSystem:
+    def __init__(self):
+        self.user_likes = {}  # user_id -> LWW_Element_Set of post_ids
+    
+    def like_post(self, user_id, post_id, timestamp=None):
+        if user_id not in self.user_likes:
+            self.user_likes[user_id] = LWW_Element_Set()
+        
+        self.user_likes[user_id].add(post_id, timestamp)
+    
+    def unlike_post(self, user_id, post_id, timestamp=None):
+        if user_id not in self.user_likes:
+            self.user_likes[user_id] = LWW_Element_Set()
+        
+        self.user_likes[user_id].remove(post_id, timestamp)
+    
+    def has_liked(self, user_id, post_id):
+        if user_id not in self.user_likes:
+            return False
+        
+        return self.user_likes[user_id].contains(post_id)
+    
+    def sync_with_server(self, user_id, server_likes):
+        """Merge local changes with server state"""
+        if user_id not in self.user_likes:
+            self.user_likes[user_id] = server_likes
+        else:
+            self.user_likes[user_id] = self.user_likes[user_id].merge(server_likes)
 ```
 
 ---
@@ -2122,6 +2550,525 @@ def fanout_influencer(post, author):
 
 ---
 
+## WebSocket Server Architecture (Deep Dive)
+
+### WebSocket Connection Management
+
+**Architecture:**
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│           WebSocket Server Architecture                  │
+├─────────────────────────────────────────────────────────┤
+│                                                           │
+│  Client Connections                                       │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐                 │
+│  │ User A  │  │ User B  │  │ User C  │                 │
+│  │ Mobile  │  │  Web    │  │ Mobile  │                 │
+│  └────┬────┘  └────┬────┘  └────┬────┘                 │
+│       │            │            │                        │
+│       ▼            ▼            ▼                        │
+│  ┌───────────────────────────────────┐                  │
+│  │    Load Balancer (L4/L7)          │                  │
+│  │    - Session affinity             │                  │
+│  │    - Health checks                │                  │
+│  └───────────┬───────────────────────┘                  │
+│              │                                           │
+│       ┌──────┼──────┐                                   │
+│       ▼      ▼      ▼                                   │
+│  ┌────────┐ ┌────────┐ ┌────────┐                      │
+│  │  WS    │ │  WS    │ │  WS    │                      │
+│  │Server 1│ │Server 2│ │Server 3│                      │
+│  │        │ │        │ │        │                      │
+│  │10k conn│ │10k conn│ │10k conn│                      │
+│  └────┬───┘ └────┬───┘ └────┬───┘                      │
+│       │          │          │                           │
+│       └──────────┼──────────┘                           │
+│                  │                                       │
+│                  ▼                                       │
+│       ┌─────────────────────┐                           │
+│       │  Redis Pub/Sub      │                           │
+│       │  - User channels    │                           │
+│       │  - Broadcast events │                           │
+│       └─────────────────────┘                           │
+│                                                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Implementation:**
+
+```python
+import asyncio
+import websockets
+import redis.asyncio as redis
+import json
+
+class WebSocketServer:
+    def __init__(self):
+        self.connections = {}  # user_id -> set of websocket connections
+        self.redis = redis.Redis(host='redis.internal', decode_responses=True)
+        self.pubsub = None
+    
+    async def start(self):
+        """Start WebSocket server"""
+        # Start Redis Pub/Sub listener
+        self.pubsub = self.redis.pubsub()
+        asyncio.create_task(self.listen_to_redis())
+        
+        # Start WebSocket server
+        async with websockets.serve(self.handle_connection, "0.0.0.0", 8080):
+            await asyncio.Future()  # Run forever
+    
+    async def handle_connection(self, websocket, path):
+        """Handle new WebSocket connection"""
+        user_id = None
+        
+        try:
+            # Authenticate
+            auth_message = await websocket.recv()
+            user_id = await self.authenticate(auth_message)
+            
+            if not user_id:
+                await websocket.close(1008, "Authentication failed")
+                return
+            
+            # Register connection
+            if user_id not in self.connections:
+                self.connections[user_id] = set()
+            self.connections[user_id].add(websocket)
+            
+            # Subscribe to user's channel
+            await self.pubsub.subscribe(f'user:{user_id}:updates')
+            
+            logger.info(f'User {user_id} connected, total connections: {len(self.connections[user_id])}')
+            
+            # Send initial state
+            await self.send_initial_state(websocket, user_id)
+            
+            # Handle incoming messages
+            async for message in websocket:
+                await self.handle_message(user_id, message)
+        
+        except websockets.exceptions.ConnectionClosed:
+            logger.info(f'User {user_id} disconnected')
+        
+        finally:
+            # Cleanup
+            if user_id and user_id in self.connections:
+                self.connections[user_id].discard(websocket)
+                if not self.connections[user_id]:
+                    del self.connections[user_id]
+                    await self.pubsub.unsubscribe(f'user:{user_id}:updates')
+    
+    async def listen_to_redis(self):
+        """Listen to Redis Pub/Sub and broadcast to WebSocket clients"""
+        async for message in self.pubsub.listen():
+            if message['type'] == 'message':
+                channel = message['channel']
+                data = json.loads(message['data'])
+                
+                # Extract user_id from channel name
+                user_id = channel.split(':')[1]
+                
+                # Send to all connections for this user
+                await self.broadcast_to_user(user_id, data)
+    
+    async def broadcast_to_user(self, user_id, data):
+        """Send message to all connections for a user"""
+        if user_id not in self.connections:
+            return
+        
+        # Send to all connections concurrently
+        tasks = [
+            ws.send(json.dumps(data))
+            for ws in self.connections[user_id]
+        ]
+        
+        await asyncio.gather(*tasks, return_exceptions=True)
+    
+    async def send_initial_state(self, websocket, user_id):
+        """Send initial state when user connects"""
+        # Fetch unread notifications count
+        unread_count = await self.get_unread_notifications(user_id)
+        
+        await websocket.send(json.dumps({
+            'type': 'initial_state',
+            'unread_notifications': unread_count,
+            'timestamp': time.time()
+        }))
+    
+    async def handle_message(self, user_id, message):
+        """Handle incoming WebSocket message"""
+        try:
+            data = json.loads(message)
+            msg_type = data.get('type')
+            
+            if msg_type == 'ping':
+                # Respond to keep-alive ping
+                await self.send_to_user(user_id, {'type': 'pong'})
+            
+            elif msg_type == 'mark_notification_read':
+                # Mark notification as read
+                notification_id = data['notification_id']
+                await self.mark_notification_read(user_id, notification_id)
+        
+        except json.JSONDecodeError:
+            logger.error(f'Invalid JSON from user {user_id}')
+
+# Integration with application
+class NotificationService:
+    def __init__(self):
+        self.redis = redis.Redis()
+    
+    async def notify_user(self, user_id, event_type, data):
+        """Publish notification to user's channel"""
+        await self.redis.publish(
+            f'user:{user_id}:updates',
+            json.dumps({
+                'type': event_type,
+                'data': data,
+                'timestamp': time.time()
+            })
+        )
+
+# Usage
+notification_service = NotificationService()
+
+@event_handler('engagement.like')
+async def on_post_liked(post_id, liker_id):
+    post = get_post(post_id)
+    author_id = post.author_id
+    
+    # Notify post author
+    await notification_service.notify_user(
+        author_id,
+        'new_like',
+        {
+            'post_id': post_id,
+            'liker_id': liker_id,
+            'liker_username': get_user(liker_id).username
+        }
+    )
+```
+
+### Connection Scaling & Limits
+
+**Per-Server Limits:**
+
+```text
+OS Limits:
+- File descriptors: ulimit -n 1000000
+- Network buffers: sysctl net.core.rmem_max=134217728
+
+Application Limits:
+- Connections per server: 10,000 (comfortable)
+- Maximum: 50,000 (with optimization)
+- Memory per connection: ~10 KB
+- Total memory for 50k connections: ~500 MB
+
+Scaling:
+- 500M DAU, assume 20% concurrent: 100M concurrent users
+- Servers needed: 100M / 10k = 10,000 WebSocket servers
+- With redundancy (2x): 20,000 servers
+```
+
+**Connection Pooling:**
+
+```python
+class WebSocketConnectionPool:
+    def __init__(self, max_connections=10000):
+        self.max_connections = max_connections
+        self.current_connections = 0
+        self.waiting_queue = asyncio.Queue()
+    
+    async def acquire(self):
+        """Acquire connection slot"""
+        if self.current_connections < self.max_connections:
+            self.current_connections += 1
+            return True
+        else:
+            # Wait for slot to become available
+            await self.waiting_queue.get()
+            return True
+    
+    def release(self):
+        """Release connection slot"""
+        self.current_connections -= 1
+        
+        # Wake up waiting connection
+        if not self.waiting_queue.empty():
+            self.waiting_queue.put_nowait(True)
+```
+
+---
+
+## Notification Service (Deep Dive)
+
+### Push Notification Architecture
+
+**Components:**
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│         Notification Service Architecture                │
+├─────────────────────────────────────────────────────────┤
+│                                                           │
+│  Event Sources                                            │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
+│  │   Like   │  │ Comment  │  │  Follow  │              │
+│  │  Event   │  │  Event   │  │  Event   │              │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘              │
+│       │             │             │                      │
+│       └─────────────┼─────────────┘                      │
+│                     │                                     │
+│                     ▼                                     │
+│          ┌──────────────────────┐                        │
+│          │    Kafka Topic       │                        │
+│          │  'notifications'     │                        │
+│          └──────────┬───────────┘                        │
+│                     │                                     │
+│                     ▼                                     │
+│          ┌──────────────────────┐                        │
+│          │  Notification        │                        │
+│          │  Processor           │                        │
+│          │  (Consumer Group)    │                        │
+│          └──────────┬───────────┘                        │
+│                     │                                     │
+│          ┌──────────┴───────────┐                        │
+│          │                      │                        │
+│          ▼                      ▼                        │
+│  ┌──────────────┐     ┌──────────────┐                  │
+│  │  WebSocket   │     │ Push Service │                  │
+│  │  (Real-time) │     │  (Offline)   │                  │
+│  └──────────────┘     └──────┬───────┘                  │
+│                               │                           │
+│                    ┌──────────┼──────────┐               │
+│                    ▼          ▼          ▼               │
+│              ┌──────┐    ┌──────┐   ┌──────┐            │
+│              │ FCM  │    │ APNS │   │Email │            │
+│              │(Android)  │(iOS) │   │      │            │
+│              └──────┘    └──────┘   └──────┘            │
+│                                                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Implementation:**
+
+```python
+class NotificationProcessor:
+    def __init__(self):
+        self.kafka_consumer = KafkaConsumer(
+            'notifications',
+            group_id='notification-processors',
+            bootstrap_servers=['kafka:9092']
+        )
+        
+        self.fcm_client = FCMClient()  # Firebase Cloud Messaging
+        self.apns_client = APNSClient()  # Apple Push Notification Service
+        self.email_client = EmailClient()
+    
+    async def process_notifications(self):
+        """Main processing loop"""
+        for message in self.kafka_consumer:
+            event = json.loads(message.value)
+            
+            # Determine recipients
+            recipients = await self.get_recipients(event)
+            
+            # Filter based on user preferences
+            recipients = self.filter_by_preferences(recipients, event['type'])
+            
+            # Send notifications
+            await self.send_notifications(recipients, event)
+    
+    async def get_recipients(self, event):
+        """Determine who should receive this notification"""
+        if event['type'] == 'new_like':
+            # Notify post author
+            post = get_post(event['post_id'])
+            return [post.author_id]
+        
+        elif event['type'] == 'new_comment':
+            # Notify post author + parent comment author
+            post = get_post(event['post_id'])
+            recipients = [post.author_id]
+            
+            if event.get('parent_comment_id'):
+                parent_comment = get_comment(event['parent_comment_id'])
+                recipients.append(parent_comment.author_id)
+            
+            return recipients
+        
+        elif event['type'] == 'new_follower':
+            # Notify user who was followed
+            return [event['followed_user_id']]
+    
+    def filter_by_preferences(self, recipients, event_type):
+        """Filter based on user notification preferences"""
+        filtered = []
+        
+        for user_id in recipients:
+            prefs = get_user_notification_preferences(user_id)
+            
+            if prefs.get(event_type, {}).get('enabled', True):
+                filtered.append(user_id)
+        
+        return filtered
+    
+    async def send_notifications(self, recipients, event):
+        """Send notifications via appropriate channels"""
+        for user_id in recipients:
+            user = get_user(user_id)
+            
+            # Check if user is online (WebSocket)
+            if is_user_online(user_id):
+                await self.send_websocket_notification(user_id, event)
+            else:
+                # Send push notification
+                await self.send_push_notification(user, event)
+            
+            # Store in database for notification center
+            await self.store_notification(user_id, event)
+    
+    async def send_push_notification(self, user, event):
+        """Send push notification to mobile device"""
+        devices = get_user_devices(user.user_id)
+        
+        # Build notification payload
+        notification = self.build_notification_payload(event)
+        
+        for device in devices:
+            if device.platform == 'ios':
+                await self.send_apns(device.token, notification)
+            elif device.platform == 'android':
+                await self.send_fcm(device.token, notification)
+    
+    async def send_fcm(self, device_token, notification):
+        """Send via Firebase Cloud Messaging"""
+        message = {
+            'token': device_token,
+            'notification': {
+                'title': notification['title'],
+                'body': notification['body']
+            },
+            'data': notification['data'],
+            'android': {
+                'priority': 'high',
+                'notification': {
+                    'sound': 'default',
+                    'click_action': 'OPEN_APP'
+                }
+            }
+        }
+        
+        response = await self.fcm_client.send(message)
+        
+        if response.get('error'):
+            logger.error(f'FCM error: {response["error"]}')
+            
+            # Handle token expiration
+            if response['error']['code'] == 'INVALID_TOKEN':
+                await self.remove_device_token(device_token)
+    
+    def build_notification_payload(self, event):
+        """Build notification message"""
+        if event['type'] == 'new_like':
+            liker = get_user(event['liker_id'])
+            return {
+                'title': 'New Like',
+                'body': f'{liker.username} liked your post',
+                'data': {
+                    'type': 'new_like',
+                    'post_id': event['post_id'],
+                    'liker_id': event['liker_id']
+                }
+            }
+        
+        elif event['type'] == 'new_comment':
+            commenter = get_user(event['commenter_id'])
+            return {
+                'title': 'New Comment',
+                'body': f'{commenter.username} commented on your post: {event["comment_text"][:50]}...',
+                'data': {
+                    'type': 'new_comment',
+                    'post_id': event['post_id'],
+                    'comment_id': event['comment_id']
+                }
+            }
+```
+
+### Notification Batching & Throttling
+
+**Problem:** User gets hundreds of likes in a minute → spam notifications
+
+**Solution:**
+
+```python
+class NotificationBatcher:
+    def __init__(self):
+        self.batch_window = 60  # 1 minute
+        self.pending_notifications = {}  # user_id -> list of events
+        self.batch_timers = {}  # user_id -> timer
+    
+    def add_notification(self, user_id, event):
+        """Add notification to batch"""
+        if user_id not in self.pending_notifications:
+            self.pending_notifications[user_id] = []
+        
+        self.pending_notifications[user_id].append(event)
+        
+        # Start timer if not already running
+        if user_id not in self.batch_timers:
+            self.batch_timers[user_id] = threading.Timer(
+                self.batch_window,
+                self.flush_batch,
+                args=[user_id]
+            )
+            self.batch_timers[user_id].start()
+    
+    def flush_batch(self, user_id):
+        """Send batched notifications"""
+        events = self.pending_notifications.pop(user_id, [])
+        del self.batch_timers[user_id]
+        
+        if not events:
+            return
+        
+        # Group by type
+        grouped = {}
+        for event in events:
+            event_type = event['type']
+            if event_type not in grouped:
+                grouped[event_type] = []
+            grouped[event_type].append(event)
+        
+        # Send aggregated notification
+        for event_type, events_list in grouped.items():
+            self.send_aggregated_notification(user_id, event_type, events_list)
+    
+    def send_aggregated_notification(self, user_id, event_type, events):
+        """Send single notification for multiple events"""
+        if event_type == 'new_like':
+            count = len(events)
+            
+            if count == 1:
+                # Single like
+                liker = get_user(events[0]['liker_id'])
+                title = f'{liker.username} liked your post'
+            else:
+                # Multiple likes
+                first_liker = get_user(events[0]['liker_id'])
+                if count == 2:
+                    second_liker = get_user(events[1]['liker_id'])
+                    title = f'{first_liker.username} and {second_liker.username} liked your post'
+                else:
+                    title = f'{first_liker.username} and {count - 1} others liked your post'
+            
+            send_notification(user_id, title, event_type, events)
+```
+
+---
+
 ## Trade-Offs Analysis
 
 ### Decision 1: SQL vs NoSQL for Post Storage
@@ -2873,603 +3820,6 @@ Total: 245ms
 
 ---
 
-## Security Considerations
-
-### 1. Authentication & Authorization
-
-**Mechanism:**
-
-- JWT tokens (access token + refresh token)
-- Access token: 15-minute expiration
-- Refresh token: 30-day expiration (stored in HttpOnly cookie)
-
-**Token Structure:**
-
-```json
-{
-  "sub": "user_id",
-  "username": "johndoe",
-  "iat": 1696276800,
-  "exp": 1696277700,
-  "roles": ["user"],
-  "permissions": ["read:feed", "write:post", "delete:own_post"]
-}
-```
-
-**Implementation:**
-
-```python
-def generate_access_token(user_id):
-    payload = {
-        'sub': user_id,
-        'iat': now(),
-        'exp': now() + timedelta(minutes=15)
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm='HS256')
-
-def verify_token(token):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-        return payload['sub']
-    except jwt.ExpiredSignatureError:
-        raise AuthenticationError('Token expired')
-    except jwt.InvalidTokenError:
-        raise AuthenticationError('Invalid token')
-```
-
----
-
-### 2. Input Validation
-
-**Validation Rules:**
-
-```python
-post_validation = {
-    'caption': {
-        'max_length': 2200,
-        'allowed_chars': 'unicode',
-        'xss_filter': True
-    },
-    'media': {
-        'max_files': 10,
-        'allowed_types': ['image/jpeg', 'image/png', 'video/mp4'],
-        'max_size': '500MB'
-    },
-    'hashtags': {
-        'max_count': 30,
-        'max_length': 50,
-        'pattern': r'^[a-zA-Z0-9_]+$'
-    }
-}
-
-def validate_post(post_data):
-    # Length check
-    if len(post_data['caption']) > 2200:
-        raise ValidationError('Caption too long')
-    
-    # XSS prevention
-    caption = bleach.clean(post_data['caption'], strip=True)
-    
-    # SQL injection prevention (use parameterized queries)
-    # Done automatically by ORM
-    
-    return sanitized_data
-```
-
----
-
-### 3. Rate Limiting
-
-**Implementation:**
-
-```python
-def rate_limit(user_id, action, limit, window):
-    """
-    Token bucket algorithm
-    """
-    key = f'rate_limit:{user_id}:{action}'
-    current = redis.get(key) or 0
-    
-    if current >= limit:
-        raise RateLimitExceeded(f'Max {limit} {action}s per {window}')
-    
-    redis.incr(key)
-    redis.expire(key, window)
-
-# Usage
-@rate_limit(user_id=request.user_id, action='post', limit=100, window=3600)
-def create_post(post_data):
-    ...
-```
-
-**Rate Limits:**
-
-```text
-- Login attempts: 5 per 15 minutes
-- Post creation: 100 per hour
-- Comment creation: 1000 per hour
-- Follow/unfollow: 200 per hour
-- API requests: 5000 per hour (authenticated), 100 per hour (unauthenticated)
-```
-
----
-
-### 4. Data Encryption
-
-**Encryption at Rest:**
-
-- User passwords: bcrypt with salt (cost factor: 12)
-- Sensitive data: AES-256 encryption
-- Database: Encrypted volumes (AWS KMS)
-- Backups: Encrypted before upload
-
-**Encryption in Transit:**
-
-- TLS 1.3 for all API endpoints
-- Certificate pinning for mobile apps
-- HTTPS redirect (HTTP → HTTPS)
-
-**Implementation:**
-
-```python
-# Password hashing
-def hash_password(password):
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
-
-def verify_password(password, hash):
-    return bcrypt.checkpw(password.encode(), hash)
-
-# Sensitive data encryption
-def encrypt_sensitive_data(data):
-    cipher = AES.new(ENCRYPTION_KEY, AES.MODE_GCM)
-    ciphertext, tag = cipher.encrypt_and_digest(data.encode())
-    return base64.b64encode(cipher.nonce + tag + ciphertext)
-```
-
----
-
-### 5. Content Moderation
-
-**Automated Moderation:**
-
-```python
-def moderate_content(media_url, caption):
-    """
-    Multi-stage moderation pipeline
-    """
-    # Stage 1: NSFW detection (AWS Rekognition)
-    nsfw_score = aws_rekognition.detect_moderation_labels(media_url)
-    if nsfw_score > 0.8:
-        return 'rejected', 'NSFW content'
-    
-    # Stage 2: Violence/gore detection
-    violence_score = detect_violence(media_url)
-    if violence_score > 0.7:
-        return 'rejected', 'Violent content'
-    
-    # Stage 3: Text moderation (caption)
-    profanity_detected = profanity_filter.check(caption)
-    if profanity_detected:
-        return 'flagged', 'Profanity detected'
-    
-    # Stage 4: Spam detection
-    spam_score = spam_classifier.predict(caption)
-    if spam_score > 0.9:
-        return 'rejected', 'Spam content'
-    
-    return 'approved', None
-
-# Apply moderation before publishing
-def create_post(post_data):
-    status, reason = moderate_content(post_data['media_url'], post_data['caption'])
-    
-    if status == 'rejected':
-        raise ContentViolationError(reason)
-    elif status == 'flagged':
-        # Send to manual review queue
-        queue_for_human_review(post_data)
-        return {'status': 'pending_review'}
-    else:
-        # Publish post
-        return publish_post(post_data)
-```
-
----
-
-### 6. DDoS Protection
-
-**Measures:**
-
-- CloudFlare/AWS Shield for L3/L4 protection
-- API Gateway rate limiting
-- Challenge-response for suspicious traffic (CAPTCHA)
-- Geographic blocking (block high-risk countries)
-- Anomaly detection (ML-based traffic analysis)
-
----
-
-### 7. Privacy & Compliance
-
-**GDPR Compliance:**
-
-- Right to access: API endpoint to export user data
-- Right to erasure: Delete user and all content
-- Data portability: Export in JSON format
-- Consent management: Explicit opt-in for data processing
-
-**Implementation:**
-
-```python
-def export_user_data(user_id):
-    """
-    Export all user data (GDPR Article 15)
-    """
-    user = db.get_user(user_id)
-    posts = db.get_user_posts(user_id)
-    comments = db.get_user_comments(user_id)
-    likes = db.get_user_likes(user_id)
-    
-    return {
-        'user': user,
-        'posts': posts,
-        'comments': comments,
-        'likes': likes,
-        'exported_at': now()
-    }
-
-def delete_user_data(user_id):
-    """
-    Permanently delete user data (GDPR Article 17)
-    """
-    # Delete from primary databases
-    db.delete_user(user_id)
-    db.delete_user_posts(user_id)
-    db.delete_user_comments(user_id)
-    
-    # Delete from caches
-    redis.delete(f'user:{user_id}')
-    redis.delete(f'timeline:{user_id}')
-    
-    # Delete from search index
-    elasticsearch.delete('users', user_id)
-    
-    # Delete media from S3 (async)
-    s3.delete_user_media(user_id)
-```
-
----
-
-## Future Enhancements
-
-### 1. Direct Messaging (DM)
-
-**Architecture:**
-
-- WebSocket-based real-time messaging
-- Message storage in Cassandra (partition by conversation_id)
-- End-to-end encryption (Signal Protocol)
-- Read receipts and typing indicators
-- Media sharing in DMs
-
-**Implementation:**
-
-```python
-# Message schema
-{
-    'message_id': 'uuid',
-    'conversation_id': 'uuid',
-    'sender_id': 'uuid',
-    'content': 'encrypted_blob',
-    'media_url': 's3_url',
-    'created_at': 'timestamp',
-    'read_at': 'timestamp'
-}
-
-# WebSocket handler
-@websocket.on_message
-def handle_dm(message):
-    recipient = message['recipient_id']
-    
-    # Store message
-    db.insert('messages', message)
-    
-    # Send to recipient (if online)
-    if is_user_online(recipient):
-        websocket.send(recipient, message)
-    else:
-        # Queue for push notification
-        push_notification(recipient, 'New message from {sender}')
-```
-
-**Estimated Resources:**
-
-- 50M DM users (10% of DAU)
-- 500M messages/day
-- Storage: 500M * 1KB = 500GB/day = 180TB/year
-
----
-
-### 2. Live Streaming
-
-**Architecture:**
-
-- WebRTC for peer-to-peer streaming
-- Media servers for distribution (Wowza/Ant Media Server)
-- Adaptive bitrate streaming
-- Chat integration
-- Live reactions
-
-**Implementation:**
-
-```python
-# Live stream schema
-{
-    'stream_id': 'uuid',
-    'user_id': 'uuid',
-    'title': 'string',
-    'status': 'live' | 'ended',
-    'viewer_count': 'int',
-    'started_at': 'timestamp',
-    'ended_at': 'timestamp',
-    'chat_enabled': 'boolean'
-}
-
-# Start stream
-def start_live_stream(user_id, title):
-    stream = create_stream(user_id, title)
-    
-    # Notify followers
-    followers = get_followers(user_id)
-    notify_followers(followers, f'{user.username} is live!')
-    
-    # Start media server
-    media_server.start_stream(stream.stream_id)
-    
-    return stream
-```
-
-**Estimated Resources:**
-
-- 100k concurrent streams at peak
-- 10M viewers at peak
-- Bandwidth: 10M * 2Mbps = 20Tbps
-
----
-
-### 3. Stories Enhancements
-
-**Features:**
-
-- Interactive stickers (polls, questions, quizzes)
-- Augmented reality (AR) filters
-- Story replies (DM responses)
-- Story highlights (save stories beyond 24 hours)
-- Story analytics (view counts, engagement)
-
-**Implementation:**
-
-```python
-# Interactive poll sticker
-{
-    'sticker_type': 'poll',
-    'question': 'Favorite color?',
-    'options': ['Red', 'Blue', 'Green'],
-    'votes': {
-        'Red': 42,
-        'Blue': 35,
-        'Green': 23
-    }
-}
-
-# AR filter application
-def apply_ar_filter(story_media, filter_id):
-    # Use OpenCV/TensorFlow for face detection
-    faces = detect_faces(story_media)
-    
-    # Apply filter (e.g., dog ears)
-    filtered_media = apply_filter(story_media, faces, filter_id)
-    
-    return filtered_media
-```
-
----
-
-### 4. Recommendation System
-
-**ML-Based Content Discovery:**
-
-- Collaborative filtering (users like you also liked...)
-- Content-based filtering (similar to posts you've liked)
-- Hybrid approach
-- Trending content boost
-
-**Implementation:**
-
-```python
-# User embedding
-user_embedding = embed_user_preferences(user_id)
-# [interest_tech: 0.8, interest_sports: 0.3, ...]
-
-# Post embedding
-post_embedding = embed_post_content(post_id)
-# [topic_tech: 0.9, topic_sports: 0.1, ...]
-
-# Similarity score
-similarity = cosine_similarity(user_embedding, post_embedding)
-
-# Ranking
-def recommend_posts(user_id, num_posts=50):
-    # Candidate generation (narrow down from billions)
-    candidates = get_candidate_posts(user_id)  # ~10k candidates
-    
-    # Scoring
-    scores = []
-    for post in candidates:
-        score = calculate_relevance_score(post, user_id)
-        scores.append((post, score))
-    
-    # Ranking
-    ranked_posts = sorted(scores, key=lambda x: x[1], reverse=True)
-    
-    return ranked_posts[:num_posts]
-```
-
-**Model Training:**
-
-- Training data: 100B engagement events
-- Model: Two-tower neural network
-- Features: 500+ features
-- Training frequency: Daily
-- Serving: TensorFlow Serving (5ms inference latency)
-
----
-
-### 5. Ads Platform
-
-**Sponsored Content:**
-
-- Native ads (looks like regular posts)
-- Targeting (demographics, interests, behavior)
-- Auction-based pricing (CPM, CPC, CPA)
-- Ad frequency capping
-- Performance analytics
-
-**Implementation:**
-
-```python
-def insert_ads_in_feed(feed_posts, user_id):
-    """
-    Insert ads every N organic posts
-    """
-    AD_FREQUENCY = 5  # Show ad every 5 posts
-    
-    # Fetch relevant ads
-    ads = ad_targeting_service.get_ads(
-        user_demographics=get_user_demographics(user_id),
-        user_interests=get_user_interests(user_id),
-        context='home_feed'
-    )
-    
-    # Insert ads in feed
-    feed_with_ads = []
-    ad_index = 0
-    for i, post in enumerate(feed_posts):
-        feed_with_ads.append(post)
-        
-        if (i + 1) % AD_FREQUENCY == 0 and ad_index < len(ads):
-            feed_with_ads.append({
-                'type': 'ad',
-                'content': ads[ad_index],
-                'ad_id': ads[ad_index]['id']
-            })
-            ad_index += 1
-    
-    return feed_with_ads
-```
-
-**Revenue Model:**
-
-- CPM (Cost Per Mille): $5-20 per 1000 impressions
-- Estimated revenue: 10B impressions/day * $10 CPM = $100k/day = $36M/year
-
----
-
-### 6. Analytics Dashboard
-
-**User Analytics:**
-
-- Profile views
-- Follower growth over time
-- Post reach and engagement
-- Best time to post
-- Audience demographics
-
-**Content Creator Tools:**
-
-- Detailed post analytics
-- Story insights
-- Hashtag performance
-- Competitor analysis
-- Engagement rate trends
-
-**Implementation:**
-
-```python
-# Analytics schema (ClickHouse)
-{
-    'event_id': 'uuid',
-    'user_id': 'uuid',
-    'post_id': 'uuid',
-    'event_type': 'view' | 'like' | 'comment' | 'share',
-    'timestamp': 'datetime',
-    'device_type': 'mobile' | 'web',
-    'location': 'country_code'
-}
-
-# Analytics query
-def get_post_analytics(post_id):
-    return {
-        'views': count_events(post_id, 'view'),
-        'likes': count_events(post_id, 'like'),
-        'comments': count_events(post_id, 'comment'),
-        'shares': count_events(post_id, 'share'),
-        'engagement_rate': (likes + comments + shares) / views,
-        'demographics': get_viewer_demographics(post_id),
-        'top_locations': get_top_locations(post_id)
-    }
-```
-
----
-
-### 7. Machine Learning Enhancements
-
-**Content Understanding:**
-
-- Object detection in images
-- Scene classification
-- Auto-tagging
-- Auto-captioning
-
-**User Safety:**
-
-- Cyberbullying detection
-- Self-harm content detection
-- Misinformation flagging
-- Deepfake detection
-
-**Personalization:**
-
-- Feed ranking optimization
-- Notification timing optimization
-- Content format preferences
-- Language translation
-
----
-
-## Conclusion - Part 1 (Performance Summary)
-
-- **Feed loads in <500ms** via hybrid fanout strategy and multi-layer caching
-- **Supports celebrity accounts** (100M+ followers) through fan-out on read
-- **Real-time updates** for likes/comments using Redis Streams and WebSocket
-- **Scalable media pipeline** with 100k workers processing 7,000 uploads/sec
-- **99.9% uptime** through multi-AZ deployment, redundancy, and failover
-
-**Key Architectural Decisions:**
-
-1. **Hybrid fanout**: Solves celebrity problem while maintaining performance
-2. **Multi-database approach**: Right tool for each data type
-3. **Aggressive caching**: 90%+ cache hit rates for sub-100ms latency
-4. **Asynchronous processing**: Handles spiky workloads gracefully
-5. **Horizontal scalability**: Every component can scale independently
-
-The system is designed for growth, with clear paths to scale to billions of users through sharding, geographic distribution, and optimized algorithms.
-
----
-
-Document created for interview preparation. Last updated: October 2, 2025
-
----
-
 ## Extended Edge Cases & Failure Scenarios
 
 ### Edge Case 1: Concurrent Modifications
@@ -4154,239 +4504,6 @@ class BackupManager:
 
 ---
 
-## Load Balancing Strategy
-
-### Layer 4 vs Layer 7 Load Balancing
-
-**Decision Matrix:**
-
-```text
-Layer 4 (Transport Layer):
-Use for: Database connections, high-throughput services
-Pros:
-  - Faster (no packet inspection)
-  - Lower latency
-  - Higher throughput
-Cons:
-  - No content-based routing
-  - No SSL termination
-  - Limited health checks
-
-Layer 7 (Application Layer):
-Use for: API Gateway, HTTP services
-Pros:
-  - Content-based routing
-  - SSL termination
-  - Advanced health checks
-  - Request rewriting
-Cons:
-  - Higher latency
-  - More CPU intensive
-  - Lower throughput
-```
-
-**Our Configuration:**
-
-```yaml
-# L7 Load Balancer (API Gateway)
-apiVersion: v1
-kind: Service
-metadata:
-  name: api-gateway-lb
-spec:
-  type: LoadBalancer
-  selector:
-    app: api-gateway
-  ports:
-    - name: https
-      port: 443
-      targetPort: 8443
-      protocol: TCP
-  sessionAffinity: None
-  loadBalancerSourceRanges:
-    - 0.0.0.0/0
-  
-# L7 Configuration (Nginx)
-upstream api_servers {
-    least_conn;  # Least connections algorithm
-    
-    server api-1.internal:8080 weight=10 max_fails=3 fail_timeout=30s;
-    server api-2.internal:8080 weight=10 max_fails=3 fail_timeout=30s;
-    server api-3.internal:8080 weight=10 max_fails=3 fail_timeout=30s;
-    
-    # Health check
-    check interval=3000 rise=2 fall=3 timeout=1000;
-}
-
-server {
-    listen 443 ssl http2;
-    
-    # SSL configuration
-    ssl_certificate /etc/ssl/certs/socialmedia.crt;
-    ssl_certificate_key /etc/ssl/private/socialmedia.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    
-    # Connection pooling
-    keepalive_timeout 65;
-    keepalive_requests 100;
-    
-    location /api/ {
-        proxy_pass http://api_servers;
-        proxy_http_version 1.1;
-        
-        # Header forwarding
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # Timeouts
-        proxy_connect_timeout 5s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-        
-        # Retry logic
-        proxy_next_upstream error timeout http_502 http_503 http_504;
-        proxy_next_upstream_tries 3;
-    }
-}
-```
-
-### Health Check Mechanisms
-
-**Multi-Layer Health Checks:**
-
-```python
-class HealthCheckService:
-    def __init__(self):
-        self.checks = {
-            'shallow': self.shallow_health_check,
-            'deep': self.deep_health_check,
-            'dependency': self.dependency_health_check
-        }
-    
-    def shallow_health_check(self):
-        """Quick check - is the service responding?"""
-        return {
-            'status': 'healthy',
-            'timestamp': time.time(),
-            'version': '1.2.3'
-        }
-    
-    def deep_health_check(self):
-        """Comprehensive check - are all components working?"""
-        checks = {}
-        overall_healthy = True
-        
-        # Check database connectivity
-        try:
-            db.execute('SELECT 1')
-            checks['database'] = 'healthy'
-        except Exception as e:
-            checks['database'] = f'unhealthy: {e}'
-            overall_healthy = False
-        
-        # Check cache connectivity
-        try:
-            redis.ping()
-            checks['cache'] = 'healthy'
-        except Exception as e:
-            checks['cache'] = f'unhealthy: {e}'
-            overall_healthy = False
-        
-        # Check message queue
-        try:
-            kafka.list_topics(timeout=1)
-            checks['message_queue'] = 'healthy'
-        except Exception as e:
-            checks['message_queue'] = f'unhealthy: {e}'
-            overall_healthy = False
-        
-        # Check disk space
-        disk_usage = psutil.disk_usage('/')
-        if disk_usage.percent > 90:
-            checks['disk_space'] = f'unhealthy: {disk_usage.percent}% used'
-            overall_healthy = False
-        else:
-            checks['disk_space'] = 'healthy'
-        
-        # Check memory
-        memory = psutil.virtual_memory()
-        if memory.percent > 90:
-            checks['memory'] = f'unhealthy: {memory.percent}% used'
-            overall_healthy = False
-        else:
-            checks['memory'] = 'healthy'
-        
-        return {
-            'status': 'healthy' if overall_healthy else 'unhealthy',
-            'checks': checks,
-            'timestamp': time.time()
-        }
-    
-    def dependency_health_check(self):
-        """Check external dependencies"""
-        checks = {}
-        
-        # Check S3 connectivity
-        try:
-            s3.head_bucket(Bucket='socialmedia-media')
-            checks['s3'] = 'healthy'
-        except:
-            checks['s3'] = 'unhealthy'
-        
-        # Check CDN
-        try:
-            response = requests.head('https://cdn.socialmedia.com/health', timeout=2)
-            checks['cdn'] = 'healthy' if response.status_code == 200 else 'unhealthy'
-        except:
-            checks['cdn'] = 'unhealthy'
-        
-        return {
-            'status': 'healthy' if all(v == 'healthy' for v in checks.values()) else 'degraded',
-            'checks': checks,
-            'timestamp': time.time()
-        }
-```
-
-### Session Affinity (Sticky Sessions)
-
-**When to Use:**
-
-```text
-Use sticky sessions for:
-- WebSocket connections
-- Stateful operations
-- Temporary session data
-
-DON'T use for:
-- REST APIs (should be stateless)
-- High-availability requirements
-- Geographic distribution
-```
-
-**Implementation:**
-
-```nginx
-# Nginx sticky sessions using IP hash
-upstream websocket_servers {
-    ip_hash;  # Same client always goes to same server
-    
-    server ws-1.internal:8080;
-    server ws-2.internal:8080;
-    server ws-3.internal:8080;
-}
-
-# Alternative: Cookie-based sticky sessions
-upstream api_servers {
-    server api-1.internal:8080;
-    server api-2.internal:8080;
-    
-    sticky cookie srv_id expires=1h domain=.socialmedia.com path=/;
-}
-```
-
----
-
 ## Deployment Strategy
 
 ### Blue-Green Deployment
@@ -4830,841 +4947,6 @@ class ChaosExperiments:
 
 ---
 
-## Cost Analysis
-
-### Infrastructure Cost Breakdown (Monthly)
-
-**Compute:**
-
-```text
-API Servers:
-- Instance type: m5.2xlarge (8 vCPU, 32 GB RAM)
-- Count: 100 instances (across regions)
-- Cost: $0.384/hour * 100 * 730 hours = $28,032/month
-
-Media Processing Workers:
-- Instance type: c5.4xlarge (16 vCPU, 32 GB RAM)
-- Count: 1000 instances (auto-scaling)
-- Average utilization: 60%
-- Cost: $0.68/hour * 1000 * 0.6 * 730 = $297,840/month
-
-Total Compute: ~$326,000/month
-```
-
-**Storage:**
-
-```text
-S3 Storage (Media):
-- Storage: 12.6 EB over 5 years = ~7 PB active
-- Cost: $0.023/GB * 7,000,000 GB = $161,000/month
-
-S3 Data Transfer Out:
-- Bandwidth: 16.5 Pbps peak (with 95% CDN offload)
-- Actual S3 egress: 16.5 Pbps * 0.05 = 825 Tbps
-- Monthly: 825 TB * 730 * 3600 / 8 / 1024 / 1024 = ~300 TB
-- Cost: $0.09/GB * 300,000 GB = $27,000/month
-
-Total Storage: ~$188,000/month
-```
-
-**Database:**
-
-```text
-PostgreSQL (RDS):
-- Instance: db.r5.8xlarge
-- Count: 3 (1 primary + 2 replicas)
-- Storage: 3 TB * 3 = 9 TB
-- Cost: $2.88/hour * 3 * 730 = $6,307/month
-- Storage: $0.115/GB * 9000 = $1,035/month
-
-Cassandra (EC2):
-- Instance: i3.4xlarge
-- Count: 100 nodes (sharded)
-- Cost: $1.248/hour * 100 * 730 = $91,104/month
-
-Redis Cluster:
-- Instance: r5.4xlarge
-- Count: 64 nodes (sharded)
-- Cost: $1.008/hour * 64 * 730 = $47,093/month
-
-Total Database: ~$145,000/month
-```
-
-**CDN:**
-
-```text
-CloudFront:
-- Data transfer: 10B impressions * 300 KB = 3 PB/day = 90 PB/month
-- Cost: $0.085/GB * 90,000,000 GB = $7,650,000/month
-- Cache hit ratio: 95%, so only 5% origin fetch
-- Actual CDN cost (with volume discount): ~$300,000/month
-
-Total CDN: ~$300,000/month
-```
-
-**Kafka (Message Queue):**
-
-```text
-- Instance: m5.2xlarge
-- Count: 20 brokers
-- Storage: 10 PB retention (7 days)
-- Cost: $0.384/hour * 20 * 730 = $5,606/month
-- Storage: $0.10/GB * 10,000,000 = $1,000,000/month
-
-Total Kafka: ~$1,006,000/month (expensive! optimize retention)
-```
-
-**Total Monthly Cost: ~$1,965,000/month = $23.6M/year**
-
-### Cost Optimization Strategies
-
-```python
-# Strategy 1: Right-size instances
-def optimize_instance_sizes():
-    """
-    Monitor actual resource usage and downsize
-    """
-    for instance in get_all_instances():
-        metrics = cloudwatch.get_metrics(instance.id, period='7d')
-        
-        avg_cpu = metrics['cpu']['average']
-        avg_memory = metrics['memory']['average']
-        
-        # If consistently under-utilized, suggest smaller instance
-        if avg_cpu < 30 and avg_memory < 40:
-            smaller_instance = suggest_smaller_instance(instance.type)
-            logger.info(f'Instance {instance.id} can be downsized to {smaller_instance}')
-            # Estimated savings: $X/month
-
-# Strategy 2: Use Spot Instances for workers
-"""
-Media processing workers can use Spot instances (70% cost savings)
-- Stateless workloads
-- Can handle interruptions
-- Kafka queue provides durability
-
-Savings: $297,840 * 0.7 = $208,488/month
-"""
-
-# Strategy 3: Optimize storage retention
-"""
-- Reduce Kafka retention from 7 days to 2 days
-- Move old media to Glacier (90% cheaper)
-- Compress media more aggressively
-
-Estimated savings: $400,000/month
-"""
-
-# Strategy 4: CDN optimization
-"""
-- Increase cache TTL (reduce origin fetches)
-- Use origin shield
-- Negotiate volume discounts
-
-Estimated savings: $50,000/month
-"""
-
-# Total potential savings: ~$650,000/month (33% reduction)
-```
-
----
-
-## Data Consistency Patterns (Extended)
-
-### Read-After-Write Consistency
-
-**Scenario:** User creates post and immediately refreshes feed
-
-**Problem:**
-
-```text
-T0: User creates post
-T1: Post written to primary DB (us-east)
-T2: User refreshes feed (routed to us-west replica)
-T3: Replication lag → Post not yet in replica
-T4: User doesn't see their own post!
-```
-
-#### Solution: Route to Primary for Recent Writes
-
-```python
-class ConsistentReadRouter:
-    def __init__(self):
-        self.write_tracking = {}  # user_id -> timestamp
-        self.replication_lag_threshold = 2  # seconds
-    
-    def record_write(self, user_id):
-        """Track when user performed write"""
-        self.write_tracking[user_id] = time.time()
-    
-    def route_read(self, user_id, operation):
-        """Route read to ensure consistency"""
-        last_write = self.write_tracking.get(user_id)
-        
-        if last_write:
-            time_since_write = time.time() - last_write
-            
-            if time_since_write < self.replication_lag_threshold:
-                # Route to primary for consistency
-                return self.read_from_primary(operation)
-            else:
-                # Replication should have caught up
-                del self.write_tracking[user_id]
-                return self.read_from_replica(operation)
-        else:
-            # No recent writes, use replica
-            return self.read_from_replica(operation)
-
-# Usage
-@router.post('/posts')
-def create_post(post_data, user_id):
-    post = db_primary.create_post(post_data)
-    
-    # Track write
-    consistent_router.record_write(user_id)
-    
-    return post
-
-@router.get('/feed')
-def get_feed(user_id):
-    # Route intelligently
-    return consistent_router.route_read(user_id, lambda: fetch_feed(user_id))
-```
-
-### Conflict Resolution with CRDTs
-
-**Scenario:** Offline-first mobile app allows likes while offline
-
-**Problem:**
-
-```text
-Device A (offline):
-- User likes post #123
-- Stores locally: likes[123] = true
-
-Device B (offline):
-- Same user unlikes post #123
-- Stores locally: likes[123] = false
-
-Both sync later → Conflict!
-```
-
-#### Solution: Conflict-Free Replicated Data Type (CRDT)
-
-```python
-class LWW_Element_Set:
-    """
-    Last-Write-Wins Element Set CRDT
-    Each element has a timestamp
-    """
-    def __init__(self):
-        self.add_set = {}  # element -> timestamp
-        self.remove_set = {}  # element -> timestamp
-    
-    def add(self, element, timestamp=None):
-        """Add element with timestamp"""
-        if timestamp is None:
-            timestamp = time.time()
-        
-        self.add_set[element] = max(
-            self.add_set.get(element, 0),
-            timestamp
-        )
-    
-    def remove(self, element, timestamp=None):
-        """Remove element with timestamp"""
-        if timestamp is None:
-            timestamp = time.time()
-        
-        self.remove_set[element] = max(
-            self.remove_set.get(element, 0),
-            timestamp
-        )
-    
-    def contains(self, element):
-        """Check if element exists"""
-        add_time = self.add_set.get(element, 0)
-        remove_time = self.remove_set.get(element, 0)
-        
-        # Element exists if:
-        # - It was added AND
-        # - (Never removed OR add timestamp > remove timestamp)
-        return add_time > 0 and add_time > remove_time
-    
-    def merge(self, other):
-        """Merge with another CRDT (commutative, associative, idempotent)"""
-        result = LWW_Element_Set()
-        
-        # Merge add sets (take max timestamp)
-        all_elements = set(self.add_set.keys()) | set(other.add_set.keys())
-        for element in all_elements:
-            result.add_set[element] = max(
-                self.add_set.get(element, 0),
-                other.add_set.get(element, 0)
-            )
-        
-        # Merge remove sets (take max timestamp)
-        all_elements = set(self.remove_set.keys()) | set(other.remove_set.keys())
-        for element in all_elements:
-            result.remove_set[element] = max(
-                self.remove_set.get(element, 0),
-                other.remove_set.get(element, 0)
-            )
-        
-        return result
-
-# Usage for like system
-class DistributedLikeSystem:
-    def __init__(self):
-        self.user_likes = {}  # user_id -> LWW_Element_Set of post_ids
-    
-    def like_post(self, user_id, post_id, timestamp=None):
-        if user_id not in self.user_likes:
-            self.user_likes[user_id] = LWW_Element_Set()
-        
-        self.user_likes[user_id].add(post_id, timestamp)
-    
-    def unlike_post(self, user_id, post_id, timestamp=None):
-        if user_id not in self.user_likes:
-            self.user_likes[user_id] = LWW_Element_Set()
-        
-        self.user_likes[user_id].remove(post_id, timestamp)
-    
-    def has_liked(self, user_id, post_id):
-        if user_id not in self.user_likes:
-            return False
-        
-        return self.user_likes[user_id].contains(post_id)
-    
-    def sync_with_server(self, user_id, server_likes):
-        """Merge local changes with server state"""
-        if user_id not in self.user_likes:
-            self.user_likes[user_id] = server_likes
-        else:
-            self.user_likes[user_id] = self.user_likes[user_id].merge(server_likes)
-```
-
----
-
-## WebSocket Server Architecture (Deep Dive)
-
-### WebSocket Connection Management
-
-**Architecture:**
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│           WebSocket Server Architecture                  │
-├─────────────────────────────────────────────────────────┤
-│                                                           │
-│  Client Connections                                       │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐                 │
-│  │ User A  │  │ User B  │  │ User C  │                 │
-│  │ Mobile  │  │  Web    │  │ Mobile  │                 │
-│  └────┬────┘  └────┬────┘  └────┬────┘                 │
-│       │            │            │                        │
-│       ▼            ▼            ▼                        │
-│  ┌───────────────────────────────────┐                  │
-│  │    Load Balancer (L4/L7)          │                  │
-│  │    - Session affinity             │                  │
-│  │    - Health checks                │                  │
-│  └───────────┬───────────────────────┘                  │
-│              │                                           │
-│       ┌──────┼──────┐                                   │
-│       ▼      ▼      ▼                                   │
-│  ┌────────┐ ┌────────┐ ┌────────┐                      │
-│  │  WS    │ │  WS    │ │  WS    │                      │
-│  │Server 1│ │Server 2│ │Server 3│                      │
-│  │        │ │        │ │        │                      │
-│  │10k conn│ │10k conn│ │10k conn│                      │
-│  └────┬───┘ └────┬───┘ └────┬───┘                      │
-│       │          │          │                           │
-│       └──────────┼──────────┘                           │
-│                  │                                       │
-│                  ▼                                       │
-│       ┌─────────────────────┐                           │
-│       │  Redis Pub/Sub      │                           │
-│       │  - User channels    │                           │
-│       │  - Broadcast events │                           │
-│       └─────────────────────┘                           │
-│                                                           │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Implementation:**
-
-```python
-import asyncio
-import websockets
-import redis.asyncio as redis
-import json
-
-class WebSocketServer:
-    def __init__(self):
-        self.connections = {}  # user_id -> set of websocket connections
-        self.redis = redis.Redis(host='redis.internal', decode_responses=True)
-        self.pubsub = None
-    
-    async def start(self):
-        """Start WebSocket server"""
-        # Start Redis Pub/Sub listener
-        self.pubsub = self.redis.pubsub()
-        asyncio.create_task(self.listen_to_redis())
-        
-        # Start WebSocket server
-        async with websockets.serve(self.handle_connection, "0.0.0.0", 8080):
-            await asyncio.Future()  # Run forever
-    
-    async def handle_connection(self, websocket, path):
-        """Handle new WebSocket connection"""
-        user_id = None
-        
-        try:
-            # Authenticate
-            auth_message = await websocket.recv()
-            user_id = await self.authenticate(auth_message)
-            
-            if not user_id:
-                await websocket.close(1008, "Authentication failed")
-                return
-            
-            # Register connection
-            if user_id not in self.connections:
-                self.connections[user_id] = set()
-            self.connections[user_id].add(websocket)
-            
-            # Subscribe to user's channel
-            await self.pubsub.subscribe(f'user:{user_id}:updates')
-            
-            logger.info(f'User {user_id} connected, total connections: {len(self.connections[user_id])}')
-            
-            # Send initial state
-            await self.send_initial_state(websocket, user_id)
-            
-            # Handle incoming messages
-            async for message in websocket:
-                await self.handle_message(user_id, message)
-        
-        except websockets.exceptions.ConnectionClosed:
-            logger.info(f'User {user_id} disconnected')
-        
-        finally:
-            # Cleanup
-            if user_id and user_id in self.connections:
-                self.connections[user_id].discard(websocket)
-                if not self.connections[user_id]:
-                    del self.connections[user_id]
-                    await self.pubsub.unsubscribe(f'user:{user_id}:updates')
-    
-    async def listen_to_redis(self):
-        """Listen to Redis Pub/Sub and broadcast to WebSocket clients"""
-        async for message in self.pubsub.listen():
-            if message['type'] == 'message':
-                channel = message['channel']
-                data = json.loads(message['data'])
-                
-                # Extract user_id from channel name
-                user_id = channel.split(':')[1]
-                
-                # Send to all connections for this user
-                await self.broadcast_to_user(user_id, data)
-    
-    async def broadcast_to_user(self, user_id, data):
-        """Send message to all connections for a user"""
-        if user_id not in self.connections:
-            return
-        
-        # Send to all connections concurrently
-        tasks = [
-            ws.send(json.dumps(data))
-            for ws in self.connections[user_id]
-        ]
-        
-        await asyncio.gather(*tasks, return_exceptions=True)
-    
-    async def send_initial_state(self, websocket, user_id):
-        """Send initial state when user connects"""
-        # Fetch unread notifications count
-        unread_count = await self.get_unread_notifications(user_id)
-        
-        await websocket.send(json.dumps({
-            'type': 'initial_state',
-            'unread_notifications': unread_count,
-            'timestamp': time.time()
-        }))
-    
-    async def handle_message(self, user_id, message):
-        """Handle incoming WebSocket message"""
-        try:
-            data = json.loads(message)
-            msg_type = data.get('type')
-            
-            if msg_type == 'ping':
-                # Respond to keep-alive ping
-                await self.send_to_user(user_id, {'type': 'pong'})
-            
-            elif msg_type == 'mark_notification_read':
-                # Mark notification as read
-                notification_id = data['notification_id']
-                await self.mark_notification_read(user_id, notification_id)
-        
-        except json.JSONDecodeError:
-            logger.error(f'Invalid JSON from user {user_id}')
-
-# Integration with application
-class NotificationService:
-    def __init__(self):
-        self.redis = redis.Redis()
-    
-    async def notify_user(self, user_id, event_type, data):
-        """Publish notification to user's channel"""
-        await self.redis.publish(
-            f'user:{user_id}:updates',
-            json.dumps({
-                'type': event_type,
-                'data': data,
-                'timestamp': time.time()
-            })
-        )
-
-# Usage
-notification_service = NotificationService()
-
-@event_handler('engagement.like')
-async def on_post_liked(post_id, liker_id):
-    post = get_post(post_id)
-    author_id = post.author_id
-    
-    # Notify post author
-    await notification_service.notify_user(
-        author_id,
-        'new_like',
-        {
-            'post_id': post_id,
-            'liker_id': liker_id,
-            'liker_username': get_user(liker_id).username
-        }
-    )
-```
-
-### Connection Scaling & Limits
-
-**Per-Server Limits:**
-
-```text
-OS Limits:
-- File descriptors: ulimit -n 1000000
-- Network buffers: sysctl net.core.rmem_max=134217728
-
-Application Limits:
-- Connections per server: 10,000 (comfortable)
-- Maximum: 50,000 (with optimization)
-- Memory per connection: ~10 KB
-- Total memory for 50k connections: ~500 MB
-
-Scaling:
-- 500M DAU, assume 20% concurrent: 100M concurrent users
-- Servers needed: 100M / 10k = 10,000 WebSocket servers
-- With redundancy (2x): 20,000 servers
-```
-
-**Connection Pooling:**
-
-```python
-class WebSocketConnectionPool:
-    def __init__(self, max_connections=10000):
-        self.max_connections = max_connections
-        self.current_connections = 0
-        self.waiting_queue = asyncio.Queue()
-    
-    async def acquire(self):
-        """Acquire connection slot"""
-        if self.current_connections < self.max_connections:
-            self.current_connections += 1
-            return True
-        else:
-            # Wait for slot to become available
-            await self.waiting_queue.get()
-            return True
-    
-    def release(self):
-        """Release connection slot"""
-        self.current_connections -= 1
-        
-        # Wake up waiting connection
-        if not self.waiting_queue.empty():
-            self.waiting_queue.put_nowait(True)
-```
-
----
-
-## Notification Service (Deep Dive)
-
-### Push Notification Architecture
-
-**Components:**
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│         Notification Service Architecture                │
-├─────────────────────────────────────────────────────────┤
-│                                                           │
-│  Event Sources                                            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
-│  │   Like   │  │ Comment  │  │  Follow  │              │
-│  │  Event   │  │  Event   │  │  Event   │              │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘              │
-│       │             │             │                      │
-│       └─────────────┼─────────────┘                      │
-│                     │                                     │
-│                     ▼                                     │
-│          ┌──────────────────────┐                        │
-│          │    Kafka Topic       │                        │
-│          │  'notifications'     │                        │
-│          └──────────┬───────────┘                        │
-│                     │                                     │
-│                     ▼                                     │
-│          ┌──────────────────────┐                        │
-│          │  Notification        │                        │
-│          │  Processor           │                        │
-│          │  (Consumer Group)    │                        │
-│          └──────────┬───────────┘                        │
-│                     │                                     │
-│          ┌──────────┴───────────┐                        │
-│          │                      │                        │
-│          ▼                      ▼                        │
-│  ┌──────────────┐     ┌──────────────┐                  │
-│  │  WebSocket   │     │ Push Service │                  │
-│  │  (Real-time) │     │  (Offline)   │                  │
-│  └──────────────┘     └──────┬───────┘                  │
-│                               │                           │
-│                    ┌──────────┼──────────┐               │
-│                    ▼          ▼          ▼               │
-│              ┌──────┐    ┌──────┐   ┌──────┐            │
-│              │ FCM  │    │ APNS │   │Email │            │
-│              │(Android)  │(iOS) │   │      │            │
-│              └──────┘    └──────┘   └──────┘            │
-│                                                           │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Implementation:**
-
-```python
-class NotificationProcessor:
-    def __init__(self):
-        self.kafka_consumer = KafkaConsumer(
-            'notifications',
-            group_id='notification-processors',
-            bootstrap_servers=['kafka:9092']
-        )
-        
-        self.fcm_client = FCMClient()  # Firebase Cloud Messaging
-        self.apns_client = APNSClient()  # Apple Push Notification Service
-        self.email_client = EmailClient()
-    
-    async def process_notifications(self):
-        """Main processing loop"""
-        for message in self.kafka_consumer:
-            event = json.loads(message.value)
-            
-            # Determine recipients
-            recipients = await self.get_recipients(event)
-            
-            # Filter based on user preferences
-            recipients = self.filter_by_preferences(recipients, event['type'])
-            
-            # Send notifications
-            await self.send_notifications(recipients, event)
-    
-    async def get_recipients(self, event):
-        """Determine who should receive this notification"""
-        if event['type'] == 'new_like':
-            # Notify post author
-            post = get_post(event['post_id'])
-            return [post.author_id]
-        
-        elif event['type'] == 'new_comment':
-            # Notify post author + parent comment author
-            post = get_post(event['post_id'])
-            recipients = [post.author_id]
-            
-            if event.get('parent_comment_id'):
-                parent_comment = get_comment(event['parent_comment_id'])
-                recipients.append(parent_comment.author_id)
-            
-            return recipients
-        
-        elif event['type'] == 'new_follower':
-            # Notify user who was followed
-            return [event['followed_user_id']]
-    
-    def filter_by_preferences(self, recipients, event_type):
-        """Filter based on user notification preferences"""
-        filtered = []
-        
-        for user_id in recipients:
-            prefs = get_user_notification_preferences(user_id)
-            
-            if prefs.get(event_type, {}).get('enabled', True):
-                filtered.append(user_id)
-        
-        return filtered
-    
-    async def send_notifications(self, recipients, event):
-        """Send notifications via appropriate channels"""
-        for user_id in recipients:
-            user = get_user(user_id)
-            
-            # Check if user is online (WebSocket)
-            if is_user_online(user_id):
-                await self.send_websocket_notification(user_id, event)
-            else:
-                # Send push notification
-                await self.send_push_notification(user, event)
-            
-            # Store in database for notification center
-            await self.store_notification(user_id, event)
-    
-    async def send_push_notification(self, user, event):
-        """Send push notification to mobile device"""
-        devices = get_user_devices(user.user_id)
-        
-        # Build notification payload
-        notification = self.build_notification_payload(event)
-        
-        for device in devices:
-            if device.platform == 'ios':
-                await self.send_apns(device.token, notification)
-            elif device.platform == 'android':
-                await self.send_fcm(device.token, notification)
-    
-    async def send_fcm(self, device_token, notification):
-        """Send via Firebase Cloud Messaging"""
-        message = {
-            'token': device_token,
-            'notification': {
-                'title': notification['title'],
-                'body': notification['body']
-            },
-            'data': notification['data'],
-            'android': {
-                'priority': 'high',
-                'notification': {
-                    'sound': 'default',
-                    'click_action': 'OPEN_APP'
-                }
-            }
-        }
-        
-        response = await self.fcm_client.send(message)
-        
-        if response.get('error'):
-            logger.error(f'FCM error: {response["error"]}')
-            
-            # Handle token expiration
-            if response['error']['code'] == 'INVALID_TOKEN':
-                await self.remove_device_token(device_token)
-    
-    def build_notification_payload(self, event):
-        """Build notification message"""
-        if event['type'] == 'new_like':
-            liker = get_user(event['liker_id'])
-            return {
-                'title': 'New Like',
-                'body': f'{liker.username} liked your post',
-                'data': {
-                    'type': 'new_like',
-                    'post_id': event['post_id'],
-                    'liker_id': event['liker_id']
-                }
-            }
-        
-        elif event['type'] == 'new_comment':
-            commenter = get_user(event['commenter_id'])
-            return {
-                'title': 'New Comment',
-                'body': f'{commenter.username} commented on your post: {event["comment_text"][:50]}...',
-                'data': {
-                    'type': 'new_comment',
-                    'post_id': event['post_id'],
-                    'comment_id': event['comment_id']
-                }
-            }
-```
-
-### Notification Batching & Throttling
-
-**Problem:** User gets hundreds of likes in a minute → spam notifications
-
-**Solution:**
-
-```python
-class NotificationBatcher:
-    def __init__(self):
-        self.batch_window = 60  # 1 minute
-        self.pending_notifications = {}  # user_id -> list of events
-        self.batch_timers = {}  # user_id -> timer
-    
-    def add_notification(self, user_id, event):
-        """Add notification to batch"""
-        if user_id not in self.pending_notifications:
-            self.pending_notifications[user_id] = []
-        
-        self.pending_notifications[user_id].append(event)
-        
-        # Start timer if not already running
-        if user_id not in self.batch_timers:
-            self.batch_timers[user_id] = threading.Timer(
-                self.batch_window,
-                self.flush_batch,
-                args=[user_id]
-            )
-            self.batch_timers[user_id].start()
-    
-    def flush_batch(self, user_id):
-        """Send batched notifications"""
-        events = self.pending_notifications.pop(user_id, [])
-        del self.batch_timers[user_id]
-        
-        if not events:
-            return
-        
-        # Group by type
-        grouped = {}
-        for event in events:
-            event_type = event['type']
-            if event_type not in grouped:
-                grouped[event_type] = []
-            grouped[event_type].append(event)
-        
-        # Send aggregated notification
-        for event_type, events_list in grouped.items():
-            self.send_aggregated_notification(user_id, event_type, events_list)
-    
-    def send_aggregated_notification(self, user_id, event_type, events):
-        """Send single notification for multiple events"""
-        if event_type == 'new_like':
-            count = len(events)
-            
-            if count == 1:
-                # Single like
-                liker = get_user(events[0]['liker_id'])
-                title = f'{liker.username} liked your post'
-            else:
-                # Multiple likes
-                first_liker = get_user(events[0]['liker_id'])
-                if count == 2:
-                    second_liker = get_user(events[1]['liker_id'])
-                    title = f'{first_liker.username} and {second_liker.username} liked your post'
-                else:
-                    title = f'{first_liker.username} and {count - 1} others liked your post'
-            
-            send_notification(user_id, title, event_type, events)
-```
-
----
-
 ## Advanced Optimization Techniques
 
 ### Connection Pooling Details
@@ -5893,6 +5175,145 @@ def batch_requests():
 
 ---
 
+## Cost Analysis
+
+### Infrastructure Cost Breakdown (Monthly)
+
+**Compute:**
+
+```text
+API Servers:
+- Instance type: m5.2xlarge (8 vCPU, 32 GB RAM)
+- Count: 100 instances (across regions)
+- Cost: $0.384/hour * 100 * 730 hours = $28,032/month
+
+Media Processing Workers:
+- Instance type: c5.4xlarge (16 vCPU, 32 GB RAM)
+- Count: 1000 instances (auto-scaling)
+- Average utilization: 60%
+- Cost: $0.68/hour * 1000 * 0.6 * 730 = $297,840/month
+
+Total Compute: ~$326,000/month
+```
+
+**Storage:**
+
+```text
+S3 Storage (Media):
+- Storage: 12.6 EB over 5 years = ~7 PB active
+- Cost: $0.023/GB * 7,000,000 GB = $161,000/month
+
+S3 Data Transfer Out:
+- Bandwidth: 16.5 Pbps peak (with 95% CDN offload)
+- Actual S3 egress: 16.5 Pbps * 0.05 = 825 Tbps
+- Monthly: 825 TB * 730 * 3600 / 8 / 1024 / 1024 = ~300 TB
+- Cost: $0.09/GB * 300,000 GB = $27,000/month
+
+Total Storage: ~$188,000/month
+```
+
+**Database:**
+
+```text
+PostgreSQL (RDS):
+- Instance: db.r5.8xlarge
+- Count: 3 (1 primary + 2 replicas)
+- Storage: 3 TB * 3 = 9 TB
+- Cost: $2.88/hour * 3 * 730 = $6,307/month
+- Storage: $0.115/GB * 9000 = $1,035/month
+
+Cassandra (EC2):
+- Instance: i3.4xlarge
+- Count: 100 nodes (sharded)
+- Cost: $1.248/hour * 100 * 730 = $91,104/month
+
+Redis Cluster:
+- Instance: r5.4xlarge
+- Count: 64 nodes (sharded)
+- Cost: $1.008/hour * 64 * 730 = $47,093/month
+
+Total Database: ~$145,000/month
+```
+
+**CDN:**
+
+```text
+CloudFront:
+- Data transfer: 10B impressions * 300 KB = 3 PB/day = 90 PB/month
+- Cost: $0.085/GB * 90,000,000 GB = $7,650,000/month
+- Cache hit ratio: 95%, so only 5% origin fetch
+- Actual CDN cost (with volume discount): ~$300,000/month
+
+Total CDN: ~$300,000/month
+```
+
+**Kafka (Message Queue):**
+
+```text
+- Instance: m5.2xlarge
+- Count: 20 brokers
+- Storage: 10 PB retention (7 days)
+- Cost: $0.384/hour * 20 * 730 = $5,606/month
+- Storage: $0.10/GB * 10,000,000 = $1,000,000/month
+
+Total Kafka: ~$1,006,000/month (expensive! optimize retention)
+```
+
+**Total Monthly Cost: ~$1,965,000/month = $23.6M/year**
+
+### Cost Optimization Strategies
+
+```python
+# Strategy 1: Right-size instances
+def optimize_instance_sizes():
+    """
+    Monitor actual resource usage and downsize
+    """
+    for instance in get_all_instances():
+        metrics = cloudwatch.get_metrics(instance.id, period='7d')
+        
+        avg_cpu = metrics['cpu']['average']
+        avg_memory = metrics['memory']['average']
+        
+        # If consistently under-utilized, suggest smaller instance
+        if avg_cpu < 30 and avg_memory < 40:
+            smaller_instance = suggest_smaller_instance(instance.type)
+            logger.info(f'Instance {instance.id} can be downsized to {smaller_instance}')
+            # Estimated savings: $X/month
+
+# Strategy 2: Use Spot Instances for workers
+"""
+Media processing workers can use Spot instances (70% cost savings)
+- Stateless workloads
+- Can handle interruptions
+- Kafka queue provides durability
+
+Savings: $297,840 * 0.7 = $208,488/month
+"""
+
+# Strategy 3: Optimize storage retention
+"""
+- Reduce Kafka retention from 7 days to 2 days
+- Move old media to Glacier (90% cheaper)
+- Compress media more aggressively
+
+Estimated savings: $400,000/month
+"""
+
+# Strategy 4: CDN optimization
+"""
+- Increase cache TTL (reduce origin fetches)
+- Use origin shield
+- Negotiate volume discounts
+
+Estimated savings: $50,000/month
+"""
+
+# Total potential savings: ~$650,000/month (33% reduction)
+```
+
+---
+
 ## SLA/SLO/SLI Definitions
 
 ### Service Level Indicators (SLIs)
@@ -5980,6 +5401,579 @@ Exclusions:
 - Customer's own infrastructure issues
 - Force majeure events
 ```
+
+---
+
+## Security Considerations
+
+### 1. Authentication & Authorization
+
+**Mechanism:**
+
+- JWT tokens (access token + refresh token)
+- Access token: 15-minute expiration
+- Refresh token: 30-day expiration (stored in HttpOnly cookie)
+
+**Token Structure:**
+
+```json
+{
+  "sub": "user_id",
+  "username": "johndoe",
+  "iat": 1696276800,
+  "exp": 1696277700,
+  "roles": ["user"],
+  "permissions": ["read:feed", "write:post", "delete:own_post"]
+}
+```
+
+**Implementation:**
+
+```python
+def generate_access_token(user_id):
+    payload = {
+        'sub': user_id,
+        'iat': now(),
+        'exp': now() + timedelta(minutes=15)
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm='HS256')
+
+def verify_token(token):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        return payload['sub']
+    except jwt.ExpiredSignatureError:
+        raise AuthenticationError('Token expired')
+    except jwt.InvalidTokenError:
+        raise AuthenticationError('Invalid token')
+```
+
+---
+
+### 2. Input Validation
+
+**Validation Rules:**
+
+```python
+post_validation = {
+    'caption': {
+        'max_length': 2200,
+        'allowed_chars': 'unicode',
+        'xss_filter': True
+    },
+    'media': {
+        'max_files': 10,
+        'allowed_types': ['image/jpeg', 'image/png', 'video/mp4'],
+        'max_size': '500MB'
+    },
+    'hashtags': {
+        'max_count': 30,
+        'max_length': 50,
+        'pattern': r'^[a-zA-Z0-9_]+$'
+    }
+}
+
+def validate_post(post_data):
+    # Length check
+    if len(post_data['caption']) > 2200:
+        raise ValidationError('Caption too long')
+    
+    # XSS prevention
+    caption = bleach.clean(post_data['caption'], strip=True)
+    
+    # SQL injection prevention (use parameterized queries)
+    # Done automatically by ORM
+    
+    return sanitized_data
+```
+
+---
+
+### 3. Rate Limiting
+
+**Implementation:**
+
+```python
+def rate_limit(user_id, action, limit, window):
+    """
+    Token bucket algorithm
+    """
+    key = f'rate_limit:{user_id}:{action}'
+    current = redis.get(key) or 0
+    
+    if current >= limit:
+        raise RateLimitExceeded(f'Max {limit} {action}s per {window}')
+    
+    redis.incr(key)
+    redis.expire(key, window)
+
+# Usage
+@rate_limit(user_id=request.user_id, action='post', limit=100, window=3600)
+def create_post(post_data):
+    ...
+```
+
+**Rate Limits:**
+
+```text
+- Login attempts: 5 per 15 minutes
+- Post creation: 100 per hour
+- Comment creation: 1000 per hour
+- Follow/unfollow: 200 per hour
+- API requests: 5000 per hour (authenticated), 100 per hour (unauthenticated)
+```
+
+---
+
+### 4. Data Encryption
+
+**Encryption at Rest:**
+
+- User passwords: bcrypt with salt (cost factor: 12)
+- Sensitive data: AES-256 encryption
+- Database: Encrypted volumes (AWS KMS)
+- Backups: Encrypted before upload
+
+**Encryption in Transit:**
+
+- TLS 1.3 for all API endpoints
+- Certificate pinning for mobile apps
+- HTTPS redirect (HTTP → HTTPS)
+
+**Implementation:**
+
+```python
+# Password hashing
+def hash_password(password):
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
+
+def verify_password(password, hash):
+    return bcrypt.checkpw(password.encode(), hash)
+
+# Sensitive data encryption
+def encrypt_sensitive_data(data):
+    cipher = AES.new(ENCRYPTION_KEY, AES.MODE_GCM)
+    ciphertext, tag = cipher.encrypt_and_digest(data.encode())
+    return base64.b64encode(cipher.nonce + tag + ciphertext)
+```
+
+---
+
+### 5. Content Moderation
+
+**Automated Moderation:**
+
+```python
+def moderate_content(media_url, caption):
+    """
+    Multi-stage moderation pipeline
+    """
+    # Stage 1: NSFW detection (AWS Rekognition)
+    nsfw_score = aws_rekognition.detect_moderation_labels(media_url)
+    if nsfw_score > 0.8:
+        return 'rejected', 'NSFW content'
+    
+    # Stage 2: Violence/gore detection
+    violence_score = detect_violence(media_url)
+    if violence_score > 0.7:
+        return 'rejected', 'Violent content'
+    
+    # Stage 3: Text moderation (caption)
+    profanity_detected = profanity_filter.check(caption)
+    if profanity_detected:
+        return 'flagged', 'Profanity detected'
+    
+    # Stage 4: Spam detection
+    spam_score = spam_classifier.predict(caption)
+    if spam_score > 0.9:
+        return 'rejected', 'Spam content'
+    
+    return 'approved', None
+
+# Apply moderation before publishing
+def create_post(post_data):
+    status, reason = moderate_content(post_data['media_url'], post_data['caption'])
+    
+    if status == 'rejected':
+        raise ContentViolationError(reason)
+    elif status == 'flagged':
+        # Send to manual review queue
+        queue_for_human_review(post_data)
+        return {'status': 'pending_review'}
+    else:
+        # Publish post
+        return publish_post(post_data)
+```
+
+---
+
+### 6. DDoS Protection
+
+**Measures:**
+
+- CloudFlare/AWS Shield for L3/L4 protection
+- API Gateway rate limiting
+- Challenge-response for suspicious traffic (CAPTCHA)
+- Geographic blocking (block high-risk countries)
+- Anomaly detection (ML-based traffic analysis)
+
+---
+
+### 7. Privacy & Compliance
+
+**GDPR Compliance:**
+
+- Right to access: API endpoint to export user data
+- Right to erasure: Delete user and all content
+- Data portability: Export in JSON format
+- Consent management: Explicit opt-in for data processing
+
+**Implementation:**
+
+```python
+def export_user_data(user_id):
+    """
+    Export all user data (GDPR Article 15)
+    """
+    user = db.get_user(user_id)
+    posts = db.get_user_posts(user_id)
+    comments = db.get_user_comments(user_id)
+    likes = db.get_user_likes(user_id)
+    
+    return {
+        'user': user,
+        'posts': posts,
+        'comments': comments,
+        'likes': likes,
+        'exported_at': now()
+    }
+
+def delete_user_data(user_id):
+    """
+    Permanently delete user data (GDPR Article 17)
+    """
+    # Delete from primary databases
+    db.delete_user(user_id)
+    db.delete_user_posts(user_id)
+    db.delete_user_comments(user_id)
+    
+    # Delete from caches
+    redis.delete(f'user:{user_id}')
+    redis.delete(f'timeline:{user_id}')
+    
+    # Delete from search index
+    elasticsearch.delete('users', user_id)
+    
+    # Delete media from S3 (async)
+    s3.delete_user_media(user_id)
+```
+
+---
+
+## Future Enhancements
+
+### 1. Direct Messaging (DM)
+
+**Architecture:**
+
+- WebSocket-based real-time messaging
+- Message storage in Cassandra (partition by conversation_id)
+- End-to-end encryption (Signal Protocol)
+- Read receipts and typing indicators
+- Media sharing in DMs
+
+**Implementation:**
+
+```python
+# Message schema
+{
+    'message_id': 'uuid',
+    'conversation_id': 'uuid',
+    'sender_id': 'uuid',
+    'content': 'encrypted_blob',
+    'media_url': 's3_url',
+    'created_at': 'timestamp',
+    'read_at': 'timestamp'
+}
+
+# WebSocket handler
+@websocket.on_message
+def handle_dm(message):
+    recipient = message['recipient_id']
+    
+    # Store message
+    db.insert('messages', message)
+    
+    # Send to recipient (if online)
+    if is_user_online(recipient):
+        websocket.send(recipient, message)
+    else:
+        # Queue for push notification
+        push_notification(recipient, 'New message from {sender}')
+```
+
+**Estimated Resources:**
+
+- 50M DM users (10% of DAU)
+- 500M messages/day
+- Storage: 500M * 1KB = 500GB/day = 180TB/year
+
+---
+
+### 2. Live Streaming
+
+**Architecture:**
+
+- WebRTC for peer-to-peer streaming
+- Media servers for distribution (Wowza/Ant Media Server)
+- Adaptive bitrate streaming
+- Chat integration
+- Live reactions
+
+**Implementation:**
+
+```python
+# Live stream schema
+{
+    'stream_id': 'uuid',
+    'user_id': 'uuid',
+    'title': 'string',
+    'status': 'live' | 'ended',
+    'viewer_count': 'int',
+    'started_at': 'timestamp',
+    'ended_at': 'timestamp',
+    'chat_enabled': 'boolean'
+}
+
+# Start stream
+def start_live_stream(user_id, title):
+    stream = create_stream(user_id, title)
+    
+    # Notify followers
+    followers = get_followers(user_id)
+    notify_followers(followers, f'{user.username} is live!')
+    
+    # Start media server
+    media_server.start_stream(stream.stream_id)
+    
+    return stream
+```
+
+**Estimated Resources:**
+
+- 100k concurrent streams at peak
+- 10M viewers at peak
+- Bandwidth: 10M * 2Mbps = 20Tbps
+
+---
+
+### 3. Stories Enhancements
+
+**Features:**
+
+- Interactive stickers (polls, questions, quizzes)
+- Augmented reality (AR) filters
+- Story replies (DM responses)
+- Story highlights (save stories beyond 24 hours)
+- Story analytics (view counts, engagement)
+
+**Implementation:**
+
+```python
+# Interactive poll sticker
+{
+    'sticker_type': 'poll',
+    'question': 'Favorite color?',
+    'options': ['Red', 'Blue', 'Green'],
+    'votes': {
+        'Red': 42,
+        'Blue': 35,
+        'Green': 23
+    }
+}
+
+# AR filter application
+def apply_ar_filter(story_media, filter_id):
+    # Use OpenCV/TensorFlow for face detection
+    faces = detect_faces(story_media)
+    
+    # Apply filter (e.g., dog ears)
+    filtered_media = apply_filter(story_media, faces, filter_id)
+    
+    return filtered_media
+```
+
+---
+
+### 4. Recommendation System
+
+**ML-Based Content Discovery:**
+
+- Collaborative filtering (users like you also liked...)
+- Content-based filtering (similar to posts you've liked)
+- Hybrid approach
+- Trending content boost
+
+**Implementation:**
+
+```python
+# User embedding
+user_embedding = embed_user_preferences(user_id)
+# [interest_tech: 0.8, interest_sports: 0.3, ...]
+
+# Post embedding
+post_embedding = embed_post_content(post_id)
+# [topic_tech: 0.9, topic_sports: 0.1, ...]
+
+# Similarity score
+similarity = cosine_similarity(user_embedding, post_embedding)
+
+# Ranking
+def recommend_posts(user_id, num_posts=50):
+    # Candidate generation (narrow down from billions)
+    candidates = get_candidate_posts(user_id)  # ~10k candidates
+    
+    # Scoring
+    scores = []
+    for post in candidates:
+        score = calculate_relevance_score(post, user_id)
+        scores.append((post, score))
+    
+    # Ranking
+    ranked_posts = sorted(scores, key=lambda x: x[1], reverse=True)
+    
+    return ranked_posts[:num_posts]
+```
+
+**Model Training:**
+
+- Training data: 100B engagement events
+- Model: Two-tower neural network
+- Features: 500+ features
+- Training frequency: Daily
+- Serving: TensorFlow Serving (5ms inference latency)
+
+---
+
+### 5. Ads Platform
+
+**Sponsored Content:**
+
+- Native ads (looks like regular posts)
+- Targeting (demographics, interests, behavior)
+- Auction-based pricing (CPM, CPC, CPA)
+- Ad frequency capping
+- Performance analytics
+
+**Implementation:**
+
+```python
+def insert_ads_in_feed(feed_posts, user_id):
+    """
+    Insert ads every N organic posts
+    """
+    AD_FREQUENCY = 5  # Show ad every 5 posts
+    
+    # Fetch relevant ads
+    ads = ad_targeting_service.get_ads(
+        user_demographics=get_user_demographics(user_id),
+        user_interests=get_user_interests(user_id),
+        context='home_feed'
+    )
+    
+    # Insert ads in feed
+    feed_with_ads = []
+    ad_index = 0
+    for i, post in enumerate(feed_posts):
+        feed_with_ads.append(post)
+        
+        if (i + 1) % AD_FREQUENCY == 0 and ad_index < len(ads):
+            feed_with_ads.append({
+                'type': 'ad',
+                'content': ads[ad_index],
+                'ad_id': ads[ad_index]['id']
+            })
+            ad_index += 1
+    
+    return feed_with_ads
+```
+
+**Revenue Model:**
+
+- CPM (Cost Per Mille): $5-20 per 1000 impressions
+- Estimated revenue: 10B impressions/day * $10 CPM = $100k/day = $36M/year
+
+---
+
+### 6. Analytics Dashboard
+
+**User Analytics:**
+
+- Profile views
+- Follower growth over time
+- Post reach and engagement
+- Best time to post
+- Audience demographics
+
+**Content Creator Tools:**
+
+- Detailed post analytics
+- Story insights
+- Hashtag performance
+- Competitor analysis
+- Engagement rate trends
+
+**Implementation:**
+
+```python
+# Analytics schema (ClickHouse)
+{
+    'event_id': 'uuid',
+    'user_id': 'uuid',
+    'post_id': 'uuid',
+    'event_type': 'view' | 'like' | 'comment' | 'share',
+    'timestamp': 'datetime',
+    'device_type': 'mobile' | 'web',
+    'location': 'country_code'
+}
+
+# Analytics query
+def get_post_analytics(post_id):
+    return {
+        'views': count_events(post_id, 'view'),
+        'likes': count_events(post_id, 'like'),
+        'comments': count_events(post_id, 'comment'),
+        'shares': count_events(post_id, 'share'),
+        'engagement_rate': (likes + comments + shares) / views,
+        'demographics': get_viewer_demographics(post_id),
+        'top_locations': get_top_locations(post_id)
+    }
+```
+
+---
+
+### 7. Machine Learning Enhancements
+
+**Content Understanding:**
+
+- Object detection in images
+- Scene classification
+- Auto-tagging
+- Auto-captioning
+
+**User Safety:**
+
+- Cyberbullying detection
+- Self-harm content detection
+- Misinformation flagging
+- Deepfake detection
+
+**Personalization:**
+
+- Feed ranking optimization
+- Notification timing optimization
+- Content format preferences
+- Language translation
 
 ---
 
