@@ -82,6 +82,35 @@
 | DELETE | `/v1/pastes/{id}` | Delete paste | Access key required |
 | GET | `/v1/health` | Health check | Service status monitoring |
 
+## 🔄 Data Flows (Critical for Interviews)
+
+### Write Flow (Create Paste)
+
+```text
+1. User → CDN → Load Balancer → API Gateway
+2. API Gateway → Write Service (rate limit check)
+3. Write Service → URL Generator (get unique ID)
+4. Write Service → Object Storage (store content if >1KB)
+5. Write Service → PostgreSQL (store metadata)
+6. Write Service → Redis Cache (cache hot paste)
+7. Response → User (return short URL)
+```
+
+**Key Points:** Synchronous for immediate URL, async for stats
+
+### Read Flow (View Paste)
+
+```text
+1. User → CDN (95% cache hit for static assets)
+2. CDN miss → Load Balancer → API Gateway
+3. API Gateway → Read Service
+4. Read Service → Redis Cache (80% hit rate)
+5. Cache miss → PostgreSQL (metadata) + S3 (content)
+6. Update cache → Return to user
+```
+
+**Key Points:** Multi-tier caching, expiration check, view count async update
+
 ## 🚀 Critical Talking Points
 
 ### Point 1: URL Generation Strategy
@@ -187,6 +216,109 @@
 - **Security:** Rate limiting, input validation, access control for private pastes
 - **Operational:** Health checks, logging, alerting, deployment strategy
 - **Future:** User accounts, collaboration features, geographic distribution
+
+## 🔒 Security Deep Dive
+
+### Multi-Layer Protection
+
+```text
+Layer 1: CDN (CloudFlare)
+- WAF, 1000 req/min per IP, bot challenges
+
+Layer 2: API Gateway  
+- 100 req/min per IP, payload limits
+
+Layer 3: Application
+- Token bucket: 10 pastes/hour (anon), 100/hour (auth)
+- Content validation: 10MB max, XSS prevention
+```
+
+### Private Paste Security
+
+- **Access Keys:** 32-byte random, stored as hash
+- **URL Format:** `https://pastebin.com/aB3xY7z?key=sk_a1b2c3d4e5f6g7h8`
+- **No User Auth:** MVP simplicity, upgrade to OAuth later
+
+## 📊 Monitoring & Operations
+
+### Critical Metrics
+
+| Metric | Threshold | Action |
+|--------|-----------|--------|
+| API Latency p99 | >200ms | Scale servers |
+| Cache Hit Rate | <75% | Tune TTL/memory |
+| Error Rate | >1% | Page on-call |
+| DB Replication Lag | >60s | Check DB health |
+
+### Alerting Strategy
+
+- **Critical:** Page immediately (availability, errors)
+- **Warning:** Email (performance degradation)
+- **Info:** Dashboard (trends, costs)
+
+## 🌍 Scaling Strategies
+
+### Geographic Distribution
+
+```text
+Current: Single region (US-East)
+Future: Multi-region deployment
+
+Regions: US-East, EU-West, Asia-Pacific
+- Each region: Full stack (API, DB, Cache)
+- S3 cross-region replication
+- GeoDNS routing to nearest region
+- Cost: +200% infrastructure, +150% performance
+```
+
+### Database Scaling
+
+```text
+Current: 1 master + 5 read replicas
+Bottleneck: 350 writes/sec at single master
+
+Solutions:
+1. Write sharding by paste_id hash
+2. Write-through cache with async DB flush
+3. Separate analytics DB (ClickHouse)
+```
+
+### Cache Scaling
+
+```text
+Current: Redis cluster (6 nodes, 64GB each)
+Future: Multi-tier caching
+
+Tier 1: Application cache (1000 hottest, <1ms)
+Tier 2: Redis distributed (current, <10ms)  
+Tier 3: CDN edge cache (<20ms)
+Result: 99% hit rate, <10ms average
+```
+
+## 🚨 Failure Scenarios & Recovery
+
+### URL Generator Failure
+
+- **Problem:** No new pastes can be created
+- **Solution:** Pre-allocated ID ranges per instance
+- **Fallback:** Timestamp-based IDs (collision risk)
+
+### Database Failure
+
+- **Master Down:** Promote read replica (30s downtime)
+- **Replica Down:** Route reads to other replicas
+- **Full DB Down:** Serve from cache only (degraded mode)
+
+### Cache Failure
+
+- **Redis Down:** Direct DB queries (higher latency)
+- **Partial Failure:** Consistent hashing redistributes load
+- **Recovery:** Warm cache from DB access patterns
+
+### S3 Failure
+
+- **Regional Outage:** Serve from cross-region replica
+- **Complete Failure:** Serve metadata only, show "content unavailable"
 
 ---
 
