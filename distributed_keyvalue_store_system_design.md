@@ -39,13 +39,30 @@
   - [6.5 Hinted Handoff for Temporary Failures](#65-hinted-handoff-for-temporary-failures)
   - [6.6 Merkle Trees for Anti-Entropy Repair](#66-merkle-trees-for-anti-entropy-repair)
   - [6.7 CAP Theorem Trade-offs](#67-cap-theorem-trade-offs)
-- [7. BOTTLENECKS & IMPROVEMENTS](#7-bottlenecks--improvements)
+  - [6.8 Write-Ahead Log (WAL) for Durability](#68-write-ahead-log-wal-for-durability)
+  - [6.9 Compaction Strategy](#69-compaction-strategy)
+  - [6.10 Read Repair](#610-read-repair)
+- [7. DATA MODEL](#7-data-model)
+  - [Key-Value Structure](#key-value-structure)
+  - [Data Types Support](#data-types-support)
+- [8. SCALABILITY](#8-scalability)
+  - [Horizontal Scaling](#horizontal-scaling)
+  - [Multi-Datacenter](#multi-datacenter)
+- [9. RELIABILITY](#9-reliability)
+  - [Failure Scenarios](#failure-scenarios)
+  - [SLA Guarantees](#sla-guarantees)
+- [10. MONITORING](#10-monitoring)
+  - [Key Metrics](#key-metrics)
+  - [Alerting Strategy](#alerting-strategy)
+- [11. TRADE-OFFS](#11-trade-offs)
+  - [Key Design Trade-offs](#key-design-trade-offs)
+- [12. BOTTLENECKS & IMPROVEMENTS](#12-bottlenecks--improvements)
   - [Potential Bottlenecks](#potential-bottlenecks)
   - [Scalability Improvements](#scalability-improvements)
   - [Monitoring and Observability](#monitoring-and-observability)
   - [Security Considerations](#security-considerations)
   - [Future Enhancements](#future-enhancements)
-- [8. CONCLUSION](#8-conclusion)
+- [13. CONCLUSION](#13-conclusion)
 
 ---
 
@@ -1357,7 +1374,372 @@ Resolution:
 
 ---
 
-## 7. BOTTLENECKS & IMPROVEMENTS
+### 6.8 Write-Ahead Log (WAL) for Durability
+
+**Purpose:** Ensure durability of writes by persisting them to disk before acknowledging to the client.
+
+**Implementation:**
+
+```text
+Write Path with WAL:
+1. Client sends PUT(key, value)
+2. Coordinator forwards to replicas
+3. Each replica:
+   a. Appends write to WAL (sequential disk write)
+   b. Flushes WAL to disk (fsync)
+   c. Writes to MemTable (in-memory)
+   d. Acknowledges write
+4. Background thread flushes MemTable to SSTable
+5. After successful flush, WAL entry can be deleted
+```
+
+**Trade-offs:**
+
+- **Pros:** Survives crashes without data loss, fast recovery
+- **Cons:** Extra disk I/O on every write
+- **Decision:** Essential for durability in distributed systems
+
+---
+
+### 6.9 Compaction Strategy
+
+**Purpose:** Merge and compress SSTable files to remove deleted data and reduce read amplification.
+
+**Strategy:**
+
+```text
+Our Choice: Leveled Compaction Strategy (LCS)
+Reason:
+- Read-heavy workload (GET operations dominate)
+- Need predictable read latency
+- Willing to trade write performance for read performance
+```
+
+**Trade-offs:**
+
+- **Pros:** Predictable p99 read latency, efficient space usage
+- **Cons:** 10x write amplification
+- **Decision:** Acceptable for read-heavy e-commerce workload
+
+---
+
+### 6.10 Read Repair
+
+**Purpose:** Asynchronously fix stale replicas discovered during read operations.
+
+**Read Repair Process:**
+
+```text
+During GET(key):
+1. Coordinator sends read to R=2 replicas
+2. Receive matching responses → return to client
+3. Background: Check third replica
+4. If stale: Send latest value to repair
+```
+
+**Trade-offs:**
+
+- **Pros:** Self-healing system, no manual intervention needed
+- **Cons:** Slight read latency increase
+- **Decision:** Essential for eventual consistency to converge
+
+---
+
+## 7. DATA MODEL
+
+This section describes the data model and key-value structure used in the distributed store.
+
+### Key-Value Structure
+
+**Primary Data Model:**
+
+```text
+Key-Value Pair:
+{
+  "key": "product:12345",
+  "value": {"name": "Laptop", "price": 999.99, "inventory": 50},
+  "metadata": {
+    "vector_clock": {"node_A": 10, "node_B": 8},
+    "created_at": "2025-10-02T10:00:00Z",
+    "ttl_seconds": 3600
+  }
+}
+```
+
+**Key Design:**
+
+```text
+Key Format: <namespace>:<entity_type>:<id>
+
+Examples:
+- product:item:12345
+- user:profile:user_789
+- cart:session:abc123xyz
+
+Constraints:
+- Max key size: 256 bytes
+- Case-sensitive
+```
+
+**Value Design:**
+
+```text
+Value Format: Arbitrary binary blob
+
+Common Formats:
+- JSON: Most flexible, human-readable
+- Protocol Buffers: Compact, versioned schema
+- Raw Binary: Images, documents
+
+Size Limits:
+- Max value size: 1MB (configurable)
+- Recommended: < 100KB for optimal performance
+```
+
+### Data Types Support
+
+**Basic Types:**
+
+- **String:** UTF-8 encoded text
+- **Binary:** Raw byte array
+- **JSON Document:** Structured data, schema-less
+- **Counter:** Atomic increment/decrement (CRDT-based)
+
+**Metadata Attributes:**
+
+- **TTL:** Automatic expiration after N seconds
+- **Vector Clock:** Causality tracking (system-maintained)
+- **Checksum:** SHA-256 hash for corruption detection
+- **Tombstone:** Soft delete marker
+
+---
+
+## 8. SCALABILITY
+
+This section covers horizontal scaling strategies and capacity planning.
+
+### Horizontal Scaling
+
+**Adding Nodes:**
+
+```text
+Process:
+1. Provision new node with 128 virtual tokens
+2. Node joins gossip cluster
+3. Stream data for new token ranges (1-2 hours for 100GB)
+4. Node transitions to "up" state
+5. Old nodes delete transferred data
+```
+
+**Capacity Planning:**
+
+```text
+Per-Node Capacity:
+- Storage: 2TB SSD
+- Memory: 64GB RAM
+- CPU: 16 cores
+- Network: 10Gbps
+
+Small Cluster (100GB data): 6 nodes minimum
+Medium Cluster (1TB data): 10 nodes
+Large Cluster (100TB data): 200 nodes
+```
+
+### Multi-Datacenter
+
+**Active-Active Multi-Region:**
+
+```text
+Deployment:
+- DC1 (US-East): 50 nodes, 50% traffic
+- DC2 (US-West): 50 nodes, 30% traffic
+- DC3 (EU): 30 nodes, 20% traffic
+
+Replication:
+- Local: N=3 within datacenter
+- Cross-DC: Async replication (50-200ms lag)
+```
+
+---
+
+## 9. RELIABILITY
+
+This section covers failure scenarios and recovery mechanisms.
+
+### Failure Scenarios
+
+**1. Single Node Failure:**
+
+```text
+Impact: No service disruption (quorum W=2, R=2)
+Recovery: Hinted handoff + read repair
+Time: Minutes to recover
+```
+
+**2. Datacenter Failure:**
+
+```text
+Impact: Traffic rerouted to healthy DCs
+Response: DNS failover (1-5 minutes)
+Recovery: Rebuild from replicas or wait for DC recovery
+```
+
+**3. Network Partition (Split-Brain):**
+
+```text
+Behavior: Both partitions continue operating (AP system)
+Resolution: Vector clocks detect conflicts after partition heals
+Time: Seconds to detect, minutes to resolve
+```
+
+### SLA Guarantees
+
+```text
+Availability: 99.99% (52 minutes downtime/year)
+Durability: 99.999999999% (11 nines)
+Latency: p99 read < 50ms, write < 100ms
+Throughput: Linear scaling with nodes
+```
+
+---
+
+## 10. MONITORING
+
+This section covers key metrics and monitoring strategies.
+
+### Key Metrics
+
+**Performance Metrics:**
+
+```text
+- Latency: read_latency_p99, write_latency_p99
+- Throughput: requests_per_second
+- Error Rate: error_rate, timeout_rate
+- Cache Hit Rate: bloom_filter_hit_rate
+```
+
+**System Resource Metrics:**
+
+```text
+- CPU: cpu_usage_percent (alert > 80%)
+- Memory: heap_memory_used (alert > 85%)
+- Disk: disk_usage_percent (alert > 80%)
+- Network: network_bytes_in/out (alert > 8Gbps)
+```
+
+**Data Metrics:**
+
+```text
+- Storage: total_keys_stored, total_data_size
+- Replication: replication_lag (alert > 10 seconds)
+- Consistency: vector_clock_conflicts
+```
+
+**Cluster Health:**
+
+```text
+- Membership: nodes_up, nodes_down
+- Quorum: quorum_failure_rate (alert > 0.01%)
+- Load Distribution: keys_per_node, requests_per_node
+```
+
+### Alerting Strategy
+
+**Critical Alerts (Immediate):**
+
+- Node down for > 5 minutes
+- Quorum failure rate > 1%
+- Disk usage > 95%
+- Error rate > 1%
+
+**Warning Alerts (Within Hours):**
+
+- High latency (p99 > 200ms)
+- Replication lag > 10 seconds
+- CPU usage > 80%
+- Compaction backlog (sstable_count > 100)
+
+---
+
+## 11. TRADE-OFFS
+
+This section summarizes key design trade-offs.
+
+### Key Design Trade-offs
+
+**1. Consistency vs Availability (CAP):**
+
+- **Decision:** AP system (availability + partition tolerance)
+- **Benefit:** 99.99% availability, works during partitions
+- **Cost:** Eventual consistency, conflict resolution needed
+- **Rationale:** E-commerce tolerates temporary inconsistencies
+
+**2. Replication Factor (N=3):**
+
+- **Decision:** 3 replicas per key
+- **Benefit:** 40% lower storage cost vs N=5
+- **Cost:** Cannot tolerate 2 simultaneous failures
+- **Rationale:** Balance durability and cost
+
+**3. Quorum (R=2, W=2):**
+
+- **Decision:** Balanced quorum configuration
+- **Benefit:** Read-after-write consistency
+- **Cost:** 2x latency vs eventual consistency
+- **Rationale:** Reasonable consistency for most operations
+
+**4. Consistent Hashing vs Range Partitioning:**
+
+- **Decision:** Consistent hashing with virtual nodes
+- **Benefit:** Even distribution, minimal data movement
+- **Cost:** No range queries support
+- **Rationale:** Better load balancing for key-value workload
+
+**5. Async Cross-DC Replication:**
+
+- **Decision:** Asynchronous replication between datacenters
+- **Benefit:** 10x better write latency
+- **Cost:** Cross-DC replication lag (50-200ms)
+- **Rationale:** Cannot wait for cross-continent latency
+
+**6. Leveled Compaction:**
+
+- **Decision:** LCS instead of size-tiered compaction
+- **Benefit:** Predictable read latency
+- **Cost:** 10x write amplification
+- **Rationale:** Read-heavy workload prioritizes read performance
+
+**7. Vector Clocks vs Last-Write-Wins:**
+
+- **Decision:** Vector clocks for conflict resolution
+- **Benefit:** No silent data loss, preserves causality
+- **Cost:** Client must handle conflicts
+- **Rationale:** E-commerce requires correct conflict resolution
+
+**8. Write-Ahead Log (WAL):**
+
+- **Decision:** WAL enabled for durability
+- **Benefit:** Zero data loss guarantee
+- **Cost:** 2x write latency
+- **Rationale:** Durability more important than speed
+
+**9. Bloom Filters:**
+
+- **Decision:** Use Bloom filters (1% false positive)
+- **Benefit:** 10x faster negative lookups
+- **Cost:** 2% memory overhead
+- **Rationale:** Memory cheaper than disk I/O
+
+**10. Active-Active Multi-DC:**
+
+- **Decision:** All datacenters accept writes
+- **Benefit:** Low latency for global users
+- **Cost:** Conflict resolution complexity
+- **Rationale:** Better user experience globally
+
+---
+
+## 12. BOTTLENECKS & IMPROVEMENTS
 
 ### Potential Bottlenecks
 
@@ -1788,7 +2170,7 @@ Use Cases:
 
 ---
 
-## 8. CONCLUSION
+## 13. CONCLUSION
 
 This distributed key-value store design achieves the target requirements:
 
