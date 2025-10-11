@@ -4,18 +4,18 @@
 
 **Last Updated:** October 2, 2025
 
-**Progress:** 19/52 (36.5% Complete)
+**Progress:** 23/52 (44.2% Complete)
 
 ---
 
 ## 📊 Progress Overview
 
 ```text
-✅ Completed: 19
+✅ Completed: 23
 🚧 In Progress: 0
-📝 Planned: 33
+📝 Planned: 29
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 36.5%
+[█████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 44.2%
 ```
 
 ---
@@ -173,11 +173,47 @@
 - **Completed:** January 2, 2025
 - **Scale:** 100M businesses, 500M users, 50K QPS, 100M searches/day, 99.99% availability
 - **Key Features:** Hybrid geospatial indexing (Geohash + PostGIS R-tree + QuadTree for high-density areas), multi-tier geospatial caching (Redis GEOADD with 95% hit rate), ML-powered ranking and personalization (collaborative filtering + GBT + neural networks), high-density area optimization (handles 10K+ businesses/km²), database sharding by geohash prefix, near real-time Elasticsearch indexing with CDC pipeline
-- **Lines:** 3,800+ (Principal Engineer Level)
+- **Lines:** 1,748 (Principal Engineer Level)
+
+### 20. ✅ Video Streaming Service (Netflix/YouTube)
+
+- **Status:** Complete
+- **File:** `video_streaming_system_design.md`
+- **Completed:** January 2, 2025
+- **Scale:** 100M concurrent viewers, 100 PB storage, 50M uploads/day, 10B views/day, 300 Tbps peak bandwidth
+- **Key Features:** Adaptive bitrate streaming with ML-powered quality selection, GPU-accelerated transcoding pipeline (NVIDIA T4), global CDN with 99% cache hit ratio, real-time analytics with Kafka + Flink + ClickHouse, progressive transcoding strategy, multi-origin geographic distribution
+- **Lines:** 1,660 (Principal Engineer Level)
+
+### 21. ✅ Search Engine (Google)
+
+- **Status:** Complete
+- **File:** `search_engine_system_design.md`
+- **Completed:** January 2, 2025
+- **Scale:** 10B pages indexed, 100K QPS, 1.7 PB storage, 10M updates/day, <200ms p99 latency
+- **Key Features:** Inverted index with advanced optimizations (delta encoding, skip lists), ML-powered ranking with LambdaMART (200+ features), distributed PageRank calculation with Apache Spark GraphX, real-time index updates with Lambda architecture (batch + speed layer), multi-stage query processing
+- **Lines:** 718 (Principal Engineer Level)
+
+### 22. ✅ E-commerce Website (Amazon)
+
+- **Status:** Complete
+- **File:** `ecommerce_website_system_design.md`
+- **Completed:** January 2, 2025
+- **Scale:** 500M users, 100M products, 1M orders/day (10M during flash sales), 263 TB storage
+- **Key Features:** Product catalog with Elasticsearch + CDC sync, shopping cart with Redis + inventory reservation, strong consistency inventory management with optimistic/pessimistic locking, flash sale handling with Redis DECR, order processing pipeline with ACID transactions, payment integration with Stripe + fraud detection ML, recommendation engine with collaborative filtering + deep learning, multi-tier caching strategy, comprehensive security (PCI DSS, OAuth 2.0, rate limiting), cost analysis with ROI 1158%
+- **Lines:** 3,609 (Principal Engineer Level)
+
+### 23. ✅ Payment Gateway
+
+- **Status:** Complete
+- **File:** `payment_gateway_system_design.md`
+- **Completed:** January 2, 2025
+- **Scale:** 10M transactions/day ($1B volume), 100K merchants, 100+ currencies, 99.999% uptime
+- **Key Features:** Idempotency design with 24h TTL, double-entry bookkeeping for financial accuracy, fraud detection with ML (98% accuracy, 0.08% false positives), authorization vs capture separation, PCI DSS Level 1 compliance with tokenization, multi-currency support with real-time forex, automated reconciliation and T+1 settlement
+- **Lines:** 1,073 (Principal Engineer Level)
 
 ---
 
-## 📋 Pending Designs (33)
+## 📋 Pending Designs (29)
 
 ### 💬 Messaging & Real-Time Systems (Next Priority)
 
@@ -228,15 +264,6 @@
 - **Actual Time:** 4 hours
 - **Key Concepts:** Fan-out on write vs read, ranking algorithms, personalization, caching, ML-based ranking
 
-#### 13. ⬜ Video Streaming Service (Netflix/YouTube)
-
-- **Status:** Not Started
-- **Priority:** P1 - High
-- **Difficulty:** ⭐⭐⭐⭐ Very Hard
-- **Estimated Time:** 4-5 hours
-- **Key Concepts:** Adaptive bitrate, CDN, transcoding, content delivery, recommendations
-
-
 #### 16. ⬜ Find Friends on Social Network
 
 - **Status:** Not Started
@@ -248,15 +275,6 @@
 ---
 
 ### 🔍 Search & Discovery
-
-
-#### 16. ⬜ Search Engine
-
-- **Status:** Not Started
-- **Priority:** P1 - High
-- **Difficulty:** ⭐⭐⭐⭐ Very Hard
-- **Estimated Time:** 4-5 hours
-- **Key Concepts:** Inverted index, ranking algorithms, crawling, indexing, query processing
 
 
 
@@ -287,22 +305,6 @@
 ---
 
 ### 🛒 E-commerce & Payments
-
-#### 22. ⬜ E-commerce Website (Amazon)
-
-- **Status:** Not Started
-- **Priority:** P1 - High
-- **Difficulty:** ⭐⭐⭐⭐ Very Hard
-- **Estimated Time:** 4-5 hours
-- **Key Concepts:** Product catalog, inventory, cart, checkout, orders, payments, recommendations
-
-#### 23. ⬜ Payment Gateway
-
-- **Status:** Not Started
-- **Priority:** P1 - High
-- **Difficulty:** ⭐⭐⭐⭐ Very Hard
-- **Estimated Time:** 4-5 hours
-- **Key Concepts:** Transaction processing, idempotency, reconciliation, fraud detection, PCI compliance
 
 #### 24. ⬜ Shopping Cart System
 

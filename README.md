@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (19/52)
+## ✅ Completed Designs (23/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -316,7 +316,7 @@ Personalized newsfeed system for social media platforms with real-time updates a
 
 - [x] **Design a social media platform** (like Instagram or Twitter)
 - [x] **Design a feed/newsfeed system** (like Facebook/LinkedIn Feed)
-- [ ] **Design a video streaming service** (like Netflix or YouTube)
+- [x] **Design a video streaming service** (like Netflix or YouTube)
 - [ ] **Design a system to find friends on social networks**
 
 ### Search & Discovery
@@ -325,14 +325,14 @@ Personalized newsfeed system for social media platforms with real-time updates a
 - [x] **Design a proximity service** (like Yelp)
 - [ ] **Design a recommendation engine**
 - [x] **Design an autocomplete/search suggestions engine**
-- [ ] **Design a search engine**
+- [x] **Design a search engine**
 - [ ] **Design Google Maps** (location, routing, scalability)
 - [ ] **Design a system that aggregates book reviews from various sources**
 
 ### E-commerce & Marketplace
 
-- [ ] **Design an e-commerce website** (like Amazon)
-- [ ] **Design a payment gateway**
+- [x] **Design an e-commerce website** (like Amazon)
+- [x] **Design a payment gateway**
 - [ ] **Design a ticket booking system**
 - [ ] **Design a shopping cart system**
 - [ ] **Design a promotion/cashback offer system**
@@ -487,9 +487,78 @@ Location-based business search service with advanced geospatial indexing and ML-
 
 **Scale:** 100M businesses, 500M users, 50K QPS, 100M searches/day, 99.99% availability
 
+### 20. [Video Streaming Service (Netflix/YouTube)](./video_streaming_system_design.md)
+
+**Status:** ✅ Complete
+
+Scalable video streaming platform with adaptive bitrate streaming and global CDN distribution.
+
+**Key Features:**
+
+- Adaptive bitrate streaming with ML-powered quality selection
+- GPU-accelerated transcoding pipeline (NVIDIA T4)
+- Global CDN with 99% cache hit ratio
+- Real-time analytics with Kafka + Flink + ClickHouse
+- Progressive transcoding strategy and multi-origin distribution
+
+**Scale:** 100M concurrent viewers, 100 PB storage, 50M uploads/day, 10B views/day, 300 Tbps peak bandwidth
+
+### 21. [Search Engine (Google)](./search_engine_system_design.md)
+
+**Status:** ✅ Complete
+
+Distributed search engine with inverted index and ML-powered ranking.
+
+**Key Features:**
+
+- Inverted index with advanced optimizations (delta encoding, skip lists)
+- ML-powered ranking with LambdaMART (200+ features)
+- Distributed PageRank calculation with Apache Spark GraphX
+- Real-time index updates with Lambda architecture
+- Sub-200ms p99 latency
+
+**Scale:** 10B pages indexed, 100K QPS, 1.7 PB storage, 10M updates/day
+
+### 22. [E-commerce Website (Amazon)](./ecommerce_website_system_design.md)
+
+**Status:** ✅ Complete
+
+Full-featured e-commerce platform with inventory management, payment processing, and ML recommendations.
+
+**Key Features:**
+
+- Product catalog with Elasticsearch + CDC sync
+- Shopping cart with Redis + inventory reservation
+- Strong consistency inventory management (optimistic/pessimistic locking)
+- Flash sale handling with Redis DECR (10x traffic support)
+- Payment integration with Stripe + fraud detection ML
+- Recommendation engine (collaborative filtering + deep learning)
+- Multi-tier caching, comprehensive security, 1158% ROI
+
+**Scale:** 500M users, 100M products, 1M orders/day (10M during flash sales), 263 TB storage
+
+### 23. [Payment Gateway](./payment_gateway_system_design.md)
+
+**Status:** ✅ Complete
+
+High-availability payment processing system with fraud detection and PCI DSS compliance.
+
+**Key Features:**
+
+- Idempotency design with 24h TTL (prevent duplicate charges)
+- Double-entry bookkeeping for financial accuracy
+- Fraud detection with ML (98% accuracy, 0.08% false positives)
+- Authorization vs capture separation
+- PCI DSS Level 1 compliance with tokenization
+- Multi-currency support with real-time forex (100+ currencies)
+- Automated reconciliation and T+1 settlement
+- 99.999% uptime guarantee
+
+**Scale:** 10M transactions/day ($1B volume), 100K merchants, 100+ currencies
+
 ---
 
-## 📋 Upcoming Designs (33)
+## 📋 Upcoming Designs (29)
 
 ### Core Infrastructure & Storage
 
@@ -515,7 +584,7 @@ Location-based business search service with advanced geospatial indexing and ML-
 
 - [x] **Design a social media platform** (like Instagram or Twitter)
 - [x] **Design a feed/newsfeed system** (like Facebook/LinkedIn Feed)
-- [ ] **Design a video streaming service** (like Netflix or YouTube)
+- [x] **Design a video streaming service** (like Netflix or YouTube)
 - [ ] **Design a system to find friends on social networks**
 
 ### Search & Discovery
@@ -524,14 +593,14 @@ Location-based business search service with advanced geospatial indexing and ML-
 - [x] **Design a proximity service** (like Yelp)
 - [ ] **Design a recommendation engine**
 - [x] **Design an autocomplete/search suggestions engine**
-- [ ] **Design a search engine**
+- [x] **Design a search engine**
 - [ ] **Design Google Maps** (location, routing, scalability)
 - [ ] **Design a system that aggregates book reviews from various sources**
 
 ### E-commerce & Marketplace
 
-- [ ] **Design an e-commerce website** (like Amazon)
-- [ ] **Design a payment gateway**
+- [x] **Design an e-commerce website** (like Amazon)
+- [x] **Design a payment gateway**
 - [ ] **Design a ticket booking system**
 - [ ] **Design a shopping cart system**
 - [ ] **Design a promotion/cashback offer system**
@@ -736,12 +805,12 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 19/52 (36.5%)
+**Completion Status:** 23/52 (44.2%)
 
-**Last Design Completed:** Proximity Service (Yelp)
+**Last Design Completed:** Payment Gateway
 
-**Next Up:** Google Maps
-**Current Work:** None
+**Next Up:** Notification System, Web Crawler
+**Current Work:** Principal Engineer Level designs
 
 ---
 
