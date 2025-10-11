@@ -4,18 +4,18 @@
 
 **Last Updated:** October 2, 2025
 
-**Progress:** 16/52 (30.8% Complete)
+**Progress:** 17/52 (32.7% Complete)
 
 ---
 
 ## 📊 Progress Overview
 
 ```text
-✅ Completed: 16
+✅ Completed: 17
 🚧 In Progress: 0
-📝 Planned: 36
+📝 Planned: 35
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 30.8%
+[████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 32.7%
 ```
 
 ---
@@ -157,18 +157,18 @@
 - **Key Features:** Geospatial driver matching with Redis GeoHash, real-time location tracking (1-second updates), dynamic pricing (surge), WebSocket-based trip state management, payment processing with commission calculation, comprehensive API design (15+ endpoints)
 - **Lines:** 2,500+ (comprehensive)
 
-### 16. ✅ Music Streaming Service (Spotify)
+### 17. ✅ Web Crawler (Googlebot)
 
 - **Status:** Complete
-- **File:** `music_streaming_system_design.md`
+- **File:** `web_crawler_system_design.md`
 - **Completed:** January 2, 2025
-- **Scale:** 500M users, 100M DAU, 100M songs catalog, 50M streams/day
-- **Key Features:** Multi-format audio transcoding (MP3/AAC/OGG) with adaptive bitrate streaming, CDN architecture with 100+ edge locations, ML-powered recommendation engine (collaborative filtering + content-based), cross-device playback state sync via WebSocket, Elasticsearch-based search with audio feature analysis, comprehensive API design (20+ endpoints)
+- **Scale:** 10B web pages, 1000 pages/second, 100+ crawler machines, 1M+ domains
+- **Key Features:** Distributed master-worker architecture, URL frontier with priority queues, robots.txt compliance and politeness policies, Bloom filter deduplication, content parsing with BeautifulSoup, fault tolerance with retry mechanisms, comprehensive API design (15+ endpoints)
 - **Lines:** 2,500+ (comprehensive)
 
 ---
 
-## 📋 Pending Designs (36)
+## 📋 Pending Designs (35)
 
 ### 💬 Messaging & Real-Time Systems (Next Priority)
 
@@ -240,13 +240,6 @@
 
 ### 🔍 Search & Discovery
 
-#### 15. ⬜ Web Crawler
-
-- **Status:** Not Started
-- **Priority:** P1 - High
-- **Difficulty:** ⭐⭐⭐ Hard
-- **Estimated Time:** 3-4 hours
-- **Key Concepts:** BFS/DFS, URL frontier, politeness, deduplication, distributed crawling
 
 #### 16. ⬜ Search Engine
 
@@ -711,8 +704,8 @@ Before marking a design as complete, ensure:
 
 ---
 
-**Last Activity:** January 2, 2025 - Completed Ride-Sharing Service (Uber) and Music Streaming Service (Spotify)
+**Last Activity:** January 2, 2025 - Completed Web Crawler (Googlebot)
 
-**Next Milestone:** Complete 20 designs by end of Q1 2025 - 16/20 in progress
+**Next Milestone:** Complete 20 designs by end of Q1 2025 - 17/20 in progress
 
 **Target:** Complete all 52 designs by Q4 2026

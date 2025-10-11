@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (16/52)
+## ✅ Completed Designs (17/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -321,7 +321,7 @@ Personalized newsfeed system for social media platforms with real-time updates a
 
 ### Search & Discovery
 
-- [ ] **Design a web crawler**
+- [x] **Design a web crawler**
 - [ ] **Design a proximity service** (like Yelp)
 - [ ] **Design a recommendation engine**
 - [ ] **Design an autocomplete/search suggestions engine**
@@ -431,9 +431,27 @@ Global music streaming platform with personalized recommendations and cross-devi
 
 **Scale:** 500M users, 100M DAU, 100M songs catalog, 50M streams/day
 
+### 17. [Web Crawler (Googlebot)](./web_crawler_system_design.md)
+
+**Status:** ✅ Complete
+
+Distributed web crawler for indexing 10B web pages with politeness policies and fault tolerance.
+
+**Key Features:**
+
+- Distributed master-worker architecture across 100+ machines
+- URL frontier with priority queues and domain-based scheduling
+- Robots.txt compliance and politeness policies
+- Bloom filter deduplication and URL normalization
+- Content parsing with BeautifulSoup and link extraction
+- Fault tolerance with retry mechanisms and circuit breaker
+- Comprehensive API design (15+ endpoints)
+
+**Scale:** 10B web pages, 1000 pages/second, 100+ crawler machines, 1M+ domains
+
 ---
 
-## 📋 Upcoming Designs (36)
+## 📋 Upcoming Designs (35)
 
 ### Core Infrastructure & Storage
 
@@ -464,7 +482,7 @@ Global music streaming platform with personalized recommendations and cross-devi
 
 ### Search & Discovery
 
-- [ ] **Design a web crawler**
+- [x] **Design a web crawler**
 - [ ] **Design a proximity service** (like Yelp)
 - [ ] **Design a recommendation engine**
 - [ ] **Design an autocomplete/search suggestions engine**
@@ -680,9 +698,9 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 16/52 (30.8%)
+**Completion Status:** 17/52 (32.7%)
 
-**Last Design Completed:** Music Streaming Service (Spotify)
+**Last Design Completed:** Web Crawler (Googlebot)
 
 **Next Up:** Notification System
 **Current Work:** None
