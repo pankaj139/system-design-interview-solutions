@@ -4,18 +4,18 @@
 
 **Last Updated:** October 2, 2025
 
-**Progress:** 18/52 (34.6% Complete)
+**Progress:** 19/52 (36.5% Complete)
 
 ---
 
 ## 📊 Progress Overview
 
 ```text
-✅ Completed: 18
+✅ Completed: 19
 🚧 In Progress: 0
-📝 Planned: 34
+📝 Planned: 33
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 34.6%
+[████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 36.5%
 ```
 
 ---
@@ -166,9 +166,18 @@
 - **Key Features:** Advanced Trie implementation (Double-Array Trie with compression), ML-powered personalization engine (collaborative filtering + neural networks), real-time trending detection with statistical significance testing, multi-tier caching with predictive preloading, comprehensive A/B testing framework, advanced database optimization (sharding, partitioning, async writes), cross-region synchronization with conflict resolution
 - **Lines:** 3,500+ (Principal Engineer Level)
 
+### 19. ✅ Proximity Service (Yelp)
+
+- **Status:** Complete
+- **File:** `proximity_service_system_design.md`
+- **Completed:** January 2, 2025
+- **Scale:** 100M businesses, 500M users, 50K QPS, 100M searches/day, 99.99% availability
+- **Key Features:** Hybrid geospatial indexing (Geohash + PostGIS R-tree + QuadTree for high-density areas), multi-tier geospatial caching (Redis GEOADD with 95% hit rate), ML-powered ranking and personalization (collaborative filtering + GBT + neural networks), high-density area optimization (handles 10K+ businesses/km²), database sharding by geohash prefix, near real-time Elasticsearch indexing with CDC pipeline
+- **Lines:** 3,800+ (Principal Engineer Level)
+
 ---
 
-## 📋 Pending Designs (34)
+## 📋 Pending Designs (33)
 
 ### 💬 Messaging & Real-Time Systems (Next Priority)
 
@@ -250,13 +259,6 @@
 - **Key Concepts:** Inverted index, ranking algorithms, crawling, indexing, query processing
 
 
-#### 18. ⬜ Proximity Service (Yelp)
-
-- **Status:** Not Started
-- **Priority:** P1 - High
-- **Difficulty:** ⭐⭐⭐ Hard
-- **Estimated Time:** 3-4 hours
-- **Key Concepts:** Geohashing, QuadTree, R-tree, spatial indexing, nearby search
 
 #### 19. ⬜ Google Maps
 
@@ -697,8 +699,8 @@ Before marking a design as complete, ensure:
 
 ---
 
-**Last Activity:** January 2, 2025 - Completed Autocomplete/Typeahead System (Principal Engineer Level)
+**Last Activity:** January 2, 2025 - Completed Proximity Service (Yelp)
 
-**Next Milestone:** Complete 20 designs by end of Q1 2025 - 18/20 in progress
+**Next Milestone:** Complete 20 designs by end of Q1 2025 - 19/20 in progress
 
 **Target:** Complete all 52 designs by Q4 2026

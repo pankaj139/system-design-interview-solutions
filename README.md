@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (18/52)
+## ✅ Completed Designs (19/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -322,7 +322,7 @@ Personalized newsfeed system for social media platforms with real-time updates a
 ### Search & Discovery
 
 - [x] **Design a web crawler**
-- [ ] **Design a proximity service** (like Yelp)
+- [x] **Design a proximity service** (like Yelp)
 - [ ] **Design a recommendation engine**
 - [x] **Design an autocomplete/search suggestions engine**
 - [ ] **Design a search engine**
@@ -468,9 +468,28 @@ Production-grade autocomplete system with advanced ML personalization and real-t
 
 **Scale:** 100M users, 100K QPS, 10M phrases, 50+ languages, 99.99% availability
 
+### 19. [Proximity Service (Yelp)](./proximity_service_system_design.md)
+
+**Status:** ✅ Complete
+
+Location-based business search service with advanced geospatial indexing and ML-powered ranking.
+
+**Key Features:**
+
+- Hybrid geospatial indexing (Geohash + PostGIS R-tree + QuadTree)
+- Multi-tier geospatial caching with Redis GEOADD (95% hit rate)
+- ML-powered ranking and personalization (collaborative filtering + GBT + neural networks)
+- High-density area optimization (handles 10K+ businesses/km²)
+- Database sharding by geohash prefix
+- Near real-time Elasticsearch indexing with CDC pipeline
+- Sub-100ms response time for complex geospatial queries
+- Advanced filtering (category, rating, price, hours, features)
+
+**Scale:** 100M businesses, 500M users, 50K QPS, 100M searches/day, 99.99% availability
+
 ---
 
-## 📋 Upcoming Designs (34)
+## 📋 Upcoming Designs (33)
 
 ### Core Infrastructure & Storage
 
@@ -502,7 +521,7 @@ Production-grade autocomplete system with advanced ML personalization and real-t
 ### Search & Discovery
 
 - [x] **Design a web crawler**
-- [ ] **Design a proximity service** (like Yelp)
+- [x] **Design a proximity service** (like Yelp)
 - [ ] **Design a recommendation engine**
 - [x] **Design an autocomplete/search suggestions engine**
 - [ ] **Design a search engine**
@@ -717,11 +736,11 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 18/52 (34.6%)
+**Completion Status:** 19/52 (36.5%)
 
-**Last Design Completed:** Autocomplete/Typeahead System (Principal Engineer Level)
+**Last Design Completed:** Proximity Service (Yelp)
 
-**Next Up:** Proximity Service (Yelp)
+**Next Up:** Google Maps
 **Current Work:** None
 
 ---
