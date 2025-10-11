@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (14/52)
+## ✅ Completed Designs (16/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -397,6 +397,127 @@ Real-time stream processing platform for fraud detection with exactly-once seman
 
 **Scale:** 1M events/sec, 1TB state, 500 task managers, <1s latency (p99)
 
+### 15. [Ride-Sharing Service (Uber)](./ride_sharing_system_design.md)
+
+**Status:** ✅ Complete
+
+Real-time ride-sharing platform with geospatial driver matching and dynamic pricing.
+
+**Key Features:**
+
+- Geospatial driver matching using Redis GeoHash
+- Real-time location tracking with 1-second updates
+- Dynamic pricing (surge) algorithm
+- WebSocket-based trip state management
+- Payment processing with commission calculation
+- Comprehensive API design (15+ endpoints)
+
+**Scale:** 10M daily rides, 500K active drivers, 100+ cities globally
+
+### 16. [Music Streaming Service (Spotify)](./music_streaming_system_design.md)
+
+**Status:** ✅ Complete
+
+Global music streaming platform with personalized recommendations and cross-device sync.
+
+**Key Features:**
+
+- Multi-format audio transcoding (MP3/AAC/OGG) with adaptive bitrate streaming
+- CDN architecture with 100+ edge locations for global delivery
+- ML-powered recommendation engine (collaborative filtering + content-based)
+- Cross-device playback state sync via WebSocket
+- Elasticsearch-based search with audio feature analysis
+- Comprehensive API design (20+ endpoints)
+
+**Scale:** 500M users, 100M DAU, 100M songs catalog, 50M streams/day
+
+---
+
+## 📋 Upcoming Designs (36)
+
+### Core Infrastructure & Storage
+
+- [x] **Design a URL shortener** (like TinyURL)
+- [x] **Design a text storage service** (like Pastebin)
+- [x] **Design a content delivery network (CDN)**
+- [x] **Design a distributed cache** (like Redis/Memcached)
+- [x] **Design a file storage service** (like Dropbox or Google Drive)
+- [x] **Design a distributed key-value store**
+- [x] **Design a ride-sharing service** (like Uber)
+- [x] **Design a music streaming service** (like Spotify)
+- [ ] **Design a distributed storage system**
+- [ ] **Design an in-memory database**
+
+### Messaging & Communication
+
+- [x] **Design a pub/sub messaging system** (like Kafka)
+- [x] **Design a chat application** (like WhatsApp)
+- [ ] **Design a notification system** — 🚧 In Progress ([Notification System](./notification_system_design.md))
+- [ ] **Design a distributed stream processing system**
+
+### Social Media & Content
+
+- [x] **Design a social media platform** (like Instagram or Twitter)
+- [x] **Design a feed/newsfeed system** (like Facebook/LinkedIn Feed)
+- [ ] **Design a video streaming service** (like Netflix or YouTube)
+- [ ] **Design a system to find friends on social networks**
+
+### Search & Discovery
+
+- [ ] **Design a web crawler**
+- [ ] **Design a proximity service** (like Yelp)
+- [ ] **Design a recommendation engine**
+- [ ] **Design an autocomplete/search suggestions engine**
+- [ ] **Design a search engine**
+- [ ] **Design Google Maps** (location, routing, scalability)
+- [ ] **Design a system that aggregates book reviews from various sources**
+
+### E-commerce & Marketplace
+
+- [ ] **Design an e-commerce website** (like Amazon)
+- [ ] **Design a payment gateway**
+- [ ] **Design a ticket booking system**
+- [ ] **Design a shopping cart system**
+- [ ] **Design a promotion/cashback offer system**
+- [ ] **Design a warehouse inventory system**
+
+### On-Demand Services
+
+- [ ] **Design a food delivery system** (like Swiggy/Zomato)
+- [ ] **Design a registration system for a restaurant**
+- [ ] **Design a system for finding shortest delivery routes**
+
+### Gaming & Entertainment
+
+- [ ] **Design an online multiplayer game backend**
+- [ ] **Design a blackjack/poker gaming site**
+
+### Security & Authentication
+
+- [x] **Design an API rate limiter**
+- [ ] **Design SSO (Single Sign-On)**
+- [ ] **Design a global authentication service**
+- [ ] **Design a firewall system for network security**
+- [ ] **Design a buffer overflow prevention technique**
+
+### Monitoring & Operations
+
+- [ ] **Design a distributed metrics logging system**
+- [ ] **Design a health monitoring system for servers**
+- [ ] **Design a system for collecting performance metrics at scale**
+
+### Real-World Systems
+
+- [ ] **Design a parking lot system**
+- [ ] **Design an online voting/election system**
+- [ ] **Design an elevator system**
+- [ ] **Design a smart elevator** (grouping, real-time optimization)
+
+### Architecture Patterns
+
+- [ ] **Design a microservices architecture for a large application**
+- [ ] **Compare monolithic vs microservice architecture** (pros and cons)
+
 ---
 
 ## 🚀 How to Use This Repository
@@ -559,9 +680,9 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 13/52 (25.0%)
+**Completion Status:** 16/52 (30.8%)
 
-**Last Design Completed:** Newsfeed System (Facebook/LinkedIn Feed)
+**Last Design Completed:** Music Streaming Service (Spotify)
 
 **Next Up:** Notification System
 **Current Work:** None

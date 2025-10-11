@@ -4,18 +4,18 @@
 
 **Last Updated:** October 2, 2025
 
-**Progress:** 14/52 (26.9% Complete)
+**Progress:** 16/52 (30.8% Complete)
 
 ---
 
 ## 📊 Progress Overview
 
 ```text
-✅ Completed: 14
+✅ Completed: 16
 🚧 In Progress: 0
-📝 Planned: 38
+📝 Planned: 36
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[███████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 26.9%
+[████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 30.8%
 ```
 
 ---
@@ -148,9 +148,27 @@
 - **Key Features:** Exactly-once semantics with two-phase commit, stateful operations with RocksDB, windowing (tumbling/sliding/session), watermarks for late events, CEP pattern matching, automatic checkpointing, stream joins, backpressure handling
 - **Lines:** 1,940+ (comprehensive)
 
+### 15. ✅ Ride-Sharing Service (Uber)
+
+- **Status:** Complete
+- **File:** `ride_sharing_system_design.md`
+- **Completed:** January 2, 2025
+- **Scale:** 10M daily rides, 500K active drivers, 100+ cities globally
+- **Key Features:** Geospatial driver matching with Redis GeoHash, real-time location tracking (1-second updates), dynamic pricing (surge), WebSocket-based trip state management, payment processing with commission calculation, comprehensive API design (15+ endpoints)
+- **Lines:** 2,500+ (comprehensive)
+
+### 16. ✅ Music Streaming Service (Spotify)
+
+- **Status:** Complete
+- **File:** `music_streaming_system_design.md`
+- **Completed:** January 2, 2025
+- **Scale:** 500M users, 100M DAU, 100M songs catalog, 50M streams/day
+- **Key Features:** Multi-format audio transcoding (MP3/AAC/OGG) with adaptive bitrate streaming, CDN architecture with 100+ edge locations, ML-powered recommendation engine (collaborative filtering + content-based), cross-device playback state sync via WebSocket, Elasticsearch-based search with audio feature analysis, comprehensive API design (20+ endpoints)
+- **Lines:** 2,500+ (comprehensive)
+
 ---
 
-## 📋 Pending Designs (38)
+## 📋 Pending Designs (36)
 
 ### 💬 Messaging & Real-Time Systems (Next Priority)
 
@@ -209,7 +227,8 @@
 - **Estimated Time:** 4-5 hours
 - **Key Concepts:** Adaptive bitrate, CDN, transcoding, content delivery, recommendations
 
-#### 14. ⬜ Find Friends on Social Network
+
+#### 16. ⬜ Find Friends on Social Network
 
 - **Status:** Not Started
 - **Priority:** P2 - Medium
@@ -333,13 +352,6 @@
 
 ### 🚗 On-Demand Services
 
-#### 28. ⬜ Ride-Sharing Service (Uber)
-
-- **Status:** Not Started
-- **Priority:** P0 - Critical
-- **Difficulty:** ⭐⭐⭐⭐ Very Hard
-- **Estimated Time:** 4-5 hours
-- **Key Concepts:** Geolocation, matching algorithm, real-time tracking, ETA, pricing, dispatch
 
 #### 29. ⬜ Food Delivery System (Zomato/Swiggy)
 
@@ -699,8 +711,8 @@ Before marking a design as complete, ensure:
 
 ---
 
-**Last Activity:** October 2, 2025 - Completed Newsfeed System Design (Facebook/LinkedIn Feed)
+**Last Activity:** January 2, 2025 - Completed Ride-Sharing Service (Uber) and Music Streaming Service (Spotify)
 
-**Next Milestone:** Complete 15 designs by end of Q4 2025 - 13/15 in progress
+**Next Milestone:** Complete 20 designs by end of Q1 2025 - 16/20 in progress
 
 **Target:** Complete all 52 designs by Q4 2026
