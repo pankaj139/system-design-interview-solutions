@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (17/52)
+## ✅ Completed Designs (18/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -324,7 +324,7 @@ Personalized newsfeed system for social media platforms with real-time updates a
 - [x] **Design a web crawler**
 - [ ] **Design a proximity service** (like Yelp)
 - [ ] **Design a recommendation engine**
-- [ ] **Design an autocomplete/search suggestions engine**
+- [x] **Design an autocomplete/search suggestions engine**
 - [ ] **Design a search engine**
 - [ ] **Design Google Maps** (location, routing, scalability)
 - [ ] **Design a system that aggregates book reviews from various sources**
@@ -449,9 +449,28 @@ Distributed web crawler for indexing 10B web pages with politeness policies and 
 
 **Scale:** 10B web pages, 1000 pages/second, 100+ crawler machines, 1M+ domains
 
+### 18. [Autocomplete/Typeahead System (Principal Engineer Level)](./autocomplete_system_design.md)
+
+**Status:** ✅ Complete
+
+Production-grade autocomplete system with advanced ML personalization and real-time trending detection.
+
+**Key Features:**
+
+- Advanced Trie implementation (Double-Array Trie with compression)
+- ML-powered personalization engine (collaborative filtering + neural networks)
+- Real-time trending detection with statistical significance testing
+- Multi-tier caching with predictive preloading
+- Comprehensive A/B testing framework for algorithm optimization
+- Advanced database optimization (sharding, partitioning, async writes)
+- Cross-region synchronization with conflict resolution
+- Sub-50ms p95 response time with 99.99% availability
+
+**Scale:** 100M users, 100K QPS, 10M phrases, 50+ languages, 99.99% availability
+
 ---
 
-## 📋 Upcoming Designs (35)
+## 📋 Upcoming Designs (34)
 
 ### Core Infrastructure & Storage
 
@@ -485,7 +504,7 @@ Distributed web crawler for indexing 10B web pages with politeness policies and 
 - [x] **Design a web crawler**
 - [ ] **Design a proximity service** (like Yelp)
 - [ ] **Design a recommendation engine**
-- [ ] **Design an autocomplete/search suggestions engine**
+- [x] **Design an autocomplete/search suggestions engine**
 - [ ] **Design a search engine**
 - [ ] **Design Google Maps** (location, routing, scalability)
 - [ ] **Design a system that aggregates book reviews from various sources**
@@ -698,11 +717,11 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 17/52 (32.7%)
+**Completion Status:** 18/52 (34.6%)
 
-**Last Design Completed:** Web Crawler (Googlebot)
+**Last Design Completed:** Autocomplete/Typeahead System (Principal Engineer Level)
 
-**Next Up:** Notification System
+**Next Up:** Proximity Service (Yelp)
 **Current Work:** None
 
 ---
