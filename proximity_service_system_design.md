@@ -1,4 +1,13 @@
-# Proximity Service System Design (Yelp) - Principal Engineer Level
+# Proximity Service System Design (Yelp/Google Maps-like)
+
+**File Purpose:** Comprehensive system design document for a location-based proximity service supporting 100M daily active users with <100ms query response time for finding nearby businesses within 5km radius. The design covers geospatial indexing (Geohash, QuadTree, R-tree), efficient radius search algorithms, real-time business availability updates, multi-criteria filtering (category, rating, price, hours), geospatial database sharding strategies, caching hot locations, ranking algorithms considering distance and popularity, integration with mapping services, business owner dashboard for profile management, and achieving 99.99% availability with horizontal scaling across multiple regions.
+
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header with detailed geospatial algorithms and proximity search capabilities
+
+---
 
 **Table of Contents**
 1. [Requirements & Clarification](#requirements--clarification)

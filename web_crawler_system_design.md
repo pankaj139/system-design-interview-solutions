@@ -1,4 +1,13 @@
-# Web Crawler System Design (Googlebot)
+# Web Crawler System Design (Googlebot-like)
+
+**File Purpose:** Comprehensive system design document for a distributed web crawler supporting 10B web pages with 1M pages crawled per second while maintaining politeness policies. The design covers URL frontier management with priority queues, distributed crawling across 100+ worker nodes, robots.txt parsing and compliance, duplicate URL detection using Bloom filters, DNS caching and resolution optimization, content extraction and parsing (HTML, JavaScript rendering), distributed storage for crawled content, crawl scheduling algorithms (breadth-first, focused crawling), politeness enforcement (rate limiting per domain, crawl delays), handling of redirects and canonicalization, trap detection (infinite URL loops), and achieving fault tolerance with checkpointing and resumable crawls.
+
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header with distributed crawling architecture and politeness implementation
+
+---
 
 **Table of Contents**
 1. [Requirements & Clarification](#requirements--clarification)

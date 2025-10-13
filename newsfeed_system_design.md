@@ -1,11 +1,11 @@
 # Newsfeed System Design (Facebook/LinkedIn Feed)
 
-**File Purpose:** Comprehensive system design document for a personalized newsfeed system supporting 300M daily active users with real-time updates, personalized ranking, and sub-300ms load times. This document covers fan-out strategies, hybrid approaches for celebrity users, ML-based personalization, pagination service, ad insertion engine, analytics pipeline, and complete architecture design including 10 deep-dive components.
+**File Purpose:** Comprehensive system design document for a personalized newsfeed system supporting 300M daily active users with real-time updates, personalized ranking, and sub-300ms load times. The design covers fan-out strategies (fan-out-on-write, fan-out-on-read), hybrid approaches for celebrity users, ML-based personalization using collaborative filtering and deep learning, pagination service with cursor-based implementation, ad insertion engine with relevance scoring, analytics pipeline for engagement metrics, caching strategies with Redis, real-time update service using WebSockets, content filtering and privacy controls, and achieving 99.9% availability with horizontal scaling across multiple data centers.
 
-**Last Updated:** October 2, 2025  
 **Author:** System Design Documentation  
-**Use Case:** Social media newsfeed system design for large-scale platforms  
-**Recent Updates:** Added Components 7-10: Celebrity User Handler, Pagination Service, Ad Insertion Engine, and Analytics Pipeline
+**Created:** October 2, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with detailed newsfeed architecture and 10 deep-dive components
 
 ---
 

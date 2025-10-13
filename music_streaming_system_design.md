@@ -1,4 +1,13 @@
-# Music Streaming Service System Design (Spotify)
+# Music Streaming Service System Design (Spotify-like)
+
+**File Purpose:** Comprehensive system design document for a music streaming platform supporting 200M active users with 70M songs and 1B streams per day. The design covers audio encoding and adaptive bitrate streaming (AAC, MP3, Opus), CDN-based content delivery with <2 second startup time, collaborative filtering and deep learning recommendation algorithms, playlist management and social features, offline downloads with DRM protection, real-time lyrics synchronization, artist analytics dashboard, royalty calculation system, cross-device playback synchronization, podcast support, and achieving 99.95% availability with <100ms latency globally.
+
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Added comprehensive header with streaming protocols and recommendation engine details
+
+---
 
 **Table of Contents**
 1. [Requirements & Clarification](#requirements--clarification)

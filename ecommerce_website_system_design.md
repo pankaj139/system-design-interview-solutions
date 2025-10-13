@@ -1,8 +1,11 @@
-# E-commerce Website System Design (Amazon)
+# E-commerce Website System Design (Amazon-like)
 
-**Document Purpose:** This document provides a comprehensive system design for a large-scale e-commerce platform supporting 100M products, 500M users, and 1M orders per day. It covers architecture decisions, scalability considerations, and implementation details for handling peak traffic (10x during sales) with high availability and consistency requirements.
+**File Purpose:** Comprehensive system design document for a large-scale e-commerce platform supporting 100M products, 500M users, and 1M orders per day with peak traffic handling (10x during sales). The design covers product catalog system with search and filtering, shopping cart service with session management, inventory management with real-time stock updates, order processing pipeline with saga pattern, payment integration with multiple gateways, recommendation engine using collaborative filtering, flash sale handling with queue-based architecture, fraud detection, user reviews and ratings system, and achieving 99.99% availability with strong consistency for orders and eventual consistency for product views.
 
-**Last Updated:** January 2, 2025
+**Author:** System Design Documentation  
+**Created:** January 2, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with comprehensive e-commerce features and architecture patterns
 
 ---
 

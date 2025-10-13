@@ -1,4 +1,13 @@
-# Autocomplete/Typeahead System Design (Principal Engineer Level)
+# Autocomplete/Typeahead System Design (Google Search-like)
+
+**File Purpose:** Comprehensive system design document for a real-time autocomplete/typeahead system supporting 100M daily active users with <50ms response time, handling 10K queries/sec. The design covers Trie-based indexing, distributed caching, personalization, fuzzy matching, and real-time trending query integration. Suitable for search engines, e-commerce platforms, and social media applications.
+
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Added comprehensive header with detailed file purpose and system description
+
+---
 
 **Table of Contents**
 1. [Requirements & Clarification](#requirements--clarification)

@@ -1,8 +1,11 @@
-# Social Media Platform System Design (Instagram/Twitter)
+# Social Media Platform System Design (Instagram/Twitter-like)
 
-**Document Purpose:** This document provides a comprehensive system design for a large-scale social media platform supporting photo/video sharing with social features. It covers architecture decisions, scalability considerations, and implementation details for handling 500M daily active users with high availability and performance requirements.
+**File Purpose:** Comprehensive system design document for a large-scale social media platform supporting 500M daily active users with photo/video sharing, stories, live streaming, and social features. The design covers feed generation system with hybrid fan-out strategy, media processing pipeline with image compression and video transcoding, CDN-based content delivery, WebSocket server for real-time updates, notification service for social interactions, search and discovery with Elasticsearch, hashtag and mention indexing, direct messaging with end-to-end encryption, story feature with 24-hour expiration, recommendation engine using graph neural networks, content moderation with AI/ML, and achieving 99.99% availability with <100ms feed load time globally.
 
-**Last Updated:** October 2, 2025
+**Author:** System Design Documentation  
+**Created:** October 2, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with comprehensive social media features and real-time capabilities
 
 ---
 

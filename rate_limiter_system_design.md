@@ -1,10 +1,11 @@
-# RATE LIMITER FOR API GATEWAY
+# Rate Limiter System Design (API Gateway)
 
-## System Design Document
+**File Purpose:** Comprehensive system design document for a distributed rate limiting system supporting 10M requests/day across multiple regions with 100K active API keys and tiered pricing plans. The design covers multiple rate limiting algorithms (Token Bucket, Leaky Bucket, Fixed Window, Sliding Window Log, Sliding Window Counter), distributed rate limiting using Redis with atomic operations, per-user, per-IP, and per-API-key rate limiting, burst handling strategies, rate limit header responses (X-RateLimit-Limit, X-RateLimit-Remaining), graceful degradation patterns, analytics and monitoring for rate limit violations, and achieving <5ms overhead per request with 99.99% accuracy.
 
-**Purpose:** This document provides a comprehensive system design for a distributed rate limiter serving a public API gateway with 10M requests/day across multiple regions and pricing tiers.
-
-**Last Updated:** October 1, 2025
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header with detailed rate limiting algorithms and distributed implementation strategies
 
 ---
 

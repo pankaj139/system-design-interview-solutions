@@ -1,24 +1,11 @@
-<!--
-File: distributed_cache_system_design.md
-Purpose: Complete system design document for a Distributed Cache system (Redis/Memcached)
-Author: System Design Framework
-Created: October 1, 2025
-Last Updated: October 1, 2025
+# Distributed Cache System Design (Redis/Memcached-like)
 
-Description:
-This document provides a comprehensive system design for building a distributed caching solution
-similar to Redis or Memcached. It covers all aspects from requirements gathering, capacity planning,
-architecture design, database schemas, API design, to scaling considerations and trade-offs.
+**File Purpose:** Comprehensive system design document for a distributed in-memory caching solution supporting 10M requests/sec with <1ms latency and 99.99% availability. The design covers cache eviction policies (LRU, LFU, TTL), consistent hashing for data partitioning, replication strategies for high availability, cache warming and invalidation patterns, Redis/Memcached protocol compatibility, and advanced features including pub/sub messaging, data persistence, and horizontal scaling across multiple nodes.
 
-Usage:
-- Use this as a reference for distributed cache system design interviews
-- Follow the framework structure for consistent system design documentation
-- Adapt requirements and scale based on specific use cases
--->
-
-# DISTRIBUTED CACHE SYSTEM DESIGN
-
-## Building a High-Performance In-Memory Data Store
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with detailed system capabilities and performance characteristics
 
 ---
 

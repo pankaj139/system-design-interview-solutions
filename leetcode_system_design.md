@@ -1,10 +1,11 @@
-# LEETCODE SYSTEM DESIGN
+# Online Coding Platform System Design (LeetCode-like)
 
-## Online Coding Platform with Judge System
+**File Purpose:** Comprehensive system design document for an online coding platform supporting 10M monthly active users with 5K problem submissions per second. The design covers secure code execution in sandboxed containers, distributed judge system with multiple language support (Python, Java, C++, JavaScript), test case evaluation with time/memory limits, real-time WebSocket-based code editor with syntax highlighting, contest management with leaderboards, plagiarism detection using code similarity algorithms, discussion forums integration, progress tracking and statistics, premium subscription management, and achieving 99.9% uptime with <2 second submission evaluation time.
 
-**Document Purpose:** This file contains a comprehensive system design for a LeetCode-like online coding platform that allows users to solve coding problems, submit solutions, and get real-time feedback on their code execution.
-
-**Last Updated:** October 1, 2025
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header with detailed judge system architecture and competitive programming features
 
 ---
 

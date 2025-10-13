@@ -1,10 +1,11 @@
-# URL SHORTENER (TINYURL) SYSTEM DESIGN
+# URL Shortener System Design (TinyURL/Bitly-like)
 
-## Complete System Design Interview Solution
+**File Purpose:** Comprehensive system design document for a URL shortening service supporting 100M short URLs created per month with 10B redirects. The design covers short URL generation algorithms (Base62 encoding, hash-based, counter-based), collision handling strategies, custom alias support, expiration and TTL management, analytics tracking (clicks, referrers, geographic data), rate limiting to prevent abuse, database sharding by URL hash, multi-layer caching (Redis, CDN) for 99% cache hit ratio, malicious URL detection, QR code generation, and achieving 99.99% availability with <10ms redirect latency using horizontal scaling.
 
-**File Purpose:** This document provides a comprehensive system design for a URL shortening service (like TinyURL). It covers requirements gathering, capacity planning, high-level architecture, database design, API specifications, deep-dive into critical components, trade-off analysis, and scalability considerations. This serves as a complete reference for system design interviews and real-world implementation.
-
-**Last Updated:** October 1, 2025
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with detailed URL generation algorithms and caching strategies
 
 ---
 

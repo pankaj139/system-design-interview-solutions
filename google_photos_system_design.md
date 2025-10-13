@@ -1,6 +1,11 @@
-# GOOGLE PHOTOS SYSTEM DESIGN
+# Photo Storage and Management System Design (Google Photos-like)
 
-## Cloud-Based Photo Storage and Management Platform
+**File Purpose:** Comprehensive system design document for a cloud-based photo storage and management platform supporting 1B users with 4 trillion photos, handling 1.5B uploads daily. The design covers image upload pipeline with quality compression, metadata extraction and indexing, duplicate detection using perceptual hashing, ML-powered auto-tagging and face recognition, smart album creation, photo search using computer vision, efficient CDN-based delivery, thumbnail generation with multiple resolutions, sharing and collaboration features, and storage optimization achieving 99.99% availability with <100ms photo load time globally.
+
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Added comprehensive header with AI/ML features and photo management capabilities
 
 ---
 

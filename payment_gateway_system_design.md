@@ -1,8 +1,11 @@
-# Payment Gateway System Design - Principal Engineer Level
+# Payment Gateway System Design (Stripe/PayPal-like)
 
-**Document Purpose:** This document provides a comprehensive system design for a payment gateway handling 10M transactions per day with PCI DSS compliance, multi-currency support, fraud detection, and 99.999% availability.
+**File Purpose:** Comprehensive system design document for a payment gateway processing 10M transactions per day with PCI DSS Level 1 compliance and 99.999% availability. The design covers multiple payment methods (credit cards, debit cards, wallets, bank transfers), tokenization and encryption for card data security, idempotent transaction processing, two-phase commit for distributed transactions, fraud detection using ML models and rule-based systems, multi-currency support with real-time exchange rates, settlement and reconciliation processes, webhook delivery for merchant notifications, retry mechanisms with circuit breakers, dispute and chargeback management, and achieving <200ms transaction authorization time with horizontal scaling and multi-region deployment.
 
-**Last Updated:** January 2, 2025
+**Author:** System Design Documentation  
+**Created:** January 2, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with comprehensive payment processing and security features
 
 ---
 

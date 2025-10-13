@@ -1,4 +1,13 @@
-# Search Engine System Design (Google) - Principal Engineer Level
+# Search Engine System Design (Google-like)
+
+**File Purpose:** Comprehensive system design document for a web search engine supporting 10B web pages indexed with 100K queries per second and <200ms response time. The design covers distributed web crawler with politeness policies, incremental indexing with inverted index data structures, TF-IDF and BM25 ranking algorithms, PageRank for link analysis, query processing with synonym expansion and spell correction, distributed search with index sharding, result caching and query result aggregation, personalization based on user context and location, real-time indexing for fresh content, autocomplete/typeahead suggestions, image and video search integration, and achieving 99.99% availability with horizontal scaling across global data centers.
+
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header with detailed search algorithms and distributed indexing architecture
+
+---
 
 **Table of Contents**
 1. [Requirements & Clarification](#requirements--clarification)

@@ -1,15 +1,6 @@
-<!--
-File: distributed_stream_processing_system_design.md
-Purpose: Comprehensive system design for a distributed stream processing system for real-time fraud detection
-Author: System Design Framework
-Created: October 2, 2025
-Last Updated: October 2, 2025
+# Distributed Stream Processing System Design (Apache Flink/Storm-like)
 
-Description:
-This document provides a complete system design for a distributed stream processing platform
-similar to Apache Flink or Apache Storm. The system is designed to process 1M events/sec
-for real-time fraud detection with exactly-once semantics, sub-second latency, and support
-for complex event processing patterns.
+**File Purpose:** Comprehensive system design document for a distributed stream processing platform supporting 1M events/sec for real-time fraud detection with exactly-once semantics and sub-second latency. The design covers complex event processing (CEP) with pattern matching, stateful operations with distributed state management, multiple windowing strategies (tumbling, sliding, session), watermark-based late event handling, fault tolerance with checkpointing and automatic recovery, dynamic scaling with backpressure handling, stream joins and aggregations, and deployment patterns for use cases including real-time analytics, event-driven microservices, IoT data processing, and financial transaction monitoring.
 
 Key Features:
 - Real-time stream processing with exactly-once guarantees
@@ -27,9 +18,13 @@ Use Cases:
 - Event-driven microservices
 - IoT data processing
 - Financial transaction processing
--->
 
-# DISTRIBUTED STREAM PROCESSING SYSTEM DESIGN
+**Author:** System Design Documentation  
+**Created:** October 2, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with detailed stream processing capabilities and use cases
+
+---
 
 ## Table of Contents
 

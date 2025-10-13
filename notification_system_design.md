@@ -1,10 +1,11 @@
-# NOTIFICATION SYSTEM DESIGN
+# Notification System Design (Multi-Channel Platform)
 
-## Multi-Channel Notification Platform
+**File Purpose:** Comprehensive system design document for a multi-channel notification system supporting 500M users with 10M notifications per minute across Push (FCM/APNs), SMS, Email, and In-app channels. The design covers fan-out service for broadcast notifications, priority-based delivery queues, user preference management (channel selection, quiet hours, frequency capping), rate limiting and throttling strategies, notification batching and aggregation, template management system, delivery tracking and analytics, retry mechanisms with exponential backoff, idempotency to prevent duplicates, A/B testing framework for notification optimization, and achieving 99.99% delivery success rate with <1 second delivery latency.
 
-**Document Purpose:** This document describes the architecture, components, and operational strategies for a large-scale, multi-channel notification system for a social platform. It focuses on fan-out at scale, priority-driven delivery, user preferences, quiet hours, rate limiting, batching, analytics, and robust integration with push providers (FCM/APNs), SMS, Email, and In-app channels.
-
-**Last Updated:** October 2, 2025
+**Author:** System Design Documentation  
+**Created:** October 2, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with comprehensive multi-channel notification capabilities
 
 ---
 

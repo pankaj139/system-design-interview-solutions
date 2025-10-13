@@ -1,8 +1,11 @@
-# Text Storage Service (Pastebin) System Design
+# Text Storage Service System Design (Pastebin-like)
 
-**File Purpose:** This document provides a comprehensive system design for a text storage service (similar to Pastebin) that allows users to store and share text snippets with features like expiration, syntax highlighting, and access control. It covers requirements, calculations, architecture, database design, API design, and scalability considerations for handling 10M pastes per day with high performance.
+**File Purpose:** Comprehensive system design document for a text storage service supporting 10M pastes per day with 100M reads, enabling users to store and share text snippets, code, and documents. The design covers unique paste ID generation using Base62 encoding, expiration and TTL management (1 hour, 1 day, 1 week, never), syntax highlighting for 50+ programming languages, access control (public, private, password-protected), custom URLs for branding, multi-layer caching with Redis and CDN for 95% cache hit ratio, object storage (S3) for text content, rate limiting to prevent spam, paste analytics tracking, search functionality, and achieving 99.9% availability with <50ms read latency using horizontal scaling.
 
-**Last Updated:** October 2, 2025
+**Author:** System Design Documentation  
+**Created:** October 2, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with comprehensive text storage features and caching strategies
 
 ---
 

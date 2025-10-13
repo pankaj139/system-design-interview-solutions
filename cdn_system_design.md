@@ -1,21 +1,11 @@
-# Content Delivery Network (CDN) System Design
+# Content Delivery Network System Design (Cloudflare/Akamai-like)
 
-<!-- 
-FILE PURPOSE: This document provides a comprehensive system design for a global Content Delivery Network (CDN) 
-that serves 1B requests/day across 100+ edge locations with 500 PB of content and <50ms latency globally.
+**File Purpose:** Comprehensive system design document for a global Content Delivery Network (CDN) supporting 1B requests/day across 100+ edge locations with 500 PB of content storage and <50ms latency globally. This design covers multi-tier cache hierarchy, GeoDNS and Anycast routing, intelligent cache eviction strategies, real-time cache invalidation, video streaming with adaptive bitrate, DDoS protection, and achieving 99.99% availability with >90% cache hit ratio.
 
-KEY FEATURES:
-- Multi-tier cache hierarchy (edge, mid-tier, origin)
-- Intelligent cache eviction strategies (LRU/LFU with popularity decay)
-- GeoDNS and Anycast routing
-- Real-time cache invalidation (purge within 5 seconds globally)
-- Video streaming with adaptive bitrate
-- 99.99% availability per edge location
-- >90% cache hit ratio
-
-LAST UPDATED: October 1, 2025
-AUTHOR: System Design Documentation
--->
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with detailed system capabilities and performance metrics
 
 ---
 

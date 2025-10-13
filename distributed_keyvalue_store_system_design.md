@@ -1,8 +1,11 @@
-# Distributed Key-Value Store System Design
+# Distributed Key-Value Store System Design (DynamoDB/Cassandra-like)
 
-**File Purpose:** Complete system design document for a highly available, distributed key-value store (similar to DynamoDB/Cassandra) for e-commerce applications with multi-datacenter deployment.
+**File Purpose:** Comprehensive system design document for a highly available, distributed key-value store supporting 1M requests/sec with single-digit millisecond latency across multiple datacenters. The design covers consistent hashing with virtual nodes, quorum-based replication (configurable R/W quorums), eventual consistency with conflict resolution (vector clocks, last-write-wins), anti-entropy mechanisms (Merkle trees, gossip protocol), hinted handoff for temporary failures, and horizontal scaling for e-commerce and high-throughput applications requiring 99.99% availability.
 
-**Last Updated:** October 1, 2025
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header with comprehensive system features and distributed systems concepts
 
 ---
 

@@ -1,19 +1,11 @@
-# File Storage Service System Design (Dropbox-like)
+# File Storage Service System Design (Dropbox/Google Drive-like)
 
-<!--
-Purpose: Comprehensive system design for a cloud file storage and synchronization service
-This document covers architecture, database design, API specifications, and deep-dive components
-for building a scalable file storage service supporting 100M users and 100 PB of data.
+**File Purpose:** Comprehensive system design document for a cloud file storage and synchronization service supporting 100M users with 100 PB of data storage and real-time multi-device sync. The design covers chunking and deduplication strategies (content-defined chunking, rolling hash), delta sync for bandwidth optimization, metadata management with PostgreSQL, blob storage with S3/object storage, conflict resolution algorithms (operational transformation, CRDT), version history tracking, collaborative editing capabilities, offline access with local caching, notification service for real-time updates, and achieving 99.99% availability with <2 second sync latency.
 
-Key Features:
-- Real-time file synchronization across devices
-- File sharing and collaboration
-- Version history and conflict resolution
-- Offline access support
-- Efficient bandwidth usage with delta sync
-
-Last Updated: October 2, 2025
--->
+**Author:** System Design Documentation  
+**Created:** October 2, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with detailed file synchronization and collaboration features
 
 ## Table of Contents
 

@@ -1,10 +1,11 @@
-# PUB/SUB MESSAGING SYSTEM DESIGN
+# Pub/Sub Messaging System Design (Apache Kafka-like)
 
-## Distributed Event Streaming Platform (like Apache Kafka)
+**File Purpose:** Comprehensive system design document for a distributed pub/sub messaging system supporting 1M messages per second with exactly-once delivery semantics and durable storage. The design covers topic partitioning for horizontal scaling, consumer groups with offset management, leader-based replication with ISR (In-Sync Replicas), log-structured storage with segment files and compaction, producer idempotency and transactional writes, consumer rebalancing protocols (eager, cooperative), message ordering guarantees within partitions, retention policies (time-based, size-based), backpressure handling, ZooKeeper/KRaft for cluster coordination, monitoring with JMX metrics, and achieving 99.99% availability with <10ms publish latency for high-throughput event streaming.
 
-**Document Purpose:** This file contains a comprehensive system design for a distributed pub/sub messaging system that enables high-throughput event streaming across microservices. The design covers topic partitioning, consumer groups, replication protocols, log-structured storage, and exactly-once semantics for building a production-grade message queue similar to Apache Kafka.
-
-**Last Updated:** October 1, 2025
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header format with comprehensive pub/sub architecture and Kafka-like features
 
 ---
 

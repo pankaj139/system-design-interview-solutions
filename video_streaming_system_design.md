@@ -1,4 +1,13 @@
-# Video Streaming Service System Design (Netflix/YouTube) - Principal Engineer Level
+# Video Streaming Service System Design (Netflix/YouTube-like)
+
+**File Purpose:** Comprehensive system design document for a video streaming platform supporting 100M concurrent viewers with 1M hours of video content (100 PB storage) and 50M uploads per day. The design covers video transcoding pipeline (H.264, H.265, VP9, AV1) with multiple bitrate variants (240p to 4K), adaptive bitrate streaming (HLS/DASH), CDN architecture for global content delivery with <2 second startup time, DRM and content protection, recommendation engine using collaborative filtering and deep learning, live streaming with low latency (<5 seconds), thumbnail generation and preview clips, subtitle and multi-language support, user engagement analytics, and achieving 99.99% uptime with intelligent caching strategies for bandwidth optimization.
+
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Enhanced header with comprehensive video processing and streaming capabilities
+
+---
 
 **Table of Contents**
 1. [Requirements & Clarification](#requirements--clarification)
