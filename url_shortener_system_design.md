@@ -497,88 +497,56 @@ Key Lesson: Requirements evolved based on user feedback and market opportunity, 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Start with core features: create short URLs, redirect to original URLs, basic analytics. Then mention user management, custom short codes, expiration dates, and API access.
+**Answer:** * Start with core features: create short URLs, redirect to original URLs, basic analytics. Then mention user management, custom short codes, expiration dates, and API access.
 
 </details>
 
-**Q2:** What non-functional requirements would you consider for a URL shortener?
+**Q2:** How would you handle different user types in your requirements?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Focus on availability (99.99%), latency (<100ms redirects), throughput (100M URLs/month), durability (no data loss), and security (prevent abuse).
+**Answer:** * Free users (basic features), premium users (custom domains, advanced analytics), enterprise users (SSO, compliance, custom branding).
 
 </details>
 
-**Q3:** How would you handle different user types in your requirements?
+#### Intermediate Level
+
+**Q1:** How would you design requirements for a URL shortener that needs to handle 1 billion redirects per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Free users (basic features), premium users (custom domains, advanced analytics), enterprise users (SSO, compliance, custom branding).
+**Answer:** * Break down: 1B/day = ~11,574 redirects/second. Need to consider read-heavy workload, global distribution, caching strategy, and database sharding.
 
 </details>
 
-**Q4:** How would you design requirements for a URL shortener that needs to handle 1 billion redirects per day?
+**Q2:** What requirements would change if you were building for enterprise customers vs. consumer users?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Break down: 1B/day = ~11,574 redirects/second. Need to consider read-heavy workload, global distribution, caching strategy, and database sharding.
+**Answer:** * Enterprise: SSO integration, audit logs, compliance (GDPR, HIPAA), custom domains, advanced analytics, SLA guarantees, white-labeling.
 
 </details>
 
-**Q5:** What requirements would change if you were building for enterprise customers vs. consumer users?
+#### Advanced Level
+
+**Q1:** How would you handle requirements for a URL shortener that needs to work offline?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Enterprise: SSO integration, audit logs, compliance (GDPR, HIPAA), custom domains, advanced analytics, SLA guarantees, white-labeling.
+**Answer:** * Consider edge cases: cached redirects, eventual consistency, conflict resolution, and graceful degradation when services are unavailable.
 
 </details>
 
-**Q6:** How would you handle requirements for a URL shortener that needs to work offline?
+**Q2:** Design requirements for a URL shortener that needs to support real-time analytics with sub-second latency.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Consider edge cases: cached redirects, eventual consistency, conflict resolution, and graceful degradation when services are unavailable.
-
-</details>
-
-**Q7:** Design requirements for a URL shortener that needs to support real-time analytics with sub-second latency.
-
-<details>
-<summary>💭 Think first, then reveal answer</summary>
-
-**Answer:** Consider streaming data processing, real-time dashboards, event-driven architecture, and the trade-offs between consistency and performance.
-
-</details>
-
-**Q8:** How would you modify requirements if the URL shortener needed to handle 50% of traffic from mobile apps with poor connectivity?
-
-<details>
-<summary>💭 Think first, then reveal answer</summary>
-
-**Answer:** Add offline capability, retry mechanisms, data compression, progressive web app features, and network-aware caching strategies.
-
-</details>
-
-**Q9:** What requirements would you add for a URL shortener that needs to prevent malicious URL shortening?
-
-<details>
-<summary>💭 Think first, then reveal answer</summary>
-
-**Answer:** URL validation, malware scanning, phishing detection, rate limiting, content filtering, and integration with threat intelligence feeds.
-
-</details>
-
-**Q10:** How would you design requirements for a URL shortener that needs to support custom domains for enterprise customers?
-
-<details>
-<summary>💭 Think first, then reveal answer</summary>
-
-**Answer:** DNS management, SSL certificate provisioning, domain validation, subdomain routing, and integration with existing enterprise infrastructure.
+**Answer:** * Consider streaming data processing, real-time dashboards, event-driven architecture, and the trade-offs between consistency and performance.
 
 </details>
 
@@ -1288,7 +1256,7 @@ Cost Optimization:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Estimate: 100M URLs/month × 12 months = 1.2B URLs. Each URL record ~500 bytes (original URL + metadata). Total: ~600GB. Add 3x for redundancy = ~1.8TB.
+**Answer:** * Estimate: 100M URLs/month × 12 months = 1.2B URLs. Each URL record ~500 bytes (original URL + metadata). Total: ~600GB. Add 3x for redundancy = ~1.8TB.
 
 </details>
 
@@ -1297,7 +1265,7 @@ Cost Optimization:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** QPS (Queries Per Second) = total requests/second. TPS (Transactions Per Second) = actual database operations/second. For URL shortener: 11,574 QPS redirects vs ~1,000 TPS for URL creation.
+**Answer:** * QPS (Queries Per Second) = total requests/second. TPS (Transactions Per Second) = actual database operations/second. For URL shortener: 11,574 QPS redirects vs ~1,000 TPS for URL creation.
 
 </details>
 
@@ -1306,70 +1274,76 @@ Cost Optimization:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Redirect requests: 11,574 QPS × 200 bytes/request = ~2.3 MB/s. URL creation: 1,000 QPS × 1KB/request = ~1 MB/s. Total: ~3.3 MB/s inbound, ~2.3 MB/s outbound.
+**Answer:** * Redirect requests: 11,574 QPS × 200 bytes/request = ~2.3 MB/s. URL creation: 1,000 QPS × 1KB/request = ~1 MB/s. Total: ~3.3 MB/s inbound, ~2.3 MB/s outbound.
 
 </details>
 
-**Q4:** How would you handle capacity planning for a URL shortener with 80% read traffic and 20% write traffic?
+#### Intermediate Level
+
+**Q1:** How would you handle capacity planning for a URL shortener with 80% read traffic and 20% write traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Design read replicas for redirects (8,000 QPS), master database for writes (1,000 QPS). Use caching for hot URLs. Consider CDN for global distribution.
+**Answer:** * Design read replicas for redirects (8,000 QPS), master database for writes (1,000 QPS). Use caching for hot URLs. Consider CDN for global distribution.
 
 </details>
 
-**Q5:** What happens to your capacity calculations if 10% of URLs become viral and get 100x more traffic?
+**Q2:** What happens to your capacity calculations if 10% of URLs become viral and get 100x more traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Hot URLs need aggressive caching (Redis, CDN). Consider write-through caching, cache warming strategies, and separate infrastructure for viral content.
+**Answer:** * Hot URLs need aggressive caching (Redis, CDN). Consider write-through caching, cache warming strategies, and separate infrastructure for viral content.
 
 </details>
 
-**Q6:** How would you plan capacity for a URL shortener that needs to handle traffic spikes during major events?
+**Q3:** How would you plan capacity for a URL shortener that needs to handle traffic spikes during major events?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Auto-scaling groups, load balancers, database read replicas, CDN with edge caching, and circuit breakers for protection.
+**Answer:** * Auto-scaling groups, load balancers, database read replicas, CDN with edge caching, and circuit breakers for protection.
 
 </details>
 
-**Q7:** Design capacity planning for a URL shortener that needs to handle 1 billion redirects per day with 99.99% availability.
+#### Advanced Level
+
+**Q1:** Design capacity planning for a URL shortener that needs to handle 1 billion redirects per day with 99.99% availability.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Multi-region deployment, database sharding, read replicas, CDN with edge caching, circuit breakers, and disaster recovery planning.
+**Answer:** * Multi-region deployment, database sharding, read replicas, CDN with edge caching, circuit breakers, and disaster recovery planning.
 
 </details>
 
-**Q8:** How would you handle capacity planning for a URL shortener that needs to support real-time analytics on every click?
+**Q2:** How would you handle capacity planning for a URL shortener that needs to support real-time analytics on every click?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Streaming data pipeline (Kafka), real-time processing (Apache Storm/Flink), time-series database (InfluxDB), and separate analytics infrastructure.
+**Answer:** * Streaming data pipeline (Kafka), real-time processing (Apache Storm/Flink), time-series database (InfluxDB), and separate analytics infrastructure.
 
 </details>
 
-**Q9:** What capacity considerations would you have for a URL shortener that needs to handle mobile traffic with poor connectivity?
+**Q3:** What capacity considerations would you have for a URL shortener that needs to handle mobile traffic with poor connectivity?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge caching, data compression, retry mechanisms, offline capability, progressive web app features, and network-aware load balancing.
+**Answer:** * Edge caching, data compression, retry mechanisms, offline capability, progressive web app features, and network-aware load balancing.
 
 </details>
 
-**Q10:** How would you design capacity planning for a URL shortener that needs to support custom domains for enterprise customers?
+#### System Design Deep Dive
+
+**Q1:** How would you design capacity planning for a URL shortener that needs to support custom domains for enterprise customers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** DNS load balancing, SSL termination, domain-specific caching, enterprise SLA requirements, and dedicated infrastructure for high-value customers.
+**Answer:** * DNS load balancing, SSL termination, domain-specific caching, enterprise SLA requirements, and dedicated infrastructure for high-value customers.
 
 </details>
 
@@ -2345,7 +2319,7 @@ Your QuickLink service goes viral! Overnight, you go from 10K URLs/day to 1M URL
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Show: Client → Load Balancer → Web Server → Database. Include caching layer (Redis) and CDN for global distribution.
+**Answer:** * Show: Client → Load Balancer → Web Server → Database. Include caching layer (Redis) and CDN for global distribution.
 
 </details>
 
@@ -2354,7 +2328,7 @@ Your QuickLink service goes viral! Overnight, you go from 10K URLs/day to 1M URL
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Web servers (handle requests), database (store URL mappings), cache (fast lookups), load balancer (distribute traffic), and analytics service.
+**Answer:** * Web servers (handle requests), database (store URL mappings), cache (fast lookups), load balancer (distribute traffic), and analytics service.
 
 </details>
 
@@ -2363,70 +2337,76 @@ Your QuickLink service goes viral! Overnight, you go from 10K URLs/day to 1M URL
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Client → Load Balancer → Web Server → Generate unique ID → Store in database → Return short URL to client.
+**Answer:** * Client → Load Balancer → Web Server → Generate unique ID → Store in database → Return short URL to client.
 
 </details>
 
-**Q4:** How would you design a URL shortener that needs to handle 100M redirects per day?
+#### Intermediate Level
+
+**Q1:** How would you design a URL shortener that needs to handle 100M redirects per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Add read replicas, caching layer (Redis), CDN for global distribution, and database sharding for scale.
+**Answer:** * Add read replicas, caching layer (Redis), CDN for global distribution, and database sharding for scale.
 
 </details>
 
-**Q5:** What happens when someone clicks a short URL that doesn't exist?
+**Q2:** What happens when someone clicks a short URL that doesn't exist?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Check cache first, then database. If not found, return 404 error. Consider rate limiting to prevent abuse.
+**Answer:** * Check cache first, then database. If not found, return 404 error. Consider rate limiting to prevent abuse.
 
 </details>
 
-**Q6:** How would you handle the case where the same long URL is shortened multiple times?
+**Q3:** How would you handle the case where the same long URL is shortened multiple times?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Option 1: Return existing short URL. Option 2: Create new short URL each time. Consider deduplication strategies and user preferences.
+**Answer:** * Option 1: Return existing short URL. Option 2: Create new short URL each time. Consider deduplication strategies and user preferences.
 
 </details>
 
-**Q7:** Design a URL shortener that needs to support custom short codes for premium users.
+#### Advanced Level
+
+**Q1:** Design a URL shortener that needs to support custom short codes for premium users.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Add validation service, conflict resolution, premium user database, and custom domain support.
+**Answer:** * Add validation service, conflict resolution, premium user database, and custom domain support.
 
 </details>
 
-**Q8:** How would you handle a URL shortener that needs to work across multiple data centers?
+**Q2:** How would you handle a URL shortener that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Multi-region deployment, database replication, cross-region caching, and eventual consistency considerations.
+**Answer:** * Multi-region deployment, database replication, cross-region caching, and eventual consistency considerations.
 
 </details>
 
-**Q9:** What happens if your database goes down during peak traffic?
+**Q3:** What happens if your database goes down during peak traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Circuit breakers, read-only mode, cached redirects, graceful degradation, and disaster recovery procedures.
+**Answer:** * Circuit breakers, read-only mode, cached redirects, graceful degradation, and disaster recovery procedures.
 
 </details>
 
-**Q10:** How would you design a URL shortener that needs to support real-time analytics on every click?
+#### System Design Deep Dive
+
+**Q1:** How would you design a URL shortener that needs to support real-time analytics on every click?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Add analytics service, event streaming (Kafka), real-time processing, and separate analytics database.
+**Answer:** * Add analytics service, event streaming (Kafka), real-time processing, and separate analytics database.
 
 </details>
 
@@ -3408,7 +3388,7 @@ Design a "soft delete" system where deleted URLs can be recovered within 30 days
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Simple table: short_code (PK), original_url, created_at, user_id, click_count. Add indexes on short_code and user_id.
+**Answer:** * Simple table: short_code (PK), original_url, created_at, user_id, click_count. Add indexes on short_code and user_id.
 
 </details>
 
@@ -3417,7 +3397,7 @@ Design a "soft delete" system where deleted URLs can be recovered within 30 days
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Primary key on short_code (unique), index on user_id for user queries, index on created_at for analytics, and composite indexes for common queries.
+**Answer:** * Primary key on short_code (unique), index on user_id for user queries, index on created_at for analytics, and composite indexes for common queries.
 
 </details>
 
@@ -3426,70 +3406,76 @@ Design a "soft delete" system where deleted URLs can be recovered within 30 days
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Database constraint prevents duplicates. Return error to user or suggest alternative. Consider UUID-based generation to avoid conflicts.
+**Answer:** * Database constraint prevents duplicates. Return error to user or suggest alternative. Consider UUID-based generation to avoid conflicts.
 
 </details>
 
-**Q4:** How would you design the database for a URL shortener that needs to handle 1 billion URLs?
+#### Intermediate Level
+
+**Q1:** How would you design the database for a URL shortener that needs to handle 1 billion URLs?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Database sharding by short_code hash, read replicas for redirects, separate analytics database, and partitioning by date.
+**Answer:** * Database sharding by short_code hash, read replicas for redirects, separate analytics database, and partitioning by date.
 
 </details>
 
-**Q5:** What database would you choose for a URL shortener and why?
+**Q2:** What database would you choose for a URL shortener and why?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** PostgreSQL for ACID compliance, MySQL for simplicity, or NoSQL (Cassandra) for massive scale. Consider read/write patterns and consistency requirements.
+**Answer:** * PostgreSQL for ACID compliance, MySQL for simplicity, or NoSQL (Cassandra) for massive scale. Consider read/write patterns and consistency requirements.
 
 </details>
 
-**Q6:** How would you handle database backups for a URL shortener?
+**Q3:** How would you handle database backups for a URL shortener?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Daily full backups, hourly incremental backups, point-in-time recovery, cross-region replication, and test restore procedures.
+**Answer:** * Daily full backups, hourly incremental backups, point-in-time recovery, cross-region replication, and test restore procedures.
 
 </details>
 
-**Q7:** Design a database schema for a URL shortener that needs to support analytics on every click.
+#### Advanced Level
+
+**Q1:** Design a database schema for a URL shortener that needs to support analytics on every click.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Separate tables for URLs and clicks, time-series database for analytics, data partitioning by date, and real-time aggregation.
+**Answer:** * Separate tables for URLs and clicks, time-series database for analytics, data partitioning by date, and real-time aggregation.
 
 </details>
 
-**Q8:** How would you handle database consistency in a multi-region URL shortener?
+**Q2:** How would you handle database consistency in a multi-region URL shortener?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Master-slave replication, eventual consistency for reads, conflict resolution, and circuit breakers for cross-region failures.
+**Answer:** * Master-slave replication, eventual consistency for reads, conflict resolution, and circuit breakers for cross-region failures.
 
 </details>
 
-**Q9:** What database optimizations would you implement for a URL shortener with 80% read traffic?
+**Q3:** What database optimizations would you implement for a URL shortener with 80% read traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Read replicas, connection pooling, query optimization, caching strategies, and database sharding for horizontal scaling.
+**Answer:** * Read replicas, connection pooling, query optimization, caching strategies, and database sharding for horizontal scaling.
 
 </details>
 
-**Q10:** How would you design a database for a URL shortener that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design a database for a URL shortener that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Separate tables for domains, users, and URLs. Add enterprise-specific fields, audit logs, and compliance features.
+**Answer:** * Separate tables for domains, users, and URLs. Add enterprise-specific fields, audit logs, and compliance features.
 
 </details>
 
@@ -4527,7 +4513,7 @@ Write the:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** POST /api/shorten (create), GET /{short_code} (redirect), GET /api/analytics/{short_code} (stats), DELETE /api/urls/{short_code} (delete).
+**Answer:** * POST /api/shorten (create), GET /{short_code} (redirect), GET /api/analytics/{short_code} (stats), DELETE /api/urls/{short_code} (delete).
 
 </details>
 
@@ -4536,7 +4522,7 @@ Write the:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** 200 (success), 201 (created), 301/302 (redirect), 400 (bad request), 404 (not found), 429 (rate limited), 500 (server error).
+**Answer:** * 200 (success), 201 (created), 301/302 (redirect), 400 (bad request), 404 (not found), 429 (rate limited), 500 (server error).
 
 </details>
 
@@ -4545,70 +4531,76 @@ Write the:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** API keys for programmatic access, OAuth for web users, rate limiting per API key, and different tiers for different user types.
+**Answer:** * API keys for programmatic access, OAuth for web users, rate limiting per API key, and different tiers for different user types.
 
 </details>
 
-**Q4:** How would you design an API for a URL shortener that needs to support bulk operations?
+#### Intermediate Level
+
+**Q1:** How would you design an API for a URL shortener that needs to support bulk operations?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** POST /api/bulk/shorten with array of URLs, batch processing, progress tracking, and error handling for individual failures.
+**Answer:** * POST /api/bulk/shorten with array of URLs, batch processing, progress tracking, and error handling for individual failures.
 
 </details>
 
-**Q5:** What API design considerations would you have for a URL shortener that needs to support mobile apps?
+**Q2:** What API design considerations would you have for a URL shortener that needs to support mobile apps?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** RESTful design, JSON responses, pagination, offline capability, retry mechanisms, and mobile-specific endpoints.
+**Answer:** * RESTful design, JSON responses, pagination, offline capability, retry mechanisms, and mobile-specific endpoints.
 
 </details>
 
-**Q6:** How would you handle API versioning for a URL shortener?
+**Q3:** How would you handle API versioning for a URL shortener?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** URL versioning (/api/v1/shorten), header versioning, backward compatibility, deprecation notices, and gradual migration.
+**Answer:** * URL versioning (/api/v1/shorten), header versioning, backward compatibility, deprecation notices, and gradual migration.
 
 </details>
 
-**Q7:** Design an API for a URL shortener that needs to support real-time analytics.
+#### Advanced Level
+
+**Q1:** Design an API for a URL shortener that needs to support real-time analytics.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** WebSocket connections, server-sent events, real-time dashboards, and streaming analytics endpoints.
+**Answer:** * WebSocket connections, server-sent events, real-time dashboards, and streaming analytics endpoints.
 
 </details>
 
-**Q8:** How would you design an API for a URL shortener that needs to support enterprise features?
+**Q2:** How would you design an API for a URL shortener that needs to support enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** SSO integration, audit logs, compliance endpoints, custom domains, and enterprise-specific analytics.
+**Answer:** * SSO integration, audit logs, compliance endpoints, custom domains, and enterprise-specific analytics.
 
 </details>
 
-**Q9:** What API security considerations would you have for a URL shortener?
+**Q3:** What API security considerations would you have for a URL shortener?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Rate limiting, input validation, CORS policies, API key management, and protection against abuse.
+**Answer:** * Rate limiting, input validation, CORS policies, API key management, and protection against abuse.
 
 </details>
 
-**Q10:** How would you design an API for a URL shortener that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design an API for a URL shortener that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain management endpoints, SSL certificate provisioning, custom branding, and enterprise-specific configurations.
+**Answer:** * Domain management endpoints, SSL certificate provisioning, custom branding, and enterprise-specific configurations.
 
 </details>
 
@@ -5660,7 +5652,7 @@ Write pseudocode or actual code for:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Use base62 encoding (a-z, A-Z, 0-9) with counter or UUID. Consider length (6-8 characters) and collision handling.
+**Answer:** * Use base62 encoding (a-z, A-Z, 0-9) with counter or UUID. Consider length (6-8 characters) and collision handling.
 
 </details>
 
@@ -5669,7 +5661,7 @@ Write pseudocode or actual code for:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Sequential: predictable, easy to implement, but reveals usage patterns. Random: unpredictable, harder to implement, but more secure.
+**Answer:** * Sequential: predictable, easy to implement, but reveals usage patterns. Random: unpredictable, harder to implement, but more secure.
 
 </details>
 
@@ -5678,70 +5670,76 @@ Write pseudocode or actual code for:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Check database for existing codes, retry with new code, or use UUID-based generation to minimize collisions.
+**Answer:** * Check database for existing codes, retry with new code, or use UUID-based generation to minimize collisions.
 
 </details>
 
-**Q4:** How would you design a URL shortener that needs to support custom short codes?
+#### Intermediate Level
+
+**Q1:** How would you design a URL shortener that needs to support custom short codes?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Add validation service, conflict resolution, premium user database, and custom domain support.
+**Answer:** * Add validation service, conflict resolution, premium user database, and custom domain support.
 
 </details>
 
-**Q5:** What happens if your ID generation service goes down?
+**Q2:** What happens if your ID generation service goes down?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Use multiple ID generators, fallback mechanisms, circuit breakers, and distributed ID generation (Snowflake, UUID).
+**Answer:** * Use multiple ID generators, fallback mechanisms, circuit breakers, and distributed ID generation (Snowflake, UUID).
 
 </details>
 
-**Q6:** How would you handle ID generation for a URL shortener that needs to support 1 million URLs per day?
+**Q3:** How would you handle ID generation for a URL shortener that needs to support 1 million URLs per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Use distributed ID generation, database sharding, and consider the trade-offs between sequential and random generation.
+**Answer:** * Use distributed ID generation, database sharding, and consider the trade-offs between sequential and random generation.
 
 </details>
 
-**Q7:** Design an ID generation system for a URL shortener that needs to support custom domains and enterprise features.
+#### Advanced Level
+
+**Q1:** Design an ID generation system for a URL shortener that needs to support custom domains and enterprise features.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific ID generation, enterprise user management, custom branding, and compliance features.
+**Answer:** * Domain-specific ID generation, enterprise user management, custom branding, and compliance features.
 
 </details>
 
-**Q8:** How would you handle ID generation for a URL shortener that needs to work across multiple data centers?
+**Q2:** How would you handle ID generation for a URL shortener that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Distributed ID generation, cross-region synchronization, conflict resolution, and eventual consistency.
+**Answer:** * Distributed ID generation, cross-region synchronization, conflict resolution, and eventual consistency.
 
 </details>
 
-**Q9:** What ID generation optimizations would you implement for a URL shortener with high throughput?
+**Q3:** What ID generation optimizations would you implement for a URL shortener with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Batch ID generation, connection pooling, caching strategies, and database optimization.
+**Answer:** * Batch ID generation, connection pooling, caching strategies, and database optimization.
 
 </details>
 
-**Q10:** How would you design an ID generation system for a URL shortener that needs to support real-time analytics?
+#### System Design Deep Dive
+
+**Q1:** How would you design an ID generation system for a URL shortener that needs to support real-time analytics?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Add analytics service, event streaming, real-time processing, and separate analytics database.
+**Answer:** * Add analytics service, event streaming, real-time processing, and separate analytics database.
 
 </details>
 
@@ -6590,7 +6588,7 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Reduce database load, improve response times, handle high traffic, and reduce costs. Most redirects are for the same popular URLs.
+**Answer:** * Reduce database load, improve response times, handle high traffic, and reduce costs. Most redirects are for the same popular URLs.
 
 </details>
 
@@ -6599,7 +6597,7 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Redis for hot URLs, CDN for global distribution, browser caching for static content, and database query caching.
+**Answer:** * Redis for hot URLs, CDN for global distribution, browser caching for static content, and database query caching.
 
 </details>
 
@@ -6608,70 +6606,76 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Check cache first, then database, update cache with new data, and return result to user.
+**Answer:** * Check cache first, then database, update cache with new data, and return result to user.
 
 </details>
 
-**Q4:** How would you design caching for a URL shortener that needs to handle 1 billion redirects per day?
+#### Intermediate Level
+
+**Q1:** How would you design caching for a URL shortener that needs to handle 1 billion redirects per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Multi-level caching (L1, L2, L3), CDN with edge caching, cache warming strategies, and intelligent cache eviction.
+**Answer:** * Multi-level caching (L1, L2, L3), CDN with edge caching, cache warming strategies, and intelligent cache eviction.
 
 </details>
 
-**Q5:** What happens if your cache goes down during peak traffic?
+**Q2:** What happens if your cache goes down during peak traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Fallback to database, circuit breakers, cache warming, and graceful degradation.
+**Answer:** * Fallback to database, circuit breakers, cache warming, and graceful degradation.
 
 </details>
 
-**Q6:** How would you handle cache invalidation for a URL shortener?
+**Q3:** How would you handle cache invalidation for a URL shortener?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** TTL-based expiration, manual invalidation, cache versioning, and event-driven invalidation.
+**Answer:** * TTL-based expiration, manual invalidation, cache versioning, and event-driven invalidation.
 
 </details>
 
-**Q7:** Design a caching system for a URL shortener that needs to support real-time analytics.
+#### Advanced Level
+
+**Q1:** Design a caching system for a URL shortener that needs to support real-time analytics.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Separate analytics cache, real-time data processing, cache partitioning, and analytics-specific eviction policies.
+**Answer:** * Separate analytics cache, real-time data processing, cache partitioning, and analytics-specific eviction policies.
 
 </details>
 
-**Q8:** How would you handle caching for a URL shortener that needs to work across multiple data centers?
+**Q2:** How would you handle caching for a URL shortener that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cross-region cache replication, cache consistency, conflict resolution, and regional cache strategies.
+**Answer:** * Cross-region cache replication, cache consistency, conflict resolution, and regional cache strategies.
 
 </details>
 
-**Q9:** What caching optimizations would you implement for a URL shortener with high throughput?
+**Q3:** What caching optimizations would you implement for a URL shortener with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cache preloading, intelligent eviction, cache compression, and distributed caching strategies.
+**Answer:** * Cache preloading, intelligent eviction, cache compression, and distributed caching strategies.
 
 </details>
 
-**Q10:** How would you design caching for a URL shortener that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design caching for a URL shortener that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific caching, enterprise cache policies, custom TTL settings, and compliance-aware caching.
+**Answer:** * Domain-specific caching, enterprise cache policies, custom TTL settings, and compliance-aware caching.
 
 </details>
 
@@ -7657,7 +7661,7 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Click counts, geographic data, referrer information, device types, browser data, and time-based patterns.
+**Answer:** * Click counts, geographic data, referrer information, device types, browser data, and time-based patterns.
 
 </details>
 
@@ -7666,7 +7670,7 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Separate analytics database, time-series data, aggregated metrics, and real-time processing for immediate insights.
+**Answer:** * Separate analytics database, time-series data, aggregated metrics, and real-time processing for immediate insights.
 
 </details>
 
@@ -7675,70 +7679,76 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** System health checks, performance metrics, error rates, database performance, and user experience metrics.
+**Answer:** * System health checks, performance metrics, error rates, database performance, and user experience metrics.
 
 </details>
 
-**Q4:** How would you design analytics for a URL shortener that needs to handle 1 billion clicks per day?
+#### Intermediate Level
+
+**Q1:** How would you design analytics for a URL shortener that needs to handle 1 billion clicks per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Distributed analytics processing, data partitioning, real-time aggregation, and scalable storage solutions.
+**Answer:** * Distributed analytics processing, data partitioning, real-time aggregation, and scalable storage solutions.
 
 </details>
 
-**Q5:** What happens if your analytics system goes down during peak traffic?
+**Q2:** What happens if your analytics system goes down during peak traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Graceful degradation, data buffering, offline processing, and recovery mechanisms.
+**Answer:** * Graceful degradation, data buffering, offline processing, and recovery mechanisms.
 
 </details>
 
-**Q6:** How would you handle analytics for a URL shortener that needs to support real-time dashboards?
+**Q3:** How would you handle analytics for a URL shortener that needs to support real-time dashboards?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Streaming data processing, real-time aggregation, dashboard updates, and event-driven architecture.
+**Answer:** * Streaming data processing, real-time aggregation, dashboard updates, and event-driven architecture.
 
 </details>
 
-**Q7:** Design an analytics system for a URL shortener that needs to support enterprise features.
+#### Advanced Level
+
+**Q1:** Design an analytics system for a URL shortener that needs to support enterprise features.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Enterprise dashboards, custom reporting, data export, compliance features, and audit trails.
+**Answer:** * Enterprise dashboards, custom reporting, data export, compliance features, and audit trails.
 
 </details>
 
-**Q8:** How would you handle analytics for a URL shortener that needs to work across multiple data centers?
+**Q2:** How would you handle analytics for a URL shortener that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cross-region data synchronization, distributed analytics, regional reporting, and global aggregation.
+**Answer:** * Cross-region data synchronization, distributed analytics, regional reporting, and global aggregation.
 
 </details>
 
-**Q9:** What analytics optimizations would you implement for a URL shortener with high throughput?
+**Q3:** What analytics optimizations would you implement for a URL shortener with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Data compression, batch processing, intelligent sampling, and analytics-specific caching.
+**Answer:** * Data compression, batch processing, intelligent sampling, and analytics-specific caching.
 
 </details>
 
-**Q10:** How would you design analytics for a URL shortener that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design analytics for a URL shortener that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific analytics, enterprise reporting, custom metrics, and compliance-aware data handling.
+**Answer:** * Domain-specific analytics, enterprise reporting, custom metrics, and compliance-aware data handling.
 
 </details>
 
@@ -8752,7 +8762,7 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Add more servers, use load balancers, implement caching, and optimize database queries.
+**Answer:** * Add more servers, use load balancers, implement caching, and optimize database queries.
 
 </details>
 
@@ -8761,7 +8771,7 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Database reads/writes, network bandwidth, CPU for URL generation, and storage I/O.
+**Answer:** * Database reads/writes, network bandwidth, CPU for URL generation, and storage I/O.
 
 </details>
 
@@ -8770,70 +8780,76 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Auto-scaling, load balancing, caching, and circuit breakers for protection.
+**Answer:** * Auto-scaling, load balancing, caching, and circuit breakers for protection.
 
 </details>
 
-**Q4:** How would you design a URL shortener that needs to handle 1 billion redirects per day?
+#### Intermediate Level
+
+**Q1:** How would you design a URL shortener that needs to handle 1 billion redirects per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Database sharding, read replicas, CDN, caching layers, and distributed architecture.
+**Answer:** * Database sharding, read replicas, CDN, caching layers, and distributed architecture.
 
 </details>
 
-**Q5:** What happens if your database becomes the bottleneck in a URL shortener?
+**Q2:** What happens if your database becomes the bottleneck in a URL shortener?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Database optimization, read replicas, caching, query optimization, and database sharding.
+**Answer:** * Database optimization, read replicas, caching, query optimization, and database sharding.
 
 </details>
 
-**Q6:** How would you handle scaling for a URL shortener that needs to work across multiple data centers?
+**Q3:** How would you handle scaling for a URL shortener that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Multi-region deployment, database replication, cross-region caching, and load balancing.
+**Answer:** * Multi-region deployment, database replication, cross-region caching, and load balancing.
 
 </details>
 
-**Q7:** Design a URL shortener that needs to support real-time analytics on every click.
+#### Advanced Level
+
+**Q1:** Design a URL shortener that needs to support real-time analytics on every click.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Streaming data processing, real-time aggregation, analytics database, and event-driven architecture.
+**Answer:** * Streaming data processing, real-time aggregation, analytics database, and event-driven architecture.
 
 </details>
 
-**Q8:** How would you handle scaling for a URL shortener that needs to support enterprise features?
+**Q2:** How would you handle scaling for a URL shortener that needs to support enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Enterprise-specific scaling, custom domains, compliance features, and dedicated infrastructure.
+**Answer:** * Enterprise-specific scaling, custom domains, compliance features, and dedicated infrastructure.
 
 </details>
 
-**Q9:** What scaling optimizations would you implement for a URL shortener with high throughput?
+**Q3:** What scaling optimizations would you implement for a URL shortener with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Database sharding, read replicas, caching strategies, and distributed architecture.
+**Answer:** * Database sharding, read replicas, caching strategies, and distributed architecture.
 
 </details>
 
-**Q10:** How would you design scaling for a URL shortener that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design scaling for a URL shortener that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific scaling, enterprise infrastructure, custom domains, and compliance features.
+**Answer:** * Domain-specific scaling, enterprise infrastructure, custom domains, and compliance features.
 
 </details>
 
@@ -9638,7 +9654,7 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Input validation, rate limiting, HTTPS, authentication, and protection against abuse.
+**Answer:** * Input validation, rate limiting, HTTPS, authentication, and protection against abuse.
 
 </details>
 
@@ -9647,7 +9663,7 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** URL validation, malware scanning, phishing detection, and content filtering.
+**Answer:** * URL validation, malware scanning, phishing detection, and content filtering.
 
 </details>
 
@@ -9656,70 +9672,76 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Data encryption, user consent, data retention policies, and compliance with regulations.
+**Answer:** * Data encryption, user consent, data retention policies, and compliance with regulations.
 
 </details>
 
-**Q4:** How would you design security for a URL shortener that needs to handle enterprise customers?
+#### Intermediate Level
+
+**Q1:** How would you design security for a URL shortener that needs to handle enterprise customers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** SSO integration, audit logs, compliance features, and enterprise-specific security policies.
+**Answer:** * SSO integration, audit logs, compliance features, and enterprise-specific security policies.
 
 </details>
 
-**Q5:** What happens if your URL shortener is attacked by malicious actors?
+**Q2:** What happens if your URL shortener is attacked by malicious actors?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** DDoS protection, rate limiting, circuit breakers, and incident response procedures.
+**Answer:** * DDoS protection, rate limiting, circuit breakers, and incident response procedures.
 
 </details>
 
-**Q6:** How would you handle security for a URL shortener that needs to work across multiple data centers?
+**Q3:** How would you handle security for a URL shortener that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cross-region security, encryption in transit, secure communication, and regional compliance.
+**Answer:** * Cross-region security, encryption in transit, secure communication, and regional compliance.
 
 </details>
 
-**Q7:** Design security for a URL shortener that needs to support custom domains and enterprise features.
+#### Advanced Level
+
+**Q1:** Design security for a URL shortener that needs to support custom domains and enterprise features.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific security, enterprise compliance, custom security policies, and advanced threat protection.
+**Answer:** * Domain-specific security, enterprise compliance, custom security policies, and advanced threat protection.
 
 </details>
 
-**Q8:** How would you handle security for a URL shortener that needs to support real-time analytics?
+**Q2:** How would you handle security for a URL shortener that needs to support real-time analytics?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Secure data processing, encryption at rest, secure analytics, and privacy-preserving techniques.
+**Answer:** * Secure data processing, encryption at rest, secure analytics, and privacy-preserving techniques.
 
 </details>
 
-**Q9:** What security optimizations would you implement for a URL shortener with high throughput?
+**Q3:** What security optimizations would you implement for a URL shortener with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Security at scale, distributed security, performance-optimized security, and threat detection.
+**Answer:** * Security at scale, distributed security, performance-optimized security, and threat detection.
 
 </details>
 
-**Q10:** How would you design security for a URL shortener that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design security for a URL shortener that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific security, enterprise compliance, custom security policies, and advanced threat protection.
+**Answer:** * Domain-specific security, enterprise compliance, custom security policies, and advanced threat protection.
 
 </details>
 
@@ -10537,7 +10559,7 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** System health checks, performance metrics, error rates, database performance, and user experience metrics.
+**Answer:** * System health checks, performance metrics, error rates, database performance, and user experience metrics.
 
 </details>
 
@@ -10546,7 +10568,7 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cross-region monitoring, regional dashboards, global health checks, and distributed monitoring.
+**Answer:** * Cross-region monitoring, regional dashboards, global health checks, and distributed monitoring.
 
 </details>
 
@@ -10555,70 +10577,76 @@ For interviews, explain:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Fallback monitoring, alerting systems, incident response, and recovery procedures.
+**Answer:** * Fallback monitoring, alerting systems, incident response, and recovery procedures.
 
 </details>
 
-**Q4:** How would you design monitoring for a URL shortener that needs to handle 1 billion redirects per day?
+#### Intermediate Level
+
+**Q1:** How would you design monitoring for a URL shortener that needs to handle 1 billion redirects per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Distributed monitoring, real-time metrics, performance tracking, and scalable monitoring infrastructure.
+**Answer:** * Distributed monitoring, real-time metrics, performance tracking, and scalable monitoring infrastructure.
 
 </details>
 
-**Q5:** What monitoring optimizations would you implement for a URL shortener with high throughput?
+**Q2:** What monitoring optimizations would you implement for a URL shortener with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Performance monitoring, resource tracking, bottleneck identification, and optimization recommendations.
+**Answer:** * Performance monitoring, resource tracking, bottleneck identification, and optimization recommendations.
 
 </details>
 
-**Q6:** How would you handle monitoring for a URL shortener that needs to support real-time analytics?
+**Q3:** How would you handle monitoring for a URL shortener that needs to support real-time analytics?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Real-time monitoring, analytics tracking, performance metrics, and data quality monitoring.
+**Answer:** * Real-time monitoring, analytics tracking, performance metrics, and data quality monitoring.
 
 </details>
 
-**Q7:** Design monitoring for a URL shortener that needs to support enterprise features.
+#### Advanced Level
+
+**Q1:** Design monitoring for a URL shortener that needs to support enterprise features.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Enterprise monitoring, compliance tracking, audit logs, and enterprise-specific metrics.
+**Answer:** * Enterprise monitoring, compliance tracking, audit logs, and enterprise-specific metrics.
 
 </details>
 
-**Q8:** How would you handle monitoring for a URL shortener that needs to support custom domains and enterprise features?
+**Q2:** How would you handle monitoring for a URL shortener that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
+**Answer:** * Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
 
 </details>
 
-**Q9:** What monitoring optimizations would you implement for a URL shortener with high throughput?
+**Q3:** What monitoring optimizations would you implement for a URL shortener with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Performance monitoring, resource tracking, bottleneck identification, and optimization recommendations.
+**Answer:** * Performance monitoring, resource tracking, bottleneck identification, and optimization recommendations.
 
 </details>
 
-**Q10:** How would you design monitoring for a URL shortener that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design monitoring for a URL shortener that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
+**Answer:** * Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
 
 </details>
 
@@ -11614,7 +11642,7 @@ Bonus: Explain how this proves "start simple, evolve later" was correct!
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Consistency vs availability, performance vs cost, simplicity vs features, and security vs usability.
+**Answer:** * Consistency vs availability, performance vs cost, simplicity vs features, and security vs usability.
 
 </details>
 
@@ -11623,7 +11651,7 @@ Bonus: Explain how this proves "start simple, evolve later" was correct!
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Consider read/write patterns, consistency requirements, scalability needs, and cost constraints.
+**Answer:** * Consider read/write patterns, consistency requirements, scalability needs, and cost constraints.
 
 </details>
 
@@ -11632,70 +11660,76 @@ Bonus: Explain how this proves "start simple, evolve later" was correct!
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Hit rate requirements, latency needs, cost constraints, and complexity trade-offs.
+**Answer:** * Hit rate requirements, latency needs, cost constraints, and complexity trade-offs.
 
 </details>
 
-**Q4:** How would you handle trade-offs between performance and cost in a URL shortener?
+#### Intermediate Level
+
+**Q1:** How would you handle trade-offs between performance and cost in a URL shortener?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Performance optimization, cost analysis, ROI calculations, and strategic decision-making.
+**Answer:** * Performance optimization, cost analysis, ROI calculations, and strategic decision-making.
 
 </details>
 
-**Q5:** What happens if you need to choose between consistency and availability in a URL shortener?
+**Q2:** What happens if you need to choose between consistency and availability in a URL shortener?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Analyze business requirements, user impact, and system constraints to make informed decisions.
+**Answer:** * Analyze business requirements, user impact, and system constraints to make informed decisions.
 
 </details>
 
-**Q6:** How would you handle trade-offs between security and usability in a URL shortener?
+**Q3:** How would you handle trade-offs between security and usability in a URL shortener?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Security-first approach, user experience optimization, and balanced security measures.
+**Answer:** * Security-first approach, user experience optimization, and balanced security measures.
 
 </details>
 
-**Q7:** Design trade-offs for a URL shortener that needs to support enterprise features.
+#### Advanced Level
+
+**Q1:** Design trade-offs for a URL shortener that needs to support enterprise features.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Enterprise requirements, compliance needs, security considerations, and cost-benefit analysis.
+**Answer:** * Enterprise requirements, compliance needs, security considerations, and cost-benefit analysis.
 
 </details>
 
-**Q8:** How would you handle trade-offs between scalability and complexity in a URL shortener?
+**Q2:** How would you handle trade-offs between scalability and complexity in a URL shortener?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Scalability planning, complexity management, and strategic architecture decisions.
+**Answer:** * Scalability planning, complexity management, and strategic architecture decisions.
 
 </details>
 
-**Q9:** What trade-offs would you consider for a URL shortener that needs to support custom domains and enterprise features?
+**Q3:** What trade-offs would you consider for a URL shortener that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain management, enterprise requirements, compliance needs, and cost considerations.
+**Answer:** * Domain management, enterprise requirements, compliance needs, and cost considerations.
 
 </details>
 
-**Q10:** How would you design trade-offs for a URL shortener that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design trade-offs for a URL shortener that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific trade-offs, enterprise requirements, compliance needs, and strategic decision-making.
+**Answer:** * Domain-specific trade-offs, enterprise requirements, compliance needs, and strategic decision-making.
 
 </details>
 

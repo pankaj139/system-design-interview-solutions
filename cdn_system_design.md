@@ -820,7 +820,7 @@ During breaking news events (e.g., election results), traffic spikes 10x normal.
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** A Content Delivery Network is a distributed network of servers that cache content closer to users. Use it to reduce latency, improve performance, and reduce load on origin servers.
+**Answer:** * A Content Delivery Network is a distributed network of servers that cache content closer to users. Use it to reduce latency, improve performance, and reduce load on origin servers.
 
 </details>
 
@@ -829,7 +829,7 @@ During breaking news events (e.g., election results), traffic spikes 10x normal.
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Static assets (images, CSS, JS), video content, API responses, and dynamic content with appropriate caching strategies.
+**Answer:** * Static assets (images, CSS, JS), video content, API responses, and dynamic content with appropriate caching strategies.
 
 </details>
 
@@ -838,70 +838,76 @@ During breaking news events (e.g., election results), traffic spikes 10x normal.
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** By serving content from edge servers geographically closer to users, reducing the distance data travels and improving response times.
+**Answer:** * By serving content from edge servers geographically closer to users, reducing the distance data travels and improving response times.
 
 </details>
 
-**Q4:** How would you design a CDN that needs to handle 1 billion requests per day?
+#### Intermediate Level
+
+**Q1:** How would you design a CDN that needs to handle 1 billion requests per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Global edge network, multi-tier caching, load balancing, and intelligent content distribution across multiple regions.
+**Answer:** * Global edge network, multi-tier caching, load balancing, and intelligent content distribution across multiple regions.
 
 </details>
 
-**Q5:** What happens when a CDN edge server goes down?
+**Q2:** What happens when a CDN edge server goes down?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Automatic failover to nearby edge servers, origin server fallback, and health monitoring to detect and replace failed servers.
+**Answer:** * Automatic failover to nearby edge servers, origin server fallback, and health monitoring to detect and replace failed servers.
 
 </details>
 
-**Q6:** How would you handle cache invalidation in a global CDN?
+**Q3:** How would you handle cache invalidation in a global CDN?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms to ensure consistency.
+**Answer:** * Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms to ensure consistency.
 
 </details>
 
-**Q7:** Design a CDN that needs to support real-time video streaming with adaptive bitrate.
+#### Advanced Level
+
+**Q1:** Design a CDN that needs to support real-time video streaming with adaptive bitrate.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+**Answer:** * Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
 
 </details>
 
-**Q8:** How would you handle DDoS attacks on a CDN infrastructure?
+**Q2:** How would you handle DDoS attacks on a CDN infrastructure?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Distributed DDoS protection, traffic filtering, rate limiting, and intelligent traffic routing to mitigate attacks.
+**Answer:** * Distributed DDoS protection, traffic filtering, rate limiting, and intelligent traffic routing to mitigate attacks.
 
 </details>
 
-**Q9:** What considerations would you have for a CDN that needs to serve content in countries with strict data sovereignty laws?
+**Q3:** What considerations would you have for a CDN that needs to serve content in countries with strict data sovereignty laws?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Regional data centers, compliance frameworks, data residency requirements, and local content policies.
+**Answer:** * Regional data centers, compliance frameworks, data residency requirements, and local content policies.
 
 </details>
 
-**Q10:** How would you design a CDN that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** SSL certificate management, custom domain routing, enterprise security policies, and advanced analytics.
+**Answer:** * SSL certificate management, custom domain routing, enterprise security policies, and advanced analytics.
 
 </details>
 
@@ -1491,7 +1497,7 @@ Total servers across CDN:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Estimate content volume, replication factor, and retention policies. Consider: 1PB content × 3x replication = 3PB total storage across all edge locations.
+**Answer:** * Estimate content volume, replication factor, and retention policies. Consider: 1PB content × 3x replication = 3PB total storage across all edge locations.
 
 </details>
 
@@ -1500,7 +1506,7 @@ Total servers across CDN:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Request volume, content size, cache hit ratio, and geographic distribution. Higher cache hit ratio reduces bandwidth to origin servers.
+**Answer:** * Request volume, content size, cache hit ratio, and geographic distribution. Higher cache hit ratio reduces bandwidth to origin servers.
 
 </details>
 
@@ -1509,70 +1515,76 @@ Total servers across CDN:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Based on traffic volume, geographic coverage, redundancy requirements, and server capacity. Consider peak traffic and failover scenarios.
+**Answer:** * Based on traffic volume, geographic coverage, redundancy requirements, and server capacity. Consider peak traffic and failover scenarios.
 
 </details>
 
-**Q4:** How would you handle capacity planning for a CDN that needs to serve 1 billion requests per day?
+#### Intermediate Level
+
+**Q1:** How would you handle capacity planning for a CDN that needs to serve 1 billion requests per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Global distribution analysis, traffic patterns, edge server capacity, and intelligent load balancing across multiple regions.
+**Answer:** * Global distribution analysis, traffic patterns, edge server capacity, and intelligent load balancing across multiple regions.
 
 </details>
 
-**Q5:** What happens to your capacity calculations if 20% of content becomes viral and gets 100x more traffic?
+**Q2:** What happens to your capacity calculations if 20% of content becomes viral and gets 100x more traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Hot content caching strategies, edge server scaling, bandwidth optimization, and intelligent content distribution.
+**Answer:** * Hot content caching strategies, edge server scaling, bandwidth optimization, and intelligent content distribution.
 
 </details>
 
-**Q6:** How would you plan capacity for a CDN that needs to handle traffic spikes during major events?
+**Q3:** How would you plan capacity for a CDN that needs to handle traffic spikes during major events?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Auto-scaling mechanisms, traffic prediction, edge server provisioning, and dynamic content routing.
+**Answer:** * Auto-scaling mechanisms, traffic prediction, edge server provisioning, and dynamic content routing.
 
 </details>
 
-**Q7:** Design capacity planning for a CDN that needs to support real-time video streaming with adaptive bitrate.
+#### Advanced Level
+
+**Q1:** Design capacity planning for a CDN that needs to support real-time video streaming with adaptive bitrate.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Video processing capacity, bandwidth optimization, edge server specialization, and intelligent content routing.
+**Answer:** * Video processing capacity, bandwidth optimization, edge server specialization, and intelligent content routing.
 
 </details>
 
-**Q8:** How would you handle capacity planning for a CDN that needs to work across multiple data centers?
+**Q2:** How would you handle capacity planning for a CDN that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cross-region capacity planning, traffic distribution, edge server coordination, and global load balancing.
+**Answer:** * Cross-region capacity planning, traffic distribution, edge server coordination, and global load balancing.
 
 </details>
 
-**Q9:** What capacity considerations would you have for a CDN that needs to handle mobile traffic with poor connectivity?
+**Q3:** What capacity considerations would you have for a CDN that needs to handle mobile traffic with poor connectivity?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge server optimization, content compression, adaptive streaming, and network-aware routing.
+**Answer:** * Edge server optimization, content compression, adaptive streaming, and network-aware routing.
 
 </details>
 
-**Q10:** How would you design capacity planning for a CDN that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design capacity planning for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Enterprise-specific capacity requirements, custom domain routing, SSL termination, and advanced analytics.
+**Answer:** * Enterprise-specific capacity requirements, custom domain routing, SSL termination, and advanced analytics.
 
 </details>
 
@@ -2363,7 +2375,7 @@ graph TB
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Show: Origin Server → Mid-Tier Cache → Edge Servers → Users. Include DNS routing, load balancers, and monitoring systems.
+**Answer:** * Show: Origin Server → Mid-Tier Cache → Edge Servers → Users. Include DNS routing, load balancers, and monitoring systems.
 
 </details>
 
@@ -2372,7 +2384,7 @@ graph TB
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Origin servers, mid-tier caches, edge servers, DNS routing, load balancers, and monitoring/analytics systems.
+**Answer:** * Origin servers, mid-tier caches, edge servers, DNS routing, load balancers, and monitoring/analytics systems.
 
 </details>
 
@@ -2381,70 +2393,76 @@ graph TB
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** DNS resolution → Edge server selection → Cache check → Origin fetch if miss → Content delivery to user.
+**Answer:** * DNS resolution → Edge server selection → Cache check → Origin fetch if miss → Content delivery to user.
 
 </details>
 
-**Q4:** How would you design a CDN that needs to handle 1 billion requests per day?
+#### Intermediate Level
+
+**Q1:** How would you design a CDN that needs to handle 1 billion requests per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Global edge network, multi-tier caching, intelligent routing, and distributed architecture across multiple regions.
+**Answer:** * Global edge network, multi-tier caching, intelligent routing, and distributed architecture across multiple regions.
 
 </details>
 
-**Q5:** What happens when a CDN edge server goes down?
+**Q2:** What happens when a CDN edge server goes down?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Automatic failover to nearby edge servers, health monitoring, and dynamic traffic routing to maintain service.
+**Answer:** * Automatic failover to nearby edge servers, health monitoring, and dynamic traffic routing to maintain service.
 
 </details>
 
-**Q6:** How would you handle the case where content is not cached at the edge?
+**Q3:** How would you handle the case where content is not cached at the edge?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Origin server fallback, cache warming strategies, and intelligent content preloading based on usage patterns.
+**Answer:** * Origin server fallback, cache warming strategies, and intelligent content preloading based on usage patterns.
 
 </details>
 
-**Q7:** Design a CDN that needs to support real-time video streaming with adaptive bitrate.
+#### Advanced Level
+
+**Q1:** Design a CDN that needs to support real-time video streaming with adaptive bitrate.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+**Answer:** * Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
 
 </details>
 
-**Q8:** How would you handle a CDN that needs to work across multiple data centers?
+**Q2:** How would you handle a CDN that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Multi-region deployment, cross-region caching, traffic distribution, and global load balancing.
+**Answer:** * Multi-region deployment, cross-region caching, traffic distribution, and global load balancing.
 
 </details>
 
-**Q9:** What happens if your origin server goes down during peak traffic?
+**Q3:** What happens if your origin server goes down during peak traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge server caching, content replication, failover mechanisms, and graceful degradation strategies.
+**Answer:** * Edge server caching, content replication, failover mechanisms, and graceful degradation strategies.
 
 </details>
 
-**Q10:** How would you design a CDN that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** SSL certificate management, custom domain routing, enterprise security policies, and advanced analytics.
+**Answer:** * SSL certificate management, custom domain routing, enterprise security policies, and advanced analytics.
 
 </details>
 
@@ -2973,7 +2991,7 @@ Breaking news: "Election results announced!" causes 100x traffic spike for 1 hou
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge cache serves users directly with fast access, mid-tier cache provides backup and reduces origin load. Edge is closer to users, mid-tier has more storage.
+**Answer:** * Edge cache serves users directly with fast access, mid-tier cache provides backup and reduces origin load. Edge is closer to users, mid-tier has more storage.
 
 </details>
 
@@ -2982,7 +3000,7 @@ Breaking news: "Election results announced!" causes 100x traffic spike for 1 hou
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Check edge cache first, then mid-tier cache, then origin server. Update caches with fetched content for future requests.
+**Answer:** * Check edge cache first, then mid-tier cache, then origin server. Update caches with fetched content for future requests.
 
 </details>
 
@@ -2991,70 +3009,76 @@ Breaking news: "Election results announced!" causes 100x traffic spike for 1 hou
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Content popularity, cache size, TTL settings, and content access patterns. Popular content has higher hit ratios.
+**Answer:** * Content popularity, cache size, TTL settings, and content access patterns. Popular content has higher hit ratios.
 
 </details>
 
-**Q4:** How would you design a multi-tier cache hierarchy for a CDN that needs to handle 1 billion requests per day?
+#### Intermediate Level
+
+**Q1:** How would you design a multi-tier cache hierarchy for a CDN that needs to handle 1 billion requests per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge servers for hot content, mid-tier for warm content, origin servers for cold content, and intelligent content distribution.
+**Answer:** * Edge servers for hot content, mid-tier for warm content, origin servers for cold content, and intelligent content distribution.
 
 </details>
 
-**Q5:** What happens if your mid-tier cache goes down during peak traffic?
+**Q2:** What happens if your mid-tier cache goes down during peak traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge servers fall back to origin, cache warming strategies, and dynamic traffic routing to maintain service.
+**Answer:** * Edge servers fall back to origin, cache warming strategies, and dynamic traffic routing to maintain service.
 
 </details>
 
-**Q6:** How would you handle cache invalidation in a multi-tier CDN?
+**Q3:** How would you handle cache invalidation in a multi-tier CDN?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms to ensure consistency.
+**Answer:** * Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms to ensure consistency.
 
 </details>
 
-**Q7:** Design a multi-tier cache system for a CDN that needs to support real-time video streaming.
+#### Advanced Level
+
+**Q1:** Design a multi-tier cache system for a CDN that needs to support real-time video streaming.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+**Answer:** * Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
 
 </details>
 
-**Q8:** How would you handle cache consistency in a multi-tier CDN across multiple regions?
+**Q2:** How would you handle cache consistency in a multi-tier CDN across multiple regions?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cross-region cache synchronization, eventual consistency models, and conflict resolution mechanisms.
+**Answer:** * Cross-region cache synchronization, eventual consistency models, and conflict resolution mechanisms.
 
 </details>
 
-**Q9:** What cache optimizations would you implement for a CDN with high throughput?
+**Q3:** What cache optimizations would you implement for a CDN with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cache preloading, intelligent eviction, cache compression, and distributed caching strategies.
+**Answer:** * Cache preloading, intelligent eviction, cache compression, and distributed caching strategies.
 
 </details>
 
-**Q10:** How would you design a multi-tier cache system for a CDN that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design a multi-tier cache system for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific caching, enterprise cache policies, custom TTL settings, and compliance-aware caching.
+**Answer:** * Domain-specific caching, enterprise cache policies, custom TTL settings, and compliance-aware caching.
 
 </details>
 
@@ -3666,7 +3690,7 @@ A submarine cable between Asia and Australia is cut (happens every few years). Y
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** GeoDNS routes users to the nearest edge server based on their geographic location, reducing latency and improving performance.
+**Answer:** * GeoDNS routes users to the nearest edge server based on their geographic location, reducing latency and improving performance.
 
 </details>
 
@@ -3675,7 +3699,7 @@ A submarine cable between Asia and Australia is cut (happens every few years). Y
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Anycast allows multiple servers to share the same IP address, automatically routing users to the nearest server for optimal performance.
+**Answer:** * Anycast allows multiple servers to share the same IP address, automatically routing users to the nearest server for optimal performance.
 
 </details>
 
@@ -3684,70 +3708,76 @@ A submarine cable between Asia and Australia is cut (happens every few years). Y
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Automatic failover to nearby edge servers, health monitoring, and dynamic traffic routing to maintain service.
+**Answer:** * Automatic failover to nearby edge servers, health monitoring, and dynamic traffic routing to maintain service.
 
 </details>
 
-**Q4:** How would you design routing for a CDN that needs to handle 1 billion requests per day?
+#### Intermediate Level
+
+**Q1:** How would you design routing for a CDN that needs to handle 1 billion requests per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Global edge network, intelligent routing algorithms, load balancing, and geographic distribution across multiple regions.
+**Answer:** * Global edge network, intelligent routing algorithms, load balancing, and geographic distribution across multiple regions.
 
 </details>
 
-**Q5:** What happens when your routing system goes down during peak traffic?
+**Q2:** What happens when your routing system goes down during peak traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Fallback routing mechanisms, DNS failover, and dynamic traffic distribution to maintain service availability.
+**Answer:** * Fallback routing mechanisms, DNS failover, and dynamic traffic distribution to maintain service availability.
 
 </details>
 
-**Q6:** How would you handle routing for a CDN that needs to work across multiple data centers?
+**Q3:** How would you handle routing for a CDN that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cross-region routing, traffic distribution, edge server coordination, and global load balancing.
+**Answer:** * Cross-region routing, traffic distribution, edge server coordination, and global load balancing.
 
 </details>
 
-**Q7:** Design routing for a CDN that needs to support real-time video streaming with adaptive bitrate.
+#### Advanced Level
+
+**Q1:** Design routing for a CDN that needs to support real-time video streaming with adaptive bitrate.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+**Answer:** * Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
 
 </details>
 
-**Q8:** How would you handle routing for a CDN that needs to support custom domains and enterprise features?
+**Q2:** How would you handle routing for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Custom domain routing, SSL termination, enterprise security policies, and advanced analytics.
+**Answer:** * Custom domain routing, SSL termination, enterprise security policies, and advanced analytics.
 
 </details>
 
-**Q9:** What routing optimizations would you implement for a CDN with high throughput?
+**Q3:** What routing optimizations would you implement for a CDN with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Intelligent routing algorithms, traffic prediction, edge server optimization, and dynamic content distribution.
+**Answer:** * Intelligent routing algorithms, traffic prediction, edge server optimization, and dynamic content distribution.
 
 </details>
 
-**Q10:** How would you design routing for a CDN that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design routing for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Custom domain routing, SSL termination, enterprise security policies, and advanced analytics.
+**Answer:** * Custom domain routing, SSL termination, enterprise security policies, and advanced analytics.
 
 </details>
 
@@ -4245,7 +4275,7 @@ Design a system that allows gradual price rollout: West Coast sees new prices at
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cache invalidation removes outdated content from cache when origin content changes, ensuring users get the latest version.
+**Answer:** * Cache invalidation removes outdated content from cache when origin content changes, ensuring users get the latest version.
 
 </details>
 
@@ -4254,7 +4284,7 @@ Design a system that allows gradual price rollout: West Coast sees new prices at
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** TTL-based expiration, manual purging, event-driven invalidation, and real-time invalidation protocols.
+**Answer:** * TTL-based expiration, manual purging, event-driven invalidation, and real-time invalidation protocols.
 
 </details>
 
@@ -4263,70 +4293,76 @@ Design a system that allows gradual price rollout: West Coast sees new prices at
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms to ensure consistency.
+**Answer:** * Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms to ensure consistency.
 
 </details>
 
-**Q4:** How would you design cache invalidation for a CDN that needs to handle 1 billion requests per day?
+#### Intermediate Level
+
+**Q1:** How would you design cache invalidation for a CDN that needs to handle 1 billion requests per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Distributed invalidation protocols, event-driven cache purging, and global propagation mechanisms across multiple regions.
+**Answer:** * Distributed invalidation protocols, event-driven cache purging, and global propagation mechanisms across multiple regions.
 
 </details>
 
-**Q5:** What happens if your cache invalidation system goes down during peak traffic?
+**Q2:** What happens if your cache invalidation system goes down during peak traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Fallback mechanisms, manual purging, and recovery procedures to maintain cache consistency.
+**Answer:** * Fallback mechanisms, manual purging, and recovery procedures to maintain cache consistency.
 
 </details>
 
-**Q6:** How would you handle cache invalidation for a CDN that needs to work across multiple data centers?
+**Q3:** How would you handle cache invalidation for a CDN that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cross-region invalidation protocols, event-driven cache purging, and global propagation mechanisms.
+**Answer:** * Cross-region invalidation protocols, event-driven cache purging, and global propagation mechanisms.
 
 </details>
 
-**Q7:** Design cache invalidation for a CDN that needs to support real-time video streaming.
+#### Advanced Level
+
+**Q1:** Design cache invalidation for a CDN that needs to support real-time video streaming.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms for video content.
+**Answer:** * Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms for video content.
 
 </details>
 
-**Q8:** How would you handle cache invalidation for a CDN that needs to support custom domains and enterprise features?
+**Q2:** How would you handle cache invalidation for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific invalidation, enterprise cache policies, and compliance-aware cache management.
+**Answer:** * Domain-specific invalidation, enterprise cache policies, and compliance-aware cache management.
 
 </details>
 
-**Q9:** What cache invalidation optimizations would you implement for a CDN with high throughput?
+**Q3:** What cache invalidation optimizations would you implement for a CDN with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Intelligent invalidation algorithms, event-driven cache purging, and distributed invalidation protocols.
+**Answer:** * Intelligent invalidation algorithms, event-driven cache purging, and distributed invalidation protocols.
 
 </details>
 
-**Q10:** How would you design cache invalidation for a CDN that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design cache invalidation for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific invalidation, enterprise cache policies, and compliance-aware cache management.
+**Answer:** * Domain-specific invalidation, enterprise cache policies, and compliance-aware cache management.
 
 </details>
 
@@ -4455,7 +4491,7 @@ Cons: Complex implementation
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Adaptive bitrate automatically adjusts video quality based on network conditions, ensuring smooth playback across different devices and connections.
+**Answer:** * Adaptive bitrate automatically adjusts video quality based on network conditions, ensuring smooth playback across different devices and connections.
 
 </details>
 
@@ -4464,7 +4500,7 @@ Cons: Complex implementation
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** HLS (HTTP Live Streaming), DASH (Dynamic Adaptive Streaming), and RTMP for live streaming.
+**Answer:** * HLS (HTTP Live Streaming), DASH (Dynamic Adaptive Streaming), and RTMP for live streaming.
 
 </details>
 
@@ -4473,70 +4509,76 @@ Cons: Complex implementation
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Video is segmented into chunks, served from edge servers, and players adapt quality based on bandwidth and buffer conditions.
+**Answer:** * Video is segmented into chunks, served from edge servers, and players adapt quality based on bandwidth and buffer conditions.
 
 </details>
 
-**Q4:** How would you design video streaming for a CDN that needs to handle 1 billion requests per day?
+#### Intermediate Level
+
+**Q1:** How would you design video streaming for a CDN that needs to handle 1 billion requests per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+**Answer:** * Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
 
 </details>
 
-**Q5:** What happens when your video streaming system goes down during peak traffic?
+**Q2:** What happens when your video streaming system goes down during peak traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Fallback mechanisms, edge server optimization, and recovery procedures to maintain video quality.
+**Answer:** * Fallback mechanisms, edge server optimization, and recovery procedures to maintain video quality.
 
 </details>
 
-**Q6:** How would you handle video streaming for a CDN that needs to work across multiple data centers?
+**Q3:** How would you handle video streaming for a CDN that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cross-region video processing, adaptive streaming protocols, and global content distribution.
+**Answer:** * Cross-region video processing, adaptive streaming protocols, and global content distribution.
 
 </details>
 
-**Q7:** Design video streaming for a CDN that needs to support real-time live streaming.
+#### Advanced Level
+
+**Q1:** Design video streaming for a CDN that needs to support real-time live streaming.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge video processing, low-latency streaming protocols, bandwidth optimization, and intelligent content routing.
+**Answer:** * Edge video processing, low-latency streaming protocols, bandwidth optimization, and intelligent content routing.
 
 </details>
 
-**Q8:** How would you handle video streaming for a CDN that needs to support custom domains and enterprise features?
+**Q2:** How would you handle video streaming for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Custom domain routing, enterprise video policies, and advanced analytics for video content.
+**Answer:** * Custom domain routing, enterprise video policies, and advanced analytics for video content.
 
 </details>
 
-**Q9:** What video streaming optimizations would you implement for a CDN with high throughput?
+**Q3:** What video streaming optimizations would you implement for a CDN with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+**Answer:** * Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
 
 </details>
 
-**Q10:** How would you design video streaming for a CDN that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design video streaming for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Custom domain routing, enterprise video policies, and advanced analytics for video content.
+**Answer:** * Custom domain routing, enterprise video policies, and advanced analytics for video content.
 
 </details>
 
@@ -4708,7 +4750,7 @@ Layer 4: Origin Shield
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** DDoS protection, SSL/TLS termination, origin server protection, and traffic filtering to prevent malicious requests.
+**Answer:** * DDoS protection, SSL/TLS termination, origin server protection, and traffic filtering to prevent malicious requests.
 
 </details>
 
@@ -4717,7 +4759,7 @@ Layer 4: Origin Shield
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Distributed DDoS protection, traffic filtering, rate limiting, and intelligent traffic routing to mitigate attacks.
+**Answer:** * Distributed DDoS protection, traffic filtering, rate limiting, and intelligent traffic routing to mitigate attacks.
 
 </details>
 
@@ -4726,70 +4768,76 @@ Layer 4: Origin Shield
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** DDoS protection mechanisms, traffic filtering, rate limiting, and incident response procedures.
+**Answer:** * DDoS protection mechanisms, traffic filtering, rate limiting, and incident response procedures.
 
 </details>
 
-**Q4:** How would you design security for a CDN that needs to handle 1 billion requests per day?
+#### Intermediate Level
+
+**Q1:** How would you design security for a CDN that needs to handle 1 billion requests per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Distributed security infrastructure, DDoS protection, traffic filtering, and intelligent traffic routing.
+**Answer:** * Distributed security infrastructure, DDoS protection, traffic filtering, and intelligent traffic routing.
 
 </details>
 
-**Q5:** What happens if your security system goes down during peak traffic?
+**Q2:** What happens if your security system goes down during peak traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Fallback security mechanisms, traffic filtering, and recovery procedures to maintain protection.
+**Answer:** * Fallback security mechanisms, traffic filtering, and recovery procedures to maintain protection.
 
 </details>
 
-**Q6:** How would you handle security for a CDN that needs to work across multiple data centers?
+**Q3:** How would you handle security for a CDN that needs to work across multiple data centers?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cross-region security, distributed DDoS protection, and global traffic filtering.
+**Answer:** * Cross-region security, distributed DDoS protection, and global traffic filtering.
 
 </details>
 
-**Q7:** Design security for a CDN that needs to support real-time video streaming.
+#### Advanced Level
+
+**Q1:** Design security for a CDN that needs to support real-time video streaming.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Edge security processing, DDoS protection, traffic filtering, and intelligent content routing.
+**Answer:** * Edge security processing, DDoS protection, traffic filtering, and intelligent content routing.
 
 </details>
 
-**Q8:** How would you handle security for a CDN that needs to support custom domains and enterprise features?
+**Q2:** How would you handle security for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Custom domain security, enterprise security policies, and advanced threat protection.
+**Answer:** * Custom domain security, enterprise security policies, and advanced threat protection.
 
 </details>
 
-**Q9:** What security optimizations would you implement for a CDN with high throughput?
+**Q3:** What security optimizations would you implement for a CDN with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Distributed security, intelligent traffic filtering, and performance-optimized security measures.
+**Answer:** * Distributed security, intelligent traffic filtering, and performance-optimized security measures.
 
 </details>
 
-**Q10:** How would you design security for a CDN that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design security for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Custom domain security, enterprise security policies, and advanced threat protection.
+**Answer:** * Custom domain security, enterprise security policies, and advanced threat protection.
 
 </details>
 
@@ -4944,7 +4992,7 @@ Automated response:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** System health checks, performance metrics, error rates, cache hit ratios, and user experience metrics.
+**Answer:** * System health checks, performance metrics, error rates, cache hit ratios, and user experience metrics.
 
 </details>
 
@@ -4953,7 +5001,7 @@ Automated response:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Request volume, geographic distribution, content popularity, cache performance, and user behavior patterns.
+**Answer:** * Request volume, geographic distribution, content popularity, cache performance, and user behavior patterns.
 
 </details>
 
@@ -4962,70 +5010,76 @@ Automated response:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Cross-region monitoring, regional dashboards, global health checks, and distributed monitoring.
+**Answer:** * Cross-region monitoring, regional dashboards, global health checks, and distributed monitoring.
 
 </details>
 
-**Q4:** How would you design monitoring for a CDN that needs to handle 1 billion requests per day?
+#### Intermediate Level
+
+**Q1:** How would you design monitoring for a CDN that needs to handle 1 billion requests per day?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Distributed monitoring, real-time metrics, performance tracking, and scalable monitoring infrastructure.
+**Answer:** * Distributed monitoring, real-time metrics, performance tracking, and scalable monitoring infrastructure.
 
 </details>
 
-**Q5:** What happens if your monitoring system goes down during peak traffic?
+**Q2:** What happens if your monitoring system goes down during peak traffic?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Fallback monitoring, alerting systems, incident response, and recovery procedures.
+**Answer:** * Fallback monitoring, alerting systems, incident response, and recovery procedures.
 
 </details>
 
-**Q6:** How would you handle analytics for a CDN that needs to support real-time dashboards?
+**Q3:** How would you handle analytics for a CDN that needs to support real-time dashboards?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Real-time data processing, streaming analytics, dashboard updates, and event-driven architecture.
+**Answer:** * Real-time data processing, streaming analytics, dashboard updates, and event-driven architecture.
 
 </details>
 
-**Q7:** Design monitoring for a CDN that needs to support enterprise features.
+#### Advanced Level
+
+**Q1:** Design monitoring for a CDN that needs to support enterprise features.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Enterprise monitoring, compliance tracking, audit logs, and enterprise-specific metrics.
+**Answer:** * Enterprise monitoring, compliance tracking, audit logs, and enterprise-specific metrics.
 
 </details>
 
-**Q8:** How would you handle monitoring for a CDN that needs to support custom domains and enterprise features?
+**Q2:** How would you handle monitoring for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
+**Answer:** * Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
 
 </details>
 
-**Q9:** What monitoring optimizations would you implement for a CDN with high throughput?
+**Q3:** What monitoring optimizations would you implement for a CDN with high throughput?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Performance monitoring, resource tracking, bottleneck identification, and optimization recommendations.
+**Answer:** * Performance monitoring, resource tracking, bottleneck identification, and optimization recommendations.
 
 </details>
 
-**Q10:** How would you design monitoring for a CDN that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design monitoring for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
+**Answer:** * Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
 
 </details>
 
@@ -5240,7 +5294,7 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Latency vs cost, cache size vs hit ratio, consistency vs availability, and performance vs complexity.
+**Answer:** * Latency vs cost, cache size vs hit ratio, consistency vs availability, and performance vs complexity.
 
 </details>
 
@@ -5249,7 +5303,7 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Consider content patterns, access frequency, storage costs, and performance requirements.
+**Answer:** * Consider content patterns, access frequency, storage costs, and performance requirements.
 
 </details>
 
@@ -5258,70 +5312,76 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Performance requirements, cost constraints, content characteristics, and user experience goals.
+**Answer:** * Performance requirements, cost constraints, content characteristics, and user experience goals.
 
 </details>
 
-**Q4:** How would you handle trade-offs between performance and cost in a CDN?
+#### Intermediate Level
+
+**Q1:** How would you handle trade-offs between performance and cost in a CDN?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Performance optimization, cost analysis, ROI calculations, and strategic decision-making.
+**Answer:** * Performance optimization, cost analysis, ROI calculations, and strategic decision-making.
 
 </details>
 
-**Q5:** What happens if you need to choose between consistency and availability in a CDN?
+**Q2:** What happens if you need to choose between consistency and availability in a CDN?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Analyze business requirements, user impact, and system constraints to make informed decisions.
+**Answer:** * Analyze business requirements, user impact, and system constraints to make informed decisions.
 
 </details>
 
-**Q6:** How would you handle trade-offs between security and performance in a CDN?
+**Q3:** How would you handle trade-offs between security and performance in a CDN?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Security-first approach, performance optimization, and balanced security measures.
+**Answer:** * Security-first approach, performance optimization, and balanced security measures.
 
 </details>
 
-**Q7:** Design trade-offs for a CDN that needs to support enterprise features.
+#### Advanced Level
+
+**Q1:** Design trade-offs for a CDN that needs to support enterprise features.
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Enterprise requirements, compliance needs, security considerations, and cost-benefit analysis.
+**Answer:** * Enterprise requirements, compliance needs, security considerations, and cost-benefit analysis.
 
 </details>
 
-**Q8:** How would you handle trade-offs between scalability and complexity in a CDN?
+**Q2:** How would you handle trade-offs between scalability and complexity in a CDN?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Scalability planning, complexity management, and strategic architecture decisions.
+**Answer:** * Scalability planning, complexity management, and strategic architecture decisions.
 
 </details>
 
-**Q9:** What trade-offs would you consider for a CDN that needs to support custom domains and enterprise features?
+**Q3:** What trade-offs would you consider for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain management, enterprise requirements, compliance needs, and cost considerations.
+**Answer:** * Domain management, enterprise requirements, compliance needs, and cost considerations.
 
 </details>
 
-**Q10:** How would you design trade-offs for a CDN that needs to support custom domains and enterprise features?
+#### System Design Deep Dive
+
+**Q1:** How would you design trade-offs for a CDN that needs to support custom domains and enterprise features?
 
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** Domain-specific trade-offs, enterprise requirements, compliance needs, and strategic decision-making.
+**Answer:** * Domain-specific trade-offs, enterprise requirements, compliance needs, and strategic decision-making.
 
 </details>
 
