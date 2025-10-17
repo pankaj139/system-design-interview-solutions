@@ -831,6 +831,33 @@ During breaking news events (e.g., election results), traffic spikes 10x normal.
 
 **Answer:** * Static assets (images, CSS, JS), video content, API responses, and dynamic content with appropriate caching strategies.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** How does a CDN reduce latency?
@@ -1526,8 +1553,40 @@ Total servers across CDN:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * Global distribution analysis, traffic patterns, edge server capacity, and intelligent load balancing across multiple regions.
+**Answer:** Break down the problem systematically:
 
+**Step 1: Calculate Storage Requirements**
+- 1 billion URLs × 500 bytes average = 500 GB storage
+- Add 3x replication = 1.5 TB total storage
+- Consider growth: 20% annual growth rate
+
+**Step 2: Calculate Read/Write Load**
+- Reads: 1 billion redirects/day = 11,574 requests/second
+- Writes: 100 million new URLs/day = 1,157 requests/second
+- Peak traffic: 3x average = 34,722 reads/sec, 3,471 writes/sec
+
+**Step 3: Database Sizing**
+- Read replicas: 5 replicas for 34,722 reads/sec (7,000 reads/replica)
+- Master database: Handle 3,471 writes/sec
+- Storage: 1.5 TB with 50% headroom = 2.25 TB
+
+**Step 4: Caching Strategy**
+- Redis cache: 10% of URLs (100 million) × 500 bytes = 50 GB
+- Cache hit ratio: 90% (reduces database load by 90%)
+- CDN cache: Additional 5% hit ratio
+
+**Step 5: Infrastructure Costs**
+- Database: $2,000/month (AWS RDS)
+- Cache: $500/month (ElastiCache)
+- CDN: $300/month (CloudFront)
+- Total: $2,800/month
+
+**Interview Framework:**
+- Start with requirements gathering
+- Calculate storage and bandwidth needs
+- Design for peak traffic (3x average)
+- Include caching and redundancy
+- Always mention cost considerations
 </details>
 
 **Q2:** What happens to your capacity calculations if 20% of content becomes viral and gets 100x more traffic?
@@ -1555,8 +1614,40 @@ Total servers across CDN:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * Video processing capacity, bandwidth optimization, edge server specialization, and intelligent content routing.
+**Answer:** Break down the problem systematically:
 
+**Step 1: Calculate Storage Requirements**
+- 1 billion URLs × 500 bytes average = 500 GB storage
+- Add 3x replication = 1.5 TB total storage
+- Consider growth: 20% annual growth rate
+
+**Step 2: Calculate Read/Write Load**
+- Reads: 1 billion redirects/day = 11,574 requests/second
+- Writes: 100 million new URLs/day = 1,157 requests/second
+- Peak traffic: 3x average = 34,722 reads/sec, 3,471 writes/sec
+
+**Step 3: Database Sizing**
+- Read replicas: 5 replicas for 34,722 reads/sec (7,000 reads/replica)
+- Master database: Handle 3,471 writes/sec
+- Storage: 1.5 TB with 50% headroom = 2.25 TB
+
+**Step 4: Caching Strategy**
+- Redis cache: 10% of URLs (100 million) × 500 bytes = 50 GB
+- Cache hit ratio: 90% (reduces database load by 90%)
+- CDN cache: Additional 5% hit ratio
+
+**Step 5: Infrastructure Costs**
+- Database: $2,000/month (AWS RDS)
+- Cache: $500/month (ElastiCache)
+- CDN: $300/month (CloudFront)
+- Total: $2,800/month
+
+**Interview Framework:**
+- Start with requirements gathering
+- Calculate storage and bandwidth needs
+- Design for peak traffic (3x average)
+- Include caching and redundancy
+- Always mention cost considerations
 </details>
 
 **Q2:** How would you handle capacity planning for a CDN that needs to work across multiple data centers?
@@ -1564,8 +1655,40 @@ Total servers across CDN:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * Cross-region capacity planning, traffic distribution, edge server coordination, and global load balancing.
+**Answer:** Break down the problem systematically:
 
+**Step 1: Calculate Storage Requirements**
+- 1 billion URLs × 500 bytes average = 500 GB storage
+- Add 3x replication = 1.5 TB total storage
+- Consider growth: 20% annual growth rate
+
+**Step 2: Calculate Read/Write Load**
+- Reads: 1 billion redirects/day = 11,574 requests/second
+- Writes: 100 million new URLs/day = 1,157 requests/second
+- Peak traffic: 3x average = 34,722 reads/sec, 3,471 writes/sec
+
+**Step 3: Database Sizing**
+- Read replicas: 5 replicas for 34,722 reads/sec (7,000 reads/replica)
+- Master database: Handle 3,471 writes/sec
+- Storage: 1.5 TB with 50% headroom = 2.25 TB
+
+**Step 4: Caching Strategy**
+- Redis cache: 10% of URLs (100 million) × 500 bytes = 50 GB
+- Cache hit ratio: 90% (reduces database load by 90%)
+- CDN cache: Additional 5% hit ratio
+
+**Step 5: Infrastructure Costs**
+- Database: $2,000/month (AWS RDS)
+- Cache: $500/month (ElastiCache)
+- CDN: $300/month (CloudFront)
+- Total: $2,800/month
+
+**Interview Framework:**
+- Start with requirements gathering
+- Calculate storage and bandwidth needs
+- Design for peak traffic (3x average)
+- Include caching and redundancy
+- Always mention cost considerations
 </details>
 
 **Q3:** What capacity considerations would you have for a CDN that needs to handle mobile traffic with poor connectivity?
@@ -1575,6 +1698,33 @@ Total servers across CDN:
 
 **Answer:** * Edge server optimization, content compression, adaptive streaming, and network-aware routing.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### System Design Deep Dive
@@ -1584,8 +1734,40 @@ Total servers across CDN:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * Enterprise-specific capacity requirements, custom domain routing, SSL termination, and advanced analytics.
+**Answer:** Break down the problem systematically:
 
+**Step 1: Calculate Storage Requirements**
+- 1 billion URLs × 500 bytes average = 500 GB storage
+- Add 3x replication = 1.5 TB total storage
+- Consider growth: 20% annual growth rate
+
+**Step 2: Calculate Read/Write Load**
+- Reads: 1 billion redirects/day = 11,574 requests/second
+- Writes: 100 million new URLs/day = 1,157 requests/second
+- Peak traffic: 3x average = 34,722 reads/sec, 3,471 writes/sec
+
+**Step 3: Database Sizing**
+- Read replicas: 5 replicas for 34,722 reads/sec (7,000 reads/replica)
+- Master database: Handle 3,471 writes/sec
+- Storage: 1.5 TB with 50% headroom = 2.25 TB
+
+**Step 4: Caching Strategy**
+- Redis cache: 10% of URLs (100 million) × 500 bytes = 50 GB
+- Cache hit ratio: 90% (reduces database load by 90%)
+- CDN cache: Additional 5% hit ratio
+
+**Step 5: Infrastructure Costs**
+- Database: $2,000/month (AWS RDS)
+- Cache: $500/month (ElastiCache)
+- CDN: $300/month (CloudFront)
+- Total: $2,800/month
+
+**Interview Framework:**
+- Start with requirements gathering
+- Calculate storage and bandwidth needs
+- Design for peak traffic (3x average)
+- Include caching and redundancy
+- Always mention cost considerations
 </details>
 
 
@@ -2386,6 +2568,33 @@ graph TB
 
 **Answer:** * Origin servers, mid-tier caches, edge servers, DNS routing, load balancers, and monitoring/analytics systems.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** How would you handle the flow when a user requests content from a CDN?
@@ -2444,6 +2653,33 @@ graph TB
 
 **Answer:** * Multi-region deployment, cross-region caching, traffic distribution, and global load balancing.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** What happens if your origin server goes down during peak traffic?
@@ -3069,6 +3305,33 @@ Breaking news: "Election results announced!" causes 100x traffic spike for 1 hou
 
 **Answer:** * Cache preloading, intelligent eviction, cache compression, and distributed caching strategies.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### System Design Deep Dive
@@ -3739,6 +4002,33 @@ A submarine cable between Asia and Australia is cut (happens every few years). Y
 
 **Answer:** * Cross-region routing, traffic distribution, edge server coordination, and global load balancing.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### Advanced Level
@@ -3759,6 +4049,33 @@ A submarine cable between Asia and Australia is cut (happens every few years). Y
 
 **Answer:** * Custom domain routing, SSL termination, enterprise security policies, and advanced analytics.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** What routing optimizations would you implement for a CDN with high throughput?
@@ -3779,6 +4096,33 @@ A submarine cable between Asia and Australia is cut (happens every few years). Y
 
 **Answer:** * Custom domain routing, SSL termination, enterprise security policies, and advanced analytics.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
@@ -4315,6 +4659,33 @@ Design a system that allows gradual price rollout: West Coast sees new prices at
 
 **Answer:** * Fallback mechanisms, manual purging, and recovery procedures to maintain cache consistency.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** How would you handle cache invalidation for a CDN that needs to work across multiple data centers?
@@ -4344,6 +4715,33 @@ Design a system that allows gradual price rollout: West Coast sees new prices at
 
 **Answer:** * Domain-specific invalidation, enterprise cache policies, and compliance-aware cache management.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** What cache invalidation optimizations would you implement for a CDN with high throughput?
@@ -4364,6 +4762,33 @@ Design a system that allows gradual price rollout: West Coast sees new prices at
 
 **Answer:** * Domain-specific invalidation, enterprise cache policies, and compliance-aware cache management.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
@@ -4502,6 +4927,33 @@ Cons: Complex implementation
 
 **Answer:** * HLS (HTTP Live Streaming), DASH (Dynamic Adaptive Streaming), and RTMP for live streaming.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** How does video streaming work in a CDN?
@@ -4531,6 +4983,33 @@ Cons: Complex implementation
 
 **Answer:** * Fallback mechanisms, edge server optimization, and recovery procedures to maintain video quality.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** How would you handle video streaming for a CDN that needs to work across multiple data centers?
@@ -4540,6 +5019,33 @@ Cons: Complex implementation
 
 **Answer:** * Cross-region video processing, adaptive streaming protocols, and global content distribution.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### Advanced Level
@@ -4560,6 +5066,33 @@ Cons: Complex implementation
 
 **Answer:** * Custom domain routing, enterprise video policies, and advanced analytics for video content.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** What video streaming optimizations would you implement for a CDN with high throughput?
@@ -4580,6 +5113,33 @@ Cons: Complex implementation
 
 **Answer:** * Custom domain routing, enterprise video policies, and advanced analytics for video content.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
@@ -4770,6 +5330,33 @@ Layer 4: Origin Shield
 
 **Answer:** * DDoS protection mechanisms, traffic filtering, rate limiting, and incident response procedures.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### Intermediate Level
@@ -4790,6 +5377,33 @@ Layer 4: Origin Shield
 
 **Answer:** * Fallback security mechanisms, traffic filtering, and recovery procedures to maintain protection.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** How would you handle security for a CDN that needs to work across multiple data centers?
@@ -4799,6 +5413,33 @@ Layer 4: Origin Shield
 
 **Answer:** * Cross-region security, distributed DDoS protection, and global traffic filtering.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### Advanced Level
@@ -4810,6 +5451,33 @@ Layer 4: Origin Shield
 
 **Answer:** * Edge security processing, DDoS protection, traffic filtering, and intelligent content routing.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q2:** How would you handle security for a CDN that needs to support custom domains and enterprise features?
@@ -4819,6 +5487,33 @@ Layer 4: Origin Shield
 
 **Answer:** * Custom domain security, enterprise security policies, and advanced threat protection.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** What security optimizations would you implement for a CDN with high throughput?
@@ -4828,6 +5523,33 @@ Layer 4: Origin Shield
 
 **Answer:** * Distributed security, intelligent traffic filtering, and performance-optimized security measures.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### System Design Deep Dive
@@ -4839,6 +5561,33 @@ Layer 4: Origin Shield
 
 **Answer:** * Custom domain security, enterprise security policies, and advanced threat protection.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
@@ -4994,6 +5743,33 @@ Automated response:
 
 **Answer:** * System health checks, performance metrics, error rates, cache hit ratios, and user experience metrics.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q2:** What analytics would you track for a CDN?
@@ -5003,6 +5779,33 @@ Automated response:
 
 **Answer:** * Request volume, geographic distribution, content popularity, cache performance, and user behavior patterns.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** How would you handle monitoring for a CDN that needs to work across multiple data centers?
@@ -5012,6 +5815,33 @@ Automated response:
 
 **Answer:** * Cross-region monitoring, regional dashboards, global health checks, and distributed monitoring.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### Intermediate Level
@@ -5032,6 +5862,33 @@ Automated response:
 
 **Answer:** * Fallback monitoring, alerting systems, incident response, and recovery procedures.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** How would you handle analytics for a CDN that needs to support real-time dashboards?
@@ -5041,6 +5898,33 @@ Automated response:
 
 **Answer:** * Real-time data processing, streaming analytics, dashboard updates, and event-driven architecture.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### Advanced Level
@@ -5052,6 +5936,33 @@ Automated response:
 
 **Answer:** * Enterprise monitoring, compliance tracking, audit logs, and enterprise-specific metrics.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q2:** How would you handle monitoring for a CDN that needs to support custom domains and enterprise features?
@@ -5061,6 +5972,33 @@ Automated response:
 
 **Answer:** * Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** What monitoring optimizations would you implement for a CDN with high throughput?
@@ -5081,6 +6019,33 @@ Automated response:
 
 **Answer:** * Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
@@ -5305,6 +6270,33 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 
 **Answer:** * Consider content patterns, access frequency, storage costs, and performance requirements.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** What factors would you consider when choosing CDN optimization strategies?
@@ -5314,6 +6306,33 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 
 **Answer:** * Performance requirements, cost constraints, content characteristics, and user experience goals.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### Intermediate Level
@@ -5325,6 +6344,33 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 
 **Answer:** * Performance optimization, cost analysis, ROI calculations, and strategic decision-making.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q2:** What happens if you need to choose between consistency and availability in a CDN?
@@ -5334,6 +6380,33 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 
 **Answer:** * Analyze business requirements, user impact, and system constraints to make informed decisions.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** How would you handle trade-offs between security and performance in a CDN?
@@ -5343,6 +6416,33 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 
 **Answer:** * Security-first approach, performance optimization, and balanced security measures.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### Advanced Level
@@ -5354,6 +6454,33 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 
 **Answer:** * Enterprise requirements, compliance needs, security considerations, and cost-benefit analysis.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q2:** How would you handle trade-offs between scalability and complexity in a CDN?
@@ -5361,8 +6488,42 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * Scalability planning, complexity management, and strategic architecture decisions.
+**Answer:** Design for horizontal scaling from day one:
 
+**Database Scaling:**
+1. **Sharding Strategy**: Partition by URL hash
+   - 10 shards × 100 million URLs each
+   - Consistent hashing for even distribution
+   - Re-sharding strategy for growth
+
+2. **Read Replicas**: Scale reads independently
+   - 1 master + 5 read replicas
+   - Read replicas in different AZs
+   - Auto-failover for replica failures
+
+**Caching Strategy:**
+3. **Multi-tier Caching**: Redis + CDN
+   - L1: Application cache (1ms latency)
+   - L2: Redis cluster (5ms latency)
+   - L3: CDN edge (50ms latency)
+
+4. **Cache Warming**: Pre-populate hot data
+   - Identify top 1% of URLs
+   - Pre-load into all cache tiers
+   - 99% cache hit ratio for hot data
+
+**Load Balancing:**
+5. **Geographic Distribution**: Multi-region deployment
+   - Primary region: US East
+   - Secondary region: EU West
+   - Traffic routing based on user location
+
+**Interview Framework:**
+- Start with database sharding strategy
+- Explain read/write scaling separately
+- Discuss caching at multiple levels
+- Mention geographic distribution
+- Always consider data consistency
 </details>
 
 **Q3:** What trade-offs would you consider for a CDN that needs to support custom domains and enterprise features?
@@ -5372,6 +6533,33 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 
 **Answer:** * Domain management, enterprise requirements, compliance needs, and cost considerations.
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 #### System Design Deep Dive

@@ -191,90 +191,21 @@ Web Crawler:
 
 #### Simple Crawler Example
 
-```python
-"""
-Simple Web Crawler (Single-threaded, Single Domain)
-Purpose: Demonstrate basic crawler logic for beginners
-"""
+```text
+Crawler Worker Architecture:
 
-import requests
-from bs4 import BeautifulSoup
-from collections import deque
-from urllib.parse import urljoin, urlparse
+Components:
+├─ URL Fetcher: HTTP client with retry logic
+├─ Content Parser: Extract links and metadata  
+├─ Storage Writer: Save to S3/HDFS
+└─ Frontier Manager: Add new URLs to queue
 
-class SimpleCrawler:
-    """
-    Basic web crawler using BFS (Breadth-First Search).
-    
-    Limitations:
-    - Single domain only
-    - No politeness (can overwhelm servers!)
-    - No duplicate detection
-    - No error handling
-    """
-    
-    def __init__(self, seed_url: str, max_pages: int = 100):
-        self.seed_url = seed_url
-        self.max_pages = max_pages
-        self.visited = set()  # URLs we've already crawled
-        self.to_visit = deque([seed_url])  # Queue of URLs to crawl
-        self.domain = urlparse(seed_url).netloc
-    
-    def crawl(self):
-        """
-        Crawl pages using BFS until max_pages reached.
-        
-        Returns list of crawled pages with their content.
-        """
-        crawled_pages = []
-        
-        while self.to_visit and len(self.visited) < self.max_pages:
-            # Get next URL from queue
-            url = self.to_visit.popleft()
-            
-            # Skip if already visited
-            if url in self.visited:
-                continue
-            
-            print(f"Crawling: {url}")
-            
-            try:
-                # Fetch the page
-                response = requests.get(url, timeout=5)
-                
-                # Mark as visited
-                self.visited.add(url)
-                
-                # Save page
-                crawled_pages.append({
-                    "url": url,
-                    "status": response.status_code,
-                    "content": response.text[:1000],  # First 1000 chars
-                    "size": len(response.content)
-                })
-                
-                # Extract links
-                soup = BeautifulSoup(response.text, 'html.parser')
-                for link in soup.find_all('a', href=True):
-                    # Convert relative URLs to absolute
-                    absolute_url = urljoin(url, link['href'])
-                    
-                    # Only crawl same domain
-                    if urlparse(absolute_url).netloc == self.domain:
-                        if absolute_url not in self.visited:
-                            self.to_visit.append(absolute_url)
-                
-            except Exception as e:
-                print(f"Error crawling {url}: {e}")
-        
-        return crawled_pages
+Flow:
+1. Pull URL from frontier → Check robots.txt → Fetch page
+2. Parse content → Extract links → Deduplicate
+3. Store content → Update metadata → Add URLs to frontier
 
-# Example usage
-crawler = SimpleCrawler("https://example.com", max_pages=10)
-pages = crawler.crawl()
-
-print(f"\nCrawled {len(pages)} pages")
-print(f"Found {len(crawler.to_visit)} more URLs to crawl")
+Scalability: Horizontal scaling (100+ workers)
 ```
 
 #### Core Concepts
@@ -558,8 +489,69 @@ Infrastructure:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * **What the interviewer wants to know:** - Do you understand the fundamentals of web crawling? - Can you identify the core components? - Do you think about scale and constraints? **Answer Framework:** ```text "I'll design a web crawler in 4 steps: 1. Clarify Requirements (2 minutes) ├─ Scale: How many pages? (10M vs 10B changes architecture) ├─ Features: Just HTML or also JS-rendered content? ├─ Politeness: Must respect robots.txt? (always yes!) └─ Freshness: How often to re-crawl? 2. Core Components (5 minutes) ├─ URL Frontier: Priority queue for URLs to crawl ├─ Crawler Workers: Fetch and parse pages ├─ Content Storage: S3/HDFS for web pages ├─ Metadata DB: PostgreSQL for URL tracking └─ Robots.txt Cache: Redis for politeness rules 3. Data Flow (3 minutes) ├─ Get URL from frontier ├─ Check robots.txt (allowed?) ├─ Fetch page ├─ Extract links ├─ Store content └─ Add new URLs to frontier 4. Scale Calculation (2 minutes) ├─ 10B pages × 50KB = 500TB storage ├─ 1,000 pages/sec = 100 workers at 10 pages/sec each └─ Cost: ~$260K/month Trade-offs I'll discuss: - BFS vs DFS (BFS for broad coverage) - Bloom filter vs Hash set (Bloom saves 100x memory) - Centralized vs Distributed frontier (distributed for scale)" ``` **Follow-up: How do you prevent crawling the same URL twice?** ```text Answer: 1. URL Normalization ├─ Lowercase, remove fragments, sort query params ├─ "example.com" = "EXAMPLE.COM" = "example.com/" 2. Bloom Filter (for 10B URLs) ├─ Memory: 12GB (vs 1.2TB for hash set) ├─ False positive: 1% (acceptable) ├─ Lookup: O(1), microseconds 3. Backup Check (for false positives) ├─ If Bloom says "maybe seen", check database ├─ Database: Cassandra for scale └─ Result: 99% accuracy, 100x less memory ```
+**Answer:** 
 
+**What the interviewer wants to know:**
+- Do you understand the fundamentals of web crawling?
+- Can you identify the core components?
+- Do you think about scale and constraints?
+
+**Answer Framework:**
+
+```text
+"I'll design a web crawler in 4 steps:
+
+1. Clarify Requirements (2 minutes)
+   ├─ Scale: How many pages? (10M vs 10B changes architecture)
+   ├─ Features: Just HTML or also JS-rendered content?
+   ├─ Politeness: Must respect robots.txt? (always yes!)
+   └─ Freshness: How often to re-crawl?
+
+2. Core Components (5 minutes)
+   ├─ URL Frontier: Priority queue for URLs to crawl
+   ├─ Crawler Workers: Fetch and parse pages
+   ├─ Content Storage: S3/HDFS for web pages
+   ├─ Metadata DB: PostgreSQL for URL tracking
+   └─ Robots.txt Cache: Redis for politeness rules
+
+3. Data Flow (3 minutes)
+   ├─ Get URL from frontier
+   ├─ Check robots.txt (allowed?)
+   ├─ Fetch page
+   ├─ Extract links
+   ├─ Store content
+   └─ Add new URLs to frontier
+
+4. Scale Calculation (2 minutes)
+   ├─ 10B pages × 50KB = 500TB storage
+   ├─ 1,000 pages/sec = 100 workers at 10 pages/sec each
+   └─ Cost: ~$260K/month
+
+Trade-offs I'll discuss:
+- BFS vs DFS (BFS for broad coverage)
+- Bloom filter vs Hash set (Bloom saves 100x memory)
+- Centralized vs Distributed frontier (distributed for scale)"
+```
+
+**Follow-up: How do you prevent crawling the same URL twice?**
+
+```text
+Answer:
+
+1. URL Normalization
+   ├─ Lowercase, remove fragments, sort query params
+   ├─ "example.com" = "EXAMPLE.COM" = "example.com/"
+
+2. Bloom Filter (for 10B URLs)
+   ├─ Memory: 12GB (vs 1.2TB for hash set)
+   ├─ False positive: 1% (acceptable)
+   ├─ Lookup: O(1), microseconds
+
+3. Backup Check (for false positives)
+   ├─ If Bloom says "maybe seen", check database
+   ├─ Database: Cassandra for scale
+   └─ Result: 99% accuracy, 100x less memory
+```
 </details>
 
 **Q2:** BFS vs DFS for web crawling - which is better?
@@ -567,7 +559,30 @@ Infrastructure:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * **Answer Framework:** ```text BFS (Breadth-First Search) - RECOMMENDED: ├─ Pro: Discovers pages uniformly (good coverage) ├─ Pro: Easy to parallelize (multiple workers) ├─ Pro: Finds important pages early (homepage first) ├─ Con: Requires more memory (queue grows wide) └─ Use case: General web crawling, search engines DFS (Depth-First Search): ├─ Pro: Less memory (stack vs queue) ├─ Pro: Can go deep quickly ├─ Con: Might get stuck in one domain ├─ Con: Harder to distribute └─ Use case: Focused crawling (specific topic) Decision: Use BFS for web crawling - Better coverage across domains - Easier to distribute - Natural fit for priority queues ```
+**Answer:** 
+
+**Answer Framework:**
+
+```text
+BFS (Breadth-First Search) - RECOMMENDED:
+├─ Pro: Discovers pages uniformly (good coverage)
+├─ Pro: Easy to parallelize (multiple workers)
+├─ Pro: Finds important pages early (homepage first)
+├─ Con: Requires more memory (queue grows wide)
+└─ Use case: General web crawling, search engines
+
+DFS (Depth-First Search):
+├─ Pro: Less memory (stack vs queue)
+├─ Pro: Can go deep quickly
+├─ Con: Might get stuck in one domain
+├─ Con: Harder to distribute
+└─ Use case: Focused crawling (specific topic)
+
+Decision: Use BFS for web crawling
+- Better coverage across domains
+- Easier to distribute
+- Natural fit for priority queues
+```
 
 </details>
 
@@ -576,7 +591,37 @@ Infrastructure:
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * **Answer Framework:** ```text 1. Fetch robots.txt ├─ URL: https://domain.com/robots.txt ├─ Cache: 24 hours (reduce fetches) └─ Parse: Extract rules, crawl-delay 2. Check Before Every Crawl ├─ Is path allowed? (not in Disallow list) ├─ What's crawl delay? (default 1 second) └─ Block if not allowed 3. Enforce Politeness ├─ Track last request time per domain ├─ Wait crawl-delay seconds between requests └─ Separate queue per domain Example robots.txt: User-agent: * Crawl-delay: 2 Disallow: /admin/ Disallow: /private/ Implementation: ├─ Cache in Redis (key: "robots:domain.com") ├─ TTL: 24 hours ├─ Respect 100% (legal and ethical requirement) ```
+**Answer:** 
+
+**Answer Framework:**
+
+```text
+1. Fetch robots.txt
+   ├─ URL: https://domain.com/robots.txt
+   ├─ Cache: 24 hours (reduce fetches)
+   └─ Parse: Extract rules, crawl-delay
+
+2. Check Before Every Crawl
+   ├─ Is path allowed? (not in Disallow list)
+   ├─ What's crawl delay? (default 1 second)
+   └─ Block if not allowed
+
+3. Enforce Politeness
+   ├─ Track last request time per domain
+   ├─ Wait crawl-delay seconds between requests
+   └─ Separate queue per domain
+
+Example robots.txt:
+User-agent: *
+Crawl-delay: 2
+Disallow: /admin/
+Disallow: /private/
+
+Implementation:
+├─ Cache in Redis (key: "robots:domain.com")
+├─ TTL: 24 hours
+├─ Respect 100% (legal and ethical requirement)
+```
 
 </details>
 
@@ -895,140 +940,21 @@ This scales linearly: 2x machines = 2x throughput!"
 
 #### Growth Modeling
 
-```python
-"""
-Web Crawler Growth Model
-Purpose: Project infrastructure needs over 5 years
-"""
+```text
+Crawler Worker Architecture:
 
-class CrawlerCapacityPlanner:
-    """
-    Model crawler growth and project infrastructure costs.
-    
-    Accounts for:
-    - Web growth (new pages created daily)
-    - Re-crawl frequency (freshness requirements)
-    - Efficiency improvements (better deduplication)
-    """
-    
-    def __init__(self, initial_state: dict):
-        self.pages = initial_state["pages"]
-        self.crawl_rate = initial_state["crawl_rate"]  # pages/sec
-        self.machines = initial_state["machines"]
-        self.page_size = initial_state["page_size"]  # KB
-    
-    def project_growth(self, years: int) -> list:
-        """
-        Project capacity needs for future years.
-        
-        Assumptions:
-        - Web grows 20% annually
-        - Crawl efficiency improves 10% annually
-        - Storage costs decrease 15% annually
-        
-        Returns list of yearly projections.
-        """
-        projections = []
-        
-        for year in range(1, years + 1):
-            # Web growth (compound 20% annually)
-            future_pages = self.pages * ((1.20) ** year)
-            
-            # Efficiency improvement (need fewer machines over time)
-            efficiency_factor = ((0.90) ** year)
-            
-            # Calculate requirements
-            crawl_time_days = (future_pages / self.crawl_rate) / 86400
-            machines_needed = int((self.machines * (future_pages / self.pages)) * efficiency_factor)
-            
-            # Storage
-            content_tb = (future_pages * self.page_size) / (1024 ** 3)
-            content_tb_compressed = content_tb * 0.5  # 2:1 compression
-            total_storage_tb = content_tb_compressed * 3  # 3x replication
-            
-            # Cost (storage cost decreases 15% annually)
-            storage_cost_factor = ((0.85) ** year)
-            storage_cost = total_storage_tb * 1024 * 23 * storage_cost_factor  # $23/TB/month
-            compute_cost = machines_needed * 2000  # $2K/machine/month
-            bandwidth_cost = (self.crawl_rate * self.page_size * 86400 * 30 / 1024 ** 2) * 0.09  # $0.09/GB
-            total_monthly_cost = storage_cost + compute_cost + bandwidth_cost
-            
-            projections.append({
-                "year": year,
-                "pages_billion": round(future_pages / 1e9, 2),
-                "machines": machines_needed,
-                "storage_tb": int(total_storage_tb),
-                "crawl_time_days": int(crawl_time_days),
-                "monthly_cost": int(total_monthly_cost),
-                "cost_per_page": round(total_monthly_cost / future_pages * 1e6, 4)  # $/million pages
-            })
-        
-        return projections
-    
-    def optimize_crawl_rate(self, projections: list) -> dict:
-        """
-        Determine optimal crawl rate for cost vs freshness.
-        
-        Slower crawling = cheaper but stale content
-        Faster crawling = expensive but fresh content
-        """
-        recommendations = []
-        
-        for proj in projections:
-            # Calculate different scenarios
-            scenarios = [
-                {"rate_multiplier": 0.5, "freshness_days": proj["crawl_time_days"] * 2, "cost_multiplier": 0.6},
-                {"rate_multiplier": 1.0, "freshness_days": proj["crawl_time_days"], "cost_multiplier": 1.0},
-                {"rate_multiplier": 2.0, "freshness_days": proj["crawl_time_days"] / 2, "cost_multiplier": 1.8},
-            ]
-            
-            recommendations.append({
-                "year": proj["year"],
-                "scenarios": [
-                    {
-                        "crawl_rate": f"{int(1000 * s['rate_multiplier'])} pages/sec",
-                        "freshness": f"{int(s['freshness_days'])} days",
-                        "monthly_cost": f"${int(proj['monthly_cost'] * s['cost_multiplier']):,}",
-                        "recommendation": "Budget-friendly" if s["rate_multiplier"] == 0.5 else 
-                                        "Balanced" if s["rate_multiplier"] == 1.0 else 
-                                        "Real-time"
-                    }
-                    for s in scenarios
-                ]
-            })
-        
-        return recommendations
+Components:
+├─ URL Fetcher: HTTP client with retry logic
+├─ Content Parser: Extract links and metadata  
+├─ Storage Writer: Save to S3/HDFS
+└─ Frontier Manager: Add new URLs to queue
 
-# Example usage
-initial_state = {
-    "pages": 10e9,  # 10 billion pages
-    "crawl_rate": 1000,  # pages/second
-    "machines": 100,
-    "page_size": 50  # KB
-}
+Flow:
+1. Pull URL from frontier → Check robots.txt → Fetch page
+2. Parse content → Extract links → Deduplicate
+3. Store content → Update metadata → Add URLs to frontier
 
-planner = CrawlerCapacityPlanner(initial_state)
-projections = planner.project_growth(years=5)
-
-print("5-Year Web Crawler Capacity Projections:")
-print("=" * 80)
-for proj in projections:
-    print(f"\nYear {proj['year']}:")
-    print(f"  Pages: {proj['pages_billion']}B")
-    print(f"  Machines: {proj['machines']}")
-    print(f"  Storage: {proj['storage_tb']} TB")
-    print(f"  Crawl Time: {proj['crawl_time_days']} days")
-    print(f"  Monthly Cost: ${proj['monthly_cost']:,}")
-    print(f"  Cost per Million Pages: ${proj['cost_per_page']}")
-
-print("\n" + "=" * 80)
-print("Optimization Recommendations:")
-optimizations = planner.optimize_crawl_rate(projections)
-for opt in optimizations[:1]:  # Show first year
-    print(f"\nYear {opt['year']} Options:")
-    for scenario in opt['scenarios']:
-        print(f"  {scenario['recommendation']:15} - Rate: {scenario['crawl_rate']:20} "
-              f"Freshness: {scenario['freshness']:10} Cost: {scenario['monthly_cost']}")
+Scalability: Horizontal scaling (100+ workers)
 ```
 
 **Output Example:**
@@ -1138,7 +1064,13 @@ Savings: $2,753/month (24% reduction!)
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * **What the interviewer wants to know:** - Can you do back-of-the-envelope calculations? - Do you understand throughput requirements? - Do you consider politeness constraints? **Answer Framework:** ```text Step 1: Calculate Required Throughput ├─ Total: 10 billion pages ├─ Time: 30 days × 24 hours × 3600 seconds = 2,592,000 seconds ├─ Required rate: 10B / 2.592M = 3,858 pages/second └─ Round up: 4,000 pages/second to have buffer Step 2: Per-Machine Capacity ├─ Network bottleneck: Each machine can fetch ~100 pages/sec ├─ But politeness limits: 5 requests/sec per domain ├─ With 1M domains: Effective rate ~10-20 pages/sec per machine └─ Conservative: 10 pages/sec per machine Step 3: Calculate Machines Needed ├─ Required: 4,000 pages/sec ├─ Per machine: 10 pages/sec ├─ Machines: 4,000 / 10 = 400 machines └─ Add 20% buffer: 480 machines Step 4: Cost Estimate ├─ 480 machines × $2,000/month = $960,000/month ├─ Optimization with spot instances (-70%): $288,000/month ├─ Storage: 500TB × $23/TB = $11,500/month └─ Total: ~$300K/month ``` **Follow-up: What if budget is only $100K/month?** ```text Options: 1. Extend timeline: 3 months instead of 1 month ├─ Machines: 160 instead of 480 ├─ Cost: $100K/month └─ Trade-off: Slower completion 2. Reduce scope: Crawl 3B pages instead of 10B ├─ Same timeline ├─ Prioritize important domains └─ Trade-off: Incomplete coverage 3. Optimize aggressively: ├─ Spot instances: -70% compute cost ├─ Compression: -50% storage cost ├─ Skip low-value content: -30% pages to crawl └─ Result: 7B pages in 1 month for $100K ```
+**Answer:**
+
+**What the interviewer wants to know:**
+- Can you do back-of-the-envelope calculations? - Do you understand throughput requirements?
+- Do you consider politeness constraints? **Answer Framework:**
+
+```text Step 1: Calculate Required Throughput ├─ Total: 10 billion pages ├─ Time: 30 days × 24 hours × 3600 seconds = 2,592,000 seconds ├─ Required rate: 10B / 2.592M = 3,858 pages/second └─ Round up: 4,000 pages/second to have buffer Step 2: Per-Machine Capacity ├─ Network bottleneck: Each machine can fetch ~100 pages/sec ├─ But politeness limits: 5 requests/sec per domain ├─ With 1M domains: Effective rate ~10-20 pages/sec per machine └─ Conservative: 10 pages/sec per machine Step 3: Calculate Machines Needed ├─ Required: 4,000 pages/sec ├─ Per machine: 10 pages/sec ├─ Machines: 4,000 / 10 = 400 machines └─ Add 20% buffer: 480 machines Step 4: Cost Estimate ├─ 480 machines × $2,000/month = $960,000/month ├─ Optimization with spot instances (-70%): $288,000/month ├─ Storage: 500TB × $23/TB = $11,500/month └─ Total: ~$300K/month ``` **Follow-up: What if budget is only $100K/month?** ```text Options: 1. Extend timeline: 3 months instead of 1 month ├─ Machines: 160 instead of 480 ├─ Cost: $100K/month └─ Trade-off: Slower completion 2. Reduce scope: Crawl 3B pages instead of 10B ├─ Same timeline ├─ Prioritize important domains └─ Trade-off: Incomplete coverage 3. Optimize aggressively: ├─ Spot instances: -70% compute cost ├─ Compression: -50% storage cost ├─ Skip low-value content: -30% pages to crawl └─ Result: 7B pages in 1 month for $100K ```
 
 </details>
 
@@ -1147,7 +1079,11 @@ Savings: $2,753/month (24% reduction!)
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * **Answer Framework:** ```text Step 1: Raw Storage Calculation ├─ Average page size: 50KB (HTML average) ├─ Total: 10B × 50KB = 500,000,000,000 KB ├─ Convert: 500TB raw content └─ This is UNCOMPRESSED size Step 2: Apply Compression (gzip) ├─ HTML compression ratio: 70-80% ├─ Compressed: 500TB × 0.25 = 125TB └─ Savings: 375TB (75% reduction) Step 3: Apply Deduplication ├─ Duplicate rate: 30% of web content ├─ After dedup: 125TB × 0.7 = 87.5TB └─ Savings: Additional 37.5TB Step 4: Add Replication (3x) ├─ For durability: 3 copies ├─ Total: 87.5TB × 3 = 262.5TB └─ Round up: 300TB Step 5: Add Metadata & Indexes ├─ URL metadata: 10B × 220 bytes = 2.2TB ├─ Bloom filter: 12GB ├─ Indexes: ~10TB └─ Total metadata: ~15TB Final Answer: ├─ Content: 300TB ├─ Metadata: 15TB ├─ Total: 315TB (~0.3 PB) └─ Monthly cost: 315 × 1024 × $0.023 = $7,414 ```
+**Answer:**
+
+**Answer Framework:**
+
+```text Step 1: Raw Storage Calculation ├─ Average page size: 50KB (HTML average) ├─ Total: 10B × 50KB = 500,000,000,000 KB ├─ Convert: 500TB raw content └─ This is UNCOMPRESSED size Step 2: Apply Compression (gzip) ├─ HTML compression ratio: 70-80% ├─ Compressed: 500TB × 0.25 = 125TB └─ Savings: 375TB (75% reduction) Step 3: Apply Deduplication ├─ Duplicate rate: 30% of web content ├─ After dedup: 125TB × 0.7 = 87.5TB └─ Savings: Additional 37.5TB Step 4: Add Replication (3x) ├─ For durability: 3 copies ├─ Total: 87.5TB × 3 = 262.5TB └─ Round up: 300TB Step 5: Add Metadata & Indexes ├─ URL metadata: 10B × 220 bytes = 2.2TB ├─ Bloom filter: 12GB ├─ Indexes: ~10TB └─ Total metadata: ~15TB Final Answer: ├─ Content: 300TB ├─ Metadata: 15TB ├─ Total: 315TB (~0.3 PB) └─ Monthly cost: 315 × 1024 × $0.023 = $7,414 ```
 
 </details>
 
@@ -1156,7 +1092,11 @@ Savings: $2,753/month (24% reduction!)
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * **Answer Framework:** ```text Scenario: Crawling 1M domains at 5 requests/sec per domain Theoretical Maximum (no politeness): ├─ 100 machines × 100 requests/sec = 10,000 pages/sec └─ Perfect parallelization With Politeness (1 second delay per domain): ├─ 1M domains total ├─ Each domain: 1 request per second maximum ├─ But not evenly distributed! │ ├─ Problem: Popular domains have many pages │ - example.com: 1M pages (would take 11.5 days at 1 req/sec!) │ - small-blog.com: 10 pages (takes 10 seconds) │ ├─ Queue management becomes complex ├─ Effective rate: ~40-60% of theoretical max └─ Actual: 4,000-6,000 pages/sec (vs 10,000 theoretical) Impact on Architecture: ├─ Need domain-based queues (separate queue per domain) ├─ Need fairness algorithm (don't starve small domains) ├─ Need 1.5-2x more machines to compensate └─ Result: Politeness is the PRIMARY bottleneck! ```
+**Answer:**
+
+**Answer Framework:**
+
+```text Scenario: Crawling 1M domains at 5 requests/sec per domain Theoretical Maximum (no politeness): ├─ 100 machines × 100 requests/sec = 10,000 pages/sec └─ Perfect parallelization With Politeness (1 second delay per domain): ├─ 1M domains total ├─ Each domain: 1 request per second maximum ├─ But not evenly distributed! │ ├─ Problem: Popular domains have many pages │ - example.com: 1M pages (would take 11.5 days at 1 req/sec!) │ - small-blog.com: 10 pages (takes 10 seconds) │ ├─ Queue management becomes complex ├─ Effective rate: ~40-60% of theoretical max └─ Actual: 4,000-6,000 pages/sec (vs 10,000 theoretical) Impact on Architecture: ├─ Need domain-based queues (separate queue per domain) ├─ Need fairness algorithm (don't starve small domains) ├─ Need 1.5-2x more machines to compensate └─ Result: Politeness is the PRIMARY bottleneck! ```
 
 </details>
 
@@ -1501,7 +1441,13 @@ added complexity only when needed!
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * **What the interviewer wants to know:** - Can you identify the key components? - Do you understand data flow? - Can you communicate visually? **Answer Framework:** ```text "Let me draw the architecture with 5 core components: [Draw this diagram while talking] ┌─────────────┐ │ Seed URLs │ └──────┬──────┘ ↓ ┌──────────────────┐ │ URL Frontier │ ← Redis (priority queues) │ (To-Do List) │ └──────┬───────────┘ ↓ ┌──────────────────┐ │ Crawler Workers │ ← 100 machines │ (Fetch Pages) │ └──────┬───────────┘ ↓ ┌──────────────────┐ │ Content Storage │ ← S3/HDFS (500TB) │ (Archive) │ └──────┬───────────┘ ↓ ┌──────────────────┐ │ Link Extraction │ │ (Find New URLs) │ └──────┬───────────┘ ↓ (cycle back) URL Frontier Supporting Components: - Bloom Filter (duplicate detection, 12GB) - Robots.txt Cache (Redis, politeness rules) - DNS Cache (reduce lookup latency) - Metadata DB (PostgreSQL, tracking) Data Flow: 1. Workers pull URLs from frontier 2. Check robots.txt (allowed?) 3. Fetch page from web 4. Store content in S3 5. Extract links 6. Deduplicate URLs (Bloom filter) 7. Add new URLs back to frontier" ``` **Follow-up: Why use Redis for URL Frontier instead of a database?** ```text Answer: Redis (In-Memory): ├─ Pro: Sub-millisecond operations (LPUSH/LPOP) ├─ Pro: Native support for lists, sorted sets ├─ Pro: Can handle 100K+ ops/second ├─ Con: Memory expensive ($5K/month for 100GB) └─ Use for: Active frontier (hot 100M URLs) PostgreSQL (Disk-Based): ├─ Pro: Cheaper storage ├─ Pro: ACID compliance ├─ Pro: Complex queries ├─ Con: Slower (10-50ms operations) └─ Use for: Overflow frontier, metadata Hybrid Approach (Best): ├─ Redis: Hot 100M URLs (17GB, $500/month) ├─ PostgreSQL: Cold 10B URLs (1.7TB, $2K/month) ├─ Workers pull from Redis (fast) ├─ Background job moves URLs Redis ← PostgreSQL └─ Result: Speed of Redis, capacity of PostgreSQL ```
+**Answer:**
+
+**What the interviewer wants to know:**
+- Can you identify the key components? - Do you understand data flow? - Can you communicate visually? **Answer Framework:**
+
+```text "Let me draw the architecture with 5 core components: [Draw this diagram while talking] ┌─────────────┐ │ Seed URLs │ └──────┬──────┘ ↓ ┌──────────────────┐ │ URL Frontier │ ← Redis (priority queues) │ (To-Do List) │ └──────┬───────────┘ ↓ ┌──────────────────┐ │ Crawler Workers │ ← 100 machines │ (Fetch Pages) │ └──────┬───────────┘ ↓ ┌──────────────────┐ │ Content Storage │ ← S3/HDFS (500TB) │ (Archive) │ └──────┬───────────┘ ↓ ┌──────────────────┐ │ Link Extraction │ │ (Find New URLs) │ └──────┬───────────┘ ↓ (cycle back) URL Frontier Supporting Components: - Bloom Filter (duplicate detection, 12GB) - Robots.txt Cache (Redis, politeness rules) - DNS Cache (reduce lookup latency)
+- Metadata DB (PostgreSQL, tracking) Data Flow: 1. Workers pull URLs from frontier 2. Check robots.txt (allowed?) 3. Fetch page from web 4. Store content in S3 5. Extract links 6. Deduplicate URLs (Bloom filter) 7. Add new URLs back to frontier" ``` **Follow-up: Why use Redis for URL Frontier instead of a database?** ```text Answer: Redis (In-Memory): ├─ Pro: Sub-millisecond operations (LPUSH/LPOP) ├─ Pro: Native support for lists, sorted sets ├─ Pro: Can handle 100K+ ops/second ├─ Con: Memory expensive ($5K/month for 100GB) └─ Use for: Active frontier (hot 100M URLs) PostgreSQL (Disk-Based): ├─ Pro: Cheaper storage ├─ Pro: ACID compliance ├─ Pro: Complex queries ├─ Con: Slower (10-50ms operations) └─ Use for: Overflow frontier, metadata Hybrid Approach (Best): ├─ Redis: Hot 100M URLs (17GB, $500/month) ├─ PostgreSQL: Cold 10B URLs (1.7TB, $2K/month) ├─ Workers pull from Redis (fast) ├─ Background job moves URLs Redis ← PostgreSQL └─ Result: Speed of Redis, capacity of PostgreSQL ```
 
 </details>
 
@@ -1510,7 +1456,11 @@ added complexity only when needed!
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * **Answer Framework:** ```text Problem: Politeness requires 1 request/sec per domain - If 2 workers hit same domain → violate politeness - Result: Get blocked by website Solution: Domain-Based Partitioning Approach 1: Consistent Hashing ├─ Hash domain → Assign to worker ├─ same.com always goes to Worker 3 ├─ example.com always goes to Worker 7 ├─ Worker owns all URLs from its domains └─ Result: No conflicts, automatic politeness Approach 2: Domain Lock (Kafka/Redis) ├─ Worker requests: "Can I crawl example.com?" ├─ Coordinator checks: Is another worker crawling it? ├─ If free: Grant lock for 60 seconds ├─ If busy: Return different domain └─ Result: Only 1 worker per domain at any time I prefer Consistent Hashing because: ├─ No central coordinator needed ├─ Automatic load balancing ├─ Add/remove workers easily ├─ Politeness guaranteed by design └─ Used by: Google, Common Crawl ```
+**Answer:**
+
+**Answer Framework:**
+
+```text Problem: Politeness requires 1 request/sec per domain - If 2 workers hit same domain → violate politeness - Result: Get blocked by website Solution: Domain-Based Partitioning Approach 1: Consistent Hashing ├─ Hash domain → Assign to worker ├─ same.com always goes to Worker 3 ├─ example.com always goes to Worker 7 ├─ Worker owns all URLs from its domains └─ Result: No conflicts, automatic politeness Approach 2: Domain Lock (Kafka/Redis) ├─ Worker requests: "Can I crawl example.com?" ├─ Coordinator checks: Is another worker crawling it? ├─ If free: Grant lock for 60 seconds ├─ If busy: Return different domain └─ Result: Only 1 worker per domain at any time I prefer Consistent Hashing because: ├─ No central coordinator needed ├─ Automatic load balancing ├─ Add/remove workers easily ├─ Politeness guaranteed by design └─ Used by: Google, Common Crawl ```
 
 </details>
 
@@ -1774,53 +1724,22 @@ The chef (crawler worker) picks from the queue based on priority!
 
 #### Simple Python Implementation
 
-```python
-from collections import deque
-import time
+```text
+Content Parsing:
 
-class SimpleFrontier:
-    def __init__(self):
-        self.queue = deque()
-        self.visited = set()
-        self.domain_last_crawl = {}
-        
-    def add_url(self, url):
-        """Add URL to frontier if not visited"""
-        if url not in self.visited:
-            self.queue.append(url)
-    
-    def get_next_url(self):
-        """Get next URL respecting politeness delay"""
-        if not self.queue:
-            return None
-            
-        url = self.queue.popleft()
-        domain = self._extract_domain(url)
-        
-        # Politeness: Wait 1 second between requests to same domain
-        if domain in self.domain_last_crawl:
-            time_since_last = time.time() - self.domain_last_crawl[domain]
-            if time_since_last < 1.0:
-                # Put back in queue, try different domain
-                self.queue.append(url)
-                return self.get_next_url()
-        
-        # Mark as visited and update last crawl time
-        self.visited.add(url)
-        self.domain_last_crawl[domain] = time.time()
-        return url
-    
-    def _extract_domain(self, url):
-        """Extract domain from URL"""
-        from urllib.parse import urlparse
-        return urlparse(url).netloc
+Link Extraction:
+├─ HTML Parser: Extract <a href> tags
+├─ Normalization: Convert relative → absolute URLs
+├─ Validation: Check protocol (http/https)
+└─ Output: Clean, deduplicated URL list
 
-# Usage
-frontier = SimpleFrontier()
-frontier.add_url("https://example.com/page1")
-frontier.add_url("https://example.com/page2")
-next_url = frontier.get_next_url()  # Returns page1
-next_url = frontier.get_next_url()  # Waits 1 sec, returns page2
+Metadata Extraction:
+├─ Title: <title> tag
+├─ Description: <meta description>
+├─ Content Type: HTML, PDF, etc.
+└─ Timestamp: Crawl time
+
+Storage: PostgreSQL for metadata, S3 for HTML content
 ```
 
 💡 **Pro Tip:** Start with a simple queue, add complexity only when needed. This simple implementation handles 1M URLs easily!
@@ -1865,133 +1784,38 @@ Dynamic Re-prioritization:
 
 #### Politeness Implementation
 
-```python
-import time
-from collections import defaultdict
-import redis
+```text
+Robots.txt Handling:
 
-class PoliteFrontier:
-    def __init__(self, redis_client):
-        self.redis = redis_client
-        self.crawl_delay_default = 1.0  # 1 second default
-        
-    def get_next_url(self, worker_id):
-        """Get next URL respecting politeness constraints"""
-        
-        # Try high priority first
-        url = self._dequeue_from_tier("high")
-        if not url:
-            url = self._dequeue_from_tier("medium")
-        if not url:
-            url = self._dequeue_from_tier("low")
-            
-        if not url:
-            return None
-            
-        domain = self._extract_domain(url)
-        
-        # Check politeness
-        if not self._can_crawl_domain(domain):
-            # Put back and try different domain
-            self._enqueue_to_tier(url, self._get_url_tier(url))
-            time.sleep(0.1)  # Brief wait
-            return self.get_next_url(worker_id)
-        
-        # Reserve this domain for this worker
-        self._reserve_domain(domain, worker_id)
-        
-        return url
-    
-    def _can_crawl_domain(self, domain):
-        """Check if enough time passed since last crawl"""
-        last_crawl = self.redis.get(f"last_crawl:{domain}")
-        if not last_crawl:
-            return True
-            
-        crawl_delay = self._get_crawl_delay(domain)
-        time_since = time.time() - float(last_crawl)
-        return time_since >= crawl_delay
-    
-    def _get_crawl_delay(self, domain):
-        """Get crawl delay from robots.txt or use default"""
-        robots_delay = self.redis.get(f"robots:delay:{domain}")
-        if robots_delay:
-            return float(robots_delay)
-        return self.crawl_delay_default
-    
-    def mark_crawled(self, url):
-        """Mark URL as crawled and update domain timestamp"""
-        domain = self._extract_domain(url)
-        self.redis.set(f"last_crawl:{domain}", time.time())
-        self.redis.set(f"visited:{url}", 1, ex=86400)  # 24h TTL
+Cache Strategy:
+├─ Storage: Redis with 24-hour TTL
+├─ Key: "robots:{domain}"
+├─ Parse: Extract crawl-delay and disallow rules
+└─ Fallback: Allow all if unavailable
 
-# Usage
-redis_client = redis.Redis(host='localhost', port=6379)
-frontier = PoliteFrontier(redis_client)
-url = frontier.get_next_url(worker_id="worker-1")
+Implementation:
+1. Fetch robots.txt on first domain visit
+2. Cache rules in Redis (24h expiration)
+3. Check before every crawl: Is path allowed?
+4. Enforce crawl-delay: Track last request time per domain
 ```
 
 #### Robots.txt Parsing
 
-```python
-from urllib.robotparser import RobotFileParser
-import requests
+```text
+Robots.txt Handling:
 
-class RobotsChecker:
-    def __init__(self, cache):
-        self.cache = cache  # Redis cache
-        self.cache_ttl = 86400  # 24 hours
-        
-    def can_fetch(self, url, user_agent="MyBot/1.0"):
-        """Check if URL can be crawled per robots.txt"""
-        domain = self._extract_domain(url)
-        robots_txt = self._get_robots_txt(domain)
-        
-        if not robots_txt:
-            return True  # No robots.txt = allowed
-            
-        parser = RobotFileParser()
-        parser.parse(robots_txt.split('\n'))
-        return parser.can_fetch(user_agent, url)
-    
-    def get_crawl_delay(self, domain, user_agent="MyBot/1.0"):
-        """Get crawl delay from robots.txt"""
-        robots_txt = self._get_robots_txt(domain)
-        if not robots_txt:
-            return 1.0  # Default 1 second
-            
-        # Parse Crawl-delay directive
-        for line in robots_txt.split('\n'):
-            if line.lower().startswith('crawl-delay:'):
-                try:
-                    delay = float(line.split(':')[1].strip())
-                    return min(delay, 10.0)  # Cap at 10 seconds
-                except:
-                    pass
-        return 1.0
-    
-    def _get_robots_txt(self, domain):
-        """Fetch robots.txt with caching"""
-        cache_key = f"robots:{domain}"
-        cached = self.cache.get(cache_key)
-        
-        if cached:
-            return cached.decode('utf-8')
-            
-        # Fetch from domain
-        try:
-            response = requests.get(
-                f"https://{domain}/robots.txt",
-                timeout=5
-            )
-            if response.status_code == 200:
-                robots_txt = response.text
-                self.cache.setex(cache_key, self.cache_ttl, robots_txt)
-                return robots_txt
-        except:
-            pass
-            
-        return None
+Cache Strategy:
+├─ Storage: Redis with 24-hour TTL
+├─ Key: "robots:{domain}"
+├─ Parse: Extract crawl-delay and disallow rules
+└─ Fallback: Allow all if unavailable
+
+Implementation:
+1. Fetch robots.txt on first domain visit
+2. Cache rules in Redis (24h expiration)
+3. Check before every crawl: Is path allowed?
+4. Enforce crawl-delay: Track last request time per domain
 ```
 
 ⚠️ **Common Interview Mistake:** Forgetting about robots.txt! Always mention politeness in your design.
@@ -2036,150 +1860,40 @@ Worker Assignment:
 
 #### Advanced Politeness: Token Bucket Algorithm
 
-```python
-import time
-import threading
+```text
+Implementation Architecture:
 
-class TokenBucketRateLimiter:
-    """
-    Implements token bucket for per-domain rate limiting.
-    Allows bursts while maintaining average rate.
-    """
-    def __init__(self, rate_per_second=1.0, burst_size=5):
-        self.rate = rate_per_second
-        self.burst_size = burst_size
-        self.buckets = {}  # domain -> (tokens, last_update)
-        self.lock = threading.Lock()
-    
-    def can_crawl(self, domain):
-        """Check if domain can be crawled (has tokens)"""
-        with self.lock:
-            if domain not in self.buckets:
-                self.buckets[domain] = (self.burst_size, time.time())
-                return True
-            
-            tokens, last_update = self.buckets[domain]
-            
-            # Refill tokens based on time passed
-            now = time.time()
-            time_passed = now - last_update
-            tokens_to_add = time_passed * self.rate
-            new_tokens = min(tokens + tokens_to_add, self.burst_size)
-            
-            if new_tokens >= 1.0:
-                # Consume 1 token
-                self.buckets[domain] = (new_tokens - 1.0, now)
-                return True
-            else:
-                # No tokens available
-                self.buckets[domain] = (new_tokens, now)
-                return False
-    
-    def wait_time(self, domain):
-        """Calculate wait time until next token available"""
-        with self.lock:
-            if domain not in self.buckets:
-                return 0.0
-            
-            tokens, last_update = self.buckets[domain]
-            now = time.time()
-            time_passed = now - last_update
-            tokens_to_add = time_passed * self.rate
-            new_tokens = min(tokens + tokens_to_add, self.burst_size)
-            
-            if new_tokens >= 1.0:
-                return 0.0
-            else:
-                # Time until 1 token available
-                return (1.0 - new_tokens) / self.rate
+Design Pattern: Distributed, scalable crawler
+├─ Workers: Horizontally scalable (100+ machines)
+├─ Coordination: Consistent hashing for domain partitioning
+├─ Fault Tolerance: Retry logic, dead letter queues
+└─ Monitoring: Metrics on crawl rate, error rate, queue depth
 
-# Example usage
-limiter = TokenBucketRateLimiter(rate_per_second=2.0, burst_size=10)
-
-# Can make 10 burst requests quickly
-for i in range(10):
-    assert limiter.can_crawl("example.com") == True
-
-# 11th request requires waiting
-assert limiter.can_crawl("example.com") == False
-wait = limiter.wait_time("example.com")  # ~0.5 seconds
-
-# After waiting, can crawl again
-time.sleep(wait)
-assert limiter.can_crawl("example.com") == True
+Key Considerations:
+- Politeness: 1 req/sec per domain maximum
+- Deduplication: Bloom filter (12GB for 10B URLs)
+- Storage: 500TB for 10B pages (compressed)
+- Cost: ~$300K/month at scale
 ```
 
 #### Deduplication at Scale
 
-```python
-from pybloom_live import BloomFilter
-import hashlib
+```text
+Bloom Filter for Deduplication:
 
-class URLDeduplicator:
-    """
-    Multi-layer deduplication:
-    1. Bloom filter (fast, approximate)
-    2. Distributed hash table (exact, slower)
-    """
-    def __init__(self, expected_urls=1_000_000_000):
-        # Layer 1: Bloom filter (in-memory, per worker)
-        # 1B URLs, 0.01% false positive rate
-        self.bloom = BloomFilter(
-            capacity=expected_urls,
-            error_rate=0.0001
-        )
-        
-        # Layer 2: Cassandra for exact lookups
-        self.cassandra = None  # Initialize Cassandra client
-        
-    def is_duplicate(self, url):
-        """Check if URL already crawled"""
-        url_hash = self._hash_url(url)
-        
-        # Quick check: Bloom filter (99.99% accurate)
-        if url_hash not in self.bloom:
-            return False  # Definitely not seen
-        
-        # Might be false positive, check Cassandra
-        return self._check_cassandra(url_hash)
-    
-    def mark_crawled(self, url):
-        """Mark URL as crawled"""
-        url_hash = self._hash_url(url)
-        self.bloom.add(url_hash)
-        self._insert_cassandra(url_hash)
-    
-    def _hash_url(self, url):
-        """Normalize and hash URL"""
-        # Normalize: lowercase, remove fragments, sort params
-        from urllib.parse import urlparse, parse_qs, urlencode
-        parsed = urlparse(url.lower())
-        
-        # Remove fragment
-        clean_url = parsed._replace(fragment='')
-        
-        # Sort query parameters
-        if clean_url.query:
-            params = parse_qs(clean_url.query)
-            sorted_params = sorted(params.items())
-            clean_url = clean_url._replace(
-                query=urlencode(sorted_params, doseq=True)
-            )
-        
-        # Hash
-        return hashlib.sha256(
-            clean_url.geturl().encode()
-        ).hexdigest()
-    
-    def _check_cassandra(self, url_hash):
-        """Check if hash exists in Cassandra"""
-        # Placeholder - implement actual Cassandra query
-        return False
-    
-    def _insert_cassandra(self, url_hash):
-        """Insert hash into Cassandra"""
-        # Placeholder - implement actual Cassandra insert
-        pass
+Configuration:
+├─ Capacity: 10 billion URLs
+├─ False Positive Rate: 1%
+├─ Memory: 12GB (vs 1.2TB for hash set)
+└─ Hash Functions: 7 (optimal for 1% FPR)
+
+Operations:
+1. Add URL: Hash with 7 functions → Set 7 bits
+2. Check URL: Hash with 7 functions → Check if all bits set
+3. Result: "Definitely not seen" or "Probably seen"
+4. Backup: If "probably seen", check database to confirm
+
+Trade-off: 1% false positives (skip 1% new URLs) vs 85% memory savings
 ```
 
 **Memory Efficiency:**
@@ -2230,147 +1944,22 @@ Result: 30-50% better resource utilization
 
 **Features to Extract (50+ features per URL):**
 
-```python
-"""
-ML-Based URL Prioritization System
-Purpose: Predict which URLs should be crawled with higher priority
-"""
+```text
+Content Parsing:
 
-import numpy as np
-from datetime import datetime, timedelta
-import hashlib
+Link Extraction:
+├─ HTML Parser: Extract <a href> tags
+├─ Normalization: Convert relative → absolute URLs
+├─ Validation: Check protocol (http/https)
+└─ Output: Clean, deduplicated URL list
 
-class URLFeatureExtractor:
-    """
-    Extract features from URLs for ML-based prioritization.
-    """
-    def __init__(self):
-        self.domain_stats = {}  # Cache domain-level statistics
-        
-    def extract_features(self, url, metadata=None):
-        """
-        Extract 50+ features for ML model.
-        
-        Args:
-            url: The URL to extract features from
-            metadata: Additional metadata from database
-            
-        Returns:
-            Dictionary of features for ML model
-        """
-        from urllib.parse import urlparse
-        parsed = urlparse(url)
-        domain = parsed.netloc
-        path = parsed.path
-        
-        features = {}
-        
-        # ==== URL-Based Features (10 features) ====
-        features['url_length'] = len(url)
-        features['path_depth'] = path.count('/')
-        features['has_query_params'] = 1 if parsed.query else 0
-        features['subdomain_count'] = domain.count('.') - 1
-        features['is_homepage'] = 1 if path in ['/', '/index.html'] else 0
-        features['is_sitemap'] = 1 if 'sitemap' in path.lower() else 0
-        features['is_rss'] = 1 if path.endswith(('.rss', '.xml', '/feed')) else 0
-        features['url_entropy'] = self._calculate_entropy(url)
-        features['has_dates_in_path'] = 1 if self._has_date_pattern(path) else 0
-        features['tld_type'] = self._encode_tld(domain)  # .com=1, .org=2, etc.
-        
-        # ==== Domain-Level Features (15 features) ====
-        domain_stats = self._get_domain_stats(domain)
-        features['domain_page_count'] = domain_stats.get('total_pages', 0)
-        features['domain_crawl_success_rate'] = domain_stats.get('success_rate', 0.5)
-        features['domain_avg_response_time'] = domain_stats.get('avg_response_ms', 500)
-        features['domain_content_change_rate'] = domain_stats.get('change_rate', 0.1)
-        features['domain_importance_score'] = domain_stats.get('importance', 0.5)
-        features['domain_crawl_frequency'] = domain_stats.get('crawl_freq_hours', 24)
-        features['domain_robots_crawl_delay'] = domain_stats.get('robots_delay', 1)
-        features['domain_error_rate'] = domain_stats.get('error_rate', 0)
-        features['domain_duplicate_rate'] = domain_stats.get('duplicate_rate', 0.3)
-        features['domain_avg_page_size'] = domain_stats.get('avg_size_kb', 50)
-        features['domain_total_inbound_links'] = domain_stats.get('inbound_links', 0)
-        features['domain_content_type'] = domain_stats.get('content_type', 'general')  # news, blog, ecommerce
-        features['domain_language'] = domain_stats.get('language', 'en')
-        features['domain_is_news_site'] = 1 if domain_stats.get('is_news', False) else 0
-        features['domain_alexa_rank'] = domain_stats.get('alexa_rank', 1000000)
-        
-        # ==== Historical Features (10 features) ====
-        if metadata:
-            features['days_since_last_crawl'] = (
-                (datetime.now() - metadata.get('last_crawled', datetime(2000, 1, 1))).days
-            )
-            features['total_crawl_count'] = metadata.get('crawl_count', 0)
-            features['last_http_status'] = metadata.get('last_status', 200)
-            features['last_content_size'] = metadata.get('last_size', 50000)
-            features['content_changed_last_crawl'] = metadata.get('changed', 0)
-            features['avg_links_per_page'] = metadata.get('avg_links', 10)
-            features['page_depth_from_root'] = metadata.get('depth', 0)
-            features['parent_page_importance'] = metadata.get('parent_importance', 0.5)
-            features['inbound_link_count'] = metadata.get('inbound_links', 0)
-            features['page_category'] = self._encode_category(metadata.get('category', 'unknown'))
-        
-        # ==== Temporal Features (10 features) ====
-        now = datetime.now()
-        features['hour_of_day'] = now.hour
-        features['day_of_week'] = now.weekday()
-        features['is_weekend'] = 1 if now.weekday() >= 5 else 0
-        features['is_business_hours'] = 1 if 9 <= now.hour <= 17 else 0
-        features['days_since_publication'] = self._estimate_page_age(url, metadata)
-        features['is_breaking_news_time'] = 1 if now.hour in [6, 7, 8, 18, 19, 20] else 0
-        features['time_since_domain_update'] = self._time_since_update(domain)
-        features['predicted_next_update'] = self._predict_update_time(domain)
-        features['crawl_budget_remaining'] = self._get_crawl_budget(domain)
-        features['time_until_desired_freshness'] = self._freshness_urgency(url, metadata)
-        
-        # ==== Content-Based Features (5 features) ====
-        features['estimated_content_value'] = self._estimate_value(url, domain)
-        features['estimated_change_probability'] = self._estimate_change_prob(url, metadata)
-        features['expected_new_links'] = self._estimate_new_links(url, metadata)
-        features['is_content_duplicate_likely'] = self._duplicate_probability(url)
-        features['predicted_crawl_success'] = self._success_probability(domain)
-        
-        return features
-    
-    def _calculate_entropy(self, url):
-        """Shannon entropy of URL (detect random URLs)"""
-        from collections import Counter
-        import math
-        
-        if not url:
-            return 0
-        
-        counts = Counter(url)
-        length = len(url)
-        entropy = -sum((count/length) * math.log2(count/length) for count in counts.values())
-        return entropy
-    
-    def _has_date_pattern(self, path):
-        """Detect if path contains dates"""
-        import re
-        date_patterns = [
-            r'/\d{4}/\d{2}/\d{2}/',  # /2025/01/15/
-            r'/\d{4}-\d{2}-\d{2}',    # /2025-01-15
-            r'date=\d{4}-\d{2}-\d{2}' # date=2025-01-15
-        ]
-        return any(re.search(pattern, path) for pattern in date_patterns)
-    
-    def _get_domain_stats(self, domain):
-        """Get cached domain statistics"""
-        if domain in self.domain_stats:
-            return self.domain_stats[domain]
-        
-        # In production: Query from database
-        # Placeholder with defaults
-        return {
-            'total_pages': 1000,
-            'success_rate': 0.95,
-            'avg_response_ms': 200,
-            'change_rate': 0.1,
-            'importance': 0.5
-        }
-    
-    # ... other helper methods ...
+Metadata Extraction:
+├─ Title: <title> tag
+├─ Description: <meta description>
+├─ Content Type: HTML, PDF, etc.
+└─ Timestamp: Crawl time
+
+Storage: PostgreSQL for metadata, S3 for HTML content
 ```
 
 **Feature Categories:**
@@ -2415,155 +2004,20 @@ Content Predictions (5):
 
 **Training Dataset Creation:**
 
-```python
-class PriorityModelTrainer:
-    """
-    Train ML model to predict URL crawl priority.
-    """
-    def __init__(self):
-        self.feature_extractor = URLFeatureExtractor()
-        
-    def create_training_dataset(self, historical_crawls):
-        """
-        Create training data from historical crawl results.
-        
-        Label Strategy:
-        - High priority (1.0): Pages that had valuable new content
-        - Medium priority (0.5): Pages with minor updates
-        - Low priority (0.1): Pages with no changes or low value
-        """
-        training_data = []
-        
-        for crawl in historical_crawls:
-            url = crawl['url']
-            
-            # Extract features at time of decision
-            features = self.feature_extractor.extract_features(
-                url,
-                metadata=crawl['metadata_at_decision_time']
-            )
-            
-            # Calculate label based on outcome
-            label = self._calculate_priority_label(crawl)
-            
-            training_data.append({
-                'features': features,
-                'label': label,
-                'url': url  # For debugging
-            })
-        
-        return training_data
-    
-    def _calculate_priority_label(self, crawl):
-        """
-        Calculate ground truth label from crawl outcome.
-        
-        High priority if:
-        - Content changed significantly
-        - Page had high value (many views, shares)
-        - Discovered many new important links
-        - Time-sensitive content (news)
-        """
-        score = 0.0
-        
-        # Content change (40% weight)
-        if crawl['content_changed']:
-            content_change_ratio = crawl['content_diff_ratio']
-            score += 0.4 * content_change_ratio
-        
-        # Content value (30% weight)
-        page_value = self._calculate_page_value(crawl)
-        score += 0.3 * page_value
-        
-        # New links discovered (20% weight)
-        new_links_score = min(crawl['new_links_count'] / 100, 1.0)
-        score += 0.2 * new_links_score
-        
-        # Time sensitivity (10% weight)
-        if crawl['is_time_sensitive']:
-            score += 0.1
-        
-        return min(score, 1.0)  # Normalize to 0-1
-    
-    def _calculate_page_value(self, crawl):
-        """Estimate page value from engagement metrics"""
-        # In production: Track page views, shares, clicks
-        # Placeholder calculation
-        value = 0.0
-        
-        if crawl.get('page_views', 0) > 1000:
-            value += 0.3
-        if crawl.get('social_shares', 0) > 100:
-            value += 0.3
-        if crawl.get('inbound_links', 0) > 50:
-            value += 0.4
-        
-        return min(value, 1.0)
-    
-    def train_model(self, training_data):
-        """
-        Train gradient boosting model for priority prediction.
-        """
-        from sklearn.ensemble import GradientBoostingRegressor
-        from sklearn.model_selection import train_test_split
-        import numpy as np
-        
-        # Prepare data
-        X = np.array([list(d['features'].values()) for d in training_data])
-        y = np.array([d['label'] for d in training_data])
-        
-        # Split
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
-        
-        # Train
-        model = GradientBoostingRegressor(
-            n_estimators=100,
-            learning_rate=0.1,
-            max_depth=5,
-            random_state=42
-        )
-        
-        print("Training ML priority model...")
-        model.fit(X_train, y_train)
-        
-        # Evaluate
-        train_score = model.score(X_train, y_train)
-        test_score = model.score(X_test, y_test)
-        
-        print(f"Training R² score: {train_score:.3f}")
-        print(f"Test R² score: {test_score:.3f}")
-        
-        # Feature importance
-        feature_names = list(training_data[0]['features'].keys())
-        importances = model.feature_importances_
-        
-        print("\nTop 10 Most Important Features:")
-        feature_importance = sorted(
-            zip(feature_names, importances),
-            key=lambda x: x[1],
-            reverse=True
-        )
-        for name, importance in feature_importance[:10]:
-            print(f"  {name:30} {importance:.4f}")
-        
-        return model
+```text
+Implementation Architecture:
 
-# Example feature importance output:
-"""
-Top 10 Most Important Features:
-  days_since_last_crawl           0.1523
-  domain_content_change_rate      0.1247
-  domain_importance_score         0.0981
-  time_until_desired_freshness    0.0876
-  domain_is_news_site            0.0654
-  estimated_change_probability    0.0543
-  hour_of_day                     0.0432
-  domain_avg_response_time        0.0398
-  is_homepage                     0.0321
-  page_depth_from_root           0.0287
-"""
+Design Pattern: Distributed, scalable crawler
+├─ Workers: Horizontally scalable (100+ machines)
+├─ Coordination: Consistent hashing for domain partitioning
+├─ Fault Tolerance: Retry logic, dead letter queues
+└─ Monitoring: Metrics on crawl rate, error rate, queue depth
+
+Key Considerations:
+- Politeness: 1 req/sec per domain maximum
+- Deduplication: Bloom filter (12GB for 10B URLs)
+- Storage: 500TB for 10B pages (compressed)
+- Cost: ~$300K/month at scale
 ```
 
 **Training at Scale:**
@@ -2624,106 +2078,20 @@ Throughput: 100K URLs/second
 
 **Implementation:**
 
-```python
-import pickle
-import redis
-import json
+```text
+Implementation Architecture:
 
-class MLPriorityScorer:
-    """
-    Real-time ML-based priority scoring.
-    """
-    def __init__(self, model_path, redis_client):
-        # Load pre-trained model
-        with open(model_path, 'rb') as f:
-            self.model = pickle.load(f)
-        
-        self.redis = redis_client
-        self.feature_extractor = URLFeatureExtractor()
-        
-        # Priority thresholds
-        self.high_threshold = 0.7
-        self.medium_threshold = 0.3
-    
-    def score_and_enqueue(self, url, metadata=None):
-        """
-        Score URL and add to appropriate priority queue.
-        """
-        # Extract features
-        features = self.feature_extractor.extract_features(url, metadata)
-        
-        # Convert to numpy array (match training feature order)
-        feature_vector = np.array([list(features.values())])
-        
-        # Predict priority score
-        priority_score = self.model.predict(feature_vector)[0]
-        
-        # Determine queue tier
-        if priority_score >= self.high_threshold:
-            queue_name = 'frontier:high'
-            tier = 'high'
-        elif priority_score >= self.medium_threshold:
-            queue_name = 'frontier:medium'
-            tier = 'medium'
-        else:
-            queue_name = 'frontier:low'
-            tier = 'low'
-        
-        # Enqueue to Redis
-        url_data = {
-            'url': url,
-            'priority_score': float(priority_score),
-            'tier': tier,
-            'queued_at': datetime.now().isoformat()
-        }
-        
-        self.redis.rpush(queue_name, json.dumps(url_data))
-        
-        return {
-            'priority_score': priority_score,
-            'tier': tier,
-            'queue': queue_name
-        }
-    
-    def get_next_url(self, worker_id):
-        """
-        Get next URL for worker to crawl.
-        Pulls from high priority queue first.
-        """
-        # Try high priority first (60% of time)
-        import random
-        if random.random() < 0.6:
-            url_data = self.redis.lpop('frontier:high')
-            if url_data:
-                return json.loads(url_data)
-        
-        # Try medium priority (30% of time)
-        if random.random() < 0.75:  # 0.6 + 0.3/0.4 = 0.75
-            url_data = self.redis.lpop('frontier:medium')
-            if url_data:
-                return json.loads(url_data)
-        
-        # Fall back to low priority
-        url_data = self.redis.lpop('frontier:low')
-        if url_data:
-            return json.loads(url_data)
-        
-        return None
+Design Pattern: Distributed, scalable crawler
+├─ Workers: Horizontally scalable (100+ machines)
+├─ Coordination: Consistent hashing for domain partitioning
+├─ Fault Tolerance: Retry logic, dead letter queues
+└─ Monitoring: Metrics on crawl rate, error rate, queue depth
 
-# Usage
-redis_client = redis.Redis(host='localhost', port=6379)
-scorer = MLPriorityScorer('priority_model.pkl', redis_client)
-
-# Score and enqueue URLs
-result = scorer.score_and_enqueue(
-    'https://cnn.com/breaking-news',
-    metadata={'last_crawled': datetime.now() - timedelta(hours=1)}
-)
-print(f"URL priority: {result['priority_score']:.3f} → {result['tier']} queue")
-
-# Workers pull URLs
-next_url = scorer.get_next_url(worker_id='worker-1')
-print(f"Next URL to crawl: {next_url['url']}")
+Key Considerations:
+- Politeness: 1 req/sec per domain maximum
+- Deduplication: Bloom filter (12GB for 10B URLs)
+- Storage: 500TB for 10B pages (compressed)
+- Cost: ~$300K/month at scale
 ```
 
 #### Phase 4: A/B Testing & Optimization
@@ -2791,90 +2159,20 @@ Version 4.0 (Deep learning):
 
 **What to Monitor:**
 
-```python
-class PriorityModelMonitor:
-    """
-    Monitor ML priority model in production.
-    """
-    def __init__(self):
-        self.metrics = {
-            'predictions_per_second': 0,
-            'avg_prediction_latency_ms': 0,
-            'model_version': '4.0',
-            'last_retrained': datetime.now()
-        }
-    
-    def monitor_model_performance(self):
-        """
-        Track model performance metrics.
-        """
-        # 1. Prediction Distribution
-        # Are we predicting too many high priority? (imbalance)
-        
-        # 2. Feature Drift
-        # Are feature distributions changing? (data drift)
-        
-        # 3. Outcome Tracking
-        # For URLs we crawled, were priorities accurate?
-        
-        # 4. Business Metrics
-        # Did crawl efficiency improve?
-        # Are we finding more valuable content?
-        
-        pass
-    
-    def should_retrain(self):
-        """
-        Decide if model needs retraining.
-        """
-        reasons_to_retrain = []
-        
-        # 1. Time-based: Retrain weekly
-        days_since_training = (datetime.now() - self.metrics['last_retrained']).days
-        if days_since_training >= 7:
-            reasons_to_retrain.append("Weekly retraining schedule")
-        
-        # 2. Performance degradation
-        if self.metrics.get('crawl_efficiency_drop', 0) > 0.1:
-            reasons_to_retrain.append("Crawl efficiency dropped 10%")
-        
-        # 3. Feature drift detected
-        if self.metrics.get('feature_drift_score', 0) > 0.2:
-            reasons_to_retrain.append("Significant feature drift detected")
-        
-        # 4. Major web changes (algorithm updates, new content types)
-        if self.metrics.get('new_content_types_ratio', 0) > 0.05:
-            reasons_to_retrain.append("5% of content is new type")
-        
-        return len(reasons_to_retrain) > 0, reasons_to_retrain
+```text
+Implementation Architecture:
 
-# Automated retraining pipeline
-def automated_retraining_pipeline():
-    """
-    Run weekly to retrain model if needed.
-    """
-    monitor = PriorityModelMonitor()
-    should_retrain, reasons = monitor.should_retrain()
-    
-    if should_retrain:
-        print(f"Retraining triggered. Reasons: {reasons}")
-        
-        # 1. Extract data from last 90 days
-        historical_data = fetch_historical_crawls(days=90)
-        
-        # 2. Create training dataset
-        trainer = PriorityModelTrainer()
-        training_data = trainer.create_training_dataset(historical_data)
-        
-        # 3. Train new model
-        new_model = trainer.train_model(training_data)
-        
-        # 4. A/B test new model vs current (10% traffic)
-        deploy_canary(new_model, traffic_percent=10)
-        
-        # 5. Monitor for 2 days
-        # 6. If better, deploy to 100%
-        # 7. If worse, rollback
+Design Pattern: Distributed, scalable crawler
+├─ Workers: Horizontally scalable (100+ machines)
+├─ Coordination: Consistent hashing for domain partitioning
+├─ Fault Tolerance: Retry logic, dead letter queues
+└─ Monitoring: Metrics on crawl rate, error rate, queue depth
+
+Key Considerations:
+- Politeness: 1 req/sec per domain maximum
+- Deduplication: Bloom filter (12GB for 10B URLs)
+- Storage: 500TB for 10B pages (compressed)
+- Cost: ~$300K/month at scale
 ```
 
 #### Real-World Results: Google's ML Prioritization
@@ -3011,7 +2309,13 @@ Adaptive systems that learn per-domain behavior work best!
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * **What the interviewer wants to know:** - Do you understand priority queue data structures? - Can you explain how politeness fits in? - Do you know how to scale this component? **Answer Framework:** ```text Three-Tier Priority System: Tier 1: High Priority (Redis Sorted Set) ├─ Homepages, sitemaps, news sites ├─ Score: 0.7-1.0 ├─ Crawl frequency: Every 1 hour ├─ Storage: 20M URLs (~3GB in Redis) └─ Workers pull: 60% of time Tier 2: Medium Priority (Redis List) ├─ Regular content pages ├─ Score: 0.3-0.7 ├─ Crawl frequency: Every 24 hours ├─ Storage: 80M URLs (~14GB in Redis) └─ Workers pull: 30% of time Tier 3: Low Priority (PostgreSQL) ├─ Deep pages, old content ├─ Score: 0.0-0.3 ├─ Crawl frequency: Every 7 days ├─ Storage: 10B URLs (~1.7TB in database) └─ Workers pull: 10% of time Implementation: # High priority: Redis sorted set (score-based) ZADD frontier:high 0.95 "https://cnn.com/breaking" # Medium: Redis list (FIFO within tier) RPUSH frontier:medium "https://blog.com/post" # Low: PostgreSQL (overflow storage) INSERT INTO url_frontier (url, priority) VALUES (?, 0.2) Worker pulls: 1. ZPOPMAX frontier:high (get highest score) 2. If empty: LPOP frontier:medium 3. If empty: SELECT from PostgreSQL LIMIT 100 ``` **Follow-up: How do you handle a domain with 1M pages and 1-second crawl delay?** ```text Problem: 1M pages × 1 sec = 1M seconds = 11.5 days! Solution: Domain Queue Fairness 1. Limit per-domain queue size: Max 1,000 URLs in frontier 2. Round-robin across domains: Don't crawl same domain continuously 3. Time-based scheduling: Spread crawls over 24 hours 4. Priority mixing: Interleave high-priority URLs from many domains Example: Instead of: ├─ domain-A: url1, url2, url3, ..., url1000 (1000 seconds) ├─ domain-B: url1, url2, ... (wait 1000 seconds!) Do this: ├─ domain-A: url1 (1 sec) ├─ domain-B: url1 (1 sec) ├─ domain-C: url1 (1 sec) ├─ ... ├─ domain-A: url2 (1 sec after url1) └─ Result: All domains make progress simultaneously ```
+**Answer:**
+
+**What the interviewer wants to know:**
+- Do you understand priority queue data structures? - Can you explain how politeness fits in?
+- Do you know how to scale this component? **Answer Framework:**
+
+```text Three-Tier Priority System: Tier 1: High Priority (Redis Sorted Set) ├─ Homepages, sitemaps, news sites ├─ Score: 0.7-1.0 ├─ Crawl frequency: Every 1 hour ├─ Storage: 20M URLs (~3GB in Redis) └─ Workers pull: 60% of time Tier 2: Medium Priority (Redis List) ├─ Regular content pages ├─ Score: 0.3-0.7 ├─ Crawl frequency: Every 24 hours ├─ Storage: 80M URLs (~14GB in Redis) └─ Workers pull: 30% of time Tier 3: Low Priority (PostgreSQL) ├─ Deep pages, old content ├─ Score: 0.0-0.3 ├─ Crawl frequency: Every 7 days ├─ Storage: 10B URLs (~1.7TB in database) └─ Workers pull: 10% of time Implementation: # High priority: Redis sorted set (score-based) ZADD frontier:high 0.95 "https://cnn.com/breaking" # Medium: Redis list (FIFO within tier) RPUSH frontier:medium "https://blog.com/post" # Low: PostgreSQL (overflow storage) INSERT INTO url_frontier (url, priority) VALUES (?, 0.2) Worker pulls: 1. ZPOPMAX frontier:high (get highest score) 2. If empty: LPOP frontier:medium 3. If empty: SELECT from PostgreSQL LIMIT 100 ``` **Follow-up: How do you handle a domain with 1M pages and 1-second crawl delay?** ```text Problem: 1M pages × 1 sec = 1M seconds = 11.5 days! Solution: Domain Queue Fairness 1. Limit per-domain queue size: Max 1,000 URLs in frontier 2. Round-robin across domains: Don't crawl same domain continuously 3. Time-based scheduling: Spread crawls over 24 hours 4. Priority mixing: Interleave high-priority URLs from many domains Example: Instead of: ├─ domain-A: url1, url2, url3, ..., url1000 (1000 seconds) ├─ domain-B: url1, url2, ... (wait 1000 seconds!) Do this: ├─ domain-A: url1 (1 sec) ├─ domain-B: url1 (1 sec) ├─ domain-C: url1 (1 sec) ├─ ... ├─ domain-A: url2 (1 sec after url1) └─ Result: All domains make progress simultaneously ```
 
 </details>
 
@@ -3020,7 +2324,11 @@ Adaptive systems that learn per-domain behavior work best!
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * **Answer Framework:** ```text Challenge: 100 workers, 1M domains, 1 req/sec per domain - How to ensure only 1 worker crawls each domain at a time? Solution: Domain-Based Partitioning (Consistent Hashing) Step 1: Partition URLs by Domain ├─ hash(domain) % num_workers = assigned_worker ├─ "example.com" → Worker 42 ├─ "test.com" → Worker 17 └─ Same domain always goes to same worker Step 2: Worker Owns Its Domains ├─ Worker 42 handles ALL example.com URLs ├─ Worker 17 handles ALL test.com URLs ├─ No coordination needed! └─ Politeness enforced locally per worker Step 3: Load Balancing with Virtual Nodes ├─ Each worker gets 150 virtual nodes on hash ring ├─ Even distribution even with hash clustering ├─ Adding worker: Only 1/N URLs redistribute └─ Removing worker: URLs redistribute to others Benefits: ├─ No central coordinator (no bottleneck!) ├─ Automatic politeness (by design) ├─ Fault tolerant (workers fail, URLs redistribute) ├─ Scales linearly (1000+ workers) └─ Used by: Google, Common Crawl, Bing ```
+**Answer:**
+
+**Answer Framework:**
+
+```text Challenge: 100 workers, 1M domains, 1 req/sec per domain - How to ensure only 1 worker crawls each domain at a time? Solution: Domain-Based Partitioning (Consistent Hashing) Step 1: Partition URLs by Domain ├─ hash(domain) % num_workers = assigned_worker ├─ "example.com" → Worker 42 ├─ "test.com" → Worker 17 └─ Same domain always goes to same worker Step 2: Worker Owns Its Domains ├─ Worker 42 handles ALL example.com URLs ├─ Worker 17 handles ALL test.com URLs ├─ No coordination needed! └─ Politeness enforced locally per worker Step 3: Load Balancing with Virtual Nodes ├─ Each worker gets 150 virtual nodes on hash ring ├─ Even distribution even with hash clustering ├─ Adding worker: Only 1/N URLs redistribute └─ Removing worker: URLs redistribute to others Benefits: ├─ No central coordinator (no bottleneck!) ├─ Automatic politeness (by design) ├─ Fault tolerant (workers fail, URLs redistribute) ├─ Scales linearly (1000+ workers) └─ Used by: Google, Common Crawl, Bing ```
 
 </details>
 
@@ -3029,7 +2337,11 @@ Adaptive systems that learn per-domain behavior work best!
 <details>
 <summary>💭 Think first, then reveal answer</summary>
 
-**Answer:** * **Answer Framework:** ```text Problem: 10B URLs crawled, need to check "have I seen this URL?" Hash Set Approach: ├─ Store: All 10B URL hashes ├─ Memory: 10B × 8 bytes (64-bit hash) = 80GB ├─ Lookup: O(1), fast ├─ Accuracy: 100% └─ Cost: $1,000/month (80GB RAM) Bloom Filter Approach: ├─ Store: Probabilistic data structure ├─ Memory: 12GB (for 1% false positive rate) ├─ Lookup: O(1), microseconds ├─ Accuracy: 99% (1% false positives, 0% false negatives) └─ Cost: $150/month (12GB RAM) How it Works: 1. Hash URL with K hash functions (K=7 for 1% FPR) 2. Set K bits in bit array 3. Check: All K bits set? → "Probably seen" 4. Check: Any bit not set? → "Definitely not seen" Trade-off: ├─ 1% false positives: Might skip 1% of new URLs ├─ Mitigation: Double-check in database for positives ├─ Savings: 85% less memory (12GB vs 80GB) └─ Decision: Worth it! Formula for size: bits = -n × ln(p) / (ln(2))^2 where n = number of URLs, p = false positive rate For 10B URLs, 1% FP: ├─ bits = -10B × ln(0.01) / (ln(2))^2 ├─ = 95.8 billion bits ├─ = 12GB └─ Fits in RAM! ```
+**Answer:**
+
+**Answer Framework:**
+
+```text Problem: 10B URLs crawled, need to check "have I seen this URL?" Hash Set Approach: ├─ Store: All 10B URL hashes ├─ Memory: 10B × 8 bytes (64-bit hash) = 80GB ├─ Lookup: O(1), fast ├─ Accuracy: 100% └─ Cost: $1,000/month (80GB RAM) Bloom Filter Approach: ├─ Store: Probabilistic data structure ├─ Memory: 12GB (for 1% false positive rate) ├─ Lookup: O(1), microseconds ├─ Accuracy: 99% (1% false positives, 0% false negatives) └─ Cost: $150/month (12GB RAM) How it Works: 1. Hash URL with K hash functions (K=7 for 1% FPR) 2. Set K bits in bit array 3. Check: All K bits set? → "Probably seen" 4. Check: Any bit not set? → "Definitely not seen" Trade-off: ├─ 1% false positives: Might skip 1% of new URLs ├─ Mitigation: Double-check in database for positives ├─ Savings: 85% less memory (12GB vs 80GB) └─ Decision: Worth it! Formula for size: bits = -n × ln(p) / (ln(2))^2 where n = number of URLs, p = false positive rate For 10B URLs, 1% FP: ├─ bits = -10B × ln(0.01) / (ln(2))^2 ├─ = 95.8 billion bits ├─ = 12GB └─ Fits in RAM! ```
 
 </details>
 
@@ -3134,110 +2446,22 @@ Post Office Mail Sorting → Content Processing
 
 #### Simple Link Extraction with BeautifulSoup
 
-```python
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
-import requests
+```text
+Bloom Filter for Deduplication:
 
-class SimpleContentProcessor:
-    def __init__(self):
-        self.extracted_links_count = 0
-        
-    def process_page(self, url, html_content):
-        """Process HTML page and extract links"""
-        try:
-            # Parse HTML
-            soup = BeautifulSoup(html_content, 'html.parser')
-            
-            # Extract all links
-            links = []
-            for anchor in soup.find_all('a', href=True):
-                href = anchor['href']
-                
-                # Convert relative URLs to absolute
-                absolute_url = urljoin(url, href)
-                
-                # Filter valid URLs
-                if self._is_valid_url(absolute_url):
-                    links.append({
-                        'url': absolute_url,
-                        'text': anchor.get_text(strip=True),
-                        'source_url': url
-                    })
-            
-            # Extract metadata
-            metadata = self._extract_metadata(soup)
-            
-            self.extracted_links_count += len(links)
-            
-            return {
-                'links': links,
-                'metadata': metadata,
-                'success': True
-            }
-            
-        except Exception as e:
-            return {
-                'links': [],
-                'metadata': {},
-                'success': False,
-                'error': str(e)
-            }
-    
-    def _is_valid_url(self, url):
-        """Check if URL is valid and should be crawled"""
-        try:
-            parsed = urlparse(url)
-            
-            # Must have scheme and netloc
-            if not parsed.scheme or not parsed.netloc:
-                return False
-            
-            # Only HTTP/HTTPS
-            if parsed.scheme not in ['http', 'https']:
-                return False
-            
-            # Skip common non-HTML files
-            skip_extensions = ['.pdf', '.jpg', '.png', '.gif', '.css', '.js', '.zip']
-            if any(parsed.path.lower().endswith(ext) for ext in skip_extensions):
-                return False
-            
-            return True
-            
-        except:
-            return False
-    
-    def _extract_metadata(self, soup):
-        """Extract page metadata"""
-        metadata = {}
-        
-        # Title
-        title_tag = soup.find('title')
-        if title_tag:
-            metadata['title'] = title_tag.get_text(strip=True)
-        
-        # Meta description
-        desc_tag = soup.find('meta', attrs={'name': 'description'})
-        if desc_tag and desc_tag.get('content'):
-            metadata['description'] = desc_tag['content']
-        
-        # Meta keywords
-        keywords_tag = soup.find('meta', attrs={'name': 'keywords'})
-        if keywords_tag and keywords_tag.get('content'):
-            metadata['keywords'] = keywords_tag['content']
-        
-        # Language
-        html_tag = soup.find('html')
-        if html_tag and html_tag.get('lang'):
-            metadata['language'] = html_tag['lang']
-        
-        return metadata
+Configuration:
+├─ Capacity: 10 billion URLs
+├─ False Positive Rate: 1%
+├─ Memory: 12GB (vs 1.2TB for hash set)
+└─ Hash Functions: 7 (optimal for 1% FPR)
 
-# Usage
-processor = SimpleContentProcessor()
-html = "<html><body><a href='/page1'>Link 1</a></body></html>"
-result = processor.process_page('https://example.com', html)
-print(f"Extracted {len(result['links'])} links")
+Operations:
+1. Add URL: Hash with 7 functions → Set 7 bits
+2. Check URL: Hash with 7 functions → Check if all bits set
+3. Result: "Definitely not seen" or "Probably seen"
+4. Backup: If "probably seen", check database to confirm
+
+Trade-off: 1% false positives (skip 1% new URLs) vs 85% memory savings
 ```
 
 💡 **Pro Tip:** Use BeautifulSoup for simplicity, lxml for speed (3-5x faster for large pages).
@@ -3354,86 +2578,20 @@ RETURN "safe"
 
 Many modern sites (React, Angular, Vue) require JavaScript execution to render content:
 
-```python
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+```text
+Implementation Architecture:
 
-class JavaScriptRenderer:
-    """
-    Handles JavaScript-rendered pages using headless Chrome.
-    Warning: 10-100x slower than static HTML parsing!
-    """
-    def __init__(self, headless=True):
-        chrome_options = Options()
-        if headless:
-            chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        
-        self.driver = webdriver.Chrome(options=chrome_options)
-        self.driver.set_page_load_timeout(30)
-    
-    def render_page(self, url):
-        """Render JavaScript and return final HTML"""
-        try:
-            self.driver.get(url)
-            
-            # Wait for page to load (wait for body tag)
-            WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located(('tag name', 'body'))
-            )
-            
-            # Additional wait for dynamic content
-            import time
-            time.sleep(2)  # Let AJAX requests complete
-            
-            # Get rendered HTML
-            rendered_html = self.driver.page_source
-            
-            # Get final URL (after redirects)
-            final_url = self.driver.current_url
-            
-            return {
-                'html': rendered_html,
-                'final_url': final_url,
-                'success': True
-            }
-            
-        except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
-    
-    def close(self):
-        """Cleanup"""
-        self.driver.quit()
+Design Pattern: Distributed, scalable crawler
+├─ Workers: Horizontally scalable (100+ machines)
+├─ Coordination: Consistent hashing for domain partitioning
+├─ Fault Tolerance: Retry logic, dead letter queues
+└─ Monitoring: Metrics on crawl rate, error rate, queue depth
 
-# When to use JavaScript rendering?
-def should_render_javascript(url, html_content):
-    """
-    Heuristic: Only render JS if necessary (expensive!)
-    """
-    # 1. Check if page has minimal content (JS-rendered)
-    soup = BeautifulSoup(html_content, 'lxml')
-    text = soup.get_text(strip=True)
-    if len(text) < 100:  # Suspiciously little content
-        return True
-    
-    # 2. Check for common JS framework indicators
-    js_frameworks = ['react', 'angular', 'vue', 'next.js', 'gatsby']
-    if any(framework in html_content.lower() for framework in js_frameworks):
-        return True
-    
-    # 3. Check for <noscript> tag warnings
-    noscript = soup.find('noscript')
-    if noscript and 'javascript' in noscript.get_text().lower():
-        return True
-    
-    return False
+Key Considerations:
+- Politeness: 1 req/sec per domain maximum
+- Deduplication: Bloom filter (12GB for 10B URLs)
+- Storage: 500TB for 10B pages (compressed)
+- Cost: ~$300K/month at scale
 ```
 
 **Performance Trade-offs:**
@@ -3729,137 +2887,22 @@ Master-Worker Pattern:
 
 #### Simple Master-Worker Implementation
 
-```python
-import requests
-from queue import Queue
-import threading
+```text
+Content Parsing:
 
-class SimpleMasterNode:
-    """
-    Master node that coordinates distributed crawling.
-    Assigns URL batches to workers.
-    """
-    def __init__(self):
-        self.global_frontier = Queue()
-        self.workers = []  # List of worker endpoints
-        self.crawled_count = 0
-        
-    def add_worker(self, worker_endpoint):
-        """Register a worker"""
-        self.workers.append(worker_endpoint)
-        print(f"Worker registered: {worker_endpoint}")
-    
-    def add_urls(self, urls):
-        """Add URLs to global frontier"""
-        for url in urls:
-            self.global_frontier.put(url)
-    
-    def assign_work(self):
-        """Assign URL batches to workers"""
-        batch_size = 100  # URLs per batch
-        
-        while not self.global_frontier.empty():
-            for worker_endpoint in self.workers:
-                # Get batch of URLs
-                batch = []
-                for _ in range(batch_size):
-                    if not self.global_frontier.empty():
-                        batch.append(self.global_frontier.get())
-                    else:
-                        break
-                
-                if not batch:
-                    break
-                
-                # Send batch to worker
-                try:
-                    response = requests.post(
-                        f"{worker_endpoint}/crawl",
-                        json={'urls': batch},
-                        timeout=5
-                    )
-                    if response.status_code == 200:
-                        print(f"Assigned {len(batch)} URLs to {worker_endpoint}")
-                except Exception as e:
-                    # Worker failed - put URLs back in frontier
-                    for url in batch:
-                        self.global_frontier.put(url)
-                    print(f"Worker {worker_endpoint} failed: {e}")
-    
-    def receive_results(self, worker_id, results):
-        """Receive crawl results from worker"""
-        self.crawled_count += len(results['urls'])
-        
-        # Add newly discovered URLs to frontier
-        for new_url in results['discovered_urls']:
-            self.global_frontier.put(new_url)
-        
-        print(f"Worker {worker_id} completed {len(results['urls'])} URLs")
-        print(f"Total crawled: {self.crawled_count}")
+Link Extraction:
+├─ HTML Parser: Extract <a href> tags
+├─ Normalization: Convert relative → absolute URLs
+├─ Validation: Check protocol (http/https)
+└─ Output: Clean, deduplicated URL list
 
+Metadata Extraction:
+├─ Title: <title> tag
+├─ Description: <meta description>
+├─ Content Type: HTML, PDF, etc.
+└─ Timestamp: Crawl time
 
-class SimpleWorkerNode:
-    """
-    Worker node that crawls URLs assigned by master.
-    """
-    def __init__(self, worker_id, master_endpoint):
-        self.worker_id = worker_id
-        self.master_endpoint = master_endpoint
-        self.content_processor = SimpleContentProcessor()
-    
-    def crawl_batch(self, urls):
-        """Crawl a batch of URLs"""
-        results = {
-            'urls': [],
-            'discovered_urls': []
-        }
-        
-        for url in urls:
-            try:
-                # Fetch page
-                response = requests.get(url, timeout=10)
-                html = response.text
-                
-                # Process content
-                parsed = self.content_processor.process_page(url, html)
-                
-                # Store content (simplified - would go to S3/HDFS)
-                # self.store_content(url, html)
-                
-                # Extract new URLs
-                for link in parsed['links']:
-                    results['discovered_urls'].append(link['url'])
-                
-                results['urls'].append(url)
-                
-            except Exception as e:
-                print(f"Error crawling {url}: {e}")
-        
-        # Report back to master
-        self.report_to_master(results)
-        
-        return results
-    
-    def report_to_master(self, results):
-        """Send results back to master"""
-        try:
-            requests.post(
-                f"{self.master_endpoint}/results",
-                json={
-                    'worker_id': self.worker_id,
-                    'results': results
-                },
-                timeout=5
-            )
-        except Exception as e:
-            print(f"Failed to report to master: {e}")
-
-# Usage
-master = SimpleMasterNode()
-master.add_worker("http://worker1:8000")
-master.add_worker("http://worker2:8000")
-master.add_urls(["https://example.com", "https://test.com"])
-master.assign_work()
+Storage: PostgreSQL for metadata, S3 for HTML content
 ```
 
 💡 **Pro Tip:** Start with master-worker pattern, upgrade to fully decentralized when you hit 100+ workers.
@@ -3878,123 +2921,22 @@ master.assign_work()
 
 **Solution: Consistent Hashing + Domain-Based Partitioning**
 
-```python
-import hashlib
-from bisect import bisect_right
+```text
+Content Parsing:
 
-class ConsistentHashRing:
-    """
-    Consistent hash ring for distributing URLs to workers.
-    Ensures URLs from same domain go to same worker (politeness).
-    """
-    def __init__(self, num_virtual_nodes=150):
-        self.num_virtual_nodes = num_virtual_nodes
-        self.ring = {}  # hash -> worker_id
-        self.sorted_keys = []
-        self.workers = set()
-    
-    def add_worker(self, worker_id):
-        """Add worker to the ring"""
-        self.workers.add(worker_id)
-        
-        # Add virtual nodes for this worker
-        for i in range(self.num_virtual_nodes):
-            virtual_node = f"{worker_id}:{i}"
-            hash_value = self._hash(virtual_node)
-            self.ring[hash_value] = worker_id
-            self.sorted_keys.append(hash_value)
-        
-        self.sorted_keys.sort()
-        print(f"Worker {worker_id} added with {self.num_virtual_nodes} virtual nodes")
-    
-    def remove_worker(self, worker_id):
-        """Remove worker from ring (for failures)"""
-        self.workers.discard(worker_id)
-        
-        # Remove virtual nodes
-        for i in range(self.num_virtual_nodes):
-            virtual_node = f"{worker_id}:{i}"
-            hash_value = self._hash(virtual_node)
-            if hash_value in self.ring:
-                del self.ring[hash_value]
-                self.sorted_keys.remove(hash_value)
-        
-        print(f"Worker {worker_id} removed")
-    
-    def get_worker(self, url):
-        """Get worker responsible for this URL"""
-        if not self.ring:
-            return None
-        
-        # Hash URL to find position on ring
-        url_hash = self._hash(url)
-        
-        # Find next worker clockwise on ring
-        idx = bisect_right(self.sorted_keys, url_hash)
-        if idx == len(self.sorted_keys):
-            idx = 0
-        
-        return self.ring[self.sorted_keys[idx]]
-    
-    def _hash(self, key):
-        """Hash function"""
-        return int(hashlib.md5(key.encode()).hexdigest(), 16)
-    
-    def get_distribution(self, urls):
-        """Get distribution of URLs across workers"""
-        distribution = {worker: 0 for worker in self.workers}
-        
-        for url in urls:
-            worker = self.get_worker(url)
-            if worker:
-                distribution[worker] += 1
-        
-        return distribution
+Link Extraction:
+├─ HTML Parser: Extract <a href> tags
+├─ Normalization: Convert relative → absolute URLs
+├─ Validation: Check protocol (http/https)
+└─ Output: Clean, deduplicated URL list
 
+Metadata Extraction:
+├─ Title: <title> tag
+├─ Description: <meta description>
+├─ Content Type: HTML, PDF, etc.
+└─ Timestamp: Crawl time
 
-# Domain-based partitioning for politeness
-class DomainPartitioner:
-    """
-    Ensures URLs from same domain go to same worker.
-    Critical for maintaining politeness!
-    """
-    def __init__(self):
-        self.hash_ring = ConsistentHashRing()
-    
-    def add_worker(self, worker_id):
-        self.hash_ring.add_worker(worker_id)
-    
-    def get_worker_for_url(self, url):
-        """Get worker for URL based on domain"""
-        from urllib.parse import urlparse
-        domain = urlparse(url).netloc
-        
-        # Hash domain (not full URL) to ensure same domain → same worker
-        return self.hash_ring.get_worker(domain)
-
-
-# Usage Example
-partitioner = DomainPartitioner()
-partitioner.add_worker("worker-1")
-partitioner.add_worker("worker-2")
-partitioner.add_worker("worker-3")
-
-urls = [
-    "https://example.com/page1",
-    "https://example.com/page2",  # Same domain as above
-    "https://test.com/page1",
-    "https://test.com/page2"      # Same domain as above
-]
-
-for url in urls:
-    worker = partitioner.get_worker_for_url(url)
-    print(f"{url} → {worker}")
-
-# Output:
-# https://example.com/page1 → worker-2
-# https://example.com/page2 → worker-2  (same worker!)
-# https://test.com/page1 → worker-1
-# https://test.com/page2 → worker-1     (same worker!)
+Storage: PostgreSQL for metadata, S3 for HTML content
 ```
 
 **Why Consistent Hashing?**
@@ -4014,100 +2956,20 @@ Consistent Hashing:
 
 #### Fault Tolerance & Worker Failures
 
-```python
-import time
-from datetime import datetime, timedelta
+```text
+Implementation Architecture:
 
-class FaultTolerantMaster:
-    """
-    Master with failure detection and recovery.
-    """
-    def __init__(self):
-        self.workers = {}  # worker_id -> {endpoint, last_heartbeat, status}
-        self.hash_ring = ConsistentHashRing()
-        self.failed_batches = []  # Batches from failed workers
-    
-    def register_worker(self, worker_id, endpoint):
-        """Register new worker"""
-        self.workers[worker_id] = {
-            'endpoint': endpoint,
-            'last_heartbeat': datetime.now(),
-            'status': 'active',
-            'assigned_urls': 0
-        }
-        self.hash_ring.add_worker(worker_id)
-    
-    def receive_heartbeat(self, worker_id):
-        """Receive heartbeat from worker"""
-        if worker_id in self.workers:
-            self.workers[worker_id]['last_heartbeat'] = datetime.now()
-            self.workers[worker_id]['status'] = 'active'
-    
-    def check_worker_health(self):
-        """Detect failed workers (no heartbeat for 30 seconds)"""
-        timeout = timedelta(seconds=30)
-        now = datetime.now()
-        
-        for worker_id, info in self.workers.items():
-            if info['status'] == 'active':
-                time_since_heartbeat = now - info['last_heartbeat']
-                
-                if time_since_heartbeat > timeout:
-                    print(f"Worker {worker_id} failed (no heartbeat)")
-                    self.handle_worker_failure(worker_id)
-    
-    def handle_worker_failure(self, worker_id):
-        """Handle worker failure"""
-        # Mark worker as failed
-        self.workers[worker_id]['status'] = 'failed'
-        
-        # Remove from hash ring (redistributes its URLs)
-        self.hash_ring.remove_worker(worker_id)
-        
-        # Reassign URLs that were assigned to failed worker
-        # (In real system, track in-progress URLs per worker)
-        print(f"Reassigning URLs from failed worker {worker_id}")
-        
-        # Notify other workers to take over
-        self._reassign_failed_work(worker_id)
-    
-    def _reassign_failed_work(self, failed_worker_id):
-        """Reassign work from failed worker to others"""
-        # In production: Query database for URLs assigned to failed worker
-        # Redistribute using consistent hashing
-        pass
+Design Pattern: Distributed, scalable crawler
+├─ Workers: Horizontally scalable (100+ machines)
+├─ Coordination: Consistent hashing for domain partitioning
+├─ Fault Tolerance: Retry logic, dead letter queues
+└─ Monitoring: Metrics on crawl rate, error rate, queue depth
 
-
-# Worker with heartbeat
-class HeartbeatWorker:
-    """Worker that sends heartbeats to master"""
-    def __init__(self, worker_id, master_endpoint):
-        self.worker_id = worker_id
-        self.master_endpoint = master_endpoint
-        self.running = True
-        
-        # Start heartbeat thread
-        self.heartbeat_thread = threading.Thread(target=self._send_heartbeats)
-        self.heartbeat_thread.daemon = True
-        self.heartbeat_thread.start()
-    
-    def _send_heartbeats(self):
-        """Send heartbeat every 10 seconds"""
-        while self.running:
-            try:
-                requests.post(
-                    f"{self.master_endpoint}/heartbeat",
-                    json={'worker_id': self.worker_id},
-                    timeout=5
-                )
-            except Exception as e:
-                print(f"Heartbeat failed: {e}")
-            
-            time.sleep(10)  # Heartbeat interval
-    
-    def stop(self):
-        """Stop worker"""
-        self.running = False
+Key Considerations:
+- Politeness: 1 req/sec per domain maximum
+- Deduplication: Bloom filter (12GB for 10B URLs)
+- Storage: 500TB for 10B pages (compressed)
+- Cost: ~$300K/month at scale
 ```
 
 ---
@@ -4166,144 +3028,21 @@ Benefits:
 
 #### Implementation with Kafka
 
-```python
-from kafka import KafkaProducer, KafkaConsumer
-from kafka.admin import KafkaAdminClient, NewTopic
-import json
-from urllib.parse import urlparse
+```text
+Crawler Worker Architecture:
 
-class DecentralizedCrawlerWorker:
-    """
-    Fully decentralized crawler worker using Kafka.
-    No master node needed!
-    """
-    def __init__(self, worker_id, kafka_brokers):
-        self.worker_id = worker_id
-        self.kafka_brokers = kafka_brokers
-        
-        # Consumer: Read URLs from frontier
-        self.consumer = KafkaConsumer(
-            'url-frontier',
-            bootstrap_servers=kafka_brokers,
-            group_id='crawler-workers',
-            value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-            enable_auto_commit=False,  # Manual commit for fault tolerance
-            max_poll_records=100  # Batch size
-        )
-        
-        # Producer: Send discovered URLs back to frontier
-        self.producer = KafkaProducer(
-            bootstrap_servers=kafka_brokers,
-            value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-            partitioner=self._domain_partitioner  # Custom partitioner
-        )
-    
-    def _domain_partitioner(self, key, all_partitions, available_partitions):
-        """Partition URLs by domain for politeness"""
-        if key is None:
-            return available_partitions[0]
-        
-        # Hash domain to partition
-        domain_hash = hash(key) % len(available_partitions)
-        return available_partitions[domain_hash]
-    
-    def crawl(self):
-        """Main crawl loop"""
-        while True:
-            # Poll for URL batch
-            messages = self.consumer.poll(timeout_ms=1000)
-            
-            for topic_partition, records in messages.items():
-                for record in records:
-                    url_data = record.value
-                    url = url_data['url']
-                    
-                    try:
-                        # Crawl URL
-                        discovered_urls = self._crawl_url(url)
-                        
-                        # Send discovered URLs back to frontier
-                        for new_url in discovered_urls:
-                            domain = urlparse(new_url).netloc
-                            self.producer.send(
-                                'url-frontier',
-                                key=domain.encode('utf-8'),  # Partition by domain
-                                value={'url': new_url, 'depth': url_data.get('depth', 0) + 1}
-                            )
-                        
-                        # Commit offset (mark as processed)
-                        self.consumer.commit()
-                        
-                    except Exception as e:
-                        print(f"Error crawling {url}: {e}")
-                        # Don't commit - URL will be retried
-            
-            self.producer.flush()
-    
-    def _crawl_url(self, url):
-        """Crawl single URL and return discovered URLs"""
-        import requests
-        from bs4 import BeautifulSoup
-        
-        response = requests.get(url, timeout=10)
-        soup = BeautifulSoup(response.text, 'lxml')
-        
-        discovered = []
-        for anchor in soup.find_all('a', href=True):
-            href = anchor['href']
-            # Convert to absolute URL, validate, etc.
-            discovered.append(href)
-        
-        return discovered
+Components:
+├─ URL Fetcher: HTTP client with retry logic
+├─ Content Parser: Extract links and metadata  
+├─ Storage Writer: Save to S3/HDFS
+└─ Frontier Manager: Add new URLs to queue
 
+Flow:
+1. Pull URL from frontier → Check robots.txt → Fetch page
+2. Parse content → Extract links → Deduplicate
+3. Store content → Update metadata → Add URLs to frontier
 
-# Setup Kafka topics
-def setup_kafka_crawler(kafka_brokers, num_partitions=100):
-    """Initialize Kafka topics for crawler"""
-    admin = KafkaAdminClient(bootstrap_servers=kafka_brokers)
-    
-    # Create URL frontier topic
-    topic = NewTopic(
-        name='url-frontier',
-        num_partitions=num_partitions,  # More partitions = more parallelism
-        replication_factor=3  # Fault tolerance
-    )
-    
-    admin.create_topics([topic])
-    print(f"Created topic with {num_partitions} partitions")
-
-
-# Seed initial URLs
-def seed_urls(kafka_brokers, urls):
-    """Add seed URLs to frontier"""
-    producer = KafkaProducer(
-        bootstrap_servers=kafka_brokers,
-        value_serializer=lambda v: json.dumps(v).encode('utf-8')
-    )
-    
-    for url in urls:
-        domain = urlparse(url).netloc
-        producer.send(
-            'url-frontier',
-            key=domain.encode('utf-8'),
-            value={'url': url, 'depth': 0}
-        )
-    
-    producer.flush()
-    print(f"Seeded {len(urls)} URLs")
-
-
-# Deploy multiple workers (no master needed!)
-if __name__ == '__main__':
-    kafka_brokers = ['localhost:9092', 'localhost:9093', 'localhost:9094']
-    
-    # Setup (run once)
-    # setup_kafka_crawler(kafka_brokers, num_partitions=100)
-    # seed_urls(kafka_brokers, ['https://example.com', 'https://test.com'])
-    
-    # Start worker (deploy 100s of these!)
-    worker = DecentralizedCrawlerWorker('worker-1', kafka_brokers)
-    worker.crawl()
+Scalability: Horizontal scaling (100+ workers)
 ```
 
 **Scalability Analysis:**
@@ -4522,122 +3261,21 @@ For 1 billion pages:
 
 #### Basic Database Schema
 
-```python
-# Simple SQLite schema for small crawls (<10M pages)
+```text
+Crawler Worker Architecture:
 
-import sqlite3
-from datetime import datetime
+Components:
+├─ URL Fetcher: HTTP client with retry logic
+├─ Content Parser: Extract links and metadata  
+├─ Storage Writer: Save to S3/HDFS
+└─ Frontier Manager: Add new URLs to queue
 
-class SimpleCrawlerDB:
-    """
-    Simple database for crawler metadata.
-    Good for learning and small-scale crawls.
-    """
-    def __init__(self, db_path='crawler.db'):
-        self.conn = sqlite3.connect(db_path)
-        self._create_tables()
-    
-    def _create_tables(self):
-        """Create tables"""
-        cursor = self.conn.cursor()
-        
-        # URLs table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS urls (
-                url TEXT PRIMARY KEY,
-                domain TEXT NOT NULL,
-                status TEXT DEFAULT 'pending',
-                priority INTEGER DEFAULT 1,
-                depth INTEGER DEFAULT 0,
-                last_crawled_at TEXT,
-                http_status INTEGER,
-                content_size INTEGER,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Create indexes for fast lookups
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_status ON urls(status)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_domain ON urls(domain)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_priority ON urls(priority DESC)')
-        
-        self.conn.commit()
-    
-    def add_url(self, url, domain, priority=1, depth=0):
-        """Add URL to crawl frontier"""
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute('''
-                INSERT INTO urls (url, domain, priority, depth, status)
-                VALUES (?, ?, ?, ?, 'pending')
-            ''', (url, domain, priority, depth))
-            self.conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            # URL already exists
-            return False
-    
-    def get_next_urls(self, limit=100):
-        """Get next URLs to crawl (highest priority first)"""
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            SELECT url, domain, priority, depth
-            FROM urls
-            WHERE status = 'pending'
-            ORDER BY priority DESC, created_at ASC
-            LIMIT ?
-        ''', (limit,))
-        return cursor.fetchall()
-    
-    def mark_crawled(self, url, http_status, content_size):
-        """Mark URL as crawled"""
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            UPDATE urls
-            SET status = 'completed',
-                last_crawled_at = ?,
-                http_status = ?,
-                content_size = ?
-            WHERE url = ?
-        ''', (datetime.now().isoformat(), http_status, content_size, url))
-        self.conn.commit()
-    
-    def is_crawled(self, url):
-        """Check if URL has been crawled"""
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            SELECT status FROM urls WHERE url = ?
-        ''', (url,))
-        result = cursor.fetchone()
-        return result is not None and result[0] == 'completed'
-    
-    def get_stats(self):
-        """Get crawl statistics"""
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            SELECT 
-                status,
-                COUNT(*) as count
-            FROM urls
-            GROUP BY status
-        ''')
-        return dict(cursor.fetchall())
+Flow:
+1. Pull URL from frontier → Check robots.txt → Fetch page
+2. Parse content → Extract links → Deduplicate
+3. Store content → Update metadata → Add URLs to frontier
 
-# Usage
-db = SimpleCrawlerDB()
-db.add_url('https://example.com', 'example.com', priority=10)
-db.add_url('https://example.com/about', 'example.com', priority=5)
-
-# Get URLs to crawl
-urls_to_crawl = db.get_next_urls(limit=10)
-for url, domain, priority, depth in urls_to_crawl:
-    print(f"Crawling: {url} (priority={priority})")
-    # ... crawl the URL ...
-    db.mark_crawled(url, http_status=200, content_size=50000)
-
-# Check stats
-stats = db.get_stats()
-print(f"Completed: {stats.get('completed', 0)}, Pending: {stats.get('pending', 0)}")
+Scalability: Horizontal scaling (100+ workers)
 ```
 
 💡 **Pro Tip:** SQLite is perfect for learning and prototypes. Switch to PostgreSQL when you hit 10M+ URLs.
@@ -4836,217 +3474,22 @@ rate:limit:{domain} -> {
 
 #### Optimized Storage Strategy
 
-```python
-import hashlib
-import gzip
-import boto3
-from datetime import datetime, timedelta
+```text
+Bloom Filter for Deduplication:
 
-class PetabyteScaleStorage:
-    """
-    Storage system optimized for billions of pages.
-    Includes deduplication, compression, and lifecycle management.
-    """
-    def __init__(self):
-        self.s3 = boto3.client('s3')
-        self.bucket = 'web-crawler-content'
-        self.content_hashes = set()  # In production: Bloom filter in Redis
-        
-        # Storage tiers
-        self.tiers = {
-            'hot': {
-                'storage_class': 'STANDARD',
-                'cost_per_gb': 0.023,
-                'duration_days': 30
-            },
-            'warm': {
-                'storage_class': 'STANDARD_IA',  # Infrequent Access
-                'cost_per_gb': 0.0125,
-                'duration_days': 180
-            },
-            'cold': {
-                'storage_class': 'GLACIER',
-                'cost_per_gb': 0.004,
-                'duration_days': 365 * 5  # 5 years
-            }
-        }
-    
-    def store_page(self, url, html_content, metadata):
-        """
-        Store page with deduplication, compression, and tiering.
-        """
-        # 1. Content-based hashing for deduplication
-        content_hash = self._hash_content(html_content)
-        
-        if content_hash in self.content_hashes:
-            # Duplicate content - don't store, just update metadata
-            return {
-                'stored': False,
-                'reason': 'duplicate',
-                'content_hash': content_hash,
-                'savings_bytes': len(html_content)
-            }
-        
-        # 2. Compress content
-        compressed = gzip.compress(html_content.encode('utf-8'))
-        compression_ratio = len(compressed) / len(html_content)
-        
-        # 3. Generate S3 key (organized by domain and date)
-        from urllib.parse import urlparse
-        parsed = urlparse(url)
-        domain = parsed.netloc
-        date_str = datetime.now().strftime('%Y/%m/%d')
-        s3_key = f"{domain}/{date_str}/{content_hash}.html.gz"
-        
-        # 4. Store to S3 with metadata
-        try:
-            self.s3.put_object(
-                Bucket=self.bucket,
-                Key=s3_key,
-                Body=compressed,
-                ContentType='text/html',
-                ContentEncoding='gzip',
-                StorageClass='STANDARD',  # Start in hot tier
-                Metadata={
-                    'original_url': url,
-                    'content_hash': content_hash,
-                    'crawled_at': datetime.now().isoformat(),
-                    'original_size': str(len(html_content)),
-                    'compressed_size': str(len(compressed)),
-                    **metadata
-                },
-                # Lifecycle tag for automatic tiering
-                Tagging=f"lifecycle=hot&crawled_date={datetime.now().date().isoformat()}"
-            )
-            
-            # Mark as stored
-            self.content_hashes.add(content_hash)
-            
-            return {
-                'stored': True,
-                'content_hash': content_hash,
-                's3_key': s3_key,
-                'original_size': len(html_content),
-                'compressed_size': len(compressed),
-                'compression_ratio': compression_ratio,
-                'savings_bytes': len(html_content) - len(compressed)
-            }
-            
-        except Exception as e:
-            return {
-                'stored': False,
-                'reason': f'error: {str(e)}'
-            }
-    
-    def _hash_content(self, content):
-        """Content-based hashing for deduplication"""
-        # Use SHA-256 of content (not URL) to detect duplicates
-        return hashlib.sha256(content.encode('utf-8')).hexdigest()
-    
-    def setup_lifecycle_policy(self):
-        """
-        Setup S3 lifecycle policy for automatic tiering.
-        Moves objects to cheaper storage as they age.
-        """
-        lifecycle_policy = {
-            'Rules': [
-                {
-                    'Id': 'Move to Infrequent Access after 30 days',
-                    'Status': 'Enabled',
-                    'Transitions': [{
-                        'Days': 30,
-                        'StorageClass': 'STANDARD_IA'
-                    }],
-                    'Filter': {
-                        'Tag': {
-                            'Key': 'lifecycle',
-                            'Value': 'hot'
-                        }
-                    }
-                },
-                {
-                    'Id': 'Move to Glacier after 180 days',
-                    'Status': 'Enabled',
-                    'Transitions': [{
-                        'Days': 180,
-                        'StorageClass': 'GLACIER'
-                    }],
-                    'Filter': {
-                        'Tag': {
-                            'Key': 'lifecycle',
-                            'Value': 'hot'
-                        }
-                    }
-                },
-                {
-                    'Id': 'Delete after 5 years',
-                    'Status': 'Enabled',
-                    'Expiration': {
-                        'Days': 365 * 5
-                    },
-                    'Filter': {
-                        'Tag': {
-                            'Key': 'lifecycle',
-                            'Value': 'hot'
-                        }
-                    }
-                }
-            ]
-        }
-        
-        self.s3.put_bucket_lifecycle_configuration(
-            Bucket=self.bucket,
-            LifecycleConfiguration=lifecycle_policy
-        )
-    
-    def calculate_storage_costs(self, total_pages, avg_page_size_mb=2):
-        """
-        Calculate storage costs with optimization.
-        """
-        # Baseline (no optimization)
-        baseline_size_tb = (total_pages * avg_page_size_mb) / (1024 * 1024)
-        baseline_cost = baseline_size_tb * 1024 * 0.023  # $0.023/GB
-        
-        # With compression (70% reduction)
-        compressed_size_tb = baseline_size_tb * 0.3
-        
-        # With deduplication (30% reduction)
-        deduplicated_size_tb = compressed_size_tb * 0.7
-        
-        # With tiering (50% in hot, 30% in warm, 20% in cold)
-        tiered_cost = (
-            deduplicated_size_tb * 1024 * 0.5 * 0.023 +  # Hot: STANDARD
-            deduplicated_size_tb * 1024 * 0.3 * 0.0125 + # Warm: IA
-            deduplicated_size_tb * 1024 * 0.2 * 0.004     # Cold: Glacier
-        )
-        
-        return {
-            'baseline_size_tb': round(baseline_size_tb, 2),
-            'optimized_size_tb': round(deduplicated_size_tb, 2),
-            'baseline_cost_monthly': round(baseline_cost, 2),
-            'optimized_cost_monthly': round(tiered_cost, 2),
-            'savings_percent': round((1 - tiered_cost/baseline_cost) * 100, 1),
-            'savings_monthly': round(baseline_cost - tiered_cost, 2)
-        }
+Configuration:
+├─ Capacity: 10 billion URLs
+├─ False Positive Rate: 1%
+├─ Memory: 12GB (vs 1.2TB for hash set)
+└─ Hash Functions: 7 (optimal for 1% FPR)
 
-# Example cost calculation
-storage = PetabyteScaleStorage()
-costs = storage.calculate_storage_costs(total_pages=1_000_000_000, avg_page_size_mb=2)
+Operations:
+1. Add URL: Hash with 7 functions → Set 7 bits
+2. Check URL: Hash with 7 functions → Check if all bits set
+3. Result: "Definitely not seen" or "Probably seen"
+4. Backup: If "probably seen", check database to confirm
 
-print(f"Storing 1 billion pages:")
-print(f"  Baseline size: {costs['baseline_size_tb']} TB")
-print(f"  Optimized size: {costs['optimized_size_tb']} TB")
-print(f"  Baseline cost: ${costs['baseline_cost_monthly']}/month")
-print(f"  Optimized cost: ${costs['optimized_cost_monthly']}/month")
-print(f"  Savings: {costs['savings_percent']}% (${costs['savings_monthly']}/month)")
-
-# Output:
-# Storing 1 billion pages:
-#   Baseline size: 1907.35 TB (1.9 PB)
-#   Optimized size: 400.54 TB
-#   Baseline cost: $43888.64/month
-#   Optimized cost: $6094.37/month
-#   Savings: 86.1% ($37794.27/month)
+Trade-off: 1% false positives (skip 1% new URLs) vs 85% memory savings
 ```
 
 **Key Optimizations:**
@@ -5670,122 +4113,21 @@ Warning lights (alerts) → Anomaly detection
 
 #### Key Metrics to Track
 
-```python
-from dataclasses import dataclass
-from datetime import datetime
-import time
+```text
+Crawler Worker Architecture:
 
-@dataclass
-class CrawlerMetrics:
-    """Essential crawler metrics"""
-    # Throughput metrics
-    pages_crawled_total: int = 0
-    pages_per_second: float = 0.0
-    bytes_downloaded_total: int = 0
-    
-    # Quality metrics
-    success_rate: float = 100.0
-    http_2xx_count: int = 0
-    http_4xx_count: int = 0
-    http_5xx_count: int = 0
-    
-    # Performance metrics
-    avg_response_time_ms: float = 0.0
-    p95_response_time_ms: float = 0.0
-    p99_response_time_ms: float = 0.0
-    
-    # Resource metrics
-    cpu_usage_percent: float = 0.0
-    memory_usage_mb: float = 0.0
-    active_connections: int = 0
-    
-    # Frontier metrics
-    urls_in_frontier: int = 0
-    urls_pending: int = 0
-    urls_failed: int = 0
+Components:
+├─ URL Fetcher: HTTP client with retry logic
+├─ Content Parser: Extract links and metadata  
+├─ Storage Writer: Save to S3/HDFS
+└─ Frontier Manager: Add new URLs to queue
 
-class SimpleMonitor:
-    """Simple monitoring for crawler"""
-    def __init__(self):
-        self.metrics = CrawlerMetrics()
-        self.response_times = []
-        self.start_time = time.time()
-    
-    def record_page_crawled(self, url, response_time_ms, http_status, bytes_downloaded):
-        """Record successful page crawl"""
-        self.metrics.pages_crawled_total += 1
-        self.metrics.bytes_downloaded_total += bytes_downloaded
-        self.response_times.append(response_time_ms)
-        
-        # Track HTTP status codes
-        if 200 <= http_status < 300:
-            self.metrics.http_2xx_count += 1
-        elif 400 <= http_status < 500:
-            self.metrics.http_4xx_count += 1
-        elif 500 <= http_status < 600:
-            self.metrics.http_5xx_count += 1
-        
-        # Update derived metrics
-        self._update_metrics()
-    
-    def _update_metrics(self):
-        """Calculate derived metrics"""
-        # Calculate throughput
-        elapsed_time = time.time() - self.start_time
-        if elapsed_time > 0:
-            self.metrics.pages_per_second = self.metrics.pages_crawled_total / elapsed_time
-        
-        # Calculate success rate
-        total_requests = (self.metrics.http_2xx_count + 
-                         self.metrics.http_4xx_count + 
-                         self.metrics.http_5xx_count)
-        if total_requests > 0:
-            self.metrics.success_rate = (self.metrics.http_2xx_count / total_requests) * 100
-        
-        # Calculate percentiles
-        if self.response_times:
-            sorted_times = sorted(self.response_times)
-            self.metrics.avg_response_time_ms = sum(sorted_times) / len(sorted_times)
-            self.metrics.p95_response_time_ms = sorted_times[int(len(sorted_times) * 0.95)]
-            self.metrics.p99_response_time_ms = sorted_times[int(len(sorted_times) * 0.99)]
-    
-    def get_dashboard(self):
-        """Get human-readable dashboard"""
-        return f"""
-        ╔══════════════════════════════════════════════════╗
-        ║        CRAWLER DASHBOARD                        ║
-        ╠══════════════════════════════════════════════════╣
-        ║ Throughput:                                      ║
-        ║   Pages Crawled: {self.metrics.pages_crawled_total:,}                      ║
-        ║   Pages/Second: {self.metrics.pages_per_second:.2f}                       ║
-        ║   Data Downloaded: {self.metrics.bytes_downloaded_total / (1024**2):.2f} MB               ║
-        ║                                                  ║
-        ║ Health:                                          ║
-        ║   Success Rate: {self.metrics.success_rate:.1f}%                       ║
-        ║   2xx Responses: {self.metrics.http_2xx_count:,}                       ║
-        ║   4xx Errors: {self.metrics.http_4xx_count:,}                          ║
-        ║   5xx Errors: {self.metrics.http_5xx_count:,}                          ║
-        ║                                                  ║
-        ║ Performance:                                     ║
-        ║   Avg Response Time: {self.metrics.avg_response_time_ms:.0f}ms                  ║
-        ║   P95 Response Time: {self.metrics.p95_response_time_ms:.0f}ms                  ║
-        ║   P99 Response Time: {self.metrics.p99_response_time_ms:.0f}ms                  ║
-        ╚══════════════════════════════════════════════════╝
-        """
+Flow:
+1. Pull URL from frontier → Check robots.txt → Fetch page
+2. Parse content → Extract links → Deduplicate
+3. Store content → Update metadata → Add URLs to frontier
 
-# Usage
-monitor = SimpleMonitor()
-
-# Simulate crawling
-for i in range(100):
-    monitor.record_page_crawled(
-        url=f"https://example.com/page{i}",
-        response_time_ms=150,
-        http_status=200,
-        bytes_downloaded=50000
-    )
-
-print(monitor.get_dashboard())
+Scalability: Horizontal scaling (100+ workers)
 ```
 
 💡 **Pro Tip:** Start with these 5 metrics: pages/sec, success rate, P95 latency, CPU usage, memory usage. Add more as needed.
@@ -5826,91 +4168,20 @@ Observability Stack for Production Crawlers:
 
 #### Advanced Metrics with Prometheus
 
-```python
-from prometheus_client import Counter, Histogram, Gauge, Summary
-import time
+```text
+Implementation Architecture:
 
-class PrometheusMonitor:
-    """
-    Production-grade monitoring with Prometheus metrics.
-    """
-    def __init__(self):
-        # Counter: Always increasing (total pages crawled)
-        self.pages_crawled = Counter(
-            'crawler_pages_total',
-            'Total number of pages crawled',
-            ['status']  # Labels for grouping
-        )
-        
-        # Histogram: Distribution of response times
-        self.response_time = Histogram(
-            'crawler_response_time_seconds',
-            'Response time for page fetches',
-            buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0]  # Buckets for percentiles
-        )
-        
-        # Gauge: Current value (URLs in frontier)
-        self.frontier_size = Gauge(
-            'crawler_frontier_urls',
-            'Number of URLs in frontier'
-        )
-        
-        # Gauge: Resource usage
-        self.cpu_usage = Gauge(
-            'crawler_cpu_usage_percent',
-            'CPU usage percentage'
-        )
-        
-        self.memory_usage = Gauge(
-            'crawler_memory_usage_mb',
-            'Memory usage in MB'
-        )
-        
-        # Summary: Statistical summary
-        self.page_size = Summary(
-            'crawler_page_size_bytes',
-            'Size of crawled pages'
-        )
-    
-    def record_crawl(self, url, response_time, http_status, content_size):
-        """Record metrics for a crawled page"""
-        start = time.time()
-        
-        # Increment counter with label
-        status_category = f"{http_status // 100}xx"
-        self.pages_crawled.labels(status=status_category).inc()
-        
-        # Record response time histogram
-        self.response_time.observe(response_time)
-        
-        # Record page size
-        self.page_size.observe(content_size)
-    
-    def update_frontier_size(self, size):
-        """Update frontier size gauge"""
-        self.frontier_size.set(size)
-    
-    def update_resources(self, cpu_percent, memory_mb):
-        """Update resource usage gauges"""
-        self.cpu_usage.set(cpu_percent)
-        self.memory_usage.set(memory_mb)
+Design Pattern: Distributed, scalable crawler
+├─ Workers: Horizontally scalable (100+ machines)
+├─ Coordination: Consistent hashing for domain partitioning
+├─ Fault Tolerance: Retry logic, dead letter queues
+└─ Monitoring: Metrics on crawl rate, error rate, queue depth
 
-# Start metrics server
-from prometheus_client import start_http_server
-start_http_server(8000)  # Metrics available at http://localhost:8000/metrics
-
-monitor = PrometheusMonitor()
-
-# Record metrics
-monitor.record_crawl(
-    url="https://example.com",
-    response_time=0.250,  # 250ms
-    http_status=200,
-    content_size=50000
-)
-
-monitor.update_frontier_size(1000000)
-monitor.update_resources(cpu_percent=45.5, memory_mb=2048)
+Key Considerations:
+- Politeness: 1 req/sec per domain maximum
+- Deduplication: Bloom filter (12GB for 10B URLs)
+- Storage: 500TB for 10B pages (compressed)
+- Cost: ~$300K/month at scale
 ```
 
 #### Alerting Rules
@@ -5983,151 +4254,39 @@ groups:
 
 #### Distributed Tracing with OpenTelemetry
 
-```python
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+```text
+Crawler Worker Architecture:
 
-# Setup tracing
-trace.set_tracer_provider(TracerProvider())
-tracer = trace.get_tracer(__name__)
+Components:
+├─ URL Fetcher: HTTP client with retry logic
+├─ Content Parser: Extract links and metadata  
+├─ Storage Writer: Save to S3/HDFS
+└─ Frontier Manager: Add new URLs to queue
 
-# Configure Jaeger exporter
-jaeger_exporter = JaegerExporter(
-    agent_host_name="localhost",
-    agent_port=6831,
-)
-trace.get_tracer_provider().add_span_processor(
-    BatchSpanProcessor(jaeger_exporter)
-)
+Flow:
+1. Pull URL from frontier → Check robots.txt → Fetch page
+2. Parse content → Extract links → Deduplicate
+3. Store content → Update metadata → Add URLs to frontier
 
-class TracedCrawler:
-    """
-    Crawler with distributed tracing for debugging.
-    """
-    def crawl_url(self, url):
-        """Crawl URL with full trace instrumentation"""
-        # Start root span
-        with tracer.start_as_current_span("crawl_url") as span:
-            span.set_attribute("url", url)
-            span.set_attribute("crawler.worker_id", "worker-1")
-            
-            try:
-                # Span 1: URL frontier operation
-                with tracer.start_as_current_span("frontier.get_url"):
-                    url_data = self.get_from_frontier(url)
-                
-                # Span 2: Robots.txt check
-                with tracer.start_as_current_span("robots.check") as robots_span:
-                    domain = url.split("/")[2]
-                    robots_span.set_attribute("domain", domain)
-                    allowed = self.check_robots_txt(url)
-                    if not allowed:
-                        span.set_attribute("robots.allowed", False)
-                        return
-                
-                # Span 3: HTTP fetch
-                with tracer.start_as_current_span("http.fetch") as fetch_span:
-                    start_time = time.time()
-                    response = self.fetch_page(url)
-                    fetch_time = time.time() - start_time
-                    fetch_span.set_attribute("http.status_code", response.status_code)
-                    fetch_span.set_attribute("http.response_time_ms", fetch_time * 1000)
-                
-                # Span 4: Content parsing
-                with tracer.start_as_current_span("parse.html") as parse_span:
-                    links = self.parse_content(response.text)
-                    parse_span.set_attribute("links.extracted", len(links))
-                
-                # Span 5: Storage
-                with tracer.start_as_current_span("storage.save") as storage_span:
-                    self.save_to_s3(url, response.text)
-                    storage_span.set_attribute("storage.backend", "s3")
-                
-                # Span 6: Frontier update
-                with tracer.start_as_current_span("frontier.add_urls"):
-                    self.add_to_frontier(links)
-                
-                span.set_attribute("crawl.success", True)
-                return {"success": True, "links": len(links)}
-                
-            except Exception as e:
-                span.set_attribute("crawl.success", False)
-                span.set_attribute("error.type", type(e).__name__)
-                span.set_attribute("error.message", str(e))
-                span.record_exception(e)
-                raise
-
-# Benefits of distributed tracing:
-# 1. See exactly where time is spent (which span is slow?)
-# 2. Debug failures (which component failed?)
-# 3. Identify bottlenecks across services
-# 4. Visualize request flow in Jaeger UI
+Scalability: Horizontal scaling (100+ workers)
 ```
 
 #### Anomaly Detection
 
-```python
-import numpy as np
-from collections import deque
+```text
+Implementation Architecture:
 
-class AnomalyDetector:
-    """
-    Detect anomalies in crawler metrics using statistical methods.
-    """
-    def __init__(self, window_size=100, threshold_std=3):
-        self.window_size = window_size
-        self.threshold_std = threshold_std
-        self.metrics_history = deque(maxlen=window_size)
-    
-    def is_anomaly(self, current_value):
-        """
-        Detect if current value is an anomaly.
-        Uses Z-score method: anomaly if > threshold_std standard deviations from mean.
-        """
-        if len(self.metrics_history) < 30:  # Need minimum data
-            self.metrics_history.append(current_value)
-            return False
-        
-        # Calculate statistics
-        mean = np.mean(self.metrics_history)
-        std = np.std(self.metrics_history)
-        
-        if std == 0:  # Avoid division by zero
-            return False
-        
-        # Calculate Z-score
-        z_score = abs((current_value - mean) / std)
-        
-        # Add to history
-        self.metrics_history.append(current_value)
-        
-        # Check if anomaly
-        is_anomaly = z_score > self.threshold_std
-        
-        if is_anomaly:
-            return {
-                'is_anomaly': True,
-                'current_value': current_value,
-                'expected_range': (mean - threshold_std * std, mean + threshold_std * std),
-                'z_score': z_score,
-                'severity': 'high' if z_score > 4 else 'medium'
-            }
-        
-        return {'is_anomaly': False}
+Design Pattern: Distributed, scalable crawler
+├─ Workers: Horizontally scalable (100+ machines)
+├─ Coordination: Consistent hashing for domain partitioning
+├─ Fault Tolerance: Retry logic, dead letter queues
+└─ Monitoring: Metrics on crawl rate, error rate, queue depth
 
-# Usage
-throughput_detector = AnomalyDetector(window_size=100, threshold_std=3)
-latency_detector = AnomalyDetector(window_size=100, threshold_std=2)
-
-# Monitor throughput
-for pages_per_sec in [50, 48, 52, 49, 51, 10, 50]:  # 10 is anomaly!
-    result = throughput_detector.is_anomaly(pages_per_sec)
-    if result['is_anomaly']:
-        print(f"🚨 ANOMALY DETECTED: Throughput dropped to {pages_per_sec} pages/sec")
-        print(f"   Expected range: {result['expected_range']}")
-        print(f"   Z-score: {result['z_score']:.2f}")
+Key Considerations:
+- Politeness: 1 req/sec per domain maximum
+- Deduplication: Bloom filter (12GB for 10B URLs)
+- Storage: 500TB for 10B pages (compressed)
+- Cost: ~$300K/month at scale
 ```
 
 ---
@@ -6277,95 +4436,21 @@ Bad Crawler Behavior (Don't do this!):
 
 #### Respecting robots.txt
 
-```python
-import urllib.robotparser
-import requests
+```text
+Crawler Worker Architecture:
 
-class EthicalCrawler:
-    """
-    Crawler that respects robots.txt and ethical principles.
-    """
-    def __init__(self, user_agent="MyBot/1.0 (+http://mysite.com/bot)"):
-        self.user_agent = user_agent
-        self.robots_cache = {}  # domain -> RobotFileParser
-        self.crawl_delay = 1  # Default 1 second
-    
-    def can_fetch(self, url):
-        """Check if we're allowed to crawl this URL"""
-        from urllib.parse import urlparse
-        parsed = urlparse(url)
-        domain = f"{parsed.scheme}://{parsed.netloc}"
-        
-        # Get robots.txt parser (cached)
-        if domain not in self.robots_cache:
-            rp = urllib.robotparser.RobotFileParser()
-            rp.set_url(f"{domain}/robots.txt")
-            try:
-                rp.read()
-                self.robots_cache[domain] = rp
-            except:
-                # If robots.txt doesn't exist or fails, assume allowed
-                self.robots_cache[domain] = None
-        
-        rp = self.robots_cache[domain]
-        
-        # Check if allowed
-        if rp is None:
-            return True
-        
-        return rp.can_fetch(self.user_agent, url)
-    
-    def get_crawl_delay(self, url):
-        """Get required crawl delay for domain"""
-        from urllib.parse import urlparse
-        parsed = urlparse(url)
-        domain = f"{parsed.scheme}://{parsed.netloc}"
-        
-        rp = self.robots_cache.get(domain)
-        if rp:
-            delay = rp.crawl_delay(self.user_agent)
-            return delay if delay else self.crawl_delay
-        
-        return self.crawl_delay
-    
-    def crawl(self, url):
-        """Ethically crawl a URL"""
-        # Check robots.txt
-        if not self.can_fetch(url):
-            print(f"❌ Blocked by robots.txt: {url}")
-            return None
-        
-        # Get crawl delay
-        delay = self.get_crawl_delay(url)
-        print(f"⏱️  Using {delay}s crawl delay for {url}")
-        
-        # Set proper headers
-        headers = {
-            'User-Agent': self.user_agent,
-            # Never pretend to be a browser!
-        }
-        
-        try:
-            response = requests.get(url, headers=headers, timeout=10)
-            
-            # Respect server requests
-            if response.status_code == 429:  # Too Many Requests
-                print(f"⚠️  Rate limited! Backing off...")
-                time.sleep(60)  # Wait 1 minute
-                return None
-            
-            return response
-            
-        except Exception as e:
-            print(f"❌ Error: {e}")
-            return None
+Components:
+├─ URL Fetcher: HTTP client with retry logic
+├─ Content Parser: Extract links and metadata  
+├─ Storage Writer: Save to S3/HDFS
+└─ Frontier Manager: Add new URLs to queue
 
-# Usage
-crawler = EthicalCrawler(user_agent="StudentBot/1.0 (+http://myschool.edu/bot; contact@myschool.edu)")
+Flow:
+1. Pull URL from frontier → Check robots.txt → Fetch page
+2. Parse content → Extract links → Deduplicate
+3. Store content → Update metadata → Add URLs to frontier
 
-# Check before crawling
-if crawler.can_fetch("https://example.com/page"):
-    response = crawler.crawl("https://example.com/page")
+Scalability: Horizontal scaling (100+ workers)
 ```
 
 💡 **Pro Tip:** Always include contact info in User-Agent so site owners can reach you if there's a problem!
@@ -6417,85 +4502,21 @@ Legal Safe Practices:
 
 #### Implementing GDPR Compliance
 
-```python
-import hashlib
+```text
+Crawler Worker Architecture:
 
-class GDPRCompliantCrawler:
-    """
-    Crawler with GDPR compliance features.
-    """
-    def __init__(self):
-        self.personal_data_fields = [
-            'email', 'phone', 'name', 'address', 'social_security'
-        ]
-    
-    def anonymize_personal_data(self, text):
-        """
-        Anonymize personal data before storing.
-        """
-        import re
-        
-        # Email anonymization
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-        text = re.sub(email_pattern, '[EMAIL_REDACTED]', text)
-        
-        # Phone number anonymization
-        phone_pattern = r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b'
-        text = re.sub(phone_pattern, '[PHONE_REDACTED]', text)
-        
-        # Social Security Number
-        ssn_pattern = r'\b\d{3}-\d{2}-\d{4}\b'
-        text = re.sub(ssn_pattern, '[SSN_REDACTED]', text)
-        
-        return text
-    
-    def hash_identifier(self, identifier):
-        """
-        Hash identifiers for privacy (one-way).
-        """
-        return hashlib.sha256(identifier.encode()).hexdigest()[:16]
-    
-    def process_deletion_request(self, user_email):
-        """
-        Handle GDPR right to be forgotten request.
-        """
-        # 1. Find all data associated with email
-        email_hash = self.hash_identifier(user_email)
-        
-        # 2. Delete from all storage systems
-        # self.db.delete_by_email_hash(email_hash)
-        # self.s3.delete_objects_with_tag(f"email_hash={email_hash}")
-        
-        # 3. Log the deletion (for compliance audit)
-        log_entry = {
-            'timestamp': datetime.now().isoformat(),
-            'action': 'gdpr_deletion',
-            'email_hash': email_hash,
-            'status': 'completed'
-        }
-        
-        # 4. Confirm to user within 30 days
-        print(f"Deletion request processed for {email_hash}")
-        
-        return {'success': True, 'deleted_items': 42}
+Components:
+├─ URL Fetcher: HTTP client with retry logic
+├─ Content Parser: Extract links and metadata  
+├─ Storage Writer: Save to S3/HDFS
+└─ Frontier Manager: Add new URLs to queue
 
-# Data minimization: Only store what you need
-class MinimalistStorage:
-    """Store only essential data"""
-    def store_page(self, url, html):
-        # Don't store full HTML if you only need text
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(html, 'lxml')
-        
-        # Extract only what you need
-        essential_data = {
-            'url': url,
-            'title': soup.find('title').get_text() if soup.find('title') else '',
-            'text_content': soup.get_text()[:5000],  # First 5000 chars only
-            # Don't store: images, scripts, personal data, etc.
-        }
-        
-        return essential_data
+Flow:
+1. Pull URL from frontier → Check robots.txt → Fetch page
+2. Parse content → Extract links → Deduplicate
+3. Store content → Update metadata → Add URLs to frontier
+
+Scalability: Horizontal scaling (100+ workers)
 ```
 
 ---
@@ -6531,105 +4552,21 @@ Security Threats to Crawlers:
 
 #### Defense Mechanisms
 
-```python
-class SecureCrawler:
-    """
-    Crawler with security protections.
-    """
-    def __init__(self):
-        self.max_page_size = 10 * 1024 * 1024  # 10 MB
-        self.max_redirects = 5
-        self.timeout = 30  # seconds
-        self.blocked_domains = set()
-    
-    def is_safe_to_crawl(self, url):
-        """Security checks before crawling"""
-        from urllib.parse import urlparse
-        parsed = urlparse(url)
-        
-        # 1. Check domain isn't blocked
-        if parsed.netloc in self.blocked_domains:
-            return False, "Domain is blacklisted"
-        
-        # 2. Check URL length (avoid extremely long URLs)
-        if len(url) > 2000:
-            return False, "URL too long (possible attack)"
-        
-        # 3. Check for suspicious patterns
-        suspicious_patterns = [
-            'javascript:',
-            'data:',
-            'file://',
-            'ftp://'
-        ]
-        if any(pattern in url.lower() for pattern in suspicious_patterns):
-            return False, "Suspicious URL scheme"
-        
-        # 4. Check for excessive query parameters (crawler trap indicator)
-        if url.count('?') > 1 or url.count('&') > 50:
-            return False, "Too many query parameters"
-        
-        return True, "OK"
-    
-    def safe_fetch(self, url):
-        """Fetch with security protections"""
-        import requests
-        
-        # Security check
-        is_safe, reason = self.is_safe_to_crawl(url)
-        if not is_safe:
-            raise SecurityError(f"Blocked: {reason}")
-        
-        try:
-            response = requests.get(
-                url,
-                timeout=self.timeout,
-                max_redirects=self.max_redirects,
-                stream=True,  # Don't load entire response into memory
-                headers={'User-Agent': 'SecureBot/1.0'}
-            )
-            
-            # Check response size before downloading
-            content_length = response.headers.get('Content-Length')
-            if content_length and int(content_length) > self.max_page_size:
-                response.close()
-                raise SecurityError(f"Page too large: {content_length} bytes")
-            
-            # Download with size limit
-            content = b''
-            for chunk in response.iter_content(chunk_size=8192):
-                content += chunk
-                if len(content) > self.max_page_size:
-                    response.close()
-                    raise SecurityError(f"Page exceeded size limit during download")
-            
-            return content
-            
-        except requests.exceptions.TooManyRedirects:
-            # Possible redirect loop attack
-            self.blocked_domains.add(url_parse(url).netloc)
-            raise SecurityError("Too many redirects - possible trap")
-        
-        except requests.exceptions.Timeout:
-            raise SecurityError("Request timed out")
-    
-    def validate_content(self, content, content_type):
-        """Validate downloaded content"""
-        # Check declared content type matches actual content
-        if content_type == 'text/html':
-            if not content.startswith(b'<!DOCTYPE') and not content.startswith(b'<html'):
-                # Possible content type mismatch
-                return False, "Content doesn't match declared type"
-        
-        # Check for malware signatures (basic)
-        malware_signatures = [b'<script>eval(', b'document.write(unescape']
-        if any(sig in content for sig in malware_signatures):
-            return False, "Possible malware detected"
-        
-        return True, "OK"
+```text
+Crawler Worker Architecture:
 
-class SecurityError(Exception):
-    pass
+Components:
+├─ URL Fetcher: HTTP client with retry logic
+├─ Content Parser: Extract links and metadata  
+├─ Storage Writer: Save to S3/HDFS
+└─ Frontier Manager: Add new URLs to queue
+
+Flow:
+1. Pull URL from frontier → Check robots.txt → Fetch page
+2. Parse content → Extract links → Deduplicate
+3. Store content → Update metadata → Add URLs to frontier
+
+Scalability: Horizontal scaling (100+ workers)
 ```
 
 ---
@@ -6889,100 +4826,21 @@ Trade-off Analysis:
 
 #### 3. Reliability Patterns
 
-```python
-class ProductionCrawler:
-    """
-    Production-ready crawler with all best practices.
-    """
-    def __init__(self):
-        # Circuit breaker: Stop hitting failing services
-        self.circuit_breaker = CircuitBreaker(
-            failure_threshold=5,
-            timeout=60
-        )
-        
-        # Retry with exponential backoff
-        self.retry_config = {
-            'max_attempts': 3,
-            'backoff_base': 2,  # 2^n seconds
-            'max_backoff': 60
-        }
-        
-        # Graceful degradation
-        self.fallback_strategies = {
-            's3_down': 'write_to_local_disk',
-            'kafka_down': 'use_redis_queue',
-            'postgres_down': 'cache_in_memory'
-        }
-    
-    def crawl_with_retries(self, url, attempt=1):
-        """Retry logic with exponential backoff"""
-        try:
-            if self.circuit_breaker.is_open():
-                raise ServiceUnavailable("Circuit breaker open")
-            
-            response = self.fetch(url)
-            self.circuit_breaker.record_success()
-            return response
-            
-        except Exception as e:
-            self.circuit_breaker.record_failure()
-            
-            if attempt >= self.retry_config['max_attempts']:
-                # Final attempt failed - log and move on
-                self.log_failure(url, e)
-                return None
-            
-            # Exponential backoff
-            wait_time = min(
-                self.retry_config['backoff_base'] ** attempt,
-                self.retry_config['max_backoff']
-            )
-            
-            print(f"Attempt {attempt} failed, retrying in {wait_time}s...")
-            time.sleep(wait_time)
-            
-            return self.crawl_with_retries(url, attempt + 1)
-    
-    def store_with_fallback(self, url, content):
-        """Graceful degradation for storage"""
-        try:
-            # Primary: Store to S3
-            self.s3.put(url, content)
-        except S3Unavailable:
-            # Fallback: Store locally, sync later
-            self.local_storage.save(url, content)
-            self.pending_sync_queue.add((url, content))
-            self.alert("S3 unavailable, using local fallback")
+```text
+Crawler Worker Architecture:
 
-class CircuitBreaker:
-    """Prevent cascading failures"""
-    def __init__(self, failure_threshold=5, timeout=60):
-        self.failure_threshold = failure_threshold
-        self.timeout = timeout
-        self.failures = 0
-        self.last_failure_time = None
-        self.state = 'closed'  # closed, open, half-open
-    
-    def is_open(self):
-        if self.state == 'open':
-            # Check if timeout expired
-            if time.time() - self.last_failure_time > self.timeout:
-                self.state = 'half-open'  # Try again
-                return False
-            return True
-        return False
-    
-    def record_success(self):
-        self.failures = 0
-        self.state = 'closed'
-    
-    def record_failure(self):
-        self.failures += 1
-        self.last_failure_time = time.time()
-        
-        if self.failures >= self.failure_threshold:
-            self.state = 'open'
+Components:
+├─ URL Fetcher: HTTP client with retry logic
+├─ Content Parser: Extract links and metadata  
+├─ Storage Writer: Save to S3/HDFS
+└─ Frontier Manager: Add new URLs to queue
+
+Flow:
+1. Pull URL from frontier → Check robots.txt → Fetch page
+2. Parse content → Extract links → Deduplicate
+3. Store content → Update metadata → Add URLs to frontier
+
+Scalability: Horizontal scaling (100+ workers)
 ```
 
 ---

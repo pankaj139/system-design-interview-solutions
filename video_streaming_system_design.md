@@ -927,6 +927,33 @@ YouTube Scale:
 
 **Answer:** * **What the interviewer wants to know:** - Do you understand distributed processing? - Can you handle queue management? - Do you think about cost optimization? **Answer Framework:** ```text 1. Horizontal Scaling ├─ Workers: Add more transcoding workers ├─ Auto-scaling: Scale based on queue depth └─ Spot instances: 70% cost savings 2. Distributed Processing ├─ Split: Break video into segments ├─ Parallel: Process segments in parallel └─ Merge: Combine processed segments 3. Priority Queue ├─ P1: Paid users, viral videos (5 min SLA) ├─ P2: Regular users (30 min SLA) └─ P3: Batch re-encoding (24 hour SLA) 4. Smart Encoding ├─ Lazy: Only encode popular formats first ├─ On-demand: Encode other formats as requested └─ Per-title: Optimize settings per video 5. GPU Acceleration ├─ Hardware: NVIDIA T4, A100 GPUs ├─ Speed: 10x faster than CPU └─ Cost: 50% cheaper overall Scaling Example: ├─ 100 workers: Process 1,200 videos/hour ├─ Scale to 500: Process 6,000 videos/hour └─ Cost: $0.10/video (CPU) vs $0.05 (GPU) ``` **Follow-up: What if the transcoding pipeline is 6 hours behind?** ```text Step 1: Assess Impact ├─ Normal queue: 500 videos ├─ Current backlog: 10,000 videos ├─ Processing rate: 100 workers × 12/hour = 1,200/hour └─ Time to clear: 8.3 hours Step 2: Immediate Actions (15 minutes) ├─ Scale up: 100 → 500 workers (clear in 2 hours) ├─ Prioritize: Paid users first └─ Communicate: Email users with ETA Step 3: Root Cause ├─ Traffic spike: 5x normal uploads (influencer campaign) ├─ Worker failures: 20% failed (memory leak) └─ Fix: Restart failed workers, scale preventively Step 4: Long-term ├─ Predictive scaling: Scale before spikes ├─ Queue-based auto-scaling: Trigger at 500+ queue └─ Worker health: Auto-replace unhealthy workers ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q2:** How do you handle video thumbnail generation?
@@ -936,6 +963,33 @@ YouTube Scale:
 
 **Answer:** * **Answer Framework:** ```text 1. Automatic Generation ├─ Extract: 3-5 frames at different timestamps ├─ Timing: 0s, 25%, 50%, 75%, 100% └─ Quality: Analyze frame quality (blur, brightness) 2. Smart Frame Selection ├─ ML Model: Detect interesting frames ├─ Criteria: Faces, action, color contrast └─ Avoid: Black frames, transitions, logos 3. Custom Thumbnails ├─ Upload: User uploads custom image ├─ Validation: Check dimensions, file size └─ Processing: Resize to standard sizes 4. Multiple Sizes ├─ Small: 120x90 (mobile list view) ├─ Medium: 320x180 (desktop list) ├─ Large: 1280x720 (player preview) └─ Format: WebP (smaller), JPEG (fallback) 5. Storage & Delivery ├─ Storage: S3 with CloudFront CDN ├─ Cache: CDN cache for 30 days └─ Lazy load: Load thumbnails as user scrolls Processing Pipeline: ├─ Video uploaded → Extract frames (5 seconds) ├─ ML analysis → Select best frame (10 seconds) └─ Generate sizes → Upload to CDN (15 seconds) Total: 30 seconds ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** How do you prevent duplicate video uploads?
@@ -945,6 +999,33 @@ YouTube Scale:
 
 **Answer:** * **Answer Framework:** ```text 1. Content Fingerprinting ├─ Generate hash: Perceptual hash of video frames ├─ Store: In database with video_id └─ Check: Before allowing upload 2. Metadata Comparison ├─ Check: File size, duration, title ├─ Threshold: 95% similarity └─ Warning: "Similar video exists" 3. User-Level Deduplication ├─ Check: Same user uploading same file ├─ Block: Exact duplicates └─ Allow: Different users (shared content) 4. Visual Similarity ├─ Compare: Key frames from videos ├─ ML Model: Siamese network for similarity └─ Threshold: 90% visual similarity Trade-off: False positives vs storage cost ├─ Strict: Save storage, may block legitimate uploads └─ Lenient: Allow duplicates, higher storage cost ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
@@ -1308,6 +1389,33 @@ Result:
 
 **Answer:** * **Scenario:** 20% of EU users report buffering, started 30 min ago. **Answer Framework:** ```text Step 1: Gather Information (2 min) ├─ When: Started 30 min ago, sudden onset ├─ Who: Only Vodafone UK users ├─ What: All videos affected └─ Where: London region Step 2: Check Metrics (3 min) ├─ CDN: London edge nodes 50% packet loss ├─ Network: High latency 500ms vs normal 50ms ├─ Origin: Normal, no issues └─ Finding: CDN edge node failure in London Step 3: Immediate Mitigation (5 min) ├─ Failover: Route Vodafone UK → Paris edge nodes ├─ Contact: Alert CDN provider about London issues ├─ Monitor: Watch if problem spreads └─ Code: aws route53 change-resource-record-sets \ --change-batch file://failover-london.json Step 4: Long-term Fix ├─ Multi-CDN: Setup Cloudflare + Akamai redundancy ├─ Auto-failover: Detect and route automatically ├─ Health checks: Monitor each edge node every 30s └─ Runbook: Document incident response Post-Mortem: ├─ Root cause: London DC power outage ├─ Impact: 20% users, 45 min downtime ├─ Prevention: Multi-CDN implemented └─ Detection: Automated alerts improved (30s → 5s) ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
@@ -1978,6 +2086,33 @@ graph TB
 
 **Answer:** * **Answer Framework:** ```text 1. Tiered Storage Strategy ├─ Hot (S3 Standard): Recently uploaded, popular (10% of content, 90% of views) ├─ Warm (S3 IA): Uploaded 30-90 days ago (30% of content, 9% of views) └─ Cold (Glacier): >90 days, rarely watched (60% of content, 1% of views) 2. Cost Breakdown (100 PB library) ├─ All S3 Standard: 100 PB × $23/TB = $2.3M/month ├─ Tiered approach: - Hot: 10 PB × $23/TB = $230K - Warm: 30 PB × $12.50/TB = $375K - Cold: 60 PB × $1/TB = $60K └─ Total: $665K/month (71% savings!) 3. Lifecycle Policies ├─ Auto-transition: S3 → IA after 30 days ├─ Archive: IA → Glacier after 90 days └─ Retrieval: On-demand restore for cold content 4. Intelligent Tiering ├─ Monitor: Track access patterns ├─ Promote: Move popular cold videos to hot └─ Demote: Move unpopular hot videos to cold 5. Deletion Strategy ├─ Soft delete: Mark deleted, keep 30 days ├─ Hard delete: Permanent after 30 days └─ Legal hold: Keep longer for DMCA/legal ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q2:** How do you handle video storage migrations?
@@ -1987,6 +2122,33 @@ graph TB
 
 **Answer:** * **Answer Framework:** ```text Scenario: Migrating 50 PB from S3 to custom storage Step 1: Planning (2-4 weeks) ├─ Inventory: List all videos, sizes, access patterns ├─ Prioritization: Migrate popular content last ├─ Dual-write: Write to both old and new storage └─ Testing: Test with 1% of traffic Step 2: Migration Execution (3-6 months) ├─ Phase 1: Migrate cold content (60%, low risk) ├─ Phase 2: Migrate warm content (30%, medium risk) ├─ Phase 3: Migrate hot content (10%, high risk) └─ Validation: Verify checksums after copy Step 3: Cutover ├─ DNS: Update CDN origin to new storage ├─ Monitor: Watch error rates, latency ├─ Rollback: Keep old storage for 30 days └─ Cleanup: Delete from old storage after verification Step 4: Optimization ├─ Dedupe: Remove duplicate content ├─ Compress: Re-encode with better codecs └─ Archive: Move old content to cheaper tiers Risks & Mitigation: ├─ Data loss: Verify checksums, keep dual write ├─ Performance: Gradual rollout, monitor metrics └─ Cost: Budget 2x during migration period ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
@@ -2614,6 +2776,33 @@ Why so many models?
 
 **Answer:** * **Answer Framework:** ```text 1. Metadata Search ├─ Index: Title, description, tags, creator name ├─ Technology: Elasticsearch for full-text search └─ Query: Full-text search with ranking (TF-IDF) 2. Video Content Analysis ├─ Speech-to-text: Extract spoken words from video ├─ Object detection: Identify objects in frames (ML) ├─ Scene detection: Categorize content automatically └─ OCR: Extract text from video frames 3. User Context & Personalization ├─ Personalization: Boost based on past watch history ├─ Trending: Popular searches today ├─ Geographic: Local content priority └─ Language: Match user's language preference 4. Ranking Algorithm ├─ Relevance: TF-IDF score for query match ├─ Popularity: View count, engagement rate ├─ Recency: Upload date (newer = higher) ├─ Personalization: User watch history └─ Quality: Completion rate, likes/dislikes 5. Performance Optimization ├─ Caching: Cache popular search results (1 hour TTL) ├─ Auto-complete: Suggest as user types ├─ Typo correction: "Did you mean...?" └─ Pagination: 20 results per page Example Query: "How to cook pasta" ├─ Match: Title/description with "cook" + "pasta" ├─ Boost: Videos with >80% completion rate ├─ Filter: User's language preference └─ Results: Top 20 ranked by relevance + popularity ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q2:** How do you implement trending/viral video detection?
@@ -2623,6 +2812,33 @@ Why so many models?
 
 **Answer:** * **Answer Framework:** ```text 1. Metrics Collection ├─ View velocity: Views per hour (not total views) ├─ Engagement: Likes, comments, shares per view ├─ Growth rate: % increase over last hour └─ Retention: Watch time completion rate 2. Trending Score Algorithm ├─ Recency: Decay factor for video age ├─ Velocity: Exponential weight for rapid growth ├─ Engagement: Weight likes/comments/shares └─ Formula: score = (views * engagement_rate) / (age_hours + 2)^1.5 3. Detection Criteria ├─ Threshold: >10x normal view rate for video type ├─ Duration: Sustained for 1+ hours ├─ Geographic: Trending in multiple regions └─ Acceleration: Views increasing (not plateauing) 4. Ranking & Display ├─ Update frequency: Every 5-15 minutes ├─ Personalization: Mix trending + personal preferences ├─ Display: Trending page, homepage sections └─ Diversity: Mix different categories 5. Actions on Viral Detection ├─ Infrastructure: Pre-scale CDN capacity ├─ Promotion: Feature on homepage ├─ Notifications: Push to subscribers └─ Monetization: Inject premium ads Reddit's Hot Algorithm: score = (upvotes - downvotes) / (age_hours + 2)^1.5 YouTube Example: ├─ Trending videos: Top 50 videos by region ├─ Update: Every 15 minutes ├─ Criteria: Views, growth rate, engagement └─ Moderation: Human review for controversies ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q3:** How do you solve the cold start problem for new users?
@@ -2632,6 +2848,33 @@ Why so many models?
 
 **Answer:** * **Answer Framework:** ```text 1. Onboarding Questions ├─ Ask: "What are your interests?" ├─ Categories: Action, comedy, documentary, etc. ├─ Creators: "Who do you follow?" └─ Initial preferences: Build basic profile 2. Popular Content Strategy ├─ Show: Trending videos in user's region ├─ Popular: Most-watched videos globally └─ Recent: New releases from major creators 3. Implicit Signals ├─ Watch behavior: Track first 10-20 videos watched ├─ Engagement: Did they finish? Like? Skip? └─ Fast learning: Update recommendations after each video 4. Social Graph ├─ Facebook/Google login: Import interests ├─ Contacts: See what friends watch └─ Network: Use social connections for recommendations 5. Exploration vs Exploitation ├─ First week: 70% popular content, 30% diverse (explore) ├─ After data: 90% personalized, 10% diverse (exploit) └─ Balance: Avoid filter bubble while personalizing Success Metrics: ├─ Day 1: 5 videos watched (vs 2 without onboarding) ├─ Week 1: 70% retention (vs 50% without) └─ Month 1: Fully personalized recommendations ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
@@ -3995,6 +4238,33 @@ Value: Priceless (keeps 230M subscribers happy!)
 
 **Answer:** * **Answer Framework:** ```text 1. Real-Time Metrics ├─ Live viewers: Current concurrent viewers (Redis counter) ├─ Views: Total and unique views (ClickHouse aggregate) ├─ Watch time: Total minutes watched (sum from events) └─ Revenue: Estimated earnings (ad impressions × CPM) 2. Engagement Metrics ├─ Likes/Dislikes: Engagement rate calculation ├─ Comments: Comment count and rate per minute ├─ Shares: Social sharing count across platforms └─ Subscribers: New subscribers gained from this video 3. Audience Demographics ├─ Age: Age distribution histogram ├─ Gender: Male/female/other split ├─ Geography: Country-level breakdown with map └─ Devices: Mobile/desktop/TV/console split 4. Traffic Sources ├─ Discovery: Search, browse, recommendations ├─ External: Social media, embeds, direct links ├─ Direct: Subscriber feed, notifications └─ Playlist: From playlists or autoplay 5. Dashboard Implementation ├─ Real-time: WebSocket updates every 5 seconds ├─ Historical: Trends over time (hourly, daily, weekly) ├─ Comparison: Compare with other videos ├─ Export: Download CSV reports for external analysis └─ Alerts: Notify on milestones (10K, 100K, 1M views) Architecture: Client → Kafka → Flink (real-time) → ClickHouse → Dashboard API ↓ Spark (batch, daily aggregates) YouTube Studio Example: ├─ Metrics: 50+ different metrics available ├─ Real-time: Updates every 30 seconds ├─ Historical: 2+ years of data retention └─ Mobile app: Access analytics on phone ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q2:** How do you implement real-time view counters?
@@ -4458,6 +4728,33 @@ Effectiveness:
 
 **Answer:** * **Answer Framework:** ```text 1. Visible Watermarking ├─ Logo: Brand logo in corner (top-right/bottom-right) ├─ Position: Dynamic, changes every 30 seconds ├─ Transparency: 20-40% opacity └─ Use case: Branding, free tier content 2. Invisible Watermarking (Forensic) ├─ Method: Modify DCT coefficients in video encoding ├─ Embed: Unique ID (user_id + session_id + timestamp) ├─ Robustness: Survives compression, cropping, re-encoding └─ Detection: Extract ID from pirated copy 3. User-Specific Watermarking ├─ Per-session: Generate unique watermark per playback ├─ Embed: user_id + device_id + timestamp ├─ Tracking: Trace leaks back to specific user └─ Deterrent: Users know videos are watermarked 4. Implementation ├─ At transcode: Add watermark during encoding (efficient) ├─ Real-time: Add during streaming (flexible but expensive) ├─ CDN: Pre-generate watermarked versions (scalable) └─ Trade-off: Storage (pre-generate) vs CPU (real-time) 5. Detection & Enforcement ├─ Scanning: Automated scanning of piracy sites ├─ Extraction: Extract watermark to identify user ├─ Action: Suspend account, legal action if needed └─ False positives: Manual review before suspension Netflix's Approach: ├─ Method: Invisible forensic watermarking ├─ Unique: Per user, per device, per stream ├─ Detection: Automated scanning + ML └─ Result: Significant reduction in camcorder piracy ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
@@ -4822,6 +5119,33 @@ Cost impact:
 
 **Answer:** * **Answer Framework:** ```text Cost Breakdown (100M users, 1M hours of content): 1. Bandwidth (70% of costs) - $7M/month ├─ CDN: $0.02/GB × 350 PB/month = $7M ├─ Calculation: 100M users × 2 hours/day × 5 Mbps └─ Optimization: Use H.265 (-40%), predictive caching 2. Storage (15% of costs) - $1.5M/month ├─ Hot storage: 10 PB × $23/TB = $230K ├─ Warm storage: 30 PB × $12.50/TB = $375K ├─ Cold storage: 60 PB × $1/TB = $60K ├─ Backups: $300K └─ Total: ~$1M (with tiering) 3. Compute (10% of costs) - $1M/month ├─ Transcoding: $500K (GPU-based) ├─ API servers: $300K ├─ ML training: $200K └─ Optimization: Spot instances, reserved capacity 4. Database (3% of costs) - $300K/month ├─ PostgreSQL: $150K (sharded) ├─ Redis: $100K (cache) ├─ Elasticsearch: $50K (search) └─ Optimization: Read replicas, caching 5. Other (2%) - $200K/month ├─ Monitoring: DataDog, New Relic ├─ Security: WAF, DDoS protection ├─ DNS: Route53, Cloudflare └─ Misc: Logging, backups Total: ~$10M/month for 100M users Per user: $0.10/month infrastructure cost ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 **Q2:** How do you optimize costs by 30-50%?
@@ -5125,6 +5449,33 @@ Key Lesson: Netflix's success came from building scalable architecture from day 
 
 **Answer:** * **Answer Framework:** ```text 1. CDN Layer (Handles 90% of load) ├─ Edge servers: 10,000+ globally ├─ Cache hit ratio: 95%+ ├─ Cost: $0.01-0.05 per GB └─ Capacity: Each edge serves 1K-10K viewers 2. Origin Servers (Handles 10% of load) ├─ Servers: 100-500 servers in multiple regions ├─ Purpose: Serve new/unpopular content (cache misses) ├─ Auto-scaling: Scale based on cache miss rate └─ Cost: $50K-100K/month 3. Database Sharding ├─ User DB: Shard by user_id (1M users per shard) ├─ Video DB: Shard by video_id (100K videos per shard) ├─ Total shards: 100 user shards, 10K video shards └─ Metadata: Replicated across all regions 4. Load Balancing ├─ DNS: Geographic routing to nearest region ├─ L7 (Application): Route based on content type ├─ L4 (Connection): Distribute across servers └─ Auto-scaling: Add servers based on CPU/memory 5. Caching Strategy ├─ Browser: Cache static assets (images, CSS, JS) ├─ CDN: Cache video segments (1-7 days) ├─ Redis: Cache metadata, user sessions └─ Application: In-memory cache for config Numbers: ├─ 100M viewers × 5 Mbps = 500 Tbps bandwidth ├─ CDN serves: 95% = 475 Tbps ├─ Origin serves: 5% = 25 Tbps └─ Cost: ~$5M/hour at peak ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
@@ -6103,6 +6454,33 @@ Key Lesson: Netflix's security evolved with their business - from simple consume
 
 **Answer:** * **Answer Framework:** ```text 1. API Rate Limits (Multi-tier) ├─ Free tier: 100 requests/hour per user ├─ Paid tier: 10,000 requests/hour per user ├─ Enterprise: Custom limits, SLA guarantees └─ Algorithm: Token bucket or leaky bucket 2. Upload Rate Limits ├─ Free users: 5 videos/day, max 1 GB each ├─ Paid users: 100 videos/day, max 10 GB each ├─ Creators: Unlimited uploads, max 50 GB each └─ Enforcement: Check before upload starts 3. Streaming Rate Limits ├─ Concurrent devices: Max 2-4 per account ├─ IP-based detection: Unusual geographic patterns ├─ Geography: Enforce regional license restrictions └─ Quality: Limit to 480p for free tier 4. Implementation (Redis-based) ├─ Key format: "rate:user_id:endpoint:window" ├─ Increment: INCR on each request ├─ Expiry: Set TTL to window size (1 hour) ├─ Response: 429 Too Many Requests if exceeded └─ Headers: X-RateLimit-Remaining, X-RateLimit-Reset 5. Advanced Patterns ├─ Burst allowance: Allow short bursts (100 in 1 min) ├─ Progressive backoff: Increase wait time on violations ├─ Whitelist: Bypass limits for internal services └─ Circuit breaker: Auto-block after repeated violations Example Code (Python): key = f"rate:{user_id}:{endpoint}:{window}" count = redis.incr(key) if count == 1: redis.expire(key, 3600) # 1 hour window if count > limit: return {"error": "Rate limit exceeded"}, 429 Example Abuse Patterns Detected: ├─ Scraping: 1000+ requests in 1 minute ├─ Brute force: 100+ failed auth attempts ├─ DDoS: 100K+ requests from same IP └─ Action: Auto-block for 1 hour, escalate to 24h if repeated ```
 
+**Detailed Explanation:**
+1. **Circuit Breakers**: Prevent cascade failures by stopping requests to failing services
+   - Implement: Hystrix-style circuit breakers with 3 states (closed/open/half-open)
+   - Benefit: System remains responsive even when database is down
+
+2. **Read-Only Mode**: Serve cached data when writes are impossible
+   - Strategy: Switch to read replicas, serve from cache
+   - Trade-off: Users can't create new short URLs but existing ones work
+
+3. **Cached Redirects**: Use Redis/CDN to serve popular redirects
+   - Implementation: Cache hot URLs with 1-hour TTL
+   - Impact: 95% of traffic can be served without database
+
+4. **Graceful Degradation**: Reduce functionality rather than complete failure
+   - Actions: Disable analytics, custom URLs, but keep core redirects
+   - Communication: Show maintenance message for new URL creation
+
+5. **Disaster Recovery**: Automated failover procedures
+   - RTO: 5 minutes to switch to backup database
+   - RPO: 1 minute data loss maximum
+   - Process: Health checks → Auto-failover → Traffic routing
+
+**Interview Framework:**
+- Start with immediate response (circuit breakers)
+- Explain fallback strategies (cached redirects)
+- Discuss graceful degradation (read-only mode)
+- Mention long-term recovery (disaster recovery)
 </details>
 
 
