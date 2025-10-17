@@ -811,6 +811,42 @@ hundreds of millions annually and improved quality.
 **Bonus Challenge:**
 During breaking news events (e.g., election results), traffic spikes 10x normal. Your CDN starts failing with 503 errors. What's your emergency response plan? How do you prevent this in the future?
 
+### 🎯 Interview Questions - CDN Fundamentals
+
+**Beginner Level:**
+1. **Q:** "What is a CDN and why would you use one?"
+   - **A:** A Content Delivery Network is a distributed network of servers that cache content closer to users. Use it to reduce latency, improve performance, and reduce load on origin servers.
+
+2. **Q:** "What types of content can a CDN serve?"
+   - **A:** Static assets (images, CSS, JS), video content, API responses, and dynamic content with appropriate caching strategies.
+
+3. **Q:** "How does a CDN reduce latency?"
+   - **A:** By serving content from edge servers geographically closer to users, reducing the distance data travels and improving response times.
+
+**Intermediate Level:**
+4. **Q:** "How would you design a CDN that needs to handle 1 billion requests per day?"
+   - **A:** Global edge network, multi-tier caching, load balancing, and intelligent content distribution across multiple regions.
+
+5. **Q:** "What happens when a CDN edge server goes down?"
+   - **A:** Automatic failover to nearby edge servers, origin server fallback, and health monitoring to detect and replace failed servers.
+
+6. **Q:** "How would you handle cache invalidation in a global CDN?"
+   - **A:** Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms to ensure consistency.
+
+**Advanced Level:**
+7. **Q:** "Design a CDN that needs to support real-time video streaming with adaptive bitrate."
+   - **A:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+
+8. **Q:** "How would you handle DDoS attacks on a CDN infrastructure?"
+   - **A:** Distributed DDoS protection, traffic filtering, rate limiting, and intelligent traffic routing to mitigate attacks.
+
+9. **Q:** "What considerations would you have for a CDN that needs to serve content in countries with strict data sovereignty laws?"
+   - **A:** Regional data centers, compliance frameworks, data residency requirements, and local content policies.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design a CDN that needs to support custom domains and enterprise features?"
+    - **A:** SSL certificate management, custom domain routing, enterprise security policies, and advanced analytics.
+
 ---
 
 ---
@@ -1122,126 +1158,20 @@ Network requirement:
 
 **Planning for 3-5 Year Horizon:**
 
-```python
-"""
-CDN Growth Model
-Purpose: Project infrastructure needs 1-5 years ahead
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class CDNCapacityPlanner:
-    """
-    Model CDN growth and project infrastructure costs.
-    
-    Accounts for user growth, content growth, and efficiency improvements.
-    """
-    
-    def __init__(self, initial_state: dict):
-        self.users = initial_state["users"]
-        self.requests_per_user = initial_state["requests_per_user"]
-        self.avg_response_size = initial_state["avg_response_size"]
-        self.cache_hit_ratio = initial_state["cache_hit_ratio"]
-        self.edge_locations = initial_state["edge_locations"]
-    
-    def project_growth(self, years: int, annual_growth_rate: float) -> dict:
-        """
-        Project capacity needs for future years.
-        
-        Returns dict with yearly projections.
-        """
-        projections = []
-        
-        for year in range(1, years + 1):
-            # User growth (compound)
-            future_users = self.users * ((1 + annual_growth_rate) ** year)
-            
-            # Content growth (users create more content)
-            content_growth_rate = annual_growth_rate * 1.5
-            future_content_size = self.avg_response_size * ((1 + content_growth_rate) ** year)
-            
-            # Calculate metrics
-            daily_requests = future_users * self.requests_per_user
-            avg_rps = daily_requests / 86,400
-            peak_rps = avg_rps * 3
-            
-            # Bandwidth
-            bandwidth_gbps = (peak_rps * future_content_size) / (1024**3)
-            
-            # Storage (with Zipf distribution)
-            total_storage_pb = (future_users * future_content_size * 50) / (1024**5)
-            cached_storage_pb = total_storage_pb * 0.2  # Top 20%
-            storage_per_edge_tb = (cached_storage_pb * 1024) / self.edge_locations
-            
-            # Costs
-            server_cost = (peak_rps / 250) * 200 * self.edge_locations  # $200/server/month
-            storage_cost = storage_per_edge_tb * self.edge_locations * 50  # $50/TB/month
-            bandwidth_cost = (bandwidth_gbps * 86,400 * 30 / 8) * 0.01 * 1024  # $0.01/GB
-            
-            total_monthly_cost = server_cost + storage_cost + bandwidth_cost
-            
-            projections.append({
-                "year": year,
-                "users": int(future_users),
-                "daily_requests": int(daily_requests),
-                "peak_rps": int(peak_rps),
-                "bandwidth_gbps": round(bandwidth_gbps, 2),
-                "storage_per_edge_tb": round(storage_per_edge_tb, 2),
-                "monthly_cost": int(total_monthly_cost)
-            })
-        
-        return projections
-    
-    def optimize_edge_locations(self, projections: list) -> dict:
-        """
-        Determine optimal number of edge locations over time.
-        
-        More edges = lower latency but higher cost.
-        """
-        recommendations = []
-        
-        for proj in projections:
-            # Target: <350 RPS per edge at peak
-            optimal_edges = max(100, int(proj["peak_rps"] / 350))
-            
-            # But adding edges has diminishing returns
-            # Latency improvement: 1/sqrt(edges)
-            latency_improvement = 100 / (optimal_edges ** 0.5)
-            
-            # Cost increase is linear
-            cost_per_edge = proj["monthly_cost"] / self.edge_locations
-            additional_cost = (optimal_edges - self.edge_locations) * cost_per_edge
-            
-            recommendations.append({
-                "year": proj["year"],
-                "current_edges": self.edge_locations,
-                "optimal_edges": optimal_edges,
-                "latency_improvement_ms": round(latency_improvement, 1),
-                "additional_monthly_cost": int(additional_cost),
-                "roi": "High" if latency_improvement > 20 else "Medium"
-            })
-        
-        return recommendations
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Process/route content at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-# Example usage
-initial_state = {
-    "users": 200_000_000,
-    "requests_per_user": 5,
-    "avg_response_size": 15 * 1024 * 1024,  # 15 MB
-    "cache_hit_ratio": 0.90,
-    "edge_locations": 100
-}
-
-planner = CDNCapacityPlanner(initial_state)
-projections = planner.project_growth(years=5, annual_growth_rate=0.30)
-
-print("5-Year CDN Capacity Projections:")
-print("="*60)
-for proj in projections:
-    print(f"\nYear {proj['year']}:")
-    print(f"  Users: {proj['users']:,}")
-    print(f"  Peak RPS: {proj['peak_rps']:,}")
-    print(f"  Bandwidth: {proj['bandwidth_gbps']} Gbps")
-    print(f"  Storage/Edge: {proj['storage_per_edge_tb']} TB")
-    print(f"  Monthly Cost: ${proj['monthly_cost']:,}")
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Output Example:**
@@ -1492,6 +1422,42 @@ Total servers across CDN:
 = 10 mid-tiers × 30 servers = 300 mid-tier servers
 = Total: ~1,800 servers
 ```
+
+### 🎯 Interview Questions - Capacity Planning
+
+**Beginner Level:**
+1. **Q:** "How would you calculate the storage requirements for a global CDN?"
+   - **A:** Estimate content volume, replication factor, and retention policies. Consider: 1PB content × 3x replication = 3PB total storage across all edge locations.
+
+2. **Q:** "What factors affect CDN bandwidth requirements?"
+   - **A:** Request volume, content size, cache hit ratio, and geographic distribution. Higher cache hit ratio reduces bandwidth to origin servers.
+
+3. **Q:** "How would you estimate the number of edge servers needed for a CDN?"
+   - **A:** Based on traffic volume, geographic coverage, redundancy requirements, and server capacity. Consider peak traffic and failover scenarios.
+
+**Intermediate Level:**
+4. **Q:** "How would you handle capacity planning for a CDN that needs to serve 1 billion requests per day?"
+   - **A:** Global distribution analysis, traffic patterns, edge server capacity, and intelligent load balancing across multiple regions.
+
+5. **Q:** "What happens to your capacity calculations if 20% of content becomes viral and gets 100x more traffic?"
+   - **A:** Hot content caching strategies, edge server scaling, bandwidth optimization, and intelligent content distribution.
+
+6. **Q:** "How would you plan capacity for a CDN that needs to handle traffic spikes during major events?"
+   - **A:** Auto-scaling mechanisms, traffic prediction, edge server provisioning, and dynamic content routing.
+
+**Advanced Level:**
+7. **Q:** "Design capacity planning for a CDN that needs to support real-time video streaming with adaptive bitrate."
+   - **A:** Video processing capacity, bandwidth optimization, edge server specialization, and intelligent content routing.
+
+8. **Q:** "How would you handle capacity planning for a CDN that needs to work across multiple data centers?"
+   - **A:** Cross-region capacity planning, traffic distribution, edge server coordination, and global load balancing.
+
+9. **Q:** "What capacity considerations would you have for a CDN that needs to handle mobile traffic with poor connectivity?"
+   - **A:** Edge server optimization, content compression, adaptive streaming, and network-aware routing.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design capacity planning for a CDN that needs to support custom domains and enterprise features?"
+    - **A:** Enterprise-specific capacity requirements, custom domain routing, SSL termination, and advanced analytics.
 
 ---
 
@@ -1978,124 +1944,20 @@ Chaos Engineering:
 
 **Tiered Storage Architecture:**
 
-```python
-"""
-Tiered Storage Manager
-Purpose: Optimize cost vs performance with hot/warm/cold storage tiers
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class TieredStorageManager:
-    """
-    Manage content across NVMe (hot), SSD (warm), and HDD (cold) tiers.
-    
-    Automatically promotes/demotes content based on access patterns.
-    """
-    
-    def __init__(self):
-        self.nvme_capacity = 1_000_000_000_000  # 1 TB NVMe
-        self.ssd_capacity = 10_000_000_000_000  # 10 TB SSD
-        self.hdd_capacity = 100_000_000_000_000  # 100 TB HDD
-        
-        self.nvme_used = 0
-        self.ssd_used = 0
-        self.hdd_used = 0
-        
-        # Track access frequency
-        self.access_counts = {}  # {object_id: (count, last_access_time)}
-    
-    def get_content(self, object_id: str) -> dict:
-        """
-        Retrieve content with automatic tier promotion.
-        
-        Hot content moved to faster tiers automatically.
-        """
-        # Check where content is stored
-        location = self._find_content(object_id)
-        
-        if not location:
-            # Not cached, fetch from origin
-            content = self._fetch_from_origin(object_id)
-            tier = self._determine_initial_tier(object_id)
-            self._store_content(object_id, content, tier)
-            return {"content": content, "tier": tier, "cache": "miss"}
-        
-        # Update access statistics
-        self._record_access(object_id)
-        
-        # Check if promotion needed
-        if self._should_promote(object_id, location["tier"]):
-            self._promote_content(object_id, location["tier"])
-        
-        return {
-            "content": location["content"],
-            "tier": location["tier"],
-            "cache": "hit"
-        }
-    
-    def _should_promote(self, object_id: str, current_tier: str) -> bool:
-        """
-        Decide if content should be promoted to faster tier.
-        
-        Based on access frequency and recency.
-        """
-        if object_id not in self.access_counts:
-            return False
-        
-        count, last_access = self.access_counts[object_id]
-        current_time = time.time()
-        
-        # Access frequency (requests per hour)
-        time_window = 3600  # 1 hour
-        recent_access_count = count  # Simplified
-        requests_per_hour = recent_access_count
-        
-        # Promotion thresholds
-        if current_tier == "hdd" and requests_per_hour > 10:
-            # Promote HDD → SSD if accessed 10+ times per hour
-            return True
-        elif current_tier == "ssd" and requests_per_hour > 100:
-            # Promote SSD → NVMe if accessed 100+ times per hour
-            return True
-        
-        return False
-    
-    def _demote_cold_content(self):
-        """
-        Move infrequently accessed content to slower/cheaper tiers.
-        
-        Runs periodically to optimize storage costs.
-        """
-        current_time = time.time()
-        demote_threshold = 86400  # 24 hours
-        
-        for object_id, (count, last_access) in self.access_counts.items():
-            time_since_access = current_time - last_access
-            
-            if time_since_access > demote_threshold:
-                location = self._find_content(object_id)
-                if location and location["tier"] in ["nvme", "ssd"]:
-                    self._demote_content(object_id, location["tier"])
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Process/route content at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-# Cost Analysis
-tier_costs = {
-    "nvme": 1.00,  # $1/GB/month
-    "ssd": 0.20,   # $0.20/GB/month  
-    "hdd": 0.04    # $0.04/GB/month
-}
-
-# Performance characteristics
-tier_latency = {
-    "nvme": 0.1,   # 0.1ms read latency
-    "ssd": 0.5,    # 0.5ms read latency
-    "hdd": 5.0     # 5ms read latency
-}
-
-# Example distribution at 100 TB edge:
-# - 1 TB NVMe (1%): $1,000/month, serves 80% of requests
-# - 10 TB SSD (10%): $2,000/month, serves 15% of requests
-# - 89 TB HDD (89%): $3,560/month, serves 5% of requests
-# Total: $6,560/month vs $20,000 for all-SSD
-# Savings: 67% cost reduction with minimal latency impact!
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Content Prediction and Pre-fetching:**
@@ -2374,6 +2236,42 @@ graph TB
 5. Each segment served from edge cache (video segments are highly cacheable)
 6. Player adapts bitrate dynamically based on buffer and bandwidth
 
+### 🎯 Interview Questions - System Architecture
+
+**Beginner Level:**
+1. **Q:** "Draw the high-level architecture for a CDN."
+   - **A:** Show: Origin Server → Mid-Tier Cache → Edge Servers → Users. Include DNS routing, load balancers, and monitoring systems.
+
+2. **Q:** "What are the main components in a CDN system?"
+   - **A:** Origin servers, mid-tier caches, edge servers, DNS routing, load balancers, and monitoring/analytics systems.
+
+3. **Q:** "How would you handle the flow when a user requests content from a CDN?"
+   - **A:** DNS resolution → Edge server selection → Cache check → Origin fetch if miss → Content delivery to user.
+
+**Intermediate Level:**
+4. **Q:** "How would you design a CDN that needs to handle 1 billion requests per day?"
+   - **A:** Global edge network, multi-tier caching, intelligent routing, and distributed architecture across multiple regions.
+
+5. **Q:** "What happens when a CDN edge server goes down?"
+   - **A:** Automatic failover to nearby edge servers, health monitoring, and dynamic traffic routing to maintain service.
+
+6. **Q:** "How would you handle the case where content is not cached at the edge?"
+   - **A:** Origin server fallback, cache warming strategies, and intelligent content preloading based on usage patterns.
+
+**Advanced Level:**
+7. **Q:** "Design a CDN that needs to support real-time video streaming with adaptive bitrate."
+   - **A:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+
+8. **Q:** "How would you handle a CDN that needs to work across multiple data centers?"
+   - **A:** Multi-region deployment, cross-region caching, traffic distribution, and global load balancing.
+
+9. **Q:** "What happens if your origin server goes down during peak traffic?"
+   - **A:** Edge server caching, content replication, failover mechanisms, and graceful degradation strategies.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design a CDN that needs to support custom domains and enterprise features?"
+    - **A:** SSL certificate management, custom domain routing, enterprise security policies, and advanced analytics.
+
 ---
 
 ## Section 4: Edge Cache & Multi-Tier Hierarchy
@@ -2563,211 +2461,40 @@ Optimal: 100 TB cache (sweet spot!)
 
 **Calculating Optimal Cache Size:**
 
-```python
-"""
-Cache Size Calculator
-Purpose: Determine optimal cache size based on content popularity distribution
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import math
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Process/route content at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-def calculate_optimal_cache_size(
-    total_content_size_gb: int,
-    target_hit_ratio: float,
-    zipf_exponent: float = 1.0
-) -> dict:
-    """
-    Calculate cache size needed for target hit ratio.
-    
-    Uses Zipf distribution to model content popularity.
-    Most real-world content follows Zipf with exponent ~1.0
-    
-    Args:
-        total_content_size_gb: Total size of all content
-        target_hit_ratio: Desired cache hit ratio (0.0-1.0)
-        zipf_exponent: Zipf distribution parameter (default 1.0)
-    
-    Returns:
-        Dictionary with cache size and expected performance
-    """
-    # Zipf distribution: P(rank) = 1 / (rank^exponent * H_N)
-    # where H_N is the harmonic number (normalization constant)
-    
-    # Approximate harmonic number for large N
-    n_items = 1_000_000  # Assume 1M distinct objects
-    h_n = math.log(n_items) + 0.5772  # Euler-Mascheroni constant
-    
-    # Find rank where cumulative probability = target_hit_ratio
-    cumulative_prob = 0.0
-    rank = 0
-    
-    while cumulative_prob < target_hit_ratio and rank < n_items:
-        rank += 1
-        prob = 1.0 / (rank ** zipf_exponent * h_n)
-        cumulative_prob += prob
-    
-    # Cache size = proportion of items needed * total content size
-    cache_proportion = rank / n_items
-    cache_size_gb = total_content_size_gb * cache_proportion
-    
-    # Calculate cost savings
-    origin_requests_without_cache = 1.0  # 100% of requests hit origin
-    origin_requests_with_cache = 1.0 - target_hit_ratio
-    cost_reduction = (1.0 - origin_requests_with_cache) * 100
-    
-    return {
-        "cache_size_gb": int(cache_size_gb),
-        "cache_size_tb": round(cache_size_gb / 1024, 2),
-        "items_to_cache": rank,
-        "cache_proportion": round(cache_proportion * 100, 2),
-        "expected_hit_ratio": target_hit_ratio,
-        "origin_load_reduction": f"{cost_reduction:.1f}%",
-        "origin_requests_proportion": f"{origin_requests_with_cache:.1%}"
-    }
-
-# Example usage for interview
-"""
-total_content = 1_000_000  # 1 PB in GB
-result_90 = calculate_optimal_cache_size(total_content, 0.90)
-result_95 = calculate_optimal_cache_size(total_content, 0.95)
-result_99 = calculate_optimal_cache_size(total_content, 0.99)
-
-print("For 90% hit ratio:", result_90)
-# Output: cache_size_tb: 14.7 TB (1.5% of total)
-
-print("For 95% hit ratio:", result_95)
-# Output: cache_size_tb: 52.4 TB (5.2% of total)
-
-print("For 99% hit ratio:", result_99)
-# Output: cache_size_tb: 289.5 TB (29.0% of total)
-"""
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Cache Eviction Algorithm Implementation
 
 **LFU with Time Decay (Production-Ready):**
 
-```python
-"""
-LFU with Time Decay Cache
-Purpose: Implement cache eviction that balances frequency and recency
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import time
-from collections import defaultdict
-from typing import Optional, Any
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Process/route content at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class LFUDecayCache:
-    """
-    LFU cache with time-based frequency decay.
-    
-    Popularity decays exponentially: freq_effective = freq_actual * e^(-λ * age)
-    This prevents old popular items from staying cached forever.
-    """
-    
-    def __init__(self, capacity: int, decay_factor: float = 0.0001):
-        """
-        Initialize LFU cache with decay.
-        
-        Args:
-            capacity: Maximum number of items to cache
-            decay_factor: How fast frequency decays (higher = faster decay)
-                         Typical: 0.0001 means 50% decay after ~7000 seconds (2 hours)
-        """
-        self.capacity = capacity
-        self.decay_factor = decay_factor
-        
-        self.cache = {}  # {key: (value, access_count, first_access_time)}
-        self.access_times = defaultdict(list)  # {key: [access_timestamps]}
-    
-    def get(self, key: str) -> Optional[Any]:
-        """
-        Retrieve item from cache.
-        
-        Updates access statistics automatically.
-        """
-        if key not in self.cache:
-            return None  # Cache miss
-        
-        # Update access statistics
-        value, count, first_access = self.cache[key]
-        self.cache[key] = (value, count + 1, first_access)
-        self.access_times[key].append(time.time())
-        
-        return value  # Cache hit
-    
-    def put(self, key: str, value: Any) -> None:
-        """
-        Insert item into cache.
-        
-        Evicts least frequently used item if cache is full.
-        """
-        current_time = time.time()
-        
-        if key in self.cache:
-            # Update existing item
-            _, count, first_access = self.cache[key]
-            self.cache[key] = (value, count + 1, first_access)
-            self.access_times[key].append(current_time)
-            return
-        
-        # New item - check if eviction needed
-        if len(self.cache) >= self.capacity:
-            self._evict()
-        
-        # Add new item
-        self.cache[key] = (value, 1, current_time)
-        self.access_times[key] = [current_time]
-    
-    def _evict(self) -> None:
-        """
-        Remove least valuable item based on decay-adjusted frequency.
-        
-        "Value" = access_count * e^(-decay_factor * age_in_seconds)
-        """
-        current_time = time.time()
-        min_value = float('inf')
-        evict_key = None
-        
-        for key in self.cache:
-            _, access_count, first_access = self.cache[key]
-            age_seconds = current_time - first_access
-            
-            # Calculate effective frequency with time decay
-            decay_multiplier = math.exp(-self.decay_factor * age_seconds)
-            effective_value = access_count * decay_multiplier
-            
-            if effective_value < min_value:
-                min_value = effective_value
-                evict_key = key
-        
-        # Remove least valuable item
-        if evict_key:
-            del self.cache[evict_key]
-            del self.access_times[evict_key]
-    
-    def get_statistics(self) -> dict:
-        """
-        Get cache performance statistics.
-        
-        Useful for monitoring and optimization.
-        """
-        if not self.cache:
-            return {"size": 0, "utilization": 0.0}
-        
-        current_time = time.time()
-        total_accesses = sum(count for _, count, _ in self.cache.values())
-        avg_age = sum(current_time - first_access 
-                     for _, _, first_access in self.cache.values()) / len(self.cache)
-        
-        return {
-            "size": len(self.cache),
-            "capacity": self.capacity,
-            "utilization": len(self.cache) / self.capacity,
-            "total_accesses": total_accesses,
-            "avg_item_age_seconds": int(avg_age),
-            "avg_accesses_per_item": total_accesses / len(self.cache)
-        }
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Cache Warming Strategies
@@ -2888,72 +2615,20 @@ Solution: Cache Invalidation with Consistency Guarantees
 
 **Implementation with Version-Based Caching:**
 
-```python
-"""
-Version-Based Cache Invalidation
-Purpose: Ensure cache coherence without explicit purging
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class VersionedCacheManager:
-    """
-    Use content versions in URLs to force cache refresh.
-    
-    Instead of purging caches, change the URL!
-    Old URL: /assets/style.css
-    New URL: /assets/style.css?v=1234567890
-    
-    Each edge treats new URL as different object.
-    """
-    
-    def generate_versioned_url(self, 
-                               base_path: str, 
-                               content_hash: str) -> str:
-        """
-        Generate cache-busting URL with content hash.
-        
-        Args:
-            base_path: Original file path
-            content_hash: SHA256 of file content
-        
-        Returns:
-            Versioned URL that changes when content changes
-        """
-        # Use content hash (immutable) instead of timestamp
-        # Benefit: Same content = same hash = cache reuse across builds
-        return f"{base_path}?v={content_hash[:12]}"
-    
-    def example_usage(self):
-        """
-        How to use versioned caching in practice.
-        """
-        # Old approach (requires cache purge):
-        old_url = "/assets/app.js"
-        # Update file → must purge all edges → wait for propagation
-        
-        # New approach (automatic cache freshness):
-        file_content = self._read_file("app.js")
-        content_hash = self._sha256(file_content)
-        new_url = self.generate_versioned_url("/assets/app.js", content_hash)
-        # URL: /assets/app.js?v=a1b2c3d4e5f6
-        
-        # Update file → hash changes → new URL → no purge needed!
-        # Old URL still cached (harmless, will expire naturally)
-        # New URL fetched fresh from origin
-        
-        return {
-            "strategy": "version_based",
-            "benefits": [
-                "No cache purge latency",
-                "No coordination between edges needed",
-                "Rollback easy (just use old URL)",
-                "Immutable URLs can have very long TTL"
-            ],
-            "drawbacks": [
-                "Requires URL generation at build time",
-                "HTML must reference versioned URLs",
-                "Old versions take up cache space temporarily"
-            ]
-        }
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Process/route content at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
+
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Advanced Cache Policies
@@ -2993,78 +2668,20 @@ Perfect for:
 
 **Adaptive TTL Based on Content Popularity:**
 
-```python
-"""
-Adaptive TTL Manager
-Purpose: Adjust cache TTL dynamically based on request patterns
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class AdaptiveTTLManager:
-    """
-    Popular content gets longer TTL, unpopular gets shorter.
-    
-    Prevents cache pollution from one-time requests.
-    """
-    
-    def __init__(self):
-        self.request_counts = defaultdict(int)
-        self.base_ttl = 3600  # 1 hour baseline
-        self.max_ttl = 86400  # 24 hours maximum
-        self.min_ttl = 300    # 5 minutes minimum
-    
-    def calculate_ttl(self, url: str, current_request_rate: float) -> int:
-        """
-        Calculate optimal TTL for content based on popularity.
-        
-        Args:
-            url: Content URL
-            current_request_rate: Requests per second for this content
-        
-        Returns:
-            TTL in seconds
-        """
-        self.request_counts[url] += 1
-        
-        # More requests = longer TTL (amortize origin fetches)
-        if current_request_rate > 10:  # Very hot content
-            ttl = self.max_ttl
-        elif current_request_rate > 1:  # Popular content
-            ttl = self.base_ttl * 4
-        elif current_request_rate > 0.1:  # Moderate content
-            ttl = self.base_ttl
-        else:  # Cold content
-            ttl = self.min_ttl
-        
-        return ttl
-    
-    def example_scenario(self):
-        """
-        Real-world application of adaptive TTL.
-        """
-        scenarios = {
-            "viral_video": {
-                "request_rate": 100.0,  # 100 req/sec
-                "ttl": self.max_ttl,    # 24 hours
-                "reasoning": "Extremely popular, max caching"
-            },
-            "homepage": {
-                "request_rate": 10.0,   # 10 req/sec
-                "ttl": self.base_ttl * 4,  # 4 hours
-                "reasoning": "High traffic, extended TTL"
-            },
-            "user_profile": {
-                "request_rate": 0.5,    # 1 req/2 sec
-                "ttl": self.base_ttl,   # 1 hour
-                "reasoning": "Moderate traffic, standard TTL"
-            },
-            "rare_asset": {
-                "request_rate": 0.01,   # 1 req/100 sec
-                "ttl": self.min_ttl,    # 5 minutes
-                "reasoning": "Low traffic, avoid cache pollution"
-            }
-        }
-        
-        return scenarios
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Process/route content at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
+
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 ---
@@ -3170,6 +2787,42 @@ Real-world impact:
 **Bonus Challenge:**
 Breaking news: "Election results announced!" causes 100x traffic spike for 1 hour. 1M users simultaneously request same article. Your current cache warming takes 30 seconds globally. How do you handle this? Design a solution that serves all users instantly without overwhelming origin.
 
+### 🎯 Interview Questions - Edge Cache & Multi-Tier Hierarchy
+
+**Beginner Level:**
+1. **Q:** "What is the difference between edge cache and mid-tier cache in a CDN?"
+   - **A:** Edge cache serves users directly with fast access, mid-tier cache provides backup and reduces origin load. Edge is closer to users, mid-tier has more storage.
+
+2. **Q:** "How would you handle cache misses in a multi-tier CDN?"
+   - **A:** Check edge cache first, then mid-tier cache, then origin server. Update caches with fetched content for future requests.
+
+3. **Q:** "What factors determine cache hit ratio in a CDN?"
+   - **A:** Content popularity, cache size, TTL settings, and content access patterns. Popular content has higher hit ratios.
+
+**Intermediate Level:**
+4. **Q:** "How would you design a multi-tier cache hierarchy for a CDN that needs to handle 1 billion requests per day?"
+   - **A:** Edge servers for hot content, mid-tier for warm content, origin servers for cold content, and intelligent content distribution.
+
+5. **Q:** "What happens if your mid-tier cache goes down during peak traffic?"
+   - **A:** Edge servers fall back to origin, cache warming strategies, and dynamic traffic routing to maintain service.
+
+6. **Q:** "How would you handle cache invalidation in a multi-tier CDN?"
+   - **A:** Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms to ensure consistency.
+
+**Advanced Level:**
+7. **Q:** "Design a multi-tier cache system for a CDN that needs to support real-time video streaming."
+   - **A:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+
+8. **Q:** "How would you handle cache consistency in a multi-tier CDN across multiple regions?"
+   - **A:** Cross-region cache synchronization, eventual consistency models, and conflict resolution mechanisms.
+
+9. **Q:** "What cache optimizations would you implement for a CDN with high throughput?"
+   - **A:** Cache preloading, intelligent eviction, cache compression, and distributed caching strategies.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design a multi-tier cache system for a CDN that needs to support custom domains and enterprise features?"
+    - **A:** Domain-specific caching, enterprise cache policies, custom TTL settings, and compliance-aware caching.
+
 ---
 
 ## Section 5: Routing Strategies (GeoDNS & Anycast)
@@ -3190,6 +2843,100 @@ Routing determines which edge server handles each request. Poor routing = users 
 ---
 
 ### 🟢 For Beginners: How Users Find Edge Servers
+
+#### Key Technologies Explained
+
+Before diving into routing, let's understand the core technologies:
+
+**What is DNS (Domain Name System)?**
+
+Think of DNS as the internet's phone book. When you type "cdn.example.com" in your browser, DNS translates it to an IP address like "192.0.2.50" that computers understand.
+
+```text
+You type: cdn.example.com
+DNS translates: → 192.0.2.50
+Your browser connects: → to that specific server
+
+Why? Computers talk in numbers (IPs), humans remember names!
+```
+
+**What is an IP Address?**
+
+An IP address is like a street address for a computer on the internet. Just like your home has a unique address (123 Main St), every server has a unique IP address (like 192.0.2.50).
+
+**What is GeoDNS?**
+
+GeoDNS is "smart DNS" that gives different answers based on where you are. Instead of everyone going to the same server, GeoDNS directs you to the nearest one.
+
+```text
+Regular DNS (dumb):
+Everyone → Same server in NYC → Some users far away (slow!)
+
+GeoDNS (smart):
+Tokyo user → Tokyo server (close, fast!)
+London user → London server (close, fast!)
+NYC user → NYC server (close, fast!)
+
+Result: Everyone gets the nearest server automatically!
+```
+
+**What is Anycast?**
+
+Anycast is like having multiple McDonald's with the exact same address. When you navigate to "123 Main St," your GPS automatically takes you to the closest McDonald's location. Similarly, with Anycast, multiple servers share the same IP address, and the internet automatically routes you to the nearest one.
+
+```text
+Traditional (Unicast): Each server has unique address
+- Server A: 192.0.2.50
+- Server B: 198.51.100.10
+- You must choose which to connect to
+
+Anycast: All servers share ONE address
+- Server A: 192.0.2.1
+- Server B: 192.0.2.1 (same!)
+- Server C: 192.0.2.1 (same!)
+- Internet automatically picks closest one for you!
+```
+
+**What is BGP (Border Gateway Protocol)?**
+
+BGP is the "internet's GPS system." It's the protocol that tells all the routers on the internet how to reach different IP addresses. Think of it as constantly updating maps that show the best routes.
+
+```text
+How BGP Works:
+
+Tokyo server announces: "I can reach 192.0.2.1"
+London server announces: "I can reach 192.0.2.1" (same IP!)
+
+Internet routers learn BOTH paths:
+- Path to Tokyo: Through ISP-A → ISP-B → Tokyo (3 hops)
+- Path to London: Through ISP-C → ISP-D → ISP-E → London (5 hops)
+
+When user requests 192.0.2.1:
+- Routers check: Which path is shorter?
+- Result: Use shorter path (better route)
+- Traffic goes to nearest server automatically!
+
+Why it matters: BGP makes Anycast work! Without BGP, we couldn't have multiple servers share the same IP.
+```
+
+**What is an AS (Autonomous System)?**
+
+An AS is like a neighborhood in the internet city. Each major internet provider (like AT&T, Comcast, or Google) has their own AS number - it's their unique identifier. BGP uses these AS numbers to map the internet.
+
+```text
+Example AS Numbers:
+- AS15169: Google
+- AS32934: Facebook
+- AS16509: Amazon AWS
+- AS64512: Your CDN (example)
+
+When announcing routes, BGP says:
+"To reach 192.0.2.1, go through AS15169 → AS32934 → AS64512"
+
+Shorter AS path = Closer/faster route!
+```
+
+---
 
 #### The DNS Journey
 
@@ -3492,97 +3239,20 @@ Solution: Real User Monitoring (RUM)
 
 **Implementation:**
 
-```python
-"""
-Latency-Based Routing Manager
-Purpose: Route users to fastest edge, not just nearest
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class LatencyBasedRouter:
-    """
-    Use real user measurements to optimize routing.
-    
-    Overrides geographic routing when network topology
-    makes distant servers actually faster.
-    """
-    
-    def __init__(self):
-        # Store measured latencies: {user_location: {edge: latency}}
-        self.latency_matrix = defaultdict(dict)
-        
-        # Geographic fallback if no measurements
-        self.geo_routing = GeoDNSRouter()
-    
-    def record_measurement(self, 
-                          user_location: str,
-                          edge_location: str,
-                          latency_ms: float):
-        """
-        Record real user latency measurement.
-        
-        Collected via JavaScript beacon in user's browser.
-        """
-        if edge_location not in self.latency_matrix[user_location]:
-            self.latency_matrix[user_location][edge_location] = []
-        
-        # Keep last 1000 measurements
-        self.latency_matrix[user_location][edge_location].append(latency_ms)
-        if len(self.latency_matrix[user_location][edge_location]) > 1000:
-            self.latency_matrix[user_location][edge_location].pop(0)
-    
-    def get_fastest_edge(self, user_location: str) -> str:
-        """
-        Return fastest edge for user location.
-        
-        Uses percentile measurements (p50 or p95) not average.
-        """
-        if user_location not in self.latency_matrix:
-            # No measurements yet, fall back to geographic
-            return self.geo_routing.get_nearest_edge(user_location)
-        
-        # Calculate p95 latency for each edge
-        edge_latencies = {}
-        for edge, measurements in self.latency_matrix[user_location].items():
-            if len(measurements) >= 100:  # Need sufficient data
-                sorted_measurements = sorted(measurements)
-                p95_index = int(len(sorted_measurements) * 0.95)
-                edge_latencies[edge] = sorted_measurements[p95_index]
-        
-        if not edge_latencies:
-            return self.geo_routing.get_nearest_edge(user_location)
-        
-        # Return edge with lowest p95 latency
-        fastest_edge = min(edge_latencies, key=edge_latencies.get)
-        return fastest_edge
-    
-    def handle_edge_failure(self, failed_edge: str):
-        """
-        Remove failed edge from routing immediately.
-        
-        Health checks detect failures, update routing.
-        """
-        for location in self.latency_matrix:
-            if failed_edge in self.latency_matrix[location]:
-                # Keep measurements for when edge recovers
-                # but mark as unhealthy
-                self.latency_matrix[location][failed_edge + "_offline"] = \
-                    self.latency_matrix[location].pop(failed_edge)
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Process/route content at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-# Real-world usage:
-"""
-router = LatencyBasedRouter()
-
-# JavaScript in user browser measures latency
-# POST to /api/measure with {location, edge, latency}
-
-# When routing DNS query:
-user_ip = "203.0.113.45"
-user_location = geoip_lookup(user_ip)  # "Jakarta, Indonesia"
-best_edge = router.get_fastest_edge(user_location)
-
-# Return IP of best edge
-return dns_response(best_edge.ip_address)
-"""
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Handling Edge Failures
@@ -3750,6 +3420,42 @@ A submarine cable between Asia and Australia is cut (happens every few years). Y
 1. Minimizes latency impact
 2. Handles increased load on Singapore edge
 3. Automatically reverts when cable is repaired
+
+### 🎯 Interview Questions - Routing Strategies
+
+**Beginner Level:**
+1. **Q:** "What is GeoDNS and how does it work in a CDN?"
+   - **A:** GeoDNS routes users to the nearest edge server based on their geographic location, reducing latency and improving performance.
+
+2. **Q:** "What is Anycast routing and why is it useful for CDNs?"
+   - **A:** Anycast allows multiple servers to share the same IP address, automatically routing users to the nearest server for optimal performance.
+
+3. **Q:** "How would you handle routing when a CDN edge server goes down?"
+   - **A:** Automatic failover to nearby edge servers, health monitoring, and dynamic traffic routing to maintain service.
+
+**Intermediate Level:**
+4. **Q:** "How would you design routing for a CDN that needs to handle 1 billion requests per day?"
+   - **A:** Global edge network, intelligent routing algorithms, load balancing, and geographic distribution across multiple regions.
+
+5. **Q:** "What happens when your routing system goes down during peak traffic?"
+   - **A:** Fallback routing mechanisms, DNS failover, and dynamic traffic distribution to maintain service availability.
+
+6. **Q:** "How would you handle routing for a CDN that needs to work across multiple data centers?"
+   - **A:** Cross-region routing, traffic distribution, edge server coordination, and global load balancing.
+
+**Advanced Level:**
+7. **Q:** "Design routing for a CDN that needs to support real-time video streaming with adaptive bitrate."
+   - **A:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+
+8. **Q:** "How would you handle routing for a CDN that needs to support custom domains and enterprise features?"
+   - **A:** Custom domain routing, SSL termination, enterprise security policies, and advanced analytics.
+
+9. **Q:** "What routing optimizations would you implement for a CDN with high throughput?"
+   - **A:** Intelligent routing algorithms, traffic prediction, edge server optimization, and dynamic content distribution.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design routing for a CDN that needs to support custom domains and enterprise features?"
+    - **A:** Custom domain routing, SSL termination, enterprise security policies, and advanced analytics.
 
 ---
 
@@ -3942,236 +3648,20 @@ Customer → API → Kafka → 100 Edges → Delete Cache → Ack
 
 **Implementation:**
 
-```python
-"""
-Distributed Cache Invalidation System
-Purpose: Purge content from 100+ edge locations with consistency guarantees
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import uuid
-from enum import Enum
-from dataclasses import dataclass
-from typing import List, Set
-import time
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Process/route content at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class PurgeType(Enum):
-    URL = "url"          # Exact URL match
-    PREFIX = "prefix"    # All URLs starting with prefix
-    TAG = "tag"          # All URLs with specific tag
-
-class PurgeStatus(Enum):
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-@dataclass
-class PurgeRequest:
-    """Represents a cache purge request"""
-    purge_id: str
-    purge_type: PurgeType
-    targets: List[str]  # URLs, prefixes, or tags to purge
-    requested_at: float
-    status: PurgeStatus
-    edges_total: int
-    edges_completed: int
-
-class CacheInvalidationManager:
-    """
-    Manages distributed cache invalidation across edge locations.
-    
-    Ensures all edges receive and acknowledge purge requests.
-    """
-    
-    def __init__(self, kafka_producer, database):
-        self.kafka = kafka_producer
-        self.db = database
-        self.edges = self._load_edge_locations()  # 100 edges
-    
-    def purge_by_url(self, urls: List[str]) -> str:
-        """
-        Purge specific URLs from all edges.
-        
-        Args:
-            urls: List of exact URLs to purge
-        
-        Returns:
-            purge_id for tracking
-        """
-        purge_id = str(uuid.uuid4())
-        
-        # Create purge request record
-        request = PurgeRequest(
-            purge_id=purge_id,
-            purge_type=PurgeType.URL,
-            targets=urls,
-            requested_at=time.time(),
-            status=PurgeStatus.PENDING,
-            edges_total=len(self.edges),
-            edges_completed=0
-        )
-        
-        # Save to database
-        self.db.save_purge_request(request)
-        
-        # Publish to Kafka for distribution
-        message = {
-            "purge_id": purge_id,
-            "type": "url",
-            "urls": urls,
-            "timestamp": request.requested_at
-        }
-        
-        for edge in self.edges:
-            # Partition by edge for ordered processing
-            self.kafka.send(
-                topic="cache-invalidation",
-                key=edge.id,
-                value=message
-            )
-        
-        # Update status
-        request.status = PurgeStatus.IN_PROGRESS
-        self.db.update_purge_request(request)
-        
-        return purge_id
-    
-    def purge_by_tag(self, tags: List[str]) -> str:
-        """
-        Purge all URLs with specific tags.
-        
-        Useful for bulk invalidation without knowing all URLs.
-        Example: purge_by_tag(["product-123"]) purges
-        product page, images, API responses, etc.
-        """
-        purge_id = str(uuid.uuid4())
-        
-        request = PurgeRequest(
-            purge_id=purge_id,
-            purge_type=PurgeType.TAG,
-            targets=tags,
-            requested_at=time.time(),
-            status=PurgeStatus.PENDING,
-            edges_total=len(self.edges),
-            edges_completed=0
-        )
-        
-        self.db.save_purge_request(request)
-        
-        message = {
-            "purge_id": purge_id,
-            "type": "tag",
-            "tags": tags,
-            "timestamp": request.requested_at
-        }
-        
-        for edge in self.edges:
-            self.kafka.send(
-                topic="cache-invalidation",
-                key=edge.id,
-                value=message
-            )
-        
-        request.status = PurgeStatus.IN_PROGRESS
-        self.db.update_purge_request(request)
-        
-        return purge_id
-    
-    def handle_edge_ack(self, purge_id: str, edge_id: str):
-        """
-        Handle acknowledgment from edge that purge completed.
-        
-        Called when edge finishes processing purge request.
-        """
-        request = self.db.get_purge_request(purge_id)
-        request.edges_completed += 1
-        
-        # Check if all edges completed
-        if request.edges_completed >= request.edges_total:
-            request.status = PurgeStatus.COMPLETED
-            
-            # Calculate completion time
-            duration_ms = (time.time() - request.requested_at) * 1000
-            print(f"Purge {purge_id} completed in {duration_ms:.0f}ms")
-        
-        self.db.update_purge_request(request)
-    
-    def get_purge_status(self, purge_id: str) -> dict:
-        """
-        Get current status of purge request.
-        
-        Used by customers to track progress.
-        """
-        request = self.db.get_purge_request(purge_id)
-        
-        return {
-            "purge_id": purge_id,
-            "status": request.status.value,
-            "progress": f"{request.edges_completed}/{request.edges_total}",
-            "completion_percent": (request.edges_completed / request.edges_total) * 100,
-            "requested_at": request.requested_at,
-            "elapsed_seconds": time.time() - request.requested_at
-        }
-
-# Edge-side consumer (runs at each edge location)
-class EdgeCacheInvalidator:
-    """
-    Runs at each edge location.
-    
-    Listens for invalidation messages and purges local cache.
-    """
-    
-    def __init__(self, edge_id: str, kafka_consumer, local_cache):
-        self.edge_id = edge_id
-        self.kafka = kafka_consumer
-        self.cache = local_cache
-        self.manager_api = "https://api.cdn.example.com"
-    
-    def start_listening(self):
-        """
-        Listen for purge messages and process them.
-        
-        Runs as background daemon at each edge.
-        """
-        for message in self.kafka.consume(topic="cache-invalidation"):
-            purge_id = message["purge_id"]
-            purge_type = message["type"]
-            
-            try:
-                if purge_type == "url":
-                    self._purge_urls(message["urls"])
-                elif purge_type == "tag":
-                    self._purge_by_tags(message["tags"])
-                elif purge_type == "prefix":
-                    self._purge_by_prefix(message["prefixes"])
-                
-                # Acknowledge completion
-                self._send_ack(purge_id)
-                
-            except Exception as e:
-                print(f"Error processing purge {purge_id}: {e}")
-                # Retry logic here
-    
-    def _purge_urls(self, urls: List[str]):
-        """Delete specific URLs from local cache"""
-        for url in urls:
-            self.cache.delete(url)
-            print(f"[{self.edge_id}] Purged: {url}")
-    
-    def _purge_by_tags(self, tags: List[str]):
-        """Delete all URLs associated with tags"""
-        for tag in tags:
-            urls = self.cache.get_urls_by_tag(tag)
-            for url in urls:
-                self.cache.delete(url)
-            print(f"[{self.edge_id}] Purged {len(urls)} URLs with tag: {tag}")
-    
-    def _send_ack(self, purge_id: str):
-        """Notify manager that purge completed at this edge"""
-        requests.post(
-            f"{self.manager_api}/internal/purge/{purge_id}/ack",
-            json={"edge_id": self.edge_id}
-        )
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Consistency Guarantees
@@ -4282,140 +3772,20 @@ Benefits:
 
 **Implementation:**
 
-```python
-"""
-Surrogate Key Cache System
-Purpose: Tag-based cache invalidation for complex dependencies
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class SurrogateKeyCache:
-    """
-    Cache that supports tagging content for bulk invalidation.
-    
-    Used by: Fastly, Varnish, custom CDNs
-    """
-    
-    def __init__(self):
-        # Main cache: url → content
-        self.cache = {}
-        
-        # Tag mappings: tag → set of URLs
-        self.tag_to_urls = defaultdict(set)
-        
-        # Reverse mapping: url → set of tags
-        self.url_to_tags = defaultdict(set)
-    
-    def store(self, url: str, content: bytes, tags: List[str]):
-        """
-        Store content with associated tags.
-        
-        Args:
-            url: Content URL
-            content: Content bytes
-            tags: List of surrogate keys (tags)
-        """
-        # Store content
-        self.cache[url] = content
-        
-        # Store tag mappings
-        for tag in tags:
-            self.tag_to_urls[tag].add(url)
-            self.url_to_tags[url].add(tag)
-    
-    def purge_by_tag(self, tag: str) -> int:
-        """
-        Purge all URLs associated with tag.
-        
-        Returns:
-            Number of URLs purged
-        """
-        if tag not in self.tag_to_urls:
-            return 0
-        
-        # Get all URLs with this tag
-        urls_to_purge = self.tag_to_urls[tag].copy()
-        
-        # Delete each URL
-        for url in urls_to_purge:
-            if url in self.cache:
-                del self.cache[url]
-            
-            # Clean up tag mappings
-            if url in self.url_to_tags:
-                for url_tag in self.url_to_tags[url]:
-                    self.tag_to_urls[url_tag].discard(url)
-                del self.url_to_tags[url]
-        
-        # Clean up tag
-        del self.tag_to_urls[tag]
-        
-        return len(urls_to_purge)
-    
-    def purge_by_tags(self, tags: List[str]) -> int:
-        """
-        Purge all URLs associated with any of the tags.
-        
-        Useful for complex invalidation scenarios.
-        """
-        all_urls = set()
-        for tag in tags:
-            all_urls.update(self.tag_to_urls.get(tag, set()))
-        
-        purged = 0
-        for url in all_urls:
-            if url in self.cache:
-                # Get all tags for this URL
-                url_tags = self.url_to_tags[url].copy()
-                
-                # Delete content
-                del self.cache[url]
-                
-                # Clean up all tag mappings
-                for url_tag in url_tags:
-                    self.tag_to_urls[url_tag].discard(url)
-                
-                del self.url_to_tags[url]
-                purged += 1
-        
-        return purged
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Process/route content at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-# Real-world usage:
-"""
-# At origin server, add Surrogate-Key header:
-@app.route('/product/<int:product_id>')
-def get_product(product_id):
-    product = db.get_product(product_id)
-    
-    # Generate tags based on product attributes
-    tags = [
-        f"product-{product_id}",
-        f"category-{product.category_id}",
-        f"brand-{product.brand_id}",
-        f"price-tier-{product.price_tier}"
-    ]
-    
-    response = jsonify(product)
-    response.headers['Surrogate-Key'] = ' '.join(tags)
-    response.headers['Cache-Control'] = 'max-age=3600'
-    
-    return response
-
-# At edge, parse and store with tags:
-def cache_response(url, response):
-    surrogate_keys = response.headers.get('Surrogate-Key', '').split()
-    cache.store(url, response.content, surrogate_keys)
-
-# When product updated, purge by tag:
-def update_product(product_id):
-    # Update in database
-    db.update_product(product_id, new_data)
-    
-    # Purge from all edges
-    invalidation_manager.purge_by_tag(f"product-{product_id}")
-    
-    # All pages showing this product now purged!
-    # Includes: product page, category pages, search results, etc.
-"""
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Soft Purge vs Hard Purge
@@ -4571,6 +3941,42 @@ Result:
 **Bonus Challenge:**
 Design a system that allows gradual price rollout: West Coast sees new prices at 9 PM PT, East Coast at 12 AM ET, Europe at their midnight. How do you handle users who travel between time zones? How do you prevent arbitrage (buying at old price, selling at new price)?
 
+### 🎯 Interview Questions - Cache Invalidation & Purging
+
+**Beginner Level:**
+1. **Q:** "What is cache invalidation and why is it important in a CDN?"
+   - **A:** Cache invalidation removes outdated content from cache when origin content changes, ensuring users get the latest version.
+
+2. **Q:** "What are the different types of cache invalidation in a CDN?"
+   - **A:** TTL-based expiration, manual purging, event-driven invalidation, and real-time invalidation protocols.
+
+3. **Q:** "How would you handle cache invalidation when content is updated?"
+   - **A:** Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms to ensure consistency.
+
+**Intermediate Level:**
+4. **Q:** "How would you design cache invalidation for a CDN that needs to handle 1 billion requests per day?"
+   - **A:** Distributed invalidation protocols, event-driven cache purging, and global propagation mechanisms across multiple regions.
+
+5. **Q:** "What happens if your cache invalidation system goes down during peak traffic?"
+   - **A:** Fallback mechanisms, manual purging, and recovery procedures to maintain cache consistency.
+
+6. **Q:** "How would you handle cache invalidation for a CDN that needs to work across multiple data centers?"
+   - **A:** Cross-region invalidation protocols, event-driven cache purging, and global propagation mechanisms.
+
+**Advanced Level:**
+7. **Q:** "Design cache invalidation for a CDN that needs to support real-time video streaming."
+   - **A:** Real-time invalidation protocols, event-driven cache purging, and global propagation mechanisms for video content.
+
+8. **Q:** "How would you handle cache invalidation for a CDN that needs to support custom domains and enterprise features?"
+   - **A:** Domain-specific invalidation, enterprise cache policies, and compliance-aware cache management.
+
+9. **Q:** "What cache invalidation optimizations would you implement for a CDN with high throughput?"
+   - **A:** Intelligent invalidation algorithms, event-driven cache purging, and distributed invalidation protocols.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design cache invalidation for a CDN that needs to support custom domains and enterprise features?"
+    - **A:** Domain-specific invalidation, enterprise cache policies, and compliance-aware cache management.
+
 ---
 
 ## Section 7: Video Streaming & Adaptive Bitrate
@@ -4685,6 +4091,42 @@ Cons: Complex implementation
 - **HLS vs DASH** - HLS for universal support, DASH for low latency
 - **Cache-friendly** - Segments highly cacheable (95%+ hit ratio possible)
 - **Live vs VOD** - Live requires lower latency, VOD optimizes for cost
+
+### 🎯 Interview Questions - Video Streaming & Adaptive Bitrate
+
+**Beginner Level:**
+1. **Q:** "What is adaptive bitrate streaming and why is it important?"
+   - **A:** Adaptive bitrate automatically adjusts video quality based on network conditions, ensuring smooth playback across different devices and connections.
+
+2. **Q:** "What are the main video streaming protocols used in CDNs?"
+   - **A:** HLS (HTTP Live Streaming), DASH (Dynamic Adaptive Streaming), and RTMP for live streaming.
+
+3. **Q:** "How does video streaming work in a CDN?"
+   - **A:** Video is segmented into chunks, served from edge servers, and players adapt quality based on bandwidth and buffer conditions.
+
+**Intermediate Level:**
+4. **Q:** "How would you design video streaming for a CDN that needs to handle 1 billion requests per day?"
+   - **A:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+
+5. **Q:** "What happens when your video streaming system goes down during peak traffic?"
+   - **A:** Fallback mechanisms, edge server optimization, and recovery procedures to maintain video quality.
+
+6. **Q:** "How would you handle video streaming for a CDN that needs to work across multiple data centers?"
+   - **A:** Cross-region video processing, adaptive streaming protocols, and global content distribution.
+
+**Advanced Level:**
+7. **Q:** "Design video streaming for a CDN that needs to support real-time live streaming."
+   - **A:** Edge video processing, low-latency streaming protocols, bandwidth optimization, and intelligent content routing.
+
+8. **Q:** "How would you handle video streaming for a CDN that needs to support custom domains and enterprise features?"
+   - **A:** Custom domain routing, enterprise video policies, and advanced analytics for video content.
+
+9. **Q:** "What video streaming optimizations would you implement for a CDN with high throughput?"
+   - **A:** Edge video processing, adaptive streaming protocols, bandwidth optimization, and intelligent content routing.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design video streaming for a CDN that needs to support custom domains and enterprise features?"
+    - **A:** Custom domain routing, enterprise video policies, and advanced analytics for video content.
 
 ---
 
@@ -4844,6 +4286,42 @@ Layer 4: Origin Shield
 - **SSL termination** - Handle TLS at edge, reduce origin CPU load
 - **Origin protection** - Only edge IPs can reach origin, prevent direct attacks
 
+### 🎯 Interview Questions - Security & DDoS Protection
+
+**Beginner Level:**
+1. **Q:** "What security considerations would you have for a CDN?"
+   - **A:** DDoS protection, SSL/TLS termination, origin server protection, and traffic filtering to prevent malicious requests.
+
+2. **Q:** "How would you protect a CDN from DDoS attacks?"
+   - **A:** Distributed DDoS protection, traffic filtering, rate limiting, and intelligent traffic routing to mitigate attacks.
+
+3. **Q:** "What happens when a CDN is attacked by malicious actors?"
+   - **A:** DDoS protection mechanisms, traffic filtering, rate limiting, and incident response procedures.
+
+**Intermediate Level:**
+4. **Q:** "How would you design security for a CDN that needs to handle 1 billion requests per day?"
+   - **A:** Distributed security infrastructure, DDoS protection, traffic filtering, and intelligent traffic routing.
+
+5. **Q:** "What happens if your security system goes down during peak traffic?"
+   - **A:** Fallback security mechanisms, traffic filtering, and recovery procedures to maintain protection.
+
+6. **Q:** "How would you handle security for a CDN that needs to work across multiple data centers?"
+   - **A:** Cross-region security, distributed DDoS protection, and global traffic filtering.
+
+**Advanced Level:**
+7. **Q:** "Design security for a CDN that needs to support real-time video streaming."
+   - **A:** Edge security processing, DDoS protection, traffic filtering, and intelligent content routing.
+
+8. **Q:** "How would you handle security for a CDN that needs to support custom domains and enterprise features?"
+   - **A:** Custom domain security, enterprise security policies, and advanced threat protection.
+
+9. **Q:** "What security optimizations would you implement for a CDN with high throughput?"
+   - **A:** Distributed security, intelligent traffic filtering, and performance-optimized security measures.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design security for a CDN that needs to support custom domains and enterprise features?"
+    - **A:** Custom domain security, enterprise security policies, and advanced threat protection.
+
 ---
 
 ## Section 9: Monitoring & Analytics
@@ -4896,62 +4374,20 @@ You can't improve what you don't measure. Real example: A major CDN didn't monit
 ### 🟡 For Intermediate: Monitoring Architecture
 
 **Metrics Collection:**
-```python
-"""
-Edge Metrics Collector
-Purpose: Aggregate performance metrics from edge servers
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-from dataclasses import dataclass
-from typing import Dict
-import time
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Process/route content at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-@dataclass
-class EdgeMetrics:
-    edge_id: str
-    timestamp: int
-    requests_total: int
-    requests_cached: int
-    requests_miss: int
-    bytes_sent: int
-    latency_p50_ms: float
-    latency_p95_ms: float
-    errors_4xx: int
-    errors_5xx: int
-    
-    def cache_hit_ratio(self) -> float:
-        if self.requests_total == 0:
-            return 0.0
-        return (self.requests_cached / self.requests_total) * 100
-    
-    def error_rate(self) -> float:
-        if self.requests_total == 0:
-            return 0.0
-        total_errors = self.errors_4xx + self.errors_5xx
-        return (total_errors / self.requests_total) * 100
-
-class MetricsAggregator:
-    """
-    Aggregate metrics from 100+ edges for global view.
-    """
-    
-    def __init__(self):
-        self.metrics_buffer = []
-    
-    def collect(self, metrics: EdgeMetrics):
-        self.metrics_buffer.append(metrics)
-        
-        # Batch send to analytics DB
-        if len(self.metrics_buffer) >= 1000:
-            self._flush_to_analytics_db()
-    
-    def _flush_to_analytics_db(self):
-        # Write to ClickHouse for fast aggregation queries
-        # Enables dashboards like:
-        # - "Cache hit ratio by region over last 24 hours"
-        # - "Top 10 slowest URLs"
-        # - "Bandwidth usage by customer"
-        pass
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Dashboard Queries:**
@@ -5026,6 +4462,42 @@ Automated response:
 - **Distributed tracing** - Essential for debugging across 100+ edges
 - **Real-time dashboards** - Grafana + Prometheus standard stack
 - **Anomaly detection** - ML catches issues before customers complain
+
+### 🎯 Interview Questions - Monitoring & Analytics
+
+**Beginner Level:**
+1. **Q:** "What monitoring would you implement for a CDN?"
+   - **A:** System health checks, performance metrics, error rates, cache hit ratios, and user experience metrics.
+
+2. **Q:** "What analytics would you track for a CDN?"
+   - **A:** Request volume, geographic distribution, content popularity, cache performance, and user behavior patterns.
+
+3. **Q:** "How would you handle monitoring for a CDN that needs to work across multiple data centers?"
+   - **A:** Cross-region monitoring, regional dashboards, global health checks, and distributed monitoring.
+
+**Intermediate Level:**
+4. **Q:** "How would you design monitoring for a CDN that needs to handle 1 billion requests per day?"
+   - **A:** Distributed monitoring, real-time metrics, performance tracking, and scalable monitoring infrastructure.
+
+5. **Q:** "What happens if your monitoring system goes down during peak traffic?"
+   - **A:** Fallback monitoring, alerting systems, incident response, and recovery procedures.
+
+6. **Q:** "How would you handle analytics for a CDN that needs to support real-time dashboards?"
+   - **A:** Real-time data processing, streaming analytics, dashboard updates, and event-driven architecture.
+
+**Advanced Level:**
+7. **Q:** "Design monitoring for a CDN that needs to support enterprise features."
+   - **A:** Enterprise monitoring, compliance tracking, audit logs, and enterprise-specific metrics.
+
+8. **Q:** "How would you handle monitoring for a CDN that needs to support custom domains and enterprise features?"
+   - **A:** Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
+
+9. **Q:** "What monitoring optimizations would you implement for a CDN with high throughput?"
+   - **A:** Performance monitoring, resource tracking, bottleneck identification, and optimization recommendations.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design monitoring for a CDN that needs to support custom domains and enterprise features?"
+    - **A:** Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
 
 ---
 
@@ -5119,90 +4591,20 @@ Live Streaming:
 ### 🔴 For Advanced: ROI Calculations
 
 **Build vs Buy Analysis:**
-```python
-"""
-CDN Cost Calculator
-Purpose: Compare building own CDN vs using third-party
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-def calculate_total_cost(
-    monthly_bandwidth_tb: float,
-    requests_per_month: int,
-    num_edges: int,
-    is_build: bool
-) -> dict:
-    """
-    Calculate total monthly CDN cost.
-    
-    Build costs: Infrastructure + Operations + Depreciation
-    Buy costs: Provider fees based on usage
-    """
-    
-    if is_build:
-        # Own infrastructure costs
-        server_cost = num_edges * 5 * 200  # 5 servers per edge @ $200/mo
-        storage_cost = num_edges * 100 * 50  # 100 TB per edge @ $50/TB/mo
-        bandwidth_cost = monthly_bandwidth_tb * 10  # $10/TB transit
-        engineer_cost = 50_000  # 5 engineers @ $10K/mo each
-        datacenter_cost = num_edges * 2_000  # $2K/edge/mo facility
-        
-        total = server_cost + storage_cost + bandwidth_cost + engineer_cost + datacenter_cost
-        
-        return {
-            "approach": "Build",
-            "breakdown": {
-                "servers": server_cost,
-                "storage": storage_cost,
-                "bandwidth": bandwidth_cost,
-                "engineers": engineer_cost,
-                "datacenters": datacenter_cost
-            },
-            "total_monthly": total,
-            "per_tb": total / monthly_bandwidth_tb if monthly_bandwidth_tb > 0 else 0
-        }
-    else:
-        # Third-party CDN costs (typical pricing)
-        bandwidth_cost = monthly_bandwidth_tb * 50  # $50/TB (volume pricing)
-        request_cost = (requests_per_month / 10_000) * 0.75  # $0.0075 per 10K requests
-        
-        total = bandwidth_cost + request_cost
-        
-        return {
-            "approach": "Buy",
-            "breakdown": {
-                "bandwidth": bandwidth_cost,
-                "requests": request_cost
-            },
-            "total_monthly": total,
-            "per_tb": total / monthly_bandwidth_tb if monthly_bandwidth_tb > 0 else 0
-        }
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Process/route content at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-# Example comparison:
-"""
-# Small company: 100 TB/month, 1B requests
-build_cost = calculate_total_cost(100, 1_000_000_000, 50, is_build=True)
-buy_cost = calculate_total_cost(100, 1_000_000_000, 0, is_build=False)
-
-# Build: $500K/month ($5,000/TB)
-# Buy: $5K/month ($50/TB)
-# Decision: Buy! 100x cheaper
-
-# Large company: 10,000 TB/month, 100B requests
-build_cost = calculate_total_cost(10_000, 100_000_000_000, 200, is_build=True)
-buy_cost = calculate_total_cost(10_000, 100_000_000_000, 0, is_build=False)
-
-# Build: $2M/month ($200/TB)
-# Buy: $500K/month ($50/TB)
-# Decision: Still buy, but closer
-
-# Netflix scale: 100,000 TB/month, 1T requests
-build_cost = calculate_total_cost(100_000, 1_000_000_000_000, 1000, is_build=True)
-buy_cost = calculate_total_cost(100_000, 1_000_000_000_000, 0, is_build=False)
-
-# Build: $20M/month ($200/TB)
-# Buy: $5B/month ($50,000/TB) - volume discount breaks down
-# Decision: Build! Cheaper at massive scale
-"""
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 ---
@@ -5297,6 +4699,42 @@ Congratulations! You've mastered CDN system design from fundamentals to producti
 - Discuss latency vs cost
 - Cache size vs hit ratio
 - Strong vs eventual consistency
+
+### 🎯 Interview Questions - Trade-offs & Optimizations
+
+**Beginner Level:**
+1. **Q:** "What are the main trade-offs in designing a CDN?"
+   - **A:** Latency vs cost, cache size vs hit ratio, consistency vs availability, and performance vs complexity.
+
+2. **Q:** "How would you decide between different caching strategies?"
+   - **A:** Consider content patterns, access frequency, storage costs, and performance requirements.
+
+3. **Q:** "What factors would you consider when choosing CDN optimization strategies?"
+   - **A:** Performance requirements, cost constraints, content characteristics, and user experience goals.
+
+**Intermediate Level:**
+4. **Q:** "How would you handle trade-offs between performance and cost in a CDN?"
+   - **A:** Performance optimization, cost analysis, ROI calculations, and strategic decision-making.
+
+5. **Q:** "What happens if you need to choose between consistency and availability in a CDN?"
+   - **A:** Analyze business requirements, user impact, and system constraints to make informed decisions.
+
+6. **Q:** "How would you handle trade-offs between security and performance in a CDN?"
+   - **A:** Security-first approach, performance optimization, and balanced security measures.
+
+**Advanced Level:**
+7. **Q:** "Design trade-offs for a CDN that needs to support enterprise features."
+   - **A:** Enterprise requirements, compliance needs, security considerations, and cost-benefit analysis.
+
+8. **Q:** "How would you handle trade-offs between scalability and complexity in a CDN?"
+   - **A:** Scalability planning, complexity management, and strategic architecture decisions.
+
+9. **Q:** "What trade-offs would you consider for a CDN that needs to support custom domains and enterprise features?"
+   - **A:** Domain management, enterprise requirements, compliance needs, and cost considerations.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design trade-offs for a CDN that needs to support custom domains and enterprise features?"
+    - **A:** Domain-specific trade-offs, enterprise requirements, compliance needs, and strategic decision-making.
 
 ---
 

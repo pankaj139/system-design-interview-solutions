@@ -488,6 +488,42 @@ Key Lesson: Requirements evolved based on user feedback and market opportunity, 
 3. What clarifying questions would you ask the healthcare team?
 4. What assumptions would you make about scale, privacy, and compliance?
 
+### 🎯 Interview Questions - Requirements & Scope
+
+**Beginner Level:**
+1. **Q:** "Walk me through the functional requirements for a URL shortener."
+   - **A:** Start with core features: create short URLs, redirect to original URLs, basic analytics. Then mention user management, custom short codes, expiration dates, and API access.
+
+2. **Q:** "What non-functional requirements would you consider for a URL shortener?"
+   - **A:** Focus on availability (99.99%), latency (<100ms redirects), throughput (100M URLs/month), durability (no data loss), and security (prevent abuse).
+
+3. **Q:** "How would you handle different user types in your requirements?"
+   - **A:** Free users (basic features), premium users (custom domains, advanced analytics), enterprise users (SSO, compliance, custom branding).
+
+**Intermediate Level:**
+4. **Q:** "How would you design requirements for a URL shortener that needs to handle 1 billion redirects per day?"
+   - **A:** Break down: 1B/day = ~11,574 redirects/second. Need to consider read-heavy workload, global distribution, caching strategy, and database sharding.
+
+5. **Q:** "What requirements would change if you were building for enterprise customers vs. consumer users?"
+   - **A:** Enterprise: SSO integration, audit logs, compliance (GDPR, HIPAA), custom domains, advanced analytics, SLA guarantees, white-labeling.
+
+6. **Q:** "How would you handle requirements for a URL shortener that needs to work offline?"
+   - **A:** Consider edge cases: cached redirects, eventual consistency, conflict resolution, and graceful degradation when services are unavailable.
+
+**Advanced Level:**
+7. **Q:** "Design requirements for a URL shortener that needs to support real-time analytics with sub-second latency."
+   - **A:** Consider streaming data processing, real-time dashboards, event-driven architecture, and the trade-offs between consistency and performance.
+
+8. **Q:** "How would you modify requirements if the URL shortener needed to handle 50% of traffic from mobile apps with poor connectivity?"
+   - **A:** Add offline capability, retry mechanisms, data compression, progressive web app features, and network-aware caching strategies.
+
+9. **Q:** "What requirements would you add for a URL shortener that needs to prevent malicious URL shortening?"
+   - **A:** URL validation, malware scanning, phishing detection, rate limiting, content filtering, and integration with threat intelligence feeds.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design requirements for a URL shortener that needs to support custom domains for enterprise customers?"
+    - **A:** DNS management, SSL certificate provisioning, domain validation, subdomain routing, and integration with existing enterprise infrastructure.
+
 **Bonus Challenge:** How would HIPAA compliance change your requirements compared to a consumer URL shortener like TinyURL?
 
 ---
@@ -603,102 +639,94 @@ URL Redirect Rate:
 
 **Step 4: What about peak traffic?**
 
-```text
-Traffic isn't constant throughout the day!
+Traffic isn't constant throughout the day! Here's the pattern:
 
-Typical pattern:
-├─ 3 AM: Very low (people sleeping)
-├─ 12 PM: High (lunch hour)
-├─ 8 PM: Highest (evening browsing)
-└─ Weekend vs Weekday: Different patterns
+| Time of Day | Traffic Level | Why? |
+|-------------|---------------|------|
+| 3 AM | Very Low 📉 | People sleeping |
+| 12 PM | High 📊 | Lunch hour browsing |
+| 8 PM | Highest 📈 | Evening browsing peak |
+| Weekend | Different pattern | More leisure time |
 
-Rule of thumb: Peak traffic is 3x average
+**Rule of thumb: Peak traffic is 3× average**
 
-Peak Traffic:
-├─ URL Creation: 12 × 3 = 36 per second
-└─ URL Redirects: 1,160 × 3 = 3,480 per second
 
-We need to design for peaks, not averages!
-```
+### 📊 Average vs Peak Traffic
+| Metric | Average QPS | Peak QPS (3×) | Design For |
+|--------|-------------|---------------|------------|
+| **URL Creation** (writes) | 12/sec | 36/sec | ✅ Peak |
+| **URL Redirects** (reads) | 1,160/sec | 3,480/sec | ✅ Peak |
+
+> **💡 Key Design Principle:** Always design for peak traffic, not average! Your system will be tested during peaks (viral posts, marketing campaigns), not during quiet hours.
 
 #### How Much Storage Do We Need?
 
 Let's figure out how much disk space our URLs will take:
 
-```text
-What do we need to store for each URL?
+### 💾 Storage Per URL
 
-For short URL "tiny.url/aB3xY9":
-├─ Short code: "aB3xY9" = 7 characters = 7 bytes
-├─ Original URL: Average 500 characters = 500 bytes
-├─ Who created it: User ID = 8 bytes
-├─ When created: Timestamp = 8 bytes
-├─ When expires: Timestamp = 8 bytes
-├─ Extra info: Metadata = 50 bytes
-└─ TOTAL: About 600 bytes per URL
+| Component | Size | Example |
+|-----------|------|---------|
+| Short code | 7 bytes | "aB3xY9" |
+| Original URL | 500 bytes | `https://example.com...` |
+| User ID | 8 bytes | Creator identifier |
+| Created timestamp | 8 bytes | When URL was created |
+| Expiry timestamp | 8 bytes | When URL expires |
+| Metadata | 50 bytes | Tags, custom domain, etc. |
+| **Total per URL** | **~600 bytes** | Rounded up for safety |
 
-Let's round up to 600 bytes to be safe.
-```
+### 📈 Storage Growth Over Time
 
-Now let's calculate for different time periods:
+| Time Period | Calculation | Storage Needed | Real-World Comparison |
+|-------------|-------------|----------------|----------------------|
+| **Daily** | 1M URLs × 600 bytes | 600 MB | One HD movie 🎬 |
+| **Monthly** | 600 MB × 30 days | 18 GB | 4-5 HD movies |
+| **Yearly** | 18 GB × 12 months | 216 GB | Your laptop hard drive 💻 |
+| **5 Years** | 216 GB × 5 years | 1.08 TB | External hard drive 📦 |
 
-```text
-Daily Storage:
-1,000,000 URLs × 600 bytes = 600,000,000 bytes
-= 600 MB per day
-└─ About the size of a high-quality movie!
+**But wait!** We need extra space for:
 
-Monthly Storage:
-600 MB × 30 days = 18,000 MB = 18 GB per month
-└─ About 4-5 movies worth of data
+| Overhead Type | Percentage | Why? |
+|---------------|-----------|------|
+| Database indexes | +20% | Fast URL lookups |
+| Backups | +20% | Disaster recovery |
+| Growth buffer | +10% | Traffic spikes |
+| **Total Overhead** | **+50%** | Production reality |
 
-Yearly Storage:
-18 GB × 12 months = 216 GB per year
-└─ Your laptop probably has this much storage!
+### 🎯 Final Storage Estimate (5 Years)
 
-5-Year Storage:
-216 GB × 5 years = 1,080 GB ≈ 1 TB
-└─ This is where we need to think about databases, not laptops
-```
+| Component | Size |
+|-----------|------|
+| Raw data | 1.0 TB |
+| With overhead (50%) | 1.5 TB |
 
-But wait! We need extra space for:
-- **Database indexes** (to find URLs quickly): +20%
-- **Backups** (in case something goes wrong): +20%
-- **Growth buffer** (traffic might increase): +10%
-
-```text
-Total Storage Needed (5 years):
-1 TB × 1.5 (50% overhead) = 1.5 TB
-
-This is totally manageable! A single database server can handle this.
-```
+> **✅ Key Takeaway:** 1.5 TB is totally manageable! A single modern database server can handle this easily. Storage is NOT our bottleneck.
 
 #### How Long Can Our Short URLs Be?
 
 This is a fun math problem! Let's figure out if 6 or 7 characters is enough:
 
-```text
-Character Set: a-z, A-Z, 0-9
-├─ Lowercase: 26 letters
-├─ Uppercase: 26 letters
-├─ Numbers: 10 digits
-└─ Total: 62 possible characters
+### 🔢 Character Set Options
 
-With 6 characters:
-62 × 62 × 62 × 62 × 62 × 62 = 62^6 = 56,800,000,000
-= 56.8 billion unique URLs!
+| Character Type | Count | Examples |
+|----------------|-------|----------|
+| Lowercase letters | 26 | a, b, c, ... z |
+| Uppercase letters | 26 | A, B, C, ... Z |
+| Digits | 10 | 0, 1, 2, ... 9 |
+| **Total characters** | **62** | a-z, A-Z, 0-9 |
 
-How long until we run out?
-56,800,000,000 ÷ 1,000,000 per day = 56,800 days = 155 years
+### 🎯 URL Length Comparison
 
-With 7 characters:
-62^7 = 3,521,614,606,208 = 3.5 TRILLION unique URLs!
+| Length | Total Combinations | Years Until Exhausted | Verdict |
+|--------|-------------------|----------------------|---------|
+| **6 chars** | 62⁶ = 56.8 billion | 155 years | ✅ Good enough |
+| **7 chars** | 62⁷ = 3.5 trillion | 9,589 years | ✅ More than enough! |
 
-Time to run out:
-3,521,614,606,208 ÷ 1,000,000 per day = 9,589 years
+**Calculation:**
+- 6 characters: 56.8B URLs ÷ 1M per day = 56,800 days = **155 years**
+- 7 characters: 3.5T URLs ÷ 1M per day = 3.5M days = **9,589 years**
 
-Conclusion: 7 characters is more than enough! 🎉
-```
+> **🎉 Conclusion:** 7 characters gives us enough URLs to last longer than recorded human history! This is our sweet spot - short enough to be convenient, long enough to never run out.
 
 💡 **Pro Tip:** Always show your work in interviews. It's not about getting the exact right answer - it's about showing you can reason about scale!
 
@@ -937,71 +965,20 @@ Real-world capacity planning isn't just about current scale - it's about predict
 
 **Exponential Growth Model:**
 
-```python
-"""
-Growth Projection Model
-Purpose: Forecasts infrastructure needs based on historical growth
-How to call: python growth_model.py --current-dau=100M --growth-rate=20
-Expected return: Monthly infrastructure requirements for next 2 years
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import math
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-def project_capacity(current_dau, monthly_growth_rate, months=24):
-    """
-    Projects capacity needs with exponential growth
-    
-    current_dau: Current daily active users (e.g., 100_000_000)
-    monthly_growth_rate: Growth as decimal (e.g., 0.20 for 20%)
-    months: Projection period
-    
-    Returns: List of monthly capacity requirements
-    """
-    projections = []
-    
-    for month in range(1, months + 1):
-        # Exponential growth formula: Future = Present × (1 + rate)^time
-        projected_dau = current_dau * math.pow(1 + monthly_growth_rate, month)
-        
-        # Calculate infrastructure needs
-        urls_per_day = projected_dau * 0.01  # 1% create URLs
-        reads_per_day = urls_per_day * 100   # 100:1 ratio
-        
-        # QPS calculations
-        write_qps = urls_per_day / 86400
-        read_qps = reads_per_day / 86400
-        peak_read_qps = read_qps * 3
-        
-        # Server requirements (1K QPS per server)
-        servers_needed = math.ceil(peak_read_qps / 1000) * 2  # 2x for redundancy
-        
-        # Storage (600 bytes per URL, cumulative)
-        total_urls = urls_per_day * 30 * month
-        storage_gb = (total_urls * 600) / (1024**3)
-        
-        projections.append({
-            'month': month,
-            'dau': int(projected_dau),
-            'urls_per_day': int(urls_per_day),
-            'write_qps': int(write_qps),
-            'read_qps': int(read_qps),
-            'servers_needed': servers_needed,
-            'storage_gb': int(storage_gb)
-        })
-    
-    return projections
-
-# Example usage
-current = 100_000_000  # 100M DAU
-growth = 0.20          # 20% monthly growth (aggressive but realistic for startups)
-
-forecast = project_capacity(current, growth, months=24)
-
-print("Growth Forecast (20% monthly growth):")
-print("Month | DAU       | Servers | Storage(GB)")
-print("------|-----------|---------|------------")
-for p in [forecast[0], forecast[5], forecast[11], forecast[23]]:
-    print(f"{p['month']:5d} | {p['dau']:9,d} | {p['servers_needed']:7d} | {p['storage_gb']:10,d}")
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Sample Output:**
@@ -1091,64 +1068,20 @@ How do you know if your estimates are correct? Load testing!
 
 **Load Test Scenarios:**
 
-```python
-"""
-Load Test Configuration
-Purpose: Validates system can handle projected capacity
-Tool: Apache JMeter, k6, or Gatling
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-# Scenario 1: Average Load
-average_load = {
-    "duration": "1 hour",
-    "write_qps": 12,
-    "read_qps": 1160,
-    "success_criteria": {
-        "p99_latency_reads": "< 100ms",
-        "p99_latency_writes": "< 500ms",
-        "error_rate": "< 0.1%",
-        "cpu_utilization": "< 70%"
-    }
-}
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-# Scenario 2: Peak Load
-peak_load = {
-    "duration": "2 hours",
-    "write_qps": 36,
-    "read_qps": 3480,
-    "success_criteria": {
-        "p99_latency_reads": "< 150ms",  # Slightly higher acceptable
-        "p99_latency_writes": "< 750ms",
-        "error_rate": "< 1%",
-        "cpu_utilization": "< 85%"
-    }
-}
-
-# Scenario 3: Stress Test (2x peak)
-stress_test = {
-    "duration": "30 minutes",
-    "write_qps": 72,
-    "read_qps": 6960,
-    "success_criteria": {
-        "p99_latency_reads": "< 500ms",  # Degraded but functional
-        "p99_latency_writes": "< 2000ms",
-        "error_rate": "< 5%",
-        "system_stays_up": True  # Main goal: don't crash!
-    }
-}
-
-# Scenario 4: Soak Test (Endurance)
-soak_test = {
-    "duration": "24 hours",
-    "write_qps": 12,
-    "read_qps": 1160,
-    "success_criteria": {
-        "memory_leak_check": "< 1% growth/hour",
-        "connection_leak_check": "No steady increase",
-        "cache_hit_ratio": "> 90%",
-        "disk_space_growth": "< 2GB/hour"
-    }
-}
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Real-World Production Metrics
@@ -1289,6 +1222,42 @@ Cost Optimization:
 4. How many servers would you need?
 5. How much would this cost per month? (Research AWS/GCP pricing)
 
+### 🎯 Interview Questions - Capacity Planning
+
+**Beginner Level:**
+1. **Q:** "How would you calculate the storage requirements for a URL shortener?"
+   - **A:** Estimate: 100M URLs/month × 12 months = 1.2B URLs. Each URL record ~500 bytes (original URL + metadata). Total: ~600GB. Add 3x for redundancy = ~1.8TB.
+
+2. **Q:** "What's the difference between QPS and TPS in capacity planning?"
+   - **A:** QPS (Queries Per Second) = total requests/second. TPS (Transactions Per Second) = actual database operations/second. For URL shortener: 11,574 QPS redirects vs ~1,000 TPS for URL creation.
+
+3. **Q:** "How would you estimate bandwidth requirements for a URL shortener?"
+   - **A:** Redirect requests: 11,574 QPS × 200 bytes/request = ~2.3 MB/s. URL creation: 1,000 QPS × 1KB/request = ~1 MB/s. Total: ~3.3 MB/s inbound, ~2.3 MB/s outbound.
+
+**Intermediate Level:**
+4. **Q:** "How would you handle capacity planning for a URL shortener with 80% read traffic and 20% write traffic?"
+   - **A:** Design read replicas for redirects (8,000 QPS), master database for writes (1,000 QPS). Use caching for hot URLs. Consider CDN for global distribution.
+
+5. **Q:** "What happens to your capacity calculations if 10% of URLs become viral and get 100x more traffic?"
+   - **A:** Hot URLs need aggressive caching (Redis, CDN). Consider write-through caching, cache warming strategies, and separate infrastructure for viral content.
+
+6. **Q:** "How would you plan capacity for a URL shortener that needs to handle traffic spikes during major events?"
+   - **A:** Auto-scaling groups, load balancers, database read replicas, CDN with edge caching, and circuit breakers for protection.
+
+**Advanced Level:**
+7. **Q:** "Design capacity planning for a URL shortener that needs to handle 1 billion redirects per day with 99.99% availability."
+   - **A:** Multi-region deployment, database sharding, read replicas, CDN with edge caching, circuit breakers, and disaster recovery planning.
+
+8. **Q:** "How would you handle capacity planning for a URL shortener that needs to support real-time analytics on every click?"
+   - **A:** Streaming data pipeline (Kafka), real-time processing (Apache Storm/Flink), time-series database (InfluxDB), and separate analytics infrastructure.
+
+9. **Q:** "What capacity considerations would you have for a URL shortener that needs to handle mobile traffic with poor connectivity?"
+   - **A:** Edge caching, data compression, retry mechanisms, offline capability, progressive web app features, and network-aware load balancing.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design capacity planning for a URL shortener that needs to support custom domains for enterprise customers?"
+    - **A:** DNS load balancing, SSL termination, domain-specific caching, enterprise SLA requirements, and dedicated infrastructure for high-value customers.
+
 **Bonus Challenge:** Photo traffic is extremely spiky (viral memes). How would you design for a photo that gets 10M views in 1 hour?
 
 ---
@@ -1325,38 +1294,27 @@ Our URL shortener has similar components! Let's understand each building block:
 
 When you're just starting out, keep it simple:
 
-```text
-[User's Browser]
-       |
-       | "Please shorten this URL"
-       ↓
-[Your Web Server]
-  ├─ Creates short code
-  └─ Saves to database
-       |
-       ↓
-[Database]
-  └─ Stores: aB3xY9 → https://example.com/long-url
+```mermaid
+sequenceDiagram
+    participant User as 👤 User Browser
+    participant Server as 🖥️ Web Server
+    participant DB as 💾 Database
 
-Later, when someone clicks:
-
-[User's Browser]
-       |
-       | "Take me to tiny.url/aB3xY9"
-       ↓
-[Your Web Server]
-  └─ Looks up aB3xY9 in database
-       |
-       ↓
-[Database]
-  └─ Returns: https://example.com/long-url
-       |
-       ↓
-[Your Web Server]
-  └─ "Redirect to https://example.com/long-url"
+    Note over User,DB: Creating Short URL
+    User->>Server: POST /shorten<br/>"https://example.com/long-url"
+    Server->>Server: Generate short code "aB3xY9"
+    Server->>DB: Save mapping
+    DB-->>Server: Saved!
+    Server-->>User: "tiny.url/aB3xY9"
+    
+    Note over User,DB: Later: Using Short URL
+    User->>Server: GET /aB3xY9
+    Server->>DB: Lookup "aB3xY9"
+    DB-->>Server: "https://example.com/long-url"
+    Server-->>User: 302 Redirect
 ```
 
-This works great for small scale! One server, one database - simple and clean.
+> **✅ Key Advantage:** Simple! One server, one database - perfect for getting started quickly and handling up to ~10,000 users.
 
 #### The Problem: What Happens When You Grow?
 
@@ -1453,42 +1411,48 @@ Why separate:
 
 Here's how it all works together:
 
-```text
-┌─────────────────────────────────────────────────┐
-│                    USERS                        │
-│         (clicking short URLs worldwide)         │
-└────────────────┬────────────────────────────────┘
-                 ↓
-┌─────────────────────────────────────────────────┐
-│              CDN (CloudFlare)                   │
-│        "Already have aB3xY9 cached!"            │
-│        Returns redirect INSTANTLY               │
-└────────────────┬────────────────────────────────┘
-                 ↓ (only if not in CDN)
-┌─────────────────────────────────────────────────┐
-│            LOAD BALANCER                        │
-│       "Let me find you a free server"           │
-└────────────────┬────────────────────────────────┘
-                 ↓
-┌─────────────────────────────────────────────────┐
-│           WEB SERVERS (Multiple)                │
-│   ┌──────────┐  ┌──────────┐  ┌──────────┐     │
-│   │ Server 1 │  │ Server 2 │  │ Server 3 │     │
-│   └──────────┘  └──────────┘  └──────────┘     │
-└────────┬────────────────────────────────────────┘
-         ↓
-    ┌────────┐
-    │ CACHE  │  ← Check here first!
-    │ Redis  │    Fast! (~1ms)
-    └────┬───┘
-         ↓ (if not in cache)
-    ┌────────────┐
-    │  DATABASE  │  ← Check here second
-    │ PostgreSQL │    Slower (~10-50ms)
-    │            │
-    │ Primary +  │
-    │ Replicas   │
-    └────────────┘
+```mermaid
+graph TD
+    Users[👥 Users Worldwide<br/>Clicking Short URLs]
+    CDN[☁️ CDN CloudFlare<br/>Cache Hit ~1ms]
+    LB[⚖️ Load Balancer<br/>Route to healthy server]
+    
+    subgraph "🖥️ Web Server Cluster"
+        WS1[Server 1]
+        WS2[Server 2]
+        WS3[Server 3]
+    end
+    
+    Cache[(⚡ Redis Cache<br/>~1ms response)]
+    
+    subgraph "💾 Database Layer"
+        DBPrimary[(🔵 Primary<br/>Writes)]
+        DBReplica1[(🔵 Replica 1<br/>Reads)]
+        DBReplica2[(🔵 Replica 2<br/>Reads)]
+    end
+    
+    Analytics[📊 Analytics<br/>Message Queue]
+    
+    Users -->|1. Request| CDN
+    CDN -->|Cache MISS| LB
+    LB --> WS1
+    LB --> WS2
+    LB --> WS3
+    
+    WS1 & WS2 & WS3 -->|2. Check Cache| Cache
+    WS1 & WS2 & WS3 -->|3. Cache MISS| DBReplica1
+    WS1 & WS2 & WS3 -->|3. Cache MISS| DBReplica2
+    WS1 & WS2 & WS3 -->|Write| DBPrimary
+    
+    DBPrimary -.->|Replicate| DBReplica1
+    DBPrimary -.->|Replicate| DBReplica2
+    
+    WS1 & WS2 & WS3 -.->|Log Clicks| Analytics
+    
+    style CDN fill:#90EE90
+    style Cache fill:#FFE4B5
+    style DBPrimary fill:#87CEEB
+    style Analytics fill:#DDA0DD
 ```
 
 #### What Each Component Does (Simple Explanation)
@@ -2257,6 +2221,42 @@ Your QuickLink service goes viral! Overnight, you go from 10K URLs/day to 1M URL
 - How does your architecture differ from TinyURL's current architecture?
 - What trade-offs did you make given the constraints?
 - How would you justify your decisions to the CTO?
+
+### 🎯 Interview Questions - High-Level Design
+
+**Beginner Level:**
+1. **Q:** "Draw the high-level architecture for a URL shortener."
+   - **A:** Show: Client → Load Balancer → Web Server → Database. Include caching layer (Redis) and CDN for global distribution.
+
+2. **Q:** "What are the main components in a URL shortener system?"
+   - **A:** Web servers (handle requests), database (store URL mappings), cache (fast lookups), load balancer (distribute traffic), and analytics service.
+
+3. **Q:** "How would you handle the flow when someone creates a short URL?"
+   - **A:** Client → Load Balancer → Web Server → Generate unique ID → Store in database → Return short URL to client.
+
+**Intermediate Level:**
+4. **Q:** "How would you design a URL shortener that needs to handle 100M redirects per day?"
+   - **A:** Add read replicas, caching layer (Redis), CDN for global distribution, and database sharding for scale.
+
+5. **Q:** "What happens when someone clicks a short URL that doesn't exist?"
+   - **A:** Check cache first, then database. If not found, return 404 error. Consider rate limiting to prevent abuse.
+
+6. **Q:** "How would you handle the case where the same long URL is shortened multiple times?"
+   - **A:** Option 1: Return existing short URL. Option 2: Create new short URL each time. Consider deduplication strategies and user preferences.
+
+**Advanced Level:**
+7. **Q:** "Design a URL shortener that needs to support custom short codes for premium users."
+   - **A:** Add validation service, conflict resolution, premium user database, and custom domain support.
+
+8. **Q:** "How would you handle a URL shortener that needs to work across multiple data centers?"
+   - **A:** Multi-region deployment, database replication, cross-region caching, and eventual consistency considerations.
+
+9. **Q:** "What happens if your database goes down during peak traffic?"
+   - **A:** Circuit breakers, read-only mode, cached redirects, graceful degradation, and disaster recovery procedures.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design a URL shortener that needs to support real-time analytics on every click?"
+    - **A:** Add analytics service, event streaming (Kafka), real-time processing, and separate analytics database.
 
 ---
 
@@ -3071,6 +3071,101 @@ Results:
 
 ---
 
+### 🎯 Interview Questions: Database Design
+
+#### Question 1: SQL vs NoSQL for URL shortener - which do you choose?
+
+**What the interviewer wants to know:**
+- Do you understand database trade-offs?
+- Can you justify your choice with access patterns?
+
+**Answer Framework:**
+
+```text
+Access Pattern Analysis:
+├─ Writes: 100M URLs/month = 38 writes/sec (LOW)
+├─ Reads: 10B redirects/month = 3,858 reads/sec (HIGH)
+├─ Ratio: 100:1 read-heavy
+└─ Query: Simple key-value lookup (short_code → long_url)
+
+PostgreSQL (SQL):
+├─ Pros: ACID, complex queries, mature, analytics
+├─ Cons: Vertical scaling limits, sharding complex
+├─ Performance: 10K reads/sec with indexes
+└─ Cost: $200-500/month
+
+Cassandra (NoSQL):
+├─ Pros: Horizontal scaling, high throughput
+├─ Cons: No joins, eventual consistency
+├─ Performance: 100K+ reads/sec
+└─ Cost: $2K-5K/month (cluster)
+
+Decision: PostgreSQL + Redis Cache
+├─ PostgreSQL: Handles 5% cache misses + writes
+├─ Redis: Handles 95% of reads (200K+ reads/sec)
+├─ Cost: $500/month total
+└─ Scales to 100M URLs easily
+```
+
+#### Question 2: How do you design the database schema?
+
+**Answer Framework:**
+
+```text
+Core Schema:
+
+urls table:
+├─ id: BIGINT AUTO_INCREMENT (internal ID)
+├─ short_code: VARCHAR(10) UNIQUE (the "aB3xK2" part)
+├─ long_url: TEXT (original URL, up to 2KB)
+├─ created_at: TIMESTAMP
+├─ expires_at: TIMESTAMP (NULL = never expires)
+├─ user_id: BIGINT (NULL = anonymous)
+└─ click_count: INT (denormalized for performance)
+
+Indexes:
+├─ PRIMARY KEY (id) - automatic
+├─ UNIQUE INDEX (short_code) - for redirects (99% of queries!)
+├─ INDEX (user_id) - for "show my URLs"
+└─ INDEX (expires_at) - for cleanup job
+
+Why this design:
+├─ short_code lookup: O(log n) with B-tree index (~10ms)
+├─ User queries: Indexed, fast enough
+├─ Denormalized click_count: Avoid COUNT(*) queries
+└─ Trade-off: Write complexity for read speed
+```
+
+#### Question 3: How do you handle 1 billion URLs (sharding)?
+
+**Answer Framework:**
+
+```text
+When to Shard:
+├─ 50M URLs: Single DB struggling (10GB)
+├─ 100M URLs: Must shard or migrate to NoSQL
+└─ Decision point: Read replicas + cache maxed out
+
+Sharding Strategy:
+Shard by short_code (first 2 chars):
+├─ "aB3xK2" → Shard for "aB" 
+├─ 62² = 3,844 possible shards (use 10-100)
+├─ Routing: shard_id = base62_decode(short_code[:2]) % 10
+└─ Even distribution (random codes)
+
+Benefits:
+├─ Redirects: Single shard lookup (no scatter-gather)
+├─ Even distribution: Random codes spread evenly
+└─ Simple routing: Deterministic shard assignment
+
+Trade-off:
+├─ User queries: Scatter across shards (slower)
+├─ Acceptable: Redirects are 99% of traffic
+└─ Solution: Cache user data in Redis
+```
+
+---
+
 ### ✅ Key Takeaways
 
 - **Schema design matters**: Good schema makes queries fast, bad schema creates technical debt
@@ -3130,6 +3225,42 @@ Results:
 
 **Bonus Challenge:**
 Design a "soft delete" system where deleted URLs can be recovered within 30 days, then permanently deleted. How does this affect your schema? What background jobs do you need?
+
+### 🎯 Interview Questions - Database Design
+
+**Beginner Level:**
+1. **Q:** "What database schema would you use for a URL shortener?"
+   - **A:** Simple table: short_code (PK), original_url, created_at, user_id, click_count. Add indexes on short_code and user_id.
+
+2. **Q:** "How would you handle database indexes for a URL shortener?"
+   - **A:** Primary key on short_code (unique), index on user_id for user queries, index on created_at for analytics, and composite indexes for common queries.
+
+3. **Q:** "What happens if two users try to create the same short code?"
+   - **A:** Database constraint prevents duplicates. Return error to user or suggest alternative. Consider UUID-based generation to avoid conflicts.
+
+**Intermediate Level:**
+4. **Q:** "How would you design the database for a URL shortener that needs to handle 1 billion URLs?"
+   - **A:** Database sharding by short_code hash, read replicas for redirects, separate analytics database, and partitioning by date.
+
+5. **Q:** "What database would you choose for a URL shortener and why?"
+   - **A:** PostgreSQL for ACID compliance, MySQL for simplicity, or NoSQL (Cassandra) for massive scale. Consider read/write patterns and consistency requirements.
+
+6. **Q:** "How would you handle database backups for a URL shortener?"
+   - **A:** Daily full backups, hourly incremental backups, point-in-time recovery, cross-region replication, and test restore procedures.
+
+**Advanced Level:**
+7. **Q:** "Design a database schema for a URL shortener that needs to support analytics on every click."
+   - **A:** Separate tables for URLs and clicks, time-series database for analytics, data partitioning by date, and real-time aggregation.
+
+8. **Q:** "How would you handle database consistency in a multi-region URL shortener?"
+   - **A:** Master-slave replication, eventual consistency for reads, conflict resolution, and circuit breakers for cross-region failures.
+
+9. **Q:** "What database optimizations would you implement for a URL shortener with 80% read traffic?"
+   - **A:** Read replicas, connection pooling, query optimization, caching strategies, and database sharding for horizontal scaling.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design a database for a URL shortener that needs to support custom domains and enterprise features?"
+    - **A:** Separate tables for domains, users, and URLs. Add enterprise-specific fields, audit logs, and compliance features.
 
 ---
 
@@ -3715,64 +3846,20 @@ Content-Type: application/json
 
 **Server-Side Logic:**
 
-```python
-"""
-Idempotency Handler
-Purpose: Ensures retried requests don't create duplicate URLs
-How to call: Middleware automatically checks Idempotency-Key header
-Expected return: Cached response for duplicate keys
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import hashlib
-import json
-from datetime import timedelta
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class IdempotencyMiddleware:
-    def __init__(self, redis_client):
-        self.redis = redis_client
-        self.ttl = timedelta(hours=24)  # Store for 24 hours
-    
-    def process_request(self, request):
-        """
-        Check if this request has been processed before
-        """
-        idempotency_key = request.headers.get('Idempotency-Key')
-        
-        if not idempotency_key:
-            # No idempotency key, process normally
-            return None
-        
-        # Check if we've seen this key before
-        cache_key = f"idempotency:{idempotency_key}"
-        cached_response = self.redis.get(cache_key)
-        
-        if cached_response:
-            # Already processed, return cached response
-            return json.loads(cached_response)
-        
-        # New request, mark as in-progress to prevent concurrent duplicates
-        lock_key = f"idempotency:lock:{idempotency_key}"
-        if not self.redis.set(lock_key, "locked", ex=60, nx=True):
-            # Another request with same key is in progress
-            return {"error": "REQUEST_IN_PROGRESS", "retry_after": 5}
-        
-        return None  # Process request normally
-    
-    def store_response(self, idempotency_key, response):
-        """
-        Cache the response for future retries
-        """
-        if idempotency_key:
-            cache_key = f"idempotency:{idempotency_key}"
-            self.redis.setex(
-                cache_key,
-                self.ttl,
-                json.dumps(response)
-            )
-            
-            # Release lock
-            lock_key = f"idempotency:lock:{idempotency_key}"
-            self.redis.delete(lock_key)
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Benefits:**
@@ -3890,109 +3977,20 @@ Webhook Events:
 
 **Reliable Delivery:**
 
-```python
-"""
-Webhook Delivery Service
-Purpose: Reliably delivers webhooks to customer endpoints
-How to call: webhook_service.deliver(event, url)
-Expected return: Delivery status (success/failed/retrying)
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import requests
-import hmac
-import hashlib
-from datetime import datetime, timedelta
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class WebhookDelivery:
-    def __init__(self, redis_client):
-        self.redis = redis_client
-        self.max_retries = 3
-        self.retry_delays = [60, 300, 900]  # 1min, 5min, 15min
-    
-    async def deliver(self, event, customer_webhook_url, secret):
-        """
-        Delivers webhook with retry logic
-        
-        Retry Strategy:
-        - Try 1: Immediate
-        - Try 2: 1 minute later
-        - Try 3: 5 minutes later
-        - Try 4: 15 minutes later
-        - Give up and log failure
-        """
-        payload = self._create_payload(event)
-        signature = self._generate_signature(payload, secret)
-        
-        headers = {
-            'Content-Type': 'application/json',
-            'X-Webhook-Signature': signature,
-            'X-Webhook-ID': event['webhook_id'],
-            'X-Webhook-Timestamp': event['timestamp']
-        }
-        
-        for attempt in range(self.max_retries + 1):
-            try:
-                response = requests.post(
-                    customer_webhook_url,
-                    json=payload,
-                    headers=headers,
-                    timeout=10  # 10 second timeout
-                )
-                
-                if response.status_code == 200:
-                    # Success!
-                    self._log_success(event['webhook_id'])
-                    return {'status': 'delivered'}
-                
-                elif response.status_code >= 500:
-                    # Server error, retry
-                    if attempt < self.max_retries:
-                        await self._schedule_retry(
-                            event, 
-                            customer_webhook_url, 
-                            secret,
-                            delay=self.retry_delays[attempt]
-                        )
-                        continue
-                
-                else:
-                    # Client error (4xx), don't retry
-                    self._log_failure(event['webhook_id'], 
-                                     f"Client error: {response.status_code}")
-                    return {'status': 'failed', 'reason': 'client_error'}
-            
-            except requests.Timeout:
-                # Timeout, retry
-                if attempt < self.max_retries:
-                    await self._schedule_retry(
-                        event, 
-                        customer_webhook_url, 
-                        secret,
-                        delay=self.retry_delays[attempt]
-                    )
-                    continue
-            
-            except Exception as e:
-                # Unexpected error
-                self._log_failure(event['webhook_id'], str(e))
-                return {'status': 'failed', 'reason': str(e)}
-        
-        # Exhausted retries
-        self._log_failure(event['webhook_id'], 'Max retries exceeded')
-        return {'status': 'failed', 'reason': 'max_retries_exceeded'}
-    
-    def _generate_signature(self, payload, secret):
-        """
-        HMAC SHA256 signature for webhook verification
-        Customer can verify webhook came from us
-        """
-        message = json.dumps(payload, sort_keys=True).encode()
-        signature = hmac.new(
-            secret.encode(),
-            message,
-            hashlib.sha256
-        ).hexdigest()
-        return f"sha256={signature}"
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### API Performance Optimization
@@ -4288,6 +4286,42 @@ Write the:
 - How would you version this API as requirements evolve?
 - What security considerations are unique to team-based systems?
 
+### 🎯 Interview Questions - API Design
+
+**Beginner Level:**
+1. **Q:** "Design the API endpoints for a URL shortener."
+   - **A:** POST /api/shorten (create), GET /{short_code} (redirect), GET /api/analytics/{short_code} (stats), DELETE /api/urls/{short_code} (delete).
+
+2. **Q:** "What HTTP status codes would you use for a URL shortener API?"
+   - **A:** 200 (success), 201 (created), 301/302 (redirect), 400 (bad request), 404 (not found), 429 (rate limited), 500 (server error).
+
+3. **Q:** "How would you handle API authentication for a URL shortener?"
+   - **A:** API keys for programmatic access, OAuth for web users, rate limiting per API key, and different tiers for different user types.
+
+**Intermediate Level:**
+4. **Q:** "How would you design an API for a URL shortener that needs to support bulk operations?"
+   - **A:** POST /api/bulk/shorten with array of URLs, batch processing, progress tracking, and error handling for individual failures.
+
+5. **Q:** "What API design considerations would you have for a URL shortener that needs to support mobile apps?"
+   - **A:** RESTful design, JSON responses, pagination, offline capability, retry mechanisms, and mobile-specific endpoints.
+
+6. **Q:** "How would you handle API versioning for a URL shortener?"
+   - **A:** URL versioning (/api/v1/shorten), header versioning, backward compatibility, deprecation notices, and gradual migration.
+
+**Advanced Level:**
+7. **Q:** "Design an API for a URL shortener that needs to support real-time analytics."
+   - **A:** WebSocket connections, server-sent events, real-time dashboards, and streaming analytics endpoints.
+
+8. **Q:** "How would you design an API for a URL shortener that needs to support enterprise features?"
+   - **A:** SSO integration, audit logs, compliance endpoints, custom domains, and enterprise-specific analytics.
+
+9. **Q:** "What API security considerations would you have for a URL shortener?"
+   - **A:** Rate limiting, input validation, CORS policies, API key management, and protection against abuse.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design an API for a URL shortener that needs to support custom domains and enterprise features?"
+    - **A:** Domain management endpoints, SSL certificate provisioning, custom branding, and enterprise-specific configurations.
+
 ---
 
 ## Section 6: Creating Unique Short URLs
@@ -4321,6 +4355,140 @@ This section solves one of the most interesting problems in system design: **cre
 ---
 
 ### 🟢 For Beginners: Understanding Short Code Generation
+
+#### Key Technologies Explained
+
+Before diving into short code generation, let's understand the core technologies:
+
+**What is Base62 Encoding?**
+
+Base62 is a way to represent numbers using 62 different characters instead of just 10 (like normal decimal numbers). Think of it as a more compact numbering system!
+
+```text
+Normal Decimal (Base10):
+- Uses: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 (10 characters)
+- Number 1000 = "1000" (4 characters)
+
+Base62:
+- Uses: 0-9, a-z, A-Z (62 characters total)
+- Number 1000 = "g8" (2 characters!)
+- Number 1,000,000 = "4c92" (4 characters)
+
+Why Base62?
+├─ More compact: Fits more numbers in fewer characters
+├─ URL-safe: All characters work in URLs
+├─ Human-readable: No special symbols
+└─ Avoids confusion: Skip O/0, l/1 that look similar
+
+Used by: YouTube (video IDs), Bitly, TinyURL, Instagram
+```
+
+**What is a Hash Function?**
+
+A hash function is like a magical blender that converts ANY input (text, file, URL) into a fixed-size output. The same input always gives the same output, but changing even one character gives a completely different output!
+
+```text
+How it works:
+Input (any length) → Hash Function → Output (fixed length)
+
+Examples:
+"hello" → MD5 → "5d41402abc4b2a76b9719d911017c592"
+"hello!" → MD5 → "fc3ff98e8c6a0d3087d515c0473f8677" (completely different!)
+"https://example.com/long/url" → MD5 → "e99a18c428cb38d5f260853678922e03"
+
+Key properties:
+1. Deterministic: Same input = same output always
+2. Fast: Computes in milliseconds
+3. One-way: Can't reverse (hash → original)
+4. Avalanche effect: Tiny change = completely different hash
+
+Common hash functions:
+- MD5: 32 characters (older, faster)
+- SHA-256: 64 characters (newer, more secure)
+- MurmurHash: Faster, non-cryptographic
+```
+
+**What is MD5?**
+
+MD5 (Message Digest 5) is a specific hash function that converts any input into a 32-character hexadecimal string.
+
+```text
+Example:
+Input: "https://www.example.com/products/shoes"
+MD5 Output: "8e296a067a37563370ded05f5a3bf3ec"
+
+Take first 7 chars: "8e296a0" ← This becomes your short code!
+
+Why MD5 for URL shortening?
+✅ Fast: Hashes millions of URLs per second
+✅ Consistent: Same URL always gets same code
+❌ Not secure: Don't use for passwords! (fine for URLs)
+✅ Well-supported: Available in every language
+```
+
+**What is a Collision?**
+
+A collision happens when two different inputs produce the same output. In URL shortening, this means two different long URLs getting the same short code!
+
+```text
+Collision Example:
+
+URL 1: "https://example.com/page1"
+  ↓ Hash ↓
+  "abc123" (first 6 chars)
+
+URL 2: "https://different.com/page2"
+  ↓ Hash ↓
+  "abc123" (first 6 chars) ← COLLISION!
+
+Problem: Can't have two URLs with same short code!
+
+Solutions:
+1. Check database: Is "abc123" already taken?
+2. If taken: Append/modify slightly ("abc124")
+3. Or: Use longer codes (7 chars instead of 6)
+4. Or: Use counter-based approach (no collisions!)
+
+Birthday Paradox: With 6-char Base62 (56B possible):
+- After 100M URLs: 0.01% collision chance
+- After 1B URLs: 1% collision chance
+- After 7B URLs: 50% collision chance
+```
+
+**What is a Distributed Counter?**
+
+A distributed counter is a way to generate unique sequential numbers across multiple servers without conflicts.
+
+```text
+Single Server (Easy):
+Server: Counter = 1
+Request 1 → Counter++ → Give #1
+Request 2 → Counter++ → Give #2
+Simple! But: Single point of failure
+
+Multiple Servers (Distributed):
+Problem: All servers incrementing same counter = conflicts!
+
+Server A: Counter = 1, 2, 3...
+Server B: Counter = 1, 2, 3... ← CONFLICT! Duplicate IDs!
+
+Solution 1: Range Allocation
+- Server A: Gets range 1-1,000,000
+- Server B: Gets range 1,000,001-2,000,000
+- Server C: Gets range 2,000,001-3,000,000
+No conflicts!
+
+Solution 2: Snowflake Algorithm
+Each ID contains:
+- Timestamp (41 bits)
+- Server ID (10 bits)
+- Sequence (12 bits)
+Result: Globally unique IDs across all servers!
+
+Used by: Twitter, Instagram, Discord
+```
+
+---
 
 #### The License Plate Analogy
 
@@ -4469,88 +4637,39 @@ Calculate: (4 × 62³) + (12 × 62²) + (9 × 62¹) + (2 × 62⁰)
 = 1,000,000 ✅
 ```
 
-#### Simple Python Code (Beginner-Friendly)
+#### Base62 Encoding Algorithm (Conceptual)
 
-```python
-"""
-Base62 Encoder
-Purpose: Converts numbers to short Base62 strings for URL shortening
-How to call: base62_encode(123456)
-Expected return: Short string like 'w7e'
-"""
+**Encoding (Number → String):**
 
-def base62_encode(number):
-    """
-    Convert a number to Base62 string
-    
-    Args:
-        number: Any positive integer (e.g., 123456)
-    
-    Returns:
-        String using a-z, A-Z, 0-9 (e.g., "w7e")
-    
-    Example:
-        base62_encode(1) → "b"
-        base62_encode(62) → "ba"
-        base62_encode(1000000) → "4c92"
-    """
-    # Our alphabet: 0-9, a-z, A-Z (62 characters total)
-    alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    
-    # Handle special case: 0 should return first character
-    if number == 0:
-        return alphabet[0]
-    
-    # Build result string
-    result = ""
-    
-    # Keep dividing by 62 until we reach 0
-    while number > 0:
-        remainder = number % 62  # Get remainder (0-61)
-        result = alphabet[remainder] + result  # Add character to front
-        number = number // 62  # Integer division
-    
-    return result
+```text
+Algorithm:
+1. Use alphabet: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+2. While number > 0:
+   - remainder = number % 62
+   - Add alphabet[remainder] to result
+   - number = number ÷ 62
+3. Return result
 
-
-def base62_decode(encoded_string):
-    """
-    Convert Base62 string back to number
-    
-    Args:
-        encoded_string: Base62 string (e.g., "w7e")
-    
-    Returns:
-        Original number (e.g., 123456)
-    
-    Example:
-        base62_decode("b") → 1
-        base62_decode("4c92") → 1,000,000
-    """
-    alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    
-    number = 0
-    
-    # Process each character from left to right
-    for char in encoded_string:
-        # Find position of character in alphabet (0-61)
-        position = alphabet.index(char)
-        
-        # Multiply current result by 62 and add position
-        number = number * 62 + position
-    
-    return number
-
-
-# Test it out!
-print(base62_encode(1))          # Output: "b"
-print(base62_encode(62))         # Output: "ba"
-print(base62_encode(1000000))    # Output: "4c92"
-
-print(base62_decode("b"))        # Output: 1
-print(base62_decode("ba"))       # Output: 62
-print(base62_decode("4c92"))     # Output: 1000000
+Example Conversions:
+- 1 → "b"
+- 62 → "ba"
+- 1,000,000 → "4c92"
 ```
+
+**Decoding (String → Number):**
+
+```text
+Algorithm:
+1. For each character in string:
+   - Find position in alphabet (0-61)
+   - number = (number × 62) + position
+2. Return number
+
+Example:
+"4c92" → 1,000,000
+```
+
+> **💡 Note:** This is High-Level Design - actual implementation is available in any programming language's standard libraries or simple to implement. Focus on understanding the concept!
 
 #### Which Approach to Choose?
 
@@ -4628,138 +4747,40 @@ print(f"Short code: {code}")
 
 **Collision Handling Strategy:**
 
-```python
-"""
-Hash-Based Generator with Collision Handling
-Purpose: Generates unique short codes using MD5 with collision resolution
-How to call: generate_unique_hash_code(long_url, database)
-Expected return: Unique short code that doesn't exist in database
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-def generate_unique_hash_code(long_url, database, max_attempts=5):
-    """
-    Generate short code with collision detection
-    
-    Args:
-        long_url: URL to shorten
-        database: Database connection to check existing codes
-        max_attempts: Maximum collision resolution attempts
-    
-    Returns:
-        Unique short code
-    
-    Raises:
-        Exception: If can't find unique code after max_attempts
-    """
-    import hashlib
-    
-    # Get full MD5 hash
-    hash_hex = hashlib.md5(long_url.encode()).hexdigest()
-    
-    # Try different slices of the hash
-    for attempt in range(max_attempts):
-        # First attempt: characters 0-7
-        # Second attempt: characters 1-8
-        # Third attempt: characters 2-9, etc.
-        start = attempt
-        end = attempt + 7
-        
-        short_code = hash_hex[start:end]
-        
-        # Check if this code already exists
-        if not database.exists(short_code):
-            return short_code
-    
-    # If all attempts failed, append random characters
-    import random
-    import string
-    
-    short_code = hash_hex[:6]
-    random_suffix = random.choice(string.ascii_letters)
-    return short_code + random_suffix
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-
-# Collision Probability Calculation
-"""
-With 7-character Base62 codes:
-├─ Total possibilities: 62^7 = 3.5 trillion
-├─ After 1 million URLs: Collision probability ≈ 0.01%
-├─ After 10 million URLs: Collision probability ≈ 1%
-├─ After 100 million URLs: Collision probability ≈ 10%
-
-This is the "Birthday Paradox":
-In a room of 23 people, 50% chance two share a birthday.
-In URL shortening with 62^7 space:
-├─ At 1M URLs: Very safe
-├─ At 10M URLs: Start seeing collisions
-└─ At 100M URLs: Frequent collisions
-"""
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Deep Dive: Counter-Based with Database
 
 **Single Database Approach:**
 
-```python
-"""
-Counter-Based ID Generator (Simple Version)
-Purpose: Generates sequential unique IDs using database counter
-How to call: generate_short_code_counter(database)
-Expected return: Unique short code based on auto-incrementing counter
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class URLShortener:
-    def __init__(self, database):
-        self.db = database
-    
-    def shorten_url(self, long_url):
-        """
-        Create short URL using auto-increment ID
-        
-        Process:
-            1. Insert URL into database (get auto-increment ID)
-            2. Convert ID to Base62
-            3. Return short code
-        
-        Example:
-            ID 1 → "b"
-            ID 62 → "ba"
-            ID 1000000 → "4c92"
-        """
-        # Insert into database, get auto-increment ID
-        query = """
-            INSERT INTO url_mappings (long_url, created_at)
-            VALUES (%s, NOW())
-            RETURNING id
-        """
-        
-        result = self.db.execute(query, (long_url,))
-        url_id = result.fetchone()['id']
-        
-        # Convert ID to Base62
-        short_code = self.base62_encode(url_id)
-        
-        # Update the record with short code
-        update_query = """
-            UPDATE url_mappings
-            SET short_code = %s
-            WHERE id = %s
-        """
-        self.db.execute(update_query, (short_code, url_id))
-        
-        return short_code
-    
-    def base62_encode(self, number):
-        """Convert number to Base62 string"""
-        alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        if number == 0:
-            return alphabet[0]
-        
-        result = ""
-        while number > 0:
-            result = alphabet[number % 62] + result
-            number = number // 62
-        return result
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
+
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **The Problem with Simple Counter:**
@@ -4789,75 +4810,20 @@ Solution Preview (Advanced section):
 
 #### Hybrid Approach: Best of Both Worlds
 
-```python
-"""
-Hybrid ID Generator
-Purpose: Uses counter for uniqueness + randomization for unpredictability
-How to call: generate_hybrid_short_code(long_url)
-Expected return: Unique, non-sequential short code
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import random
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class HybridShortener:
-    def __init__(self, database):
-        self.db = database
-    
-    def generate_short_code(self, long_url):
-        """
-        Generate short code using counter + random shuffle
-        
-        Process:
-            1. Get sequential ID from database
-            2. Apply random shuffle to make non-sequential
-            3. Convert to Base62
-        
-        Benefits:
-            ✅ Unique (from counter)
-            ✅ Non-predictable (from shuffle)
-            ✅ No collisions
-        """
-        # Get next ID
-        url_id = self.get_next_id()
-        
-        # Apply XOR with random prime for shuffling
-        # This makes sequential IDs look random
-        shuffled_id = url_id ^ 0x5d41402  # XOR with prime number
-        
-        # Convert to Base62
-        short_code = self.base62_encode(shuffled_id)
-        
-        return short_code, url_id
-    
-    def get_next_id(self):
-        """Get next ID from database sequence"""
-        query = "SELECT nextval('url_id_sequence')"
-        result = self.db.execute(query)
-        return result.fetchone()[0]
-    
-    def base62_encode(self, number):
-        """Convert number to Base62"""
-        alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        if number == 0:
-            return alphabet[0]
-        
-        result = ""
-        while number > 0:
-            result = alphabet[number % 62] + result
-            number = number // 62
-        return result
-
-
-# Example output:
-"""
-Sequential IDs → Shuffled IDs → Base62
-1 → 6144003 → "pKE3"
-2 → 6144000 → "pKE0"
-3 → 6144001 → "pKE1"
-4 → 6144006 → "pKE6"
-
-Notice: Not sequential in Base62!
-"""
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Algorithm Comparison Table
@@ -4882,76 +4848,20 @@ Recommendation for Interview:
 
 #### Custom Short URLs (Vanity URLs)
 
-```python
-"""
-Custom URL Handler
-Purpose: Allows users to choose their own short codes
-How to call: create_custom_url(long_url, custom_alias)
-Expected return: Custom short code if available, error if taken
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-def create_custom_url(long_url, custom_alias, database):
-    """
-    Create custom short URL (e.g., tiny.url/my-blog)
-    
-    Args:
-        long_url: Original URL
-        custom_alias: User's desired short code
-        database: Database connection
-    
-    Returns:
-        tuple: (success, short_code or error_message)
-    
-    Validation:
-        ✅ 3-30 characters
-        ✅ Alphanumeric, hyphens, underscores only
-        ✅ Not reserved keywords (api, admin, etc.)
-        ✅ Not already taken
-    """
-    import re
-    
-    # Validation 1: Length check
-    if not (3 <= len(custom_alias) <= 30):
-        return False, "Alias must be 3-30 characters"
-    
-    # Validation 2: Character check
-    if not re.match(r'^[a-zA-Z0-9_-]+$', custom_alias):
-        return False, "Only letters, numbers, hyphens, underscores allowed"
-    
-    # Validation 3: Reserved words
-    reserved = ['api', 'admin', 'www', 'app', 'help', 'about']
-    if custom_alias.lower() in reserved:
-        return False, "This alias is reserved"
-    
-    # Validation 4: Check availability
-    query = "SELECT 1 FROM url_mappings WHERE short_code = %s"
-    result = database.execute(query, (custom_alias,))
-    
-    if result.rowcount > 0:
-        return False, "This alias is already taken"
-    
-    # All checks passed, create URL
-    insert_query = """
-        INSERT INTO url_mappings (short_code, long_url, created_at, is_custom)
-        VALUES (%s, %s, NOW(), true)
-    """
-    database.execute(insert_query, (custom_alias, long_url))
-    
-    return True, custom_alias
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-
-# Example usage:
-"""
-User wants: tiny.url/my-blog
-
-Validation:
-✅ Length: 7 characters (OK)
-✅ Characters: only letters and hyphen (OK)
-✅ Not reserved: "my-blog" not in reserved list (OK)
-✅ Available: not in database (OK)
-
-Result: Created successfully!
-"""
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 ---
@@ -5014,165 +4924,20 @@ Disadvantages:
 
 **Implementation:**
 
-```python
-"""
-Range-Based ID Generator
-Purpose: Distributes ID ranges to servers for collision-free generation
-How to call: RangeIDGenerator(server_id, coordinator)
-Expected return: Unique IDs within allocated range
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class RangeIDGenerator:
-    def __init__(self, server_id, coordinator, range_size=1000000):
-        """
-        Initialize range-based ID generator
-        
-        Args:
-            server_id: Unique identifier for this server
-            coordinator: Service that allocates ranges
-            range_size: Number of IDs per range
-        """
-        self.server_id = server_id
-        self.coordinator = coordinator
-        self.range_size = range_size
-        
-        # Current range
-        self.range_start = None
-        self.range_end = None
-        self.current_id = None
-        
-        # Request initial range
-        self.request_new_range()
-    
-    def request_new_range(self):
-        """
-        Request new ID range from coordinator
-        
-        Coordinator maintains global counter:
-        next_range_start = 0
-        
-        Server 1 requests → gets 0 to 999,999
-        next_range_start = 1,000,000
-        
-        Server 2 requests → gets 1,000,000 to 1,999,999
-        next_range_start = 2,000,000
-        """
-        # Atomic operation on coordinator
-        range_start = self.coordinator.allocate_range(
-            self.server_id,
-            self.range_size
-        )
-        
-        self.range_start = range_start
-        self.range_end = range_start + self.range_size - 1
-        self.current_id = range_start
-        
-        print(f"Server {self.server_id} allocated range: "
-              f"{self.range_start} - {self.range_end}")
-    
-    def next_id(self):
-        """
-        Get next ID from current range
-        
-        Returns:
-            Next available ID
-        """
-        # Check if range exhausted
-        if self.current_id > self.range_end:
-            self.request_new_range()
-        
-        id_to_return = self.current_id
-        self.current_id += 1
-        
-        return id_to_return
-    
-    def generate_short_code(self):
-        """Generate short code from next ID"""
-        id_value = self.next_id()
-        return self.base62_encode(id_value)
-    
-    def base62_encode(self, number):
-        """Convert number to Base62"""
-        alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        if number == 0:
-            return alphabet[0]
-        
-        result = ""
-        while number > 0:
-            result = alphabet[number % 62] + result
-            number = number // 62
-        return result
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-
-# Coordinator service
-class RangeCoordinator:
-    def __init__(self, database):
-        """
-        Coordinator that allocates ID ranges
-        
-        Database table:
-        CREATE TABLE id_ranges (
-            server_id VARCHAR(50),
-            range_start BIGINT,
-            range_end BIGINT,
-            allocated_at TIMESTAMP
-        );
-        
-        Global counter stored in database:
-        CREATE TABLE global_counter (
-            counter_name VARCHAR(50) PRIMARY KEY,
-            current_value BIGINT
-        );
-        """
-        self.db = database
-    
-    def allocate_range(self, server_id, range_size):
-        """
-        Atomically allocate ID range to server
-        
-        Uses database transaction to ensure atomicity
-        """
-        # Start transaction
-        with self.db.transaction():
-            # Get current counter value (atomic)
-            query = """
-                UPDATE global_counter
-                SET current_value = current_value + %s
-                WHERE counter_name = 'url_id_counter'
-                RETURNING current_value
-            """
-            
-            result = self.db.execute(query, (range_size,))
-            new_counter = result.fetchone()['current_value']
-            
-            # Calculate range
-            range_start = new_counter - range_size
-            range_end = new_counter - 1
-            
-            # Log allocation
-            log_query = """
-                INSERT INTO id_ranges (server_id, range_start, range_end, allocated_at)
-                VALUES (%s, %s, %s, NOW())
-            """
-            self.db.execute(log_query, (server_id, range_start, range_end))
-            
-            return range_start
-
-
-# Usage example:
-"""
-coordinator = RangeCoordinator(database)
-
-# Server 1
-gen1 = RangeIDGenerator("server-1", coordinator, range_size=1000)
-print(gen1.generate_short_code())  # Uses ID from 0-999
-
-# Server 2 (running simultaneously)
-gen2 = RangeIDGenerator("server-2", coordinator, range_size=1000)
-print(gen2.generate_short_code())  # Uses ID from 1000-1999
-
-# No collisions! Different ranges!
-"""
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Solution 2: Twitter Snowflake Algorithm
@@ -5207,193 +4972,58 @@ Binary breakdown:
 └─ Sequence: Which ID in that millisecond
 ```
 
-**Snowflake Implementation:**
+**Snowflake ID Generation (High-Level Design):**
 
-```python
-"""
-Twitter Snowflake ID Generator
-Purpose: Generates distributed unique IDs without coordination
-How to call: SnowflakeGenerator(data_center_id, machine_id)
-Expected return: 64-bit unique ID
-"""
+```text
+Twitter Snowflake: 64-bit Distributed ID Generator
 
-import time
-import threading
+Bit Structure (64 bits total):
+├─ 1 bit: Unused (sign bit, always 0)
+├─ 41 bits: Timestamp (milliseconds since custom epoch)
+│   └─ Range: 69 years from epoch
+├─ 5 bits: Data center ID (0-31)
+├─ 5 bits: Machine ID (0-31)
+└─ 12 bits: Sequence number (0-4095)
 
-class SnowflakeGenerator:
-    """
-    Snowflake ID Generator
-    
-    Generates unique 64-bit IDs:
-    - Timestamp-based (sortable by time)
-    - Machine-specific (no collisions across servers)
-    - High throughput (4M IDs/second per server)
-    """
-    
-    # Custom epoch (January 1, 2020 00:00:00 UTC)
-    # Using custom epoch gives us more years before overflow
-    EPOCH = 1577836800000  # milliseconds since Unix epoch
-    
-    # Bit allocation
-    TIMESTAMP_BITS = 41
-    DATACENTER_BITS = 5
-    MACHINE_BITS = 5
-    SEQUENCE_BITS = 12
-    
-    # Max values
-    MAX_DATACENTER_ID = (1 << DATACENTER_BITS) - 1  # 31
-    MAX_MACHINE_ID = (1 << MACHINE_BITS) - 1  # 31
-    MAX_SEQUENCE = (1 << SEQUENCE_BITS) - 1  # 4095
-    
-    # Bit shifts
-    TIMESTAMP_SHIFT = DATACENTER_BITS + MACHINE_BITS + SEQUENCE_BITS  # 22
-    DATACENTER_SHIFT = MACHINE_BITS + SEQUENCE_BITS  # 17
-    MACHINE_SHIFT = SEQUENCE_BITS  # 12
-    
-    def __init__(self, datacenter_id, machine_id):
-        """
-        Initialize Snowflake generator
-        
-        Args:
-            datacenter_id: Data center ID (0-31)
-            machine_id: Machine ID within data center (0-31)
-        
-        Raises:
-            ValueError: If IDs exceed maximum values
-        """
-        if datacenter_id > self.MAX_DATACENTER_ID or datacenter_id < 0:
-            raise ValueError(f"Datacenter ID must be 0-{self.MAX_DATACENTER_ID}")
-        
-        if machine_id > self.MAX_MACHINE_ID or machine_id < 0:
-            raise ValueError(f"Machine ID must be 0-{self.MAX_MACHINE_ID}")
-        
-        self.datacenter_id = datacenter_id
-        self.machine_id = machine_id
-        
-        self.sequence = 0
-        self.last_timestamp = -1
-        
-        # Thread lock for sequence increment
-        self.lock = threading.Lock()
-    
-    def _current_timestamp(self):
-        """Get current timestamp in milliseconds"""
-        return int(time.time() * 1000)
-    
-    def _wait_next_millis(self, last_timestamp):
-        """
-        Wait until next millisecond
-        
-        Called when sequence is exhausted in current millisecond
-        """
-        timestamp = self._current_timestamp()
-        while timestamp <= last_timestamp:
-            timestamp = self._current_timestamp()
-        return timestamp
-    
-    def next_id(self):
-        """
-        Generate next unique ID
-        
-        Returns:
-            64-bit unique ID
-        
-        Process:
-            1. Get current timestamp
-            2. If same millisecond, increment sequence
-            3. If sequence exhausted, wait for next millisecond
-            4. Combine timestamp, datacenter, machine, sequence into 64-bit ID
-        """
-        with self.lock:
-            timestamp = self._current_timestamp()
-            
-            # Same millisecond as last ID
-            if timestamp == self.last_timestamp:
-                # Increment sequence
-                self.sequence = (self.sequence + 1) & self.MAX_SEQUENCE
-                
-                # Sequence exhausted (generated 4096 IDs this millisecond!)
-                if self.sequence == 0:
-                    # Wait for next millisecond
-                    timestamp = self._wait_next_millis(self.last_timestamp)
-            else:
-                # New millisecond, reset sequence
-                self.sequence = 0
-            
-            # Clock moved backwards! (server time adjusted)
-            if timestamp < self.last_timestamp:
-                raise Exception(
-                    f"Clock moved backwards. Refusing to generate ID for "
-                    f"{self.last_timestamp - timestamp} milliseconds"
-                )
-            
-            self.last_timestamp = timestamp
-            
-            # Calculate ID by shifting and combining components
-            id_value = (
-                ((timestamp - self.EPOCH) << self.TIMESTAMP_SHIFT) |
-                (self.datacenter_id << self.DATACENTER_SHIFT) |
-                (self.machine_id << self.MACHINE_SHIFT) |
-                self.sequence
-            )
-            
-            return id_value
-    
-    def parse_id(self, snowflake_id):
-        """
-        Parse Snowflake ID back into components
-        
-        Useful for debugging and analytics
-        
-        Args:
-            snowflake_id: 64-bit Snowflake ID
-        
-        Returns:
-            dict with timestamp, datacenter_id, machine_id, sequence
-        """
-        # Extract components using bit masks and shifts
-        sequence = snowflake_id & self.MAX_SEQUENCE
-        
-        machine_id = (snowflake_id >> self.MACHINE_SHIFT) & self.MAX_MACHINE_ID
-        
-        datacenter_id = (snowflake_id >> self.DATACENTER_SHIFT) & self.MAX_DATACENTER_ID
-        
-        timestamp = (snowflake_id >> self.TIMESTAMP_SHIFT) + self.EPOCH
-        
-        return {
-            'timestamp': timestamp,
-            'datetime': time.strftime('%Y-%m-%d %H:%M:%S', 
-                                     time.localtime(timestamp / 1000)),
-            'datacenter_id': datacenter_id,
-            'machine_id': machine_id,
-            'sequence': sequence
-        }
+ID Generation Algorithm:
+1. Get current timestamp (milliseconds)
+2. IF same millisecond as last ID:
+   - Increment sequence (0 → 4095)
+   - IF sequence exhausted: Wait for next millisecond
+3. Combine: (timestamp << 22) | (datacenter << 17) | (machine << 12) | sequence
+4. Return 64-bit ID
 
+Key Properties:
+├─ Unique: No coordination needed between servers
+├─ Sortable: IDs increase with time (timestamp prefix)
+├─ Scalable: 4,096 IDs per millisecond per machine
+├─ Distributed: 32 datacenters × 32 machines = 1,024 servers
+└─ Throughput: 4M IDs/second per machine (4,096 × 1,000)
 
-# Usage example:
-"""
-Data Center 1, Server 5:
-generator = SnowflakeGenerator(datacenter_id=1, machine_id=5)
+Example IDs:
+ID: 1234567890123456789
+├─ Timestamp: 2023-10-15 14:30:45.123
+├─ Datacenter: 3
+├─ Machine: 7
+└─ Sequence: 2,047
 
-# Generate IDs
-id1 = generator.next_id()
-id2 = generator.next_id()
-id3 = generator.next_id()
+Convert to Base62 for URL:
+1234567890123456789 → "aB3xK2p" (7-character short code)
+```
 
-print(f"ID 1: {id1}")
-print(f"ID 2: {id2}")
-print(f"ID 3: {id3}")
+**Usage Pseudocode:**
 
-# Parse ID
-info = generator.parse_id(id1)
-print(f"Generated at: {info['datetime']}")
-print(f"Data center: {info['datacenter_id']}")
-print(f"Machine: {info['machine_id']}")
-print(f"Sequence: {info['sequence']}")
+```text
+// Initialize (once per server)
+generator = new SnowflakeGenerator(
+    datacenter_id = 1,
+    machine_id = 5
+)
 
-# Convert to Base62 for URL
-base62_code = base62_encode(id1)
-print(f"Short code: {base62_code}")
+// Generate ID (millions per second)
+id = generator.next_id()
+short_code = base62_encode(id)
+// Returns: "aB3xK2p"
 ```
 
 **Why Snowflake is Brilliant:**
@@ -5730,6 +5360,42 @@ Write pseudocode or actual code for:
 - How would your design change if requirements were 100 QPS instead of 10,000 QPS?
 - What monitoring and alerting would you add around ID generation?
 
+### 🎯 Interview Questions - URL Generation
+
+**Beginner Level:**
+1. **Q:** "How would you generate unique short codes for a URL shortener?"
+   - **A:** Use base62 encoding (a-z, A-Z, 0-9) with counter or UUID. Consider length (6-8 characters) and collision handling.
+
+2. **Q:** "What's the difference between sequential and random ID generation?"
+   - **A:** Sequential: predictable, easy to implement, but reveals usage patterns. Random: unpredictable, harder to implement, but more secure.
+
+3. **Q:** "How would you handle collisions when generating short codes?"
+   - **A:** Check database for existing codes, retry with new code, or use UUID-based generation to minimize collisions.
+
+**Intermediate Level:**
+4. **Q:** "How would you design a URL shortener that needs to support custom short codes?"
+   - **A:** Add validation service, conflict resolution, premium user database, and custom domain support.
+
+5. **Q:** "What happens if your ID generation service goes down?"
+   - **A:** Use multiple ID generators, fallback mechanisms, circuit breakers, and distributed ID generation (Snowflake, UUID).
+
+6. **Q:** "How would you handle ID generation for a URL shortener that needs to support 1 million URLs per day?"
+   - **A:** Use distributed ID generation, database sharding, and consider the trade-offs between sequential and random generation.
+
+**Advanced Level:**
+7. **Q:** "Design an ID generation system for a URL shortener that needs to support custom domains and enterprise features."
+   - **A:** Domain-specific ID generation, enterprise user management, custom branding, and compliance features.
+
+8. **Q:** "How would you handle ID generation for a URL shortener that needs to work across multiple data centers?"
+   - **A:** Distributed ID generation, cross-region synchronization, conflict resolution, and eventual consistency.
+
+9. **Q:** "What ID generation optimizations would you implement for a URL shortener with high throughput?"
+   - **A:** Batch ID generation, connection pooling, caching strategies, and database optimization.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design an ID generation system for a URL shortener that needs to support real-time analytics?"
+    - **A:** Add analytics service, event streaming, real-time processing, and separate analytics database.
+
 ---
 
 ## Section 7: Making It Fast with Caching
@@ -5834,93 +5500,20 @@ With Cache:
 
 #### Basic Cache Example (Python)
 
-```python
-"""
-Simple In-Memory Cache
-Purpose: Stores URL mappings in memory for fast access
-How to call: cache.get(short_code) or cache.set(short_code, long_url)
-Expected return: URL string or None if not found
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class SimpleURLCache:
-    def __init__(self, max_size=10000):
-        """
-        Initialize cache with maximum size
-        
-        Args:
-            max_size: Maximum number of URLs to store in cache
-        """
-        self.cache = {}  # Dictionary to store short_code -> long_url
-        self.max_size = max_size
-    
-    def get(self, short_code):
-        """
-        Get URL from cache
-        
-        Args:
-            short_code: The short code (e.g., "aB3xY9")
-        
-        Returns:
-            The long URL if found, None otherwise
-        
-        Example:
-            url = cache.get("aB3xY9")
-            if url:
-                print(f"Cache HIT: {url}")
-            else:
-                print("Cache MISS: Need to query database")
-        """
-        return self.cache.get(short_code)
-    
-    def set(self, short_code, long_url):
-        """
-        Store URL in cache
-        
-        Args:
-            short_code: The short code (e.g., "aB3xY9")
-            long_url: The full URL to store
-        
-        Note:
-            If cache is full, this simple version just doesn't add it.
-            (Advanced versions would evict old entries)
-        """
-        if len(self.cache) < self.max_size:
-            self.cache[short_code] = long_url
-    
-    def clear(self):
-        """
-        Clear all entries from cache
-        Useful for testing or when URL is updated/deleted
-        """
-        self.cache.clear()
-    
-    def size(self):
-        """Return current number of items in cache"""
-        return len(self.cache)
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-
-# Example usage:
-cache = SimpleURLCache(max_size=1000)
-
-# First request: Cache miss, get from database
-short_code = "aB3xY9"
-url = cache.get(short_code)
-
-if url is None:
-    # Cache MISS: Query database
-    print("Cache miss! Querying database...")
-    url = database.query("SELECT long_url FROM urls WHERE short_code = %s", short_code)
-    
-    # Store in cache for future requests
-    cache.set(short_code, url)
-    print(f"Stored in cache: {short_code} -> {url}")
-else:
-    # Cache HIT: Use cached value
-    print(f"Cache hit! {url}")
-
-# Second request: Cache hit!
-url = cache.get(short_code)  # This is FAST!
-print(f"Got from cache instantly: {url}")
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Cache Hit vs Cache Miss
@@ -5995,138 +5588,20 @@ Best Practice: Use all three! (Multi-tier caching)
 
 The most common caching pattern for read-heavy applications:
 
-```python
-"""
-Cache-Aside Pattern Implementation
-Purpose: Loads data into cache only when requested (lazy loading)
-How to call: get_url_with_cache(short_code)
-Expected return: Long URL
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import redis
-import psycopg2
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class URLShortenerWithCache:
-    def __init__(self, db_connection, redis_connection):
-        """
-        Initialize with database and Redis connections
-        
-        Args:
-            db_connection: PostgreSQL connection
-            redis_connection: Redis client
-        """
-        self.db = db_connection
-        self.cache = redis_connection
-        self.cache_ttl = 3600  # Cache for 1 hour
-    
-    def get_url(self, short_code):
-        """
-        Get URL using cache-aside pattern
-        
-        Process:
-            1. Try cache first (fast path)
-            2. If miss, query database (slow path)
-            3. Store in cache for future requests
-            4. Return URL
-        
-        Args:
-            short_code: The short code to look up
-        
-        Returns:
-            tuple: (long_url, cache_hit)
-        """
-        # Step 1: Check cache first
-        cached_url = self.cache.get(f"url:{short_code}")
-        
-        if cached_url:
-            # Cache HIT! ✅
-            print(f"Cache HIT for {short_code}")
-            return cached_url.decode('utf-8'), True
-        
-        # Cache MISS ❌
-        print(f"Cache MISS for {short_code}, querying database...")
-        
-        # Step 2: Query database
-        cursor = self.db.cursor()
-        cursor.execute(
-            "SELECT long_url FROM url_mappings WHERE short_code = %s",
-            (short_code,)
-        )
-        result = cursor.fetchone()
-        
-        if not result:
-            # URL doesn't exist
-            return None, False
-        
-        long_url = result[0]
-        
-        # Step 3: Store in cache for future requests
-        # Key: "url:aB3xY9", Value: "https://example.com"
-        self.cache.setex(
-            f"url:{short_code}",
-            self.cache_ttl,
-            long_url
-        )
-        print(f"Stored in cache: {short_code} -> {long_url}")
-        
-        return long_url, False
-    
-    def create_url(self, short_code, long_url):
-        """
-        Create new URL mapping
-        
-        Note: We DON'T automatically add to cache on write.
-        This is "lazy loading" - only cache when someone reads it.
-        
-        Why? Not all URLs will be read (many created but never used)
-        """
-        cursor = self.db.cursor()
-        cursor.execute(
-            "INSERT INTO url_mappings (short_code, long_url, created_at) "
-            "VALUES (%s, %s, NOW())",
-            (short_code, long_url)
-        )
-        self.db.commit()
-        print(f"Created URL: {short_code} -> {long_url}")
-        # No cache write here (lazy loading)
-    
-    def update_url(self, short_code, new_long_url):
-        """
-        Update URL mapping
-        
-        IMPORTANT: Must invalidate cache when data changes!
-        """
-        # Step 1: Update database
-        cursor = self.db.cursor()
-        cursor.execute(
-            "UPDATE url_mappings SET long_url = %s WHERE short_code = %s",
-            (new_long_url, short_code)
-        )
-        self.db.commit()
-        
-        # Step 2: Invalidate cache (remove old value)
-        self.cache.delete(f"url:{short_code}")
-        print(f"Updated URL and invalidated cache for {short_code}")
-        
-        # Next read will cache new value (lazy loading)
-    
-    def delete_url(self, short_code):
-        """
-        Delete URL mapping
-        
-        Must invalidate cache!
-        """
-        # Delete from database
-        cursor = self.db.cursor()
-        cursor.execute(
-            "DELETE FROM url_mappings WHERE short_code = %s",
-            (short_code,)
-        )
-        self.db.commit()
-        
-        # Delete from cache
-        self.cache.delete(f"url:{short_code}")
-        print(f"Deleted URL and cache for {short_code}")
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Cache-Aside Flow:**
@@ -6157,75 +5632,20 @@ Cons:
 
 When cache is full, which item should we remove?
 
-```python
-"""
-Cache Eviction Policies
-Purpose: Decides which items to remove when cache is full
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-# 1. LRU (Least Recently Used)
-"""
-Idea: Remove the item that hasn't been used for the longest time
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-Example Timeline:
-├─ Access A → Cache: [A]
-├─ Access B → Cache: [A, B]
-├─ Access C → Cache: [A, B, C]
-├─ Access A → Cache: [B, C, A] (A moved to front)
-├─ Cache full! Access D → Remove B (least recently used)
-└─ Cache: [C, A, D]
-
-Use Case: URL shortener (recent viral links stay cached)
-
-Redis Implementation:
-cache.set("url:abc", url, ex=3600)  # 1 hour TTL
-Redis automatically uses LRU-like approximation
-"""
-
-# 2. LFU (Least Frequently Used)
-"""
-Idea: Remove the item that's been used the fewest times
-
-Example:
-├─ A accessed 100 times
-├─ B accessed 50 times
-├─ C accessed 10 times
-├─ Cache full! Access D → Remove C (least frequent)
-└─ Cache: [A, B, D]
-
-Use Case: When some URLs are consistently popular
-
-Cons: Old popular items might stay forever
-"""
-
-# 3. FIFO (First In, First Out)
-"""
-Idea: Remove oldest item (like a queue)
-
-Example:
-├─ Add A → Cache: [A]
-├─ Add B → Cache: [A, B]
-├─ Add C → Cache: [A, B, C]
-├─ Cache full! Add D → Remove A
-└─ Cache: [B, C, D]
-
-Use Case: Simple, but not ideal for URL shortener
-"""
-
-# 4. TTL (Time To Live)
-"""
-Idea: Each item expires after fixed time
-
-Example:
-├─ Set A (TTL: 1 hour) at 10:00 AM
-├─ At 11:00 AM: A expires and removed
-└─ Forces refresh of data periodically
-
-Use Case: Combine with LRU for best results
-
-Redis Implementation:
-cache.setex("url:abc", 3600, url)  # Expires in 1 hour
-"""
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Choosing Eviction Policy:**
@@ -6250,79 +5670,20 @@ Configuration:
 
 > "There are only two hard things in Computer Science: cache invalidation and naming things." - Phil Karlton
 
-```python
-"""
-Cache Invalidation Strategies
-Purpose: Keep cache in sync with database when data changes
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-# Strategy 1: Invalidate on Write (Safest)
-def update_url_safe(short_code, new_url):
-    """
-    Update database and immediately invalidate cache
-    
-    Pros: ✅ Always consistent
-    Cons: ❌ Next read will be cache miss
-    """
-    # Write to database
-    database.update(short_code, new_url)
-    
-    # Delete from cache
-    cache.delete(f"url:{short_code}")
-    
-    # Next read will fetch new value from DB and cache it
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-
-# Strategy 2: Invalidate with TTL (Good Balance)
-def update_url_with_ttl(short_code, new_url):
-    """
-    Use short TTL to auto-expire stale data
-    
-    Pros: ✅ No manual invalidation needed
-    Cons: ⚠️ Temporarily stale data possible
-    """
-    # Write to database
-    database.update(short_code, new_url)
-    
-    # Option 1: Don't manually invalidate, wait for TTL expiry
-    # (Stale data for up to TTL duration)
-    
-    # Option 2: Still delete from cache for faster consistency
-    cache.delete(f"url:{short_code}")
-
-
-# Strategy 3: Write-Through (Always Consistent)
-def update_url_write_through(short_code, new_url):
-    """
-    Write to both database AND cache simultaneously
-    
-    Pros: ✅ Cache always has fresh data
-    Cons: ❌ Extra write operation, cache might not be needed
-    """
-    # Write to database
-    database.update(short_code, new_url)
-    
-    # Write to cache immediately
-    cache.set(f"url:{short_code}", new_url, ex=3600)
-
-
-# Strategy 4: Event-Driven Invalidation (Advanced)
-def update_url_event_driven(short_code, new_url):
-    """
-    Publish event when data changes
-    
-    Other services can listen and invalidate their caches
-    """
-    # Write to database
-    database.update(short_code, new_url)
-    
-    # Publish event to message queue
-    event_bus.publish("url.updated", {
-        "short_code": short_code,
-        "new_url": new_url
-    })
-    
-    # Cache service listens to events and invalidates
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Invalidation Decision Matrix:**
@@ -6372,161 +5733,38 @@ First request locks, others wait:
 Python Implementation:
 ```
 
-```python
-"""
-Cache Stampede Protection with Lock
-Purpose: Prevents multiple simultaneous database queries for same key
-How to call: get_url_with_stampede_protection(short_code)
-Expected return: Long URL
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import redis
-import time
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class StampedeProtectedCache:
-    def __init__(self, redis_client, db_connection):
-        self.cache = redis_client
-        self.db = db_connection
-        self.lock_timeout = 10  # seconds
-    
-    def get_url(self, short_code):
-        """
-        Get URL with stampede protection
-        
-        Uses distributed lock to ensure only one process
-        queries database for a cache miss
-        """
-        cache_key = f"url:{short_code}"
-        lock_key = f"lock:{short_code}"
-        
-        # Step 1: Try to get from cache
-        cached_url = self.cache.get(cache_key)
-        if cached_url:
-            return cached_url.decode('utf-8')
-        
-        # Step 2: Cache miss - try to acquire lock
-        lock_acquired = self.cache.set(
-            lock_key,
-            "locked",
-            ex=self.lock_timeout,
-            nx=True  # Only set if doesn't exist
-        )
-        
-        if lock_acquired:
-            # This process won the lock! Query database
-            try:
-                print(f"Lock acquired for {short_code}, querying database...")
-                
-                # Query database
-                url = self._query_database(short_code)
-                
-                if url:
-                    # Store in cache
-                    self.cache.setex(cache_key, 3600, url)
-                
-                return url
-            
-            finally:
-                # Release lock
-                self.cache.delete(lock_key)
-        
-        else:
-            # Another process has the lock, wait and retry
-            print(f"Lock held by another process, waiting...")
-            
-            # Wait a bit and check cache again
-            for attempt in range(10):
-                time.sleep(0.1)  # 100ms
-                
-                cached_url = self.cache.get(cache_key)
-                if cached_url:
-                    # Other process populated cache!
-                    return cached_url.decode('utf-8')
-            
-            # Timeout - fallback to database
-            return self._query_database(short_code)
-    
-    def _query_database(self, short_code):
-        """Query database for URL"""
-        cursor = self.db.cursor()
-        cursor.execute(
-            "SELECT long_url FROM url_mappings WHERE short_code = %s",
-            (short_code,)
-        )
-        result = cursor.fetchone()
-        return result[0] if result else None
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Monitoring Cache Performance
 
-```python
-"""
-Cache Metrics Collection
-Purpose: Track cache performance to optimize configuration
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class CacheMetrics:
-    def __init__(self):
-        self.hits = 0
-        self.misses = 0
-        self.total_requests = 0
-    
-    def record_hit(self):
-        """Record cache hit"""
-        self.hits += 1
-        self.total_requests += 1
-    
-    def record_miss(self):
-        """Record cache miss"""
-        self.misses += 1
-        self.total_requests += 1
-    
-    def hit_rate(self):
-        """Calculate cache hit rate percentage"""
-        if self.total_requests == 0:
-            return 0.0
-        return (self.hits / self.total_requests) * 100
-    
-    def miss_rate(self):
-        """Calculate cache miss rate percentage"""
-        return 100 - self.hit_rate()
-    
-    def report(self):
-        """Generate metrics report"""
-        return {
-            "total_requests": self.total_requests,
-            "cache_hits": self.hits,
-            "cache_misses": self.misses,
-            "hit_rate": f"{self.hit_rate():.2f}%",
-            "miss_rate": f"{self.miss_rate():.2f}%"
-        }
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-
-# Usage with cache
-metrics = CacheMetrics()
-
-def get_url_with_metrics(short_code):
-    """Get URL and track metrics"""
-    url = cache.get(short_code)
-    
-    if url:
-        metrics.record_hit()
-    else:
-        metrics.record_miss()
-        url = database.query(short_code)
-        cache.set(short_code, url)
-    
-    return url
-
-# Print metrics every minute
-print(metrics.report())
-# Output: {
-#   "total_requests": 10000,
-#   "cache_hits": 9500,
-#   "cache_misses": 500,
-#   "hit_rate": "95.00%",
-#   "miss_rate": "5.00%"
-# }
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 ---
@@ -6566,157 +5804,20 @@ Result: 99% of requests never hit database!
 
 **Implementation:**
 
-```python
-"""
-Multi-Tier Cache System
-Purpose: Implements 3-tier caching for maximum performance
-How to call: multi_tier_cache.get(short_code)
-Expected return: Long URL
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import redis
-from functools import lru_cache
-import requests
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class MultiTierCache:
-    def __init__(self, redis_client, db_connection, cdn_config):
-        """
-        Initialize multi-tier cache
-        
-        Args:
-            redis_client: Redis cluster connection
-            db_connection: Database connection
-            cdn_config: CDN configuration (Cloudflare, etc.)
-        """
-        self.redis = redis_client
-        self.db = db_connection
-        self.cdn = cdn_config
-        
-        # Tier 3: Local in-memory cache (LRU with 10,000 entries)
-        self.local_cache_size = 10000
-    
-    @lru_cache(maxsize=10000)
-    def _local_cache_get(self, short_code):
-        """
-        Tier 3: Local in-memory cache
-        
-        Using Python's functools.lru_cache for automatic LRU eviction
-        Fastest tier but smallest
-        """
-        # This is just a marker - actual lookup happens in get()
-        # lru_cache decorator handles caching automatically
-        pass
-    
-    def get(self, short_code):
-        """
-        Get URL using multi-tier cache
-        
-        Flow:
-            1. Check local cache (Tier 3)
-            2. If miss, check Redis (Tier 2)
-            3. If miss, check database (source of truth)
-            4. Populate caches on way back up
-        
-        Args:
-            short_code: Short code to look up
-        
-        Returns:
-            tuple: (url, tier_hit)
-                tier_hit = "local" | "redis" | "database"
-        """
-        # Tier 3: Check local cache first
-        try:
-            url = self._check_local_cache(short_code)
-            if url:
-                return url, "local"
-        except:
-            pass
-        
-        # Tier 2: Check Redis
-        redis_key = f"url:{short_code}"
-        cached_url = self.redis.get(redis_key)
-        
-        if cached_url:
-            url = cached_url.decode('utf-8')
-            
-            # Populate local cache for future requests
-            self._set_local_cache(short_code, url)
-            
-            return url, "redis"
-        
-        # Tier 1: Database (source of truth)
-        cursor = self.db.cursor()
-        cursor.execute(
-            "SELECT long_url FROM url_mappings WHERE short_code = %s",
-            (short_code,)
-        )
-        result = cursor.fetchone()
-        
-        if not result:
-            return None, "not_found"
-        
-        url = result[0]
-        
-        # Populate caches on way back up
-        # Redis (Tier 2)
-        self.redis.setex(redis_key, 3600, url)  # 1 hour TTL
-        
-        # Local cache (Tier 3)
-        self._set_local_cache(short_code, url)
-        
-        return url, "database"
-    
-    def _check_local_cache(self, short_code):
-        """Check local in-memory cache"""
-        # In production, use more sophisticated local cache
-        # For now, using Python dict with size limit
-        return getattr(self, '_local_cache', {}).get(short_code)
-    
-    def _set_local_cache(self, short_code, url):
-        """Set local in-memory cache"""
-        if not hasattr(self, '_local_cache'):
-            self._local_cache = {}
-        
-        if len(self._local_cache) < self.local_cache_size:
-            self._local_cache[short_code] = url
-    
-    def invalidate_all_tiers(self, short_code):
-        """
-        Invalidate URL across all cache tiers
-        
-        Call this when URL is updated or deleted
-        """
-        # Tier 3: Local cache
-        if hasattr(self, '_local_cache'):
-            self._local_cache.pop(short_code, None)
-        
-        # Tier 2: Redis
-        self.redis.delete(f"url:{short_code}")
-        
-        # Tier 1: CDN (via purge API)
-        self._purge_from_cdn(short_code)
-    
-    def _purge_from_cdn(self, short_code):
-        """
-        Purge URL from CDN edge caches
-        
-        Cloudflare example
-        """
-        url = f"https://tiny.url/{short_code}"
-        
-        # Cloudflare Purge API
-        response = requests.post(
-            f"https://api.cloudflare.com/client/v4/zones/{self.cdn['zone_id']}/purge_cache",
-            headers={
-                "Authorization": f"Bearer {self.cdn['api_key']}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "files": [url]
-            }
-        )
-        
-        return response.status_code == 200
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### CDN Configuration for URL Shortener
@@ -6756,82 +5857,20 @@ Settings:
 
 **CDN Integration Code:**
 
-```python
-"""
-CDN-Aware URL Shortener
-Purpose: Integrates with CDN for global performance
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class CDNAwareShortener:
-    def __init__(self, cache, db, cdn_client):
-        self.cache = cache
-        self.db = db
-        self.cdn = cdn_client
-    
-    def create_url_with_warmup(self, short_code, long_url):
-        """
-        Create URL and warm CDN cache
-        
-        Process:
-            1. Write to database
-            2. Write to Redis
-            3. Make request to CDN to warm cache
-        """
-        # Step 1: Database
-        self.db.execute(
-            "INSERT INTO url_mappings (short_code, long_url) VALUES (%s, %s)",
-            (short_code, long_url)
-        )
-        
-        # Step 2: Redis (so CDN can fetch from Redis, not DB)
-        self.cache.setex(f"url:{short_code}", 3600, long_url)
-        
-        # Step 3: Cache warming - Make request to each CDN POP
-        self._warm_cdn_cache(short_code)
-    
-    def _warm_cdn_cache(self, short_code):
-        """
-        Warm CDN cache by making requests to key locations
-        
-        Makes HEAD requests to popular CDN POPs
-        This pre-populates cache before real users arrive
-        """
-        cdn_pops = [
-            "https://tiny.url",  # Main domain
-            "https://sfo.tiny.url",  # San Francisco POP
-            "https://lhr.tiny.url",  # London POP
-            "https://sin.tiny.url",  # Singapore POP
-        ]
-        
-        for pop_url in cdn_pops:
-            try:
-                # HEAD request = check if exists, don't download
-                requests.head(
-                    f"{pop_url}/{short_code}",
-                    timeout=1
-                )
-            except:
-                pass  # Don't fail if warmup fails
-    
-    def update_url(self, short_code, new_long_url):
-        """
-        Update URL and purge from all caches
-        
-        Critical: Must purge CDN or users get stale redirects!
-        """
-        # Update database
-        self.db.execute(
-            "UPDATE url_mappings SET long_url = %s WHERE short_code = %s",
-            (new_long_url, short_code)
-        )
-        
-        # Delete from Redis
-        self.cache.delete(f"url:{short_code}")
-        
-        # Purge from CDN (critical!)
-        self.cdn.purge_url(short_code)
-        
-        print(f"Updated and purged {short_code} from all caches")
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
+
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Cache Warming Strategies
@@ -6875,118 +5914,20 @@ Strategy 4: Read-Through Warmup
 
 **Cache Warming Implementation:**
 
-```python
-"""
-Cache Warming on Startup
-Purpose: Pre-populate cache with hot data to avoid cold start
-How to call: Run on application startup or cache restart
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class CacheWarmer:
-    def __init__(self, cache, db):
-        self.cache = cache
-        self.db = db
-    
-    def warm_cache_with_popular_urls(self, limit=10000):
-        """
-        Warm cache with most popular URLs
-        
-        Args:
-            limit: Number of top URLs to cache
-        
-        This runs on application startup to prevent cold cache
-        """
-        print(f"Warming cache with top {limit} popular URLs...")
-        
-        # Query top URLs by click count
-        cursor = self.db.cursor()
-        cursor.execute("""
-            SELECT short_code, long_url
-            FROM url_mappings
-            ORDER BY click_count DESC
-            LIMIT %s
-        """, (limit,))
-        
-        # Batch load into cache
-        warmed_count = 0
-        for row in cursor:
-            short_code, long_url = row
-            
-            # Write to cache
-            self.cache.setex(
-                f"url:{short_code}",
-                3600,  # 1 hour TTL
-                long_url
-            )
-            
-            warmed_count += 1
-            
-            # Print progress every 1000 URLs
-            if warmed_count % 1000 == 0:
-                print(f"Warmed {warmed_count} URLs...")
-        
-        print(f"Cache warming complete! Loaded {warmed_count} URLs")
-        return warmed_count
-    
-    def warm_cache_with_recent_urls(self, hours=24):
-        """
-        Warm cache with recently created URLs
-        
-        Captures trending/viral content
-        """
-        print(f"Warming cache with URLs from last {hours} hours...")
-        
-        cursor = self.db.cursor()
-        cursor.execute("""
-            SELECT short_code, long_url
-            FROM url_mappings
-            WHERE created_at > NOW() - INTERVAL '%s hours'
-        """, (hours,))
-        
-        warmed_count = 0
-        for row in cursor:
-            short_code, long_url = row
-            self.cache.setex(f"url:{short_code}", 3600, long_url)
-            warmed_count += 1
-        
-        print(f"Warmed {warmed_count} recent URLs")
-        return warmed_count
-    
-    def warm_specific_urls(self, short_codes):
-        """
-        Warm cache with specific list of URLs
-        
-        Useful for:
-        - Upcoming marketing campaigns
-        - Known popular links
-        - Event-specific URLs
-        """
-        for short_code in short_codes:
-            cursor = self.db.cursor()
-            cursor.execute(
-                "SELECT long_url FROM url_mappings WHERE short_code = %s",
-                (short_code,)
-            )
-            result = cursor.fetchone()
-            
-            if result:
-                self.cache.setex(f"url:{short_code}", 3600, result[0])
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-
-# Usage on application startup
-if __name__ == "__main__":
-    cache = redis.Redis(host='localhost', port=6379)
-    db = psycopg2.connect(database="url_shortener")
-    
-    warmer = CacheWarmer(cache, db)
-    
-    # Warm with popular URLs
-    warmer.warm_cache_with_popular_urls(limit=10000)
-    
-    # Also warm recent URLs (trending content)
-    warmer.warm_cache_with_recent_urls(hours=24)
-    
-    print("Application ready to accept traffic!")
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Redis Cluster Configuration
@@ -7267,61 +6208,20 @@ Write incident response plan!
 
 Implement a complete caching layer:
 
-```python
-"""
-Your task: Complete the CacheManager class
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-Requirements:
-- Support cache-aside pattern
-- Include stampede protection
-- Track metrics (hit rate)
-- Handle cache failures gracefully
-- Include warmup function
-"""
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class CacheManager:
-    def __init__(self, redis_client, db_connection):
-        # Your code here
-        pass
-    
-    def get(self, short_code):
-        """
-        Get URL with caching
-        Should handle:
-        - Cache hit (fast path)
-        - Cache miss (query DB)
-        - Stampede protection
-        - Failure fallback
-        """
-        # Your code here
-        pass
-    
-    def invalidate(self, short_code):
-        """
-        Invalidate cache entry
-        """
-        # Your code here
-        pass
-    
-    def warm_cache(self, limit=1000):
-        """
-        Warm cache with popular URLs
-        """
-        # Your code here
-        pass
-    
-    def get_metrics(self):
-        """
-        Return cache performance metrics
-        """
-        # Your code here
-        pass
-
-# Test your implementation:
-cache_manager = CacheManager(redis_client, db)
-url = cache_manager.get("aB3xY9")
-metrics = cache_manager.get_metrics()
-print(f"Hit rate: {metrics['hit_rate']}")
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Discussion Points:**
@@ -7330,6 +6230,42 @@ print(f"Hit rate: {metrics['hit_rate']}")
 - What's the cost-benefit of 95% hit rate vs 99% hit rate?
 - When would you NOT use caching?
 - How do you handle cache invalidation in microservices architecture?
+
+### 🎯 Interview Questions - Caching Strategy
+
+**Beginner Level:**
+1. **Q:** "Why would you use caching in a URL shortener?"
+   - **A:** Reduce database load, improve response times, handle high traffic, and reduce costs. Most redirects are for the same popular URLs.
+
+2. **Q:** "What caching strategies would you use for a URL shortener?"
+   - **A:** Redis for hot URLs, CDN for global distribution, browser caching for static content, and database query caching.
+
+3. **Q:** "How would you handle cache misses in a URL shortener?"
+   - **A:** Check cache first, then database, update cache with new data, and return result to user.
+
+**Intermediate Level:**
+4. **Q:** "How would you design caching for a URL shortener that needs to handle 1 billion redirects per day?"
+   - **A:** Multi-level caching (L1, L2, L3), CDN with edge caching, cache warming strategies, and intelligent cache eviction.
+
+5. **Q:** "What happens if your cache goes down during peak traffic?"
+   - **A:** Fallback to database, circuit breakers, cache warming, and graceful degradation.
+
+6. **Q:** "How would you handle cache invalidation for a URL shortener?"
+   - **A:** TTL-based expiration, manual invalidation, cache versioning, and event-driven invalidation.
+
+**Advanced Level:**
+7. **Q:** "Design a caching system for a URL shortener that needs to support real-time analytics."
+   - **A:** Separate analytics cache, real-time data processing, cache partitioning, and analytics-specific eviction policies.
+
+8. **Q:** "How would you handle caching for a URL shortener that needs to work across multiple data centers?"
+   - **A:** Cross-region cache replication, cache consistency, conflict resolution, and regional cache strategies.
+
+9. **Q:** "What caching optimizations would you implement for a URL shortener with high throughput?"
+   - **A:** Cache preloading, intelligent eviction, cache compression, and distributed caching strategies.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design caching for a URL shortener that needs to support custom domains and enterprise features?"
+    - **A:** Domain-specific caching, enterprise cache policies, custom TTL settings, and compliance-aware caching.
 
 ---
 
@@ -7476,89 +6412,20 @@ Result: User gets instant redirect, we still get perfect analytics!
 
 #### Simple Python Example
 
-```python
-"""
-Basic Analytics Tracker
-Purpose: Records click events without slowing down redirects
-How to call: Called after redirecting user (async)
-Expected return: Event ID
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-from datetime import datetime
-import json
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class ClickAnalytics:
-    def __init__(self, message_queue):
-        """
-        Initialize analytics tracker
-        
-        Args:
-            message_queue: Queue to send events (Kafka, RabbitMQ, etc.)
-        """
-        self.queue = message_queue
-    
-    def track_click(self, short_code, request_info):
-        """
-        Track a click event (non-blocking)
-        
-        This function runs AFTER redirecting the user,
-        so it doesn't slow down the redirect!
-        
-        Args:
-            short_code: The short URL clicked (e.g., "aB3xY9")
-            request_info: HTTP request details
-        
-        Returns:
-            Event ID (for tracking)
-        """
-        # Create click event
-        event = {
-            "event_id": self._generate_event_id(),
-            "short_code": short_code,
-            "timestamp": datetime.utcnow().isoformat(),
-            "referrer": request_info.get("referrer", "direct"),
-            "user_agent": request_info.get("user_agent", "unknown"),
-            "ip_address": request_info.get("ip_address"),
-            "url": request_info.get("url")  # Original URL
-        }
-        
-        # Send to queue (non-blocking, very fast)
-        self.queue.publish("click_events", json.dumps(event))
-        
-        # Return immediately (user already redirected!)
-        return event["event_id"]
-    
-    def _generate_event_id(self):
-        """Generate unique event ID"""
-        import uuid
-        return str(uuid.uuid4())
-
-
-# Usage in redirect handler:
-def handle_redirect(short_code):
-    """
-    Handle URL redirect with analytics
-    
-    Step 1: Redirect user (FAST!)
-    Step 2: Track analytics (background)
-    """
-    # Step 1: Look up URL and redirect immediately
-    long_url = cache.get(short_code)
-    if not long_url:
-        long_url = database.get_url(short_code)
-    
-    # Redirect user NOW (don't wait for analytics!)
-    redirect_response = redirect_to(long_url)
-    
-    # Step 2: Track click asynchronously (doesn't block user)
-    analytics.track_click(short_code, {
-        "referrer": request.headers.get("Referer"),
-        "user_agent": request.headers.get("User-Agent"),
-        "ip_address": request.remote_addr,
-        "url": long_url
-    })
-    
-    return redirect_response  # User sees this instantly!
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### What Can We Learn From Analytics?
@@ -7661,237 +6528,20 @@ Benefits:
 
 **Implementation:**
 
-```python
-"""
-Analytics Pipeline with Message Queue
-Purpose: Processes click events asynchronously at scale
-How to call: Background workers run continuously
-Expected return: Processed events stored in database
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import json
-from kafka import KafkaProducer, KafkaConsumer
-from datetime import datetime
-import psycopg2
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class AnalyticsProducer:
-    """
-    Produces click events to Kafka
-    Called by redirect handler (fast, non-blocking)
-    """
-    
-    def __init__(self, kafka_brokers):
-        """
-        Initialize Kafka producer
-        
-        Args:
-            kafka_brokers: List of Kafka broker addresses
-        """
-        self.producer = KafkaProducer(
-            bootstrap_servers=kafka_brokers,
-            value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-            # Performance settings
-            acks=1,  # Wait for leader acknowledgment (fast)
-            compression_type='gzip',  # Reduce network bandwidth
-            batch_size=16384,  # Batch messages for efficiency
-            linger_ms=10  # Wait 10ms to batch messages
-        )
-    
-    def track_click(self, click_event):
-        """
-        Send click event to Kafka (non-blocking, <1ms)
-        
-        Args:
-            click_event: Dictionary with click details
-        
-        Returns:
-            Future (async result)
-        """
-        # Send to Kafka topic (returns immediately)
-        future = self.producer.send(
-            'click_events',  # Topic name
-            value=click_event,
-            key=click_event['short_code'].encode('utf-8')  # For partitioning
-        )
-        
-        # Don't wait for confirmation (async)
-        return future
-
-
-class AnalyticsConsumer:
-    """
-    Consumes click events from Kafka and stores in database
-    Runs in background workers (separate from web servers)
-    """
-    
-    def __init__(self, kafka_brokers, db_connection):
-        """
-        Initialize Kafka consumer and database
-        
-        Args:
-            kafka_brokers: List of Kafka broker addresses
-            db_connection: Database connection string
-        """
-        self.consumer = KafkaConsumer(
-            'click_events',
-            bootstrap_servers=kafka_brokers,
-            group_id='analytics_workers',  # Consumer group for scaling
-            value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-            # Start from earliest unprocessed message
-            auto_offset_reset='earliest',
-            # Commit offsets after processing
-            enable_auto_commit=True,
-            auto_commit_interval_ms=5000  # Commit every 5 seconds
-        )
-        
-        self.db = psycopg2.connect(db_connection)
-    
-    def process_events(self):
-        """
-        Main loop: consume events and process them
-        
-        Runs forever in background worker
-        """
-        print("Analytics worker started, waiting for events...")
-        
-        for message in self.consumer:
-            try:
-                click_event = message.value
-                
-                # Enrich event with additional data
-                enriched_event = self._enrich_event(click_event)
-                
-                # Store in database
-                self._store_event(enriched_event)
-                
-                # Update real-time counters
-                self._update_counters(enriched_event)
-                
-                print(f"Processed event for {click_event['short_code']}")
-            
-            except Exception as e:
-                print(f"Error processing event: {e}")
-                # Log error but continue processing
-    
-    def _enrich_event(self, event):
-        """
-        Add additional information to event
-        
-        Examples:
-        - Lookup geographic location from IP
-        - Parse device type from user agent
-        - Classify referrer (social, search, direct)
-        """
-        enriched = event.copy()
-        
-        # Geographic lookup (using GeoIP database)
-        if event.get('ip_address'):
-            geo_data = self._lookup_location(event['ip_address'])
-            enriched['country'] = geo_data.get('country', 'Unknown')
-            enriched['city'] = geo_data.get('city', 'Unknown')
-        
-        # Device classification
-        if event.get('user_agent'):
-            device_info = self._parse_user_agent(event['user_agent'])
-            enriched['device_type'] = device_info.get('device_type', 'Unknown')
-            enriched['browser'] = device_info.get('browser', 'Unknown')
-            enriched['os'] = device_info.get('os', 'Unknown')
-        
-        # Referrer classification
-        referrer = event.get('referrer', 'direct')
-        enriched['referrer_type'] = self._classify_referrer(referrer)
-        
-        return enriched
-    
-    def _store_event(self, event):
-        """
-        Store click event in database
-        
-        Uses INSERT for raw event storage
-        """
-        cursor = self.db.cursor()
-        
-        cursor.execute("""
-            INSERT INTO click_events (
-                event_id, short_code, timestamp, 
-                referrer, referrer_type, country, city,
-                device_type, browser, os
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-            )
-        """, (
-            event['event_id'],
-            event['short_code'],
-            event['timestamp'],
-            event.get('referrer'),
-            event.get('referrer_type'),
-            event.get('country'),
-            event.get('city'),
-            event.get('device_type'),
-            event.get('browser'),
-            event.get('os')
-        ))
-        
-        self.db.commit()
-    
-    def _update_counters(self, event):
-        """
-        Update real-time counters (Redis or database)
-        
-        Examples:
-        - Total clicks for URL
-        - Clicks per hour
-        - Clicks per country
-        """
-        # Increment total click counter
-        cursor = self.db.cursor()
-        cursor.execute("""
-            UPDATE url_mappings
-            SET click_count = click_count + 1,
-                last_clicked_at = %s
-            WHERE short_code = %s
-        """, (event['timestamp'], event['short_code']))
-        
-        self.db.commit()
-    
-    def _lookup_location(self, ip_address):
-        """Lookup geographic location from IP address"""
-        # Use MaxMind GeoIP, IP2Location, or similar
-        # Simplified example:
-        return {
-            "country": "US",
-            "city": "San Francisco"
-        }
-    
-    def _parse_user_agent(self, user_agent):
-        """Parse user agent string to extract device info"""
-        # Use user-agents library or similar
-        # Simplified example:
-        if "Mobile" in user_agent:
-            device_type = "Mobile"
-        elif "Tablet" in user_agent:
-            device_type = "Tablet"
-        else:
-            device_type = "Desktop"
-        
-        return {
-            "device_type": device_type,
-            "browser": "Chrome",
-            "os": "Windows"
-        }
-    
-    def _classify_referrer(self, referrer):
-        """Classify referrer into categories"""
-        if not referrer or referrer == "direct":
-            return "direct"
-        elif "twitter.com" in referrer or "t.co" in referrer:
-            return "social_twitter"
-        elif "facebook.com" in referrer or "fb.com" in referrer:
-            return "social_facebook"
-        elif "google.com" in referrer:
-            return "search_google"
-        else:
-            return "other"
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Analytics Database Schema
@@ -8058,151 +6708,20 @@ Stream Processor:
 
 **Apache Flink Example:**
 
-```python
-"""
-Real-Time Analytics with Apache Flink
-Purpose: Process click streams in real-time for live dashboards
-How to call: Runs as continuous stream processing job
-Expected return: Real-time metrics streamed to dashboard
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.datastream.connectors import FlinkKafkaConsumer
-from pyflink.common.serialization import SimpleStringSchema
-from pyflink.datastream.functions import MapFunction, WindowFunction
-from pyflink.datastream.window import TumblingProcessingTimeWindows
-from datetime import timedelta
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class ClickStreamProcessor:
-    """
-    Real-time click stream processing using Apache Flink
-    
-    Features:
-    - Count clicks per URL in real-time
-    - Detect viral content (sudden traffic spikes)
-    - Geographic distribution
-    - Device breakdown
-    """
-    
-    def __init__(self):
-        """Initialize Flink environment"""
-        self.env = StreamExecutionEnvironment.get_execution_environment()
-        self.env.set_parallelism(4)  # 4 parallel workers
-    
-    def create_kafka_source(self):
-        """
-        Create Kafka source for click events
-        
-        Reads from 'click_events' topic
-        """
-        properties = {
-            'bootstrap.servers': 'kafka:9092',
-            'group.id': 'flink_analytics'
-        }
-        
-        return FlinkKafkaConsumer(
-            topics='click_events',
-            deserialization_schema=SimpleStringSchema(),
-            properties=properties
-        )
-    
-    def run_analytics(self):
-        """
-        Main analytics pipeline
-        
-        Pipeline:
-        1. Read from Kafka
-        2. Parse events
-        3. Window by time (1 minute windows)
-        4. Aggregate metrics
-        5. Write to dashboard database
-        """
-        # Step 1: Create data stream from Kafka
-        click_stream = self.env.add_source(self.create_kafka_source())
-        
-        # Step 2: Parse JSON events
-        parsed_stream = click_stream.map(lambda x: json.loads(x))
-        
-        # Step 3: Count clicks per URL (1-minute windows)
-        click_counts = (parsed_stream
-            .key_by(lambda event: event['short_code'])
-            .window(TumblingProcessingTimeWindows.of(timedelta(minutes=1)))
-            .apply(self._count_clicks)
-        )
-        
-        # Step 4: Detect viral content (>1000 clicks/min)
-        viral_urls = (click_counts
-            .filter(lambda x: x['clicks'] > 1000)
-            .map(lambda x: self._alert_viral_content(x))
-        )
-        
-        # Step 5: Geographic distribution
-        geo_stats = (parsed_stream
-            .key_by(lambda event: (event['short_code'], event.get('country')))
-            .window(TumblingProcessingTimeWindows.of(timedelta(minutes=1)))
-            .apply(self._aggregate_by_country)
-        )
-        
-        # Output results
-        click_counts.add_sink(self._create_database_sink())
-        viral_urls.add_sink(self._create_alert_sink())
-        geo_stats.add_sink(self._create_geo_sink())
-        
-        # Execute the pipeline
-        self.env.execute("Real-Time Click Analytics")
-    
-    def _count_clicks(self, key, window, events):
-        """
-        Count clicks in window
-        
-        Args:
-            key: short_code
-            window: Time window
-            events: Click events in window
-        
-        Returns:
-            Aggregated metrics
-        """
-        clicks = list(events)
-        unique_ips = set(event.get('ip_address') for event in clicks)
-        
-        return {
-            'short_code': key,
-            'window_start': window.start,
-            'window_end': window.end,
-            'clicks': len(clicks),
-            'unique_visitors': len(unique_ips),
-            'clicks_per_second': len(clicks) / 60.0
-        }
-    
-    def _alert_viral_content(self, metrics):
-        """
-        Generate alert for viral content
-        
-        When URL gets >1000 clicks/minute, alert marketing team
-        """
-        return {
-            'alert_type': 'viral_content',
-            'short_code': metrics['short_code'],
-            'clicks': metrics['clicks'],
-            'timestamp': metrics['window_end']
-        }
-    
-    def _aggregate_by_country(self, key, window, events):
-        """
-        Aggregate clicks by country
-        
-        Real-time geographic distribution
-        """
-        short_code, country = key
-        clicks = list(events)
-        
-        return {
-            'short_code': short_code,
-            'country': country,
-            'clicks': len(clicks),
-            'window': window.end
-        }
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### ClickHouse for Analytics
@@ -8424,102 +6943,20 @@ Strategy 3: Exactly-Once Kafka (Kafka Transactions)
 
 **Deduplication Implementation:**
 
-```python
-"""
-Idempotent Analytics Processor
-Purpose: Ensures each click counted exactly once
-How to call: Background worker with deduplication
-Expected return: No duplicate events processed
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import redis
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class IdempotentAnalyticsProcessor:
-    def __init__(self, redis_client, db_connection):
-        """
-        Initialize with Redis for deduplication
-        
-        Redis stores Set of processed event IDs:
-        Key: "processed_events:2025-01-15"
-        Value: Set of event_ids
-        TTL: 7 days (keep for replay window)
-        """
-        self.redis = redis_client
-        self.db = db_connection
-        self.processed_key_prefix = "processed_events"
-    
-    def process_event(self, click_event):
-        """
-        Process event with deduplication
-        
-        Args:
-            click_event: Click event from Kafka
-        
-        Returns:
-            bool: True if processed, False if duplicate
-        """
-        event_id = click_event['event_id']
-        event_date = click_event['timestamp'][:10]  # YYYY-MM-DD
-        
-        # Check if already processed
-        redis_key = f"{self.processed_key_prefix}:{event_date}"
-        
-        # SISMEMBER: Check if event_id in set (O(1), very fast!)
-        if self.redis.sismember(redis_key, event_id):
-            print(f"Duplicate event {event_id}, skipping")
-            return False  # Already processed
-        
-        # Process event (store in database, update counters)
-        self._store_in_database(click_event)
-        self._update_counters(click_event)
-        
-        # Mark as processed
-        # SADD: Add to set (O(1))
-        self.redis.sadd(redis_key, event_id)
-        
-        # Set TTL if this is first event of the day
-        if not self.redis.ttl(redis_key) > 0:
-            self.redis.expire(redis_key, 7 * 24 * 3600)  # 7 days
-        
-        print(f"Processed event {event_id}")
-        return True  # Processed successfully
-    
-    def _store_in_database(self, event):
-        """Store event in analytics database"""
-        cursor = self.db.cursor()
-        cursor.execute("""
-            INSERT INTO click_events (...)
-            VALUES (...)
-            ON CONFLICT (event_id) DO NOTHING
-        """, (...))
-        self.db.commit()
-    
-    def _update_counters(self, event):
-        """Update real-time counters"""
-        # Increment click count
-        pass
-
-
-# Memory usage calculation:
-"""
-Deduplication Memory Usage:
-
-Events per day: 8.6 billion
-UUID size: 36 bytes
-Redis overhead: ~10 bytes per entry
-Total per event: ~46 bytes
-
-Daily memory: 8.6B × 46 bytes ≈ 395 GB
-7-day retention: 395 GB × 7 ≈ 2.7 TB
-
-Solutions to reduce memory:
-1. Use hash(event_id) instead of full UUID (8 bytes vs 36)
-   └─ Memory: 8.6B × 18 ≈ 155 GB per day
-2. Shorter retention (3 days instead of 7)
-3. Probabilistic deduplication (Bloom filter)
-   └─ Memory: 1-2 GB for billions of events!
-   └─ Trade-off: 0.1% false positive rate
-"""
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Monitoring Analytics Pipeline
@@ -8769,78 +7206,20 @@ Compare to simple PostgreSQL approach!
 
 Implement a complete analytics worker:
 
-```python
-"""
-Your task: Complete the AnalyticsWorker class
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-Requirements:
-- Consume events from Kafka
-- Enrich with GeoIP data
-- Deduplicate events
-- Store in database
-- Update real-time counters
-- Handle errors gracefully
-- Log processing metrics
-"""
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class AnalyticsWorker:
-    def __init__(self, kafka_config, db_config, redis_config):
-        # Your code here
-        pass
-    
-    def start(self):
-        """
-        Start consuming and processing events
-        Runs forever in background
-        """
-        # Your code here
-        pass
-    
-    def process_event(self, event):
-        """
-        Process single click event
-        
-        Steps:
-        1. Check if duplicate (Redis)
-        2. Enrich with GeoIP
-        3. Store in database
-        4. Update counters
-        5. Mark as processed
-        """
-        # Your code here
-        pass
-    
-    def enrich_event(self, event):
-        """
-        Add geographic and device information
-        """
-        # Your code here
-        pass
-    
-    def is_duplicate(self, event_id):
-        """
-        Check if event already processed
-        """
-        # Your code here
-        pass
-    
-    def get_metrics(self):
-        """
-        Return processing metrics:
-        - Events processed
-        - Processing rate
-        - Error count
-        - Lag (current vs event timestamp)
-        """
-        # Your code here
-        pass
-
-# Test scenarios:
-# 1. Process 1000 events/sec for 1 hour
-# 2. Handle duplicate events (10% duplicate rate)
-# 3. Handle Kafka consumer rebalance
-# 4. Handle database connection loss
-# 5. Handle GeoIP service timeout
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Bonus Challenges:**
@@ -8859,6 +7238,42 @@ class AnalyticsWorker:
 - How does analytics architecture differ for URL shortener vs e-commerce?
 - What are the trade-offs between real-time and accurate analytics?
 - How would you handle GDPR compliance (data retention, right to deletion)?
+
+### 🎯 Interview Questions - Analytics & Monitoring
+
+**Beginner Level:**
+1. **Q:** "What analytics would you track for a URL shortener?"
+   - **A:** Click counts, geographic data, referrer information, device types, browser data, and time-based patterns.
+
+2. **Q:** "How would you store analytics data for a URL shortener?"
+   - **A:** Separate analytics database, time-series data, aggregated metrics, and real-time processing for immediate insights.
+
+3. **Q:** "What monitoring would you implement for a URL shortener?"
+   - **A:** System health checks, performance metrics, error rates, database performance, and user experience metrics.
+
+**Intermediate Level:**
+4. **Q:** "How would you design analytics for a URL shortener that needs to handle 1 billion clicks per day?"
+   - **A:** Distributed analytics processing, data partitioning, real-time aggregation, and scalable storage solutions.
+
+5. **Q:** "What happens if your analytics system goes down during peak traffic?"
+   - **A:** Graceful degradation, data buffering, offline processing, and recovery mechanisms.
+
+6. **Q:** "How would you handle analytics for a URL shortener that needs to support real-time dashboards?"
+   - **A:** Streaming data processing, real-time aggregation, dashboard updates, and event-driven architecture.
+
+**Advanced Level:**
+7. **Q:** "Design an analytics system for a URL shortener that needs to support enterprise features."
+   - **A:** Enterprise dashboards, custom reporting, data export, compliance features, and audit trails.
+
+8. **Q:** "How would you handle analytics for a URL shortener that needs to work across multiple data centers?"
+   - **A:** Cross-region data synchronization, distributed analytics, regional reporting, and global aggregation.
+
+9. **Q:** "What analytics optimizations would you implement for a URL shortener with high throughput?"
+   - **A:** Data compression, batch processing, intelligent sampling, and analytics-specific caching.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design analytics for a URL shortener that needs to support custom domains and enterprise features?"
+    - **A:** Domain-specific analytics, enterprise reporting, custom metrics, and compliance-aware data handling.
 
 ---
 
@@ -9050,73 +7465,20 @@ For URL Shortener:
 
 #### Simple Load Balancer Example
 
-```python
-"""
-Simple Round-Robin Load Balancer
-Purpose: Distributes requests across multiple servers
-How to call: load_balancer.get_server()
-Expected return: Server URL to send request to
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class LoadBalancer:
-    def __init__(self, servers):
-        """
-        Initialize with list of server URLs
-        
-        Args:
-            servers: List of backend server URLs
-        
-        Example:
-            servers = [
-                "http://server1.com",
-                "http://server2.com",
-                "http://server3.com"
-            ]
-        """
-        self.servers = servers
-        self.current_index = 0
-    
-    def get_server(self):
-        """
-        Get next server using round-robin
-        
-        Round-robin: Take turns, one by one
-        Request 1 → Server 1
-        Request 2 → Server 2
-        Request 3 → Server 3
-        Request 4 → Server 1 (back to start)
-        
-        Returns:
-            Server URL to use for this request
-        """
-        # Get current server
-        server = self.servers[self.current_index]
-        
-        # Move to next server for next request
-        self.current_index = (self.current_index + 1) % len(self.servers)
-        
-        return server
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-
-# Usage:
-load_balancer = LoadBalancer([
-    "http://server1.com",
-    "http://server2.com",
-    "http://server3.com"
-])
-
-# Distribute 6 requests:
-for i in range(6):
-    server = load_balancer.get_server()
-    print(f"Request {i+1} → {server}")
-
-# Output:
-# Request 1 → http://server1.com
-# Request 2 → http://server2.com
-# Request 3 → http://server3.com
-# Request 4 → http://server1.com  (back to start)
-# Request 5 → http://server2.com
-# Request 6 → http://server3.com
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Scaling Step by Step
@@ -9210,85 +7572,20 @@ Challenges:
 
 **Implementation:**
 
-```python
-"""
-Database Router with Read Replicas
-Purpose: Routes reads to replicas, writes to primary
-How to call: db.query(sql, write=False)
-Expected return: Query result
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import random
-import psycopg2
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class DatabaseRouter:
-    def __init__(self, primary_url, replica_urls):
-        """
-        Initialize with primary and replica connections
-        
-        Args:
-            primary_url: Primary database connection string
-            replica_urls: List of replica connection strings
-        """
-        self.primary = psycopg2.connect(primary_url)
-        self.replicas = [
-            psycopg2.connect(url) for url in replica_urls
-        ]
-    
-    def query(self, sql, params=None, write=False):
-        """
-        Execute query on appropriate database
-        
-        Args:
-            sql: SQL query
-            params: Query parameters
-            write: True for writes (INSERT/UPDATE/DELETE)
-        
-        Returns:
-            Query results
-        """
-        if write:
-            # All writes go to primary
-            conn = self.primary
-            print("Executing on PRIMARY")
-        else:
-            # Reads go to random replica (load distribution)
-            conn = random.choice(self.replicas)
-            print(f"Executing on REPLICA")
-        
-        cursor = conn.cursor()
-        cursor.execute(sql, params)
-        
-        if write:
-            conn.commit()
-            return cursor.rowcount
-        else:
-            return cursor.fetchall()
-
-
-# Usage:
-db = DatabaseRouter(
-    primary_url="postgresql://primary:5432/urls",
-    replica_urls=[
-        "postgresql://replica1:5432/urls",
-        "postgresql://replica2:5432/urls",
-        "postgresql://replica3:5432/urls"
-    ]
-)
-
-# Write: Goes to primary
-db.query(
-    "INSERT INTO url_mappings (short_code, long_url) VALUES (%s, %s)",
-    ("abc123", "https://example.com"),
-    write=True
-)
-
-# Read: Goes to random replica
-result = db.query(
-    "SELECT long_url FROM url_mappings WHERE short_code = %s",
-    ("abc123",),
-    write=False
-)
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **2. Database Sharding (Scale Writes)**
@@ -9323,135 +7620,20 @@ Challenges:
 
 **Sharding Implementation:**
 
-```python
-"""
-Database Sharding Implementation
-Purpose: Distributes data across multiple database shards
-How to call: sharded_db.get(short_code) or sharded_db.set(short_code, url)
-Expected return: URL or None
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import hashlib
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class ShardedDatabase:
-    def __init__(self, shard_connections):
-        """
-        Initialize with multiple database connections
-        
-        Args:
-            shard_connections: List of database connections
-        
-        Example:
-            shards = [
-                psycopg2.connect("postgresql://shard1:5432/urls"),
-                psycopg2.connect("postgresql://shard2:5432/urls"),
-                psycopg2.connect("postgresql://shard3:5432/urls")
-            ]
-        """
-        self.shards = shard_connections
-        self.num_shards = len(shard_connections)
-    
-    def _get_shard(self, short_code):
-        """
-        Determine which shard stores this short_code
-        
-        Uses consistent hashing for distribution
-        
-        Args:
-            short_code: The short URL code
-        
-        Returns:
-            Database connection for this shard
-        """
-        # Hash short_code to determine shard
-        hash_value = int(hashlib.md5(short_code.encode()).hexdigest(), 16)
-        shard_index = hash_value % self.num_shards
-        
-        return self.shards[shard_index], shard_index
-    
-    def get(self, short_code):
-        """
-        Get URL from appropriate shard
-        
-        Args:
-            short_code: Short code to lookup
-        
-        Returns:
-            Long URL or None if not found
-        """
-        shard, shard_id = self._get_shard(short_code)
-        
-        cursor = shard.cursor()
-        cursor.execute(
-            "SELECT long_url FROM url_mappings WHERE short_code = %s",
-            (short_code,)
-        )
-        result = cursor.fetchone()
-        
-        print(f"Read {short_code} from Shard {shard_id}")
-        
-        return result[0] if result else None
-    
-    def set(self, short_code, long_url):
-        """
-        Store URL in appropriate shard
-        
-        Args:
-            short_code: Short code
-            long_url: Full URL to store
-        """
-        shard, shard_id = self._get_shard(short_code)
-        
-        cursor = shard.cursor()
-        cursor.execute(
-            "INSERT INTO url_mappings (short_code, long_url, created_at) "
-            "VALUES (%s, %s, NOW())",
-            (short_code, long_url)
-        )
-        shard.commit()
-        
-        print(f"Wrote {short_code} to Shard {shard_id}")
-    
-    def get_all_shards_stats(self):
-        """
-        Get statistics from all shards
-        
-        Useful for monitoring distribution
-        
-        Returns:
-            List of (shard_id, row_count)
-        """
-        stats = []
-        
-        for i, shard in enumerate(self.shards):
-            cursor = shard.cursor()
-            cursor.execute("SELECT COUNT(*) FROM url_mappings")
-            count = cursor.fetchone()[0]
-            stats.append((i, count))
-        
-        return stats
-
-
-# Usage:
-sharded_db = ShardedDatabase([
-    psycopg2.connect("postgresql://shard1:5432/urls"),
-    psycopg2.connect("postgresql://shard2:5432/urls"),
-    psycopg2.connect("postgresql://shard3:5432/urls")
-])
-
-# Write URLs (automatically distributed)
-sharded_db.set("aB3xY9", "https://example.com")  # → Shard 1
-sharded_db.set("xY7mN2", "https://test.com")     # → Shard 2
-sharded_db.set("pQ8rT5", "https://demo.com")     # → Shard 0
-
-# Read URLs (automatically routed to correct shard)
-url = sharded_db.get("aB3xY9")  # → Reads from Shard 1
-print(f"URL: {url}")
-
-# Check distribution
-stats = sharded_db.get_all_shards_stats()
-for shard_id, count in stats:
-    print(f"Shard {shard_id}: {count} URLs")
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Microservices Architecture
@@ -9669,155 +7851,20 @@ User in New York → US-East region (10ms latency)
 
 **Implementation Details:**
 
-```python
-"""
-Multi-Region URL Shortener
-Purpose: Routes requests to appropriate region and handles failover
-How to call: Deployed in each region, coordinated by global load balancer
-Expected return: N/A (infrastructure configuration)
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class MultiRegionConfig:
-    """
-    Configuration for multi-region deployment
-    
-    Each region runs independently but shares global data
-    """
-    
-    REGIONS = {
-        "us-east-1": {
-            "name": "US East (Virginia)",
-            "endpoints": {
-                "api": "https://us-api.shorturl.com",
-                "db_primary": "postgresql://us-db-primary.com:5432",
-                "db_replica": "postgresql://us-db-replica.com:5432",
-                "redis": "redis://us-redis.com:6379"
-            },
-            "latency_zones": ["North America", "South America"]
-        },
-        
-        "eu-west-1": {
-            "name": "EU West (Ireland)",
-            "endpoints": {
-                "api": "https://eu-api.shorturl.com",
-                "db_primary": "postgresql://eu-db-primary.com:5432",
-                "db_replica": "postgresql://eu-db-replica.com:5432",
-                "redis": "redis://eu-redis.com:6379"
-            },
-            "latency_zones": ["Europe", "Africa", "Middle East"]
-        },
-        
-        "ap-southeast-1": {
-            "name": "Asia Pacific (Singapore)",
-            "endpoints": {
-                "api": "https://ap-api.shorturl.com",
-                "db_primary": "postgresql://ap-db-primary.com:5432",
-                "db_replica": "postgresql://ap-db-replica.com:5432",
-                "redis": "redis://ap-redis.com:6379"
-            },
-            "latency_zones": ["Asia", "Australia"]
-        }
-    }
-    
-    # Database replication topology
-    REPLICATION_TOPOLOGY = {
-        "us-east-1": {
-            "role": "primary",  # Primary write region
-            "replicates_to": ["eu-west-1", "ap-southeast-1"],
-            "replication_lag_target": "< 100ms"
-        },
-        "eu-west-1": {
-            "role": "replica",
-            "reads_from": "us-east-1",
-            "can_promote_to_primary": True
-        },
-        "ap-southeast-1": {
-            "role": "replica",
-            "reads_from": "us-east-1",
-            "can_promote_to_primary": True
-        }
-    }
-    
-    # Failover configuration
-    FAILOVER_RULES = {
-        "health_check_interval": "10s",
-        "unhealthy_threshold": 3,  # 3 failed checks = unhealthy
-        "promotion_delay": "30s",  # Wait before promoting replica
-        "automatic_failover": True
-    }
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-
-class RegionRouter:
-    """
-    Routes requests to appropriate region
-    
-    Deployed as part of global load balancer
-    """
-    
-    def __init__(self):
-        self.regions = MultiRegionConfig.REGIONS
-    
-    def get_region_for_request(self, user_ip, user_country=None):
-        """
-        Determine best region for user request
-        
-        Strategy:
-        1. Geolocation based on IP
-        2. Health check (is region healthy?)
-        3. Fallback to nearest healthy region
-        
-        Args:
-            user_ip: User's IP address
-            user_country: Optional country code
-        
-        Returns:
-            Region configuration
-        """
-        # Simple geolocation (in production, use MaxMind GeoIP)
-        if user_country in ["US", "CA", "MX", "BR"]:
-            primary = "us-east-1"
-        elif user_country in ["GB", "DE", "FR", "IT", "ES"]:
-            primary = "eu-west-1"
-        elif user_country in ["CN", "JP", "IN", "SG", "AU"]:
-            primary = "ap-southeast-1"
-        else:
-            primary = "us-east-1"  # Default
-        
-        # Check if primary region is healthy
-        if self._is_region_healthy(primary):
-            return self.regions[primary]
-        
-        # Fallback: Try next closest region
-        fallback_order = self._get_fallback_regions(primary)
-        for region_id in fallback_order:
-            if self._is_region_healthy(region_id):
-                print(f"Primary {primary} unhealthy, using fallback {region_id}")
-                return self.regions[region_id]
-        
-        # All regions unhealthy (disaster scenario)
-        raise Exception("All regions unhealthy!")
-    
-    def _is_region_healthy(self, region_id):
-        """
-        Check if region is healthy
-        
-        In production: actual health check API calls
-        """
-        # Simplified: always healthy for example
-        return True
-    
-    def _get_fallback_regions(self, primary_region):
-        """
-        Get ordered list of fallback regions
-        
-        Based on geographic proximity and replication
-        """
-        fallback_map = {
-            "us-east-1": ["eu-west-1", "ap-southeast-1"],
-            "eu-west-1": ["us-east-1", "ap-southeast-1"],
-            "ap-southeast-1": ["eu-west-1", "us-east-1"]
-        }
-        return fallback_map.get(primary_region, [])
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Write Strategy for Multi-Region
@@ -10194,81 +8241,20 @@ Compare scenarios:
 
 Implement auto-scaling decision logic:
 
-```python
-"""
-Your task: Implement AutoScaler class
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-Requirements:
-- Monitor system metrics (CPU, memory, request rate)
-- Decide when to scale up/down
-- Handle scaling cooldown (don't scale too frequently)
-- Predict traffic patterns (optional: use simple ML)
-- Estimate costs of scaling decisions
-"""
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class AutoScaler:
-    def __init__(self, min_instances=3, max_instances=50):
-        """
-        Initialize auto-scaler
-        
-        Args:
-            min_instances: Minimum servers (high availability)
-            max_instances: Maximum servers (cost control)
-        """
-        # Your code here
-        pass
-    
-    def should_scale(self, metrics):
-        """
-        Decide if scaling is needed
-        
-        Args:
-            metrics: {
-                'current_instances': 10,
-                'cpu_usage': 85,  # percent
-                'memory_usage': 70,  # percent
-                'requests_per_second': 15000,
-                'avg_response_time_ms': 150,
-                'error_rate': 0.5  # percent
-            }
-        
-        Returns:
-            {
-                'action': 'scale_up' | 'scale_down' | 'no_action',
-                'target_instances': int,
-                'reason': str
-            }
-        """
-        # Your code here
-        pass
-    
-    def calculate_target_instances(self, current_load, current_instances):
-        """
-        Calculate optimal number of instances
-        
-        Strategy:
-        - Target 70% CPU utilization
-        - Reserve 30% buffer for spikes
-        - Round up for safety
-        """
-        # Your code here
-        pass
-    
-    def estimate_cost(self, num_instances, hours=720):
-        """
-        Estimate monthly cost
-        
-        Assume: $0.05 per instance per hour
-        """
-        # Your code here
-        pass
-
-# Test scenarios:
-# 1. Normal load: 10,000 req/sec, 60% CPU
-# 2. Traffic spike: 50,000 req/sec, 95% CPU
-# 3. Late night: 1,000 req/sec, 20% CPU
-# 4. Gradual growth: 15,000 → 20,000 req/sec over 1 hour
-# 5. Database bottleneck: Low CPU, high error rate
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Bonus Challenges:**
@@ -10288,6 +8274,42 @@ class AutoScaler:
 - What's the trade-off between eventual consistency and strong consistency?
 - How would you handle a complete region failure?
 - What metrics are most important for auto-scaling decisions?
+
+### 🎯 Interview Questions - Scalability & Performance
+
+**Beginner Level:**
+1. **Q:** "How would you scale a URL shortener to handle 10x more traffic?"
+   - **A:** Add more servers, use load balancers, implement caching, and optimize database queries.
+
+2. **Q:** "What are the bottlenecks in a URL shortener system?"
+   - **A:** Database reads/writes, network bandwidth, CPU for URL generation, and storage I/O.
+
+3. **Q:** "How would you handle traffic spikes in a URL shortener?"
+   - **A:** Auto-scaling, load balancing, caching, and circuit breakers for protection.
+
+**Intermediate Level:**
+4. **Q:** "How would you design a URL shortener that needs to handle 1 billion redirects per day?"
+   - **A:** Database sharding, read replicas, CDN, caching layers, and distributed architecture.
+
+5. **Q:** "What happens if your database becomes the bottleneck in a URL shortener?"
+   - **A:** Database optimization, read replicas, caching, query optimization, and database sharding.
+
+6. **Q:** "How would you handle scaling for a URL shortener that needs to work across multiple data centers?"
+   - **A:** Multi-region deployment, database replication, cross-region caching, and load balancing.
+
+**Advanced Level:**
+7. **Q:** "Design a URL shortener that needs to support real-time analytics on every click."
+   - **A:** Streaming data processing, real-time aggregation, analytics database, and event-driven architecture.
+
+8. **Q:** "How would you handle scaling for a URL shortener that needs to support enterprise features?"
+   - **A:** Enterprise-specific scaling, custom domains, compliance features, and dedicated infrastructure.
+
+9. **Q:** "What scaling optimizations would you implement for a URL shortener with high throughput?"
+   - **A:** Database sharding, read replicas, caching strategies, and distributed architecture.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design scaling for a URL shortener that needs to support custom domains and enterprise features?"
+    - **A:** Domain-specific scaling, enterprise infrastructure, custom domains, and compliance features.
 
 ---
 
@@ -10425,101 +8447,20 @@ Real Example:
 
 #### Basic Security Measures
 
-```python
-"""
-Simple URL Validation
-Purpose: Check if URL is safe to shorten
-How to call: is_url_safe(long_url)
-Expected return: True if safe, False if suspicious
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import re
-from urllib.parse import urlparse
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-def is_url_safe(long_url):
-    """
-    Basic URL safety checks
-    
-    Checks:
-    1. Valid URL format
-    2. Not on blacklist
-    3. Not suspicious pattern
-    
-    Args:
-        long_url: The URL to validate
-    
-    Returns:
-        bool: True if safe, False if suspicious
-    """
-    # Check 1: Valid URL format
-    try:
-        parsed = urlparse(long_url)
-        
-        # Must have scheme (http/https)
-        if parsed.scheme not in ['http', 'https']:
-            print(f"Invalid scheme: {parsed.scheme}")
-            return False
-        
-        # Must have domain
-        if not parsed.netloc:
-            print("Missing domain")
-            return False
-    
-    except Exception as e:
-        print(f"Invalid URL format: {e}")
-        return False
-    
-    # Check 2: Blacklisted domains
-    blacklisted_domains = [
-        'known-phishing-site.com',
-        'malware-distributor.net',
-        'spam-central.org'
-    ]
-    
-    domain = parsed.netloc.lower()
-    if domain in blacklisted_domains:
-        print(f"Blacklisted domain: {domain}")
-        return False
-    
-    # Check 3: Suspicious patterns
-    suspicious_keywords = [
-        'phishing', 'malware', 'virus',
-        'free-money', 'click-here-now'
-    ]
-    
-    full_url = long_url.lower()
-    for keyword in suspicious_keywords:
-        if keyword in full_url:
-            print(f"Suspicious keyword: {keyword}")
-            return False
-    
-    # Check 4: IP address instead of domain (suspicious)
-    # Example: http://192.168.1.1/phishing
-    ip_pattern = r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'
-    if re.search(ip_pattern, domain):
-        print("IP address detected (suspicious)")
-        return False
-    
-    print("URL passed safety checks")
-    return True
-
-
-# Usage examples:
-print("Test 1: Legitimate URL")
-is_url_safe("https://example.com/article")
-# Output: URL passed safety checks → True
-
-print("\nTest 2: Phishing URL")
-is_url_safe("https://known-phishing-site.com/login")
-# Output: Blacklisted domain → False
-
-print("\nTest 3: Suspicious pattern")
-is_url_safe("https://example.com/free-money-click-here-now")
-# Output: Suspicious keyword: free-money → False
-
-print("\nTest 4: IP address")
-is_url_safe("http://192.168.1.1/download")
-# Output: IP address detected (suspicious) → False
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Rate Limiting Basics
@@ -10566,550 +8507,78 @@ For each user, track:
 
 **Defense in Depth:**
 
-```python
-"""
-Comprehensive URL Validation
-Purpose: Multi-layer validation to prevent various attacks
-How to call: validate_url_comprehensive(url)
-Expected return: Validated URL or raises exception
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import re
-import validators
-from urllib.parse import urlparse, quote
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class URLValidator:
-    """
-    Comprehensive URL validation and sanitization
-    
-    Protects against:
-    - SQL injection
-    - XSS attacks
-    - SSRF (Server-Side Request Forgery)
-    - Open redirects
-    - Protocol smuggling
-    """
-    
-    MAX_URL_LENGTH = 2048  # Reasonable limit
-    ALLOWED_SCHEMES = ['http', 'https']
-    
-    # Blocked: localhost, private networks, cloud metadata
-    BLOCKED_HOSTS = [
-        'localhost', '127.0.0.1',
-        '169.254.169.254',  # AWS metadata
-        '0.0.0.0', '10.', '172.', '192.168.'
-    ]
-    
-    def validate(self, url):
-        """
-        Validate and sanitize URL
-        
-        Args:
-            url: Raw URL from user
-        
-        Returns:
-            Sanitized URL if valid
-        
-        Raises:
-            ValueError: If URL is invalid or dangerous
-        """
-        # Step 1: Basic validation
-        if not url or not isinstance(url, str):
-            raise ValueError("URL must be non-empty string")
-        
-        url = url.strip()
-        
-        if len(url) > self.MAX_URL_LENGTH:
-            raise ValueError(f"URL too long (max {self.MAX_URL_LENGTH})")
-        
-        # Step 2: Format validation
-        if not validators.url(url):
-            raise ValueError("Invalid URL format")
-        
-        parsed = urlparse(url)
-        
-        # Step 3: Scheme validation
-        if parsed.scheme not in self.ALLOWED_SCHEMES:
-            raise ValueError(f"Scheme must be {self.ALLOWED_SCHEMES}")
-        
-        # Step 4: SSRF protection (prevent internal network access)
-        host = parsed.netloc.lower()
-        for blocked in self.BLOCKED_HOSTS:
-            if host.startswith(blocked):
-                raise ValueError("Cannot shorten internal/private URLs")
-        
-        # Step 5: Prevent double-encoding attacks
-        if '%' in url and self._is_double_encoded(url):
-            raise ValueError("Double-encoded URL detected")
-        
-        # Step 6: Check for URL redirection chains
-        if self._is_open_redirect(url):
-            raise ValueError("Open redirect detected")
-        
-        # Step 7: Sanitize (encode special characters)
-        sanitized_url = self._sanitize(url)
-        
-        return sanitized_url
-    
-    def _is_double_encoded(self, url):
-        """Detect double URL encoding (attack technique)"""
-        # Example: %2527 = double encoded '
-        return '%25' in url
-    
-    def _is_open_redirect(self, url):
-        """
-        Detect open redirect patterns
-        
-        Example: http://example.com?redirect=http://evil.com
-        """
-        suspicious_params = ['redirect', 'url', 'next', 'return']
-        query = urlparse(url).query.lower()
-        
-        for param in suspicious_params:
-            if param in query and 'http' in query:
-                return True
-        
-        return False
-    
-    def _sanitize(self, url):
-        """
-        Sanitize URL to prevent injection
-        
-        Encodes dangerous characters
-        """
-        # In production, use proper URL encoding library
-        # This is simplified for demonstration
-        dangerous_chars = ['<', '>', '"', "'", ';']
-        
-        for char in dangerous_chars:
-            if char in url:
-                url = url.replace(char, quote(char))
-        
-        return url
-
-
-# Usage:
-validator = URLValidator()
-
-try:
-    # Valid URL
-    safe_url = validator.validate("https://example.com/page")
-    print(f"Valid: {safe_url}")
-    
-    # Invalid: SSRF attempt
-    validator.validate("http://localhost/admin")
-except ValueError as e:
-    print(f"Blocked: {e}")
-
-try:
-    # Invalid: Open redirect
-    validator.validate("http://example.com?redirect=http://evil.com")
-except ValueError as e:
-    print(f"Blocked: {e}")
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Rate Limiting Implementation
 
 **Token Bucket Algorithm:**
 
-```python
-"""
-Token Bucket Rate Limiter
-Purpose: Limit requests per user to prevent abuse
-How to call: rate_limiter.allow_request(user_id)
-Expected return: True if allowed, False if rate limited
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import time
-import redis
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class TokenBucketRateLimiter:
-    """
-    Token bucket algorithm for rate limiting
-    
-    Concept:
-    - Bucket holds tokens (e.g., 10 tokens)
-    - Each request consumes 1 token
-    - Tokens refill over time (e.g., 1 token per 6 seconds)
-    - If bucket empty, request denied
-    
-    Benefits:
-    - Allows burst traffic (use all tokens quickly)
-    - Smooth refill over time
-    - Flexible configuration
-    """
-    
-    def __init__(self, redis_client):
-        """
-        Initialize rate limiter
-        
-        Args:
-            redis_client: Redis connection for distributed rate limiting
-        """
-        self.redis = redis_client
-        
-        # Rate limit configuration
-        self.limits = {
-            'free': {
-                'capacity': 10,      # 10 tokens max
-                'refill_rate': 1,    # 1 token per 6 seconds (10 per minute)
-                'refill_time': 6     # seconds
-            },
-            'premium': {
-                'capacity': 100,     # 100 tokens max
-                'refill_rate': 10,   # 10 tokens per 6 seconds (100 per minute)
-                'refill_time': 6
-            }
-        }
-    
-    def allow_request(self, user_id, tier='free'):
-        """
-        Check if request is allowed
-        
-        Args:
-            user_id: Unique user identifier
-            tier: 'free' or 'premium'
-        
-        Returns:
-            bool: True if allowed, False if rate limited
-        """
-        config = self.limits[tier]
-        key = f"rate_limit:{user_id}"
-        
-        # Get current bucket state
-        bucket = self.redis.hgetall(key)
-        
-        if not bucket:
-            # First request - initialize bucket
-            bucket = {
-                'tokens': config['capacity'],
-                'last_refill': time.time()
-            }
-        else:
-            # Decode Redis data
-            bucket = {
-                'tokens': float(bucket[b'tokens']),
-                'last_refill': float(bucket[b'last_refill'])
-            }
-        
-        # Refill tokens based on time passed
-        now = time.time()
-        time_passed = now - bucket['last_refill']
-        tokens_to_add = (time_passed / config['refill_time']) * config['refill_rate']
-        
-        bucket['tokens'] = min(
-            config['capacity'],
-            bucket['tokens'] + tokens_to_add
-        )
-        bucket['last_refill'] = now
-        
-        # Check if request allowed
-        if bucket['tokens'] >= 1:
-            # Allow request, consume token
-            bucket['tokens'] -= 1
-            
-            # Save updated bucket
-            self.redis.hset(key, mapping={
-                'tokens': bucket['tokens'],
-                'last_refill': bucket['last_refill']
-            })
-            self.redis.expire(key, 3600)  # Expire after 1 hour of inactivity
-            
-            return True
-        else:
-            # Rate limited!
-            return False
-    
-    def get_remaining_tokens(self, user_id, tier='free'):
-        """
-        Get remaining tokens for user
-        
-        Useful for API response headers:
-        X-RateLimit-Remaining: 5
-        """
-        key = f"rate_limit:{user_id}"
-        bucket = self.redis.hgetall(key)
-        
-        if not bucket:
-            return self.limits[tier]['capacity']
-        
-        tokens = float(bucket[b'tokens'])
-        return int(tokens)
-
-
-# Usage:
-rate_limiter = TokenBucketRateLimiter(redis_client)
-
-# Simulate requests
-user_id = "user123"
-
-for i in range(15):
-    if rate_limiter.allow_request(user_id, tier='free'):
-        print(f"Request {i+1}: Allowed ✅")
-    else:
-        remaining = rate_limiter.get_remaining_tokens(user_id)
-        print(f"Request {i+1}: Rate Limited ❌ (tokens: {remaining})")
-    
-    time.sleep(1)
-
-# Output:
-# Request 1: Allowed ✅
-# Request 2: Allowed ✅
-# ...
-# Request 10: Allowed ✅
-# Request 11: Rate Limited ❌ (tokens: 0)
-# Request 12: Rate Limited ❌ (tokens: 0)
-# ...
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Malicious URL Detection
 
 **Integration with Google Safe Browsing:**
 
-```python
-"""
-Malicious URL Detection
-Purpose: Check if URL is malicious before shortening
-How to call: detector.is_safe(url)
-Expected return: True if safe, False if malicious
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import requests
-import hashlib
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class MaliciousURLDetector:
-    """
-    Integrates with Google Safe Browsing API
-    
-    Protects users from:
-    - Phishing sites
-    - Malware distribution
-    - Unwanted software
-    - Social engineering
-    """
-    
-    def __init__(self, api_key):
-        """
-        Initialize with Google Safe Browsing API key
-        
-        Get API key: https://developers.google.com/safe-browsing
-        """
-        self.api_key = api_key
-        self.api_url = "https://safebrowsing.googleapis.com/v4/threatMatches:find"
-    
-    def is_safe(self, url):
-        """
-        Check if URL is safe
-        
-        Args:
-            url: URL to check
-        
-        Returns:
-            bool: True if safe, False if malicious
-        """
-        # Prepare API request
-        payload = {
-            "client": {
-                "clientId": "url-shortener",
-                "clientVersion": "1.0"
-            },
-            "threatInfo": {
-                "threatTypes": [
-                    "MALWARE",
-                    "SOCIAL_ENGINEERING",  # Phishing
-                    "UNWANTED_SOFTWARE",
-                    "POTENTIALLY_HARMFUL_APPLICATION"
-                ],
-                "platformTypes": ["ANY_PLATFORM"],
-                "threatEntryTypes": ["URL"],
-                "threatEntries": [
-                    {"url": url}
-                ]
-            }
-        }
-        
-        # Call Safe Browsing API
-        response = requests.post(
-            f"{self.api_url}?key={self.api_key}",
-            json=payload,
-            timeout=5
-        )
-        
-        if response.status_code != 200:
-            # API error - fail open (allow) or fail closed (deny)?
-            # Production: Log error, use cached data, or deny
-            print(f"API error: {response.status_code}")
-            return True  # Fail open for this example
-        
-        data = response.json()
-        
-        # Check results
-        if 'matches' in data:
-            # URL is malicious!
-            threats = [match['threatType'] for match in data['matches']]
-            print(f"Malicious URL detected: {threats}")
-            return False
-        
-        # URL is safe
-        return True
-    
-    def check_with_cache(self, url, cache):
-        """
-        Check URL with caching to reduce API calls
-        
-        Cache results for 24 hours
-        """
-        cache_key = f"safe_url:{hashlib.md5(url.encode()).hexdigest()}"
-        
-        # Check cache first
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return cached == b'1'
-        
-        # Check with API
-        is_safe = self.is_safe(url)
-        
-        # Cache result
-        cache.setex(cache_key, 86400, '1' if is_safe else '0')  # 24 hours
-        
-        return is_safe
-
-
-# Usage:
-detector = MaliciousURLDetector(api_key="YOUR_API_KEY")
-
-# Check URLs
-urls_to_check = [
-    "https://google.com",           # Safe
-    "https://example-phishing.com"  # Malicious (example)
-]
-
-for url in urls_to_check:
-    if detector.is_safe(url):
-        print(f"✅ Safe: {url}")
-    else:
-        print(f"❌ Blocked: {url}")
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### CAPTCHA Integration
 
-```python
-"""
-CAPTCHA Verification
-Purpose: Prevent bots from creating URLs
-How to call: verify_captcha(token)
-Expected return: True if human, False if bot
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import requests
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class CaptchaVerifier:
-    """
-    Integrates with Google reCAPTCHA v3
-    
-    reCAPTCHA v3:
-    - No user interaction (no "click all traffic lights")
-    - Returns score 0.0-1.0
-    - Score > 0.5 = likely human
-    - Score < 0.5 = likely bot
-    """
-    
-    def __init__(self, secret_key):
-        """
-        Initialize with reCAPTCHA secret key
-        
-        Get keys: https://www.google.com/recaptcha/admin
-        """
-        self.secret_key = secret_key
-        self.verify_url = "https://www.google.com/recaptcha/api/siteverify"
-    
-    def verify(self, token, ip_address):
-        """
-        Verify CAPTCHA token
-        
-        Args:
-            token: Token from client-side reCAPTCHA
-            ip_address: User's IP address
-        
-        Returns:
-            dict: {
-                'success': bool,
-                'score': float (0.0-1.0),
-                'action': str
-            }
-        """
-        # Send verification request
-        response = requests.post(
-            self.verify_url,
-            data={
-                'secret': self.secret_key,
-                'response': token,
-                'remoteip': ip_address
-            },
-            timeout=5
-        )
-        
-        if response.status_code != 200:
-            return {'success': False, 'score': 0.0}
-        
-        return response.json()
-    
-    def is_human(self, token, ip_address, threshold=0.5):
-        """
-        Check if request is from human
-        
-        Args:
-            token: CAPTCHA token
-            ip_address: User IP
-            threshold: Minimum score (0.0-1.0)
-        
-        Returns:
-            bool: True if likely human
-        """
-        result = self.verify(token, ip_address)
-        
-        if not result.get('success'):
-            print("CAPTCHA verification failed")
-            return False
-        
-        score = result.get('score', 0.0)
-        print(f"CAPTCHA score: {score}")
-        
-        return score >= threshold
-
-
-# Usage in API endpoint:
-"""
-POST /v1/shorten
-{
-    "long_url": "https://example.com",
-    "captcha_token": "03AGd..."
-}
-"""
-
-captcha_verifier = CaptchaVerifier(secret_key="YOUR_SECRET")
-
-def create_short_url(request):
-    """API endpoint with CAPTCHA protection"""
-    
-    long_url = request.json['long_url']
-    captcha_token = request.json['captcha_token']
-    user_ip = request.remote_addr
-    
-    # Verify CAPTCHA
-    if not captcha_verifier.is_human(captcha_token, user_ip):
-        return {
-            'error': 'CAPTCHA verification failed. Are you a bot?'
-        }, 403
-    
-    # Proceed with URL shortening
-    short_code = generate_short_code()
-    # ... rest of logic
-    
-    return {
-        'short_code': short_code,
-        'short_url': f"https://tiny.url/{short_code}"
-    }
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 ---
@@ -11355,333 +8824,38 @@ Real-World Impact:
 
 #### DDoS Protection Strategy
 
-```python
-"""
-Multi-Layer DDoS Protection
-Purpose: Protect system from volumetric and application-layer DDoS
-How to call: Implemented at infrastructure level
-Expected return: System remains available during attack
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class DDoSProtectionStrategy:
-    """
-    Comprehensive DDoS protection
-    
-    Layers:
-    1. CDN/Edge (CloudFlare, AWS Shield)
-    2. Network firewall
-    3. Application rate limiting
-    4. Database connection pooling
-    """
-    
-    @staticmethod
-    def calculate_attack_capacity():
-        """
-        Calculate how much attack traffic system can handle
-        
-        Returns:
-            dict: System capacity metrics
-        """
-        return {
-            # Normal Operation
-            'normal_traffic': {
-                'requests_per_second': 10000,
-                'bandwidth_mbps': 100,
-                'database_connections': 200
-            },
-            
-            # With DDoS Protection
-            'protected_capacity': {
-                # CDN absorbs volumetric attacks
-                'cdn_capacity_gbps': 50,  # 50 Gbps = 50,000 Mbps
-                
-                # WAF filters application attacks
-                'waf_requests_per_second': 100000,
-                
-                # Rate limiting per IP
-                'max_requests_per_ip': 100,  # per minute
-                
-                # Connection limits
-                'max_db_connections': 1000,
-                'connection_timeout': 30  # seconds
-            },
-            
-            # Attack Thresholds (when to trigger alerts)
-            'alert_thresholds': {
-                'requests_per_second': 50000,  # 5x normal
-                'error_rate_percent': 5,
-                'response_time_ms': 1000  # P95
-            }
-        }
-    
-    @staticmethod
-    def get_mitigation_steps():
-        """
-        Automated DDoS mitigation steps
-        
-        Returns:
-            list: Ordered mitigation actions
-        """
-        return [
-            {
-                'step': 1,
-                'action': 'Enable aggressive rate limiting',
-                'target': 'Reduce per-IP limit to 10 req/min',
-                'impact': 'May affect legitimate users'
-            },
-            {
-                'step': 2,
-                'action': 'Enable CAPTCHA for all requests',
-                'target': 'Block bots, allow humans',
-                'impact': 'User friction, but necessary'
-            },
-            {
-                'step': 3,
-                'action': 'Geo-block attack sources',
-                'target': 'Block countries with >90% attack traffic',
-                'impact': 'Regional service unavailability'
-            },
-            {
-                'step': 4,
-                'action': 'Enable "Under Attack" mode',
-                'target': 'CloudFlare JavaScript challenge',
-                'impact': 'Delays all users by 5 seconds'
-            },
-            {
-                'step': 5,
-                'action': 'Failover to static page',
-                'target': 'Serve cached homepage only',
-                'impact': 'Limited functionality, but service available'
-            },
-            {
-                'step': 6,
-                'action': 'Contact DDoS mitigation service',
-                'target': 'CloudFlare, AWS Shield Advanced',
-                'impact': 'Cost: $3000/month, but full protection'
-            }
-        ]
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-
-# Example: DDoS Detection and Auto-Mitigation
-class DDoSDetector:
-    """
-    Detects DDoS attacks and triggers mitigation
-    """
-    
-    def __init__(self, metrics_client, mitigation_client):
-        self.metrics = metrics_client
-        self.mitigation = mitigation_client
-        self.attack_in_progress = False
-    
-    def check_for_attack(self):
-        """
-        Analyze metrics to detect DDoS
-        
-        Returns:
-            bool: True if attack detected
-        """
-        current_metrics = self.metrics.get_current()
-        
-        # Check for attack indicators
-        indicators = {
-            'high_traffic': current_metrics['rps'] > 50000,
-            'high_error_rate': current_metrics['error_rate'] > 5,
-            'slow_response': current_metrics['p95_latency'] > 1000,
-            'unusual_patterns': self._detect_patterns(current_metrics)
-        }
-        
-        # If 3+ indicators, likely DDoS
-        attack_score = sum(indicators.values())
-        
-        if attack_score >= 3:
-            print("🚨 DDoS attack detected!")
-            return True
-        
-        return False
-    
-    def auto_mitigate(self):
-        """
-        Automatically mitigate detected attack
-        """
-        if not self.attack_in_progress:
-            self.attack_in_progress = True
-            print("Starting DDoS mitigation...")
-            
-            # Step 1: Enable aggressive rate limiting
-            self.mitigation.set_rate_limit(10)  # 10 req/min
-            
-            # Step 2: Enable CAPTCHA
-            self.mitigation.enable_captcha()
-            
-            # Step 3: Alert on-call engineer
-            self.mitigation.alert_oncall("DDoS attack detected and mitigated")
-            
-            print("Mitigation enabled. Monitoring...")
-    
-    def _detect_patterns(self, metrics):
-        """Detect unusual patterns indicating attack"""
-        # Simplified: Check for traffic from single source
-        top_ip_percentage = metrics.get('top_ip_percentage', 0)
-        return top_ip_percentage > 50  # Single IP = 50% of traffic
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Security Monitoring and Alerting
 
-```python
-"""
-Security Event Monitoring
-Purpose: Detect and alert on security incidents
-How to call: Runs continuously as background service
-Expected return: Alerts sent to security team
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import time
-from datetime import datetime, timedelta
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class SecurityMonitor:
-    """
-    Monitors for security incidents
-    
-    Watches for:
-    - Unusual traffic patterns
-    - Failed authentication attempts
-    - Malicious URL creation attempts
-    - Data exfiltration
-    - Suspicious user behavior
-    """
-    
-    def __init__(self, metrics_db, alerting_service):
-        self.metrics = metrics_db
-        self.alerts = alerting_service
-        
-        # Alert thresholds
-        self.thresholds = {
-            'failed_auth_per_minute': 100,
-            'blocked_urls_per_minute': 50,
-            'rate_limited_users_per_minute': 500,
-            'database_errors_per_minute': 10
-        }
-    
-    def run_continuous_monitoring(self):
-        """
-        Main monitoring loop
-        
-        Runs every minute to check for security events
-        """
-        while True:
-            try:
-                # Get last minute's metrics
-                end_time = datetime.now()
-                start_time = end_time - timedelta(minutes=1)
-                
-                metrics = self.metrics.get_range(start_time, end_time)
-                
-                # Check for security incidents
-                self._check_failed_auth(metrics)
-                self._check_blocked_urls(metrics)
-                self._check_rate_limiting(metrics)
-                self._check_data_breach(metrics)
-                
-                # Sleep until next minute
-                time.sleep(60)
-            
-            except Exception as e:
-                print(f"Monitoring error: {e}")
-                time.sleep(60)
-    
-    def _check_failed_auth(self, metrics):
-        """Detect brute force attacks"""
-        failed_auth = metrics.get('failed_auth_attempts', 0)
-        
-        if failed_auth > self.thresholds['failed_auth_per_minute']:
-            self.alerts.send(
-                severity='HIGH',
-                title='Possible brute force attack',
-                message=f'{failed_auth} failed auth attempts in last minute',
-                action='Block attacking IPs'
-            )
-    
-    def _check_blocked_urls(self, metrics):
-        """Detect spam/malicious URL campaigns"""
-        blocked_urls = metrics.get('blocked_malicious_urls', 0)
-        
-        if blocked_urls > self.thresholds['blocked_urls_per_minute']:
-            self.alerts.send(
-                severity='MEDIUM',
-                title='High volume of malicious URLs',
-                message=f'{blocked_urls} malicious URLs blocked in last minute',
-                action='Investigate attack source'
-            )
-    
-    def _check_rate_limiting(self, metrics):
-        """Detect DDoS or abuse"""
-        rate_limited = metrics.get('rate_limited_requests', 0)
-        
-        if rate_limited > self.thresholds['rate_limited_users_per_minute']:
-            self.alerts.send(
-                severity='HIGH',
-                title='Possible DDoS attack',
-                message=f'{rate_limited} requests rate limited',
-                action='Enable aggressive DDoS protection'
-            )
-    
-    def _check_data_breach(self, metrics):
-        """Detect unusual data access patterns"""
-        # Check for:
-        # - Accessing other users' URLs
-        # - Bulk data downloads
-        # - Access to admin endpoints
-        
-        suspicious_access = metrics.get('unauthorized_access_attempts', 0)
-        
-        if suspicious_access > 0:
-            self.alerts.send(
-                severity='CRITICAL',
-                title='Possible data breach attempt',
-                message=f'{suspicious_access} unauthorized access attempts',
-                action='Immediate investigation required'
-            )
-
-
-# Alert Configuration
-class SecurityAlertConfig:
-    """
-    Configure security alerting channels
-    """
-    
-    ALERT_CHANNELS = {
-        'CRITICAL': [
-            'pagerduty',  # Page on-call engineer immediately
-            'slack_security',  # Post to security channel
-            'email_security_team'
-        ],
-        'HIGH': [
-            'slack_security',
-            'email_security_team'
-        ],
-        'MEDIUM': [
-            'slack_security'
-        ],
-        'LOW': [
-            'email_weekly_digest'
-        ]
-    }
-    
-    # Auto-remediation rules
-    AUTO_REMEDIATE = {
-        'brute_force_attack': {
-            'action': 'block_ip',
-            'duration': 3600  # 1 hour
-        },
-        'ddos_attack': {
-            'action': 'enable_aggressive_rate_limiting',
-            'duration': 7200  # 2 hours
-        },
-        'sql_injection_attempt': {
-            'action': 'block_ip_permanent',
-            'alert': 'CRITICAL'
-        }
-    }
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 ---
@@ -11894,68 +9068,20 @@ Create dashboard showing:
 
 Implement comprehensive security middleware:
 
-```python
-"""
-Your task: Complete SecurityMiddleware class
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-Requirements:
-- Input validation (URL format, length, dangerous patterns)
-- Rate limiting (token bucket algorithm)
-- Malicious URL detection (Safe Browsing API)
-- CAPTCHA verification (reCAPTCHA v3)
-- Request logging (for forensics)
-- Handle errors gracefully (don't leak info)
-"""
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class SecurityMiddleware:
-    def __init__(self, config):
-        # Your code here
-        pass
-    
-    def validate_request(self, request):
-        """
-        Validate incoming request
-        
-        Steps:
-        1. Rate limit check
-        2. Input validation
-        3. Malicious URL check
-        4. CAPTCHA verification
-        5. Log request
-        
-        Returns:
-            tuple: (is_valid, error_message)
-        """
-        # Your code here
-        pass
-    
-    def sanitize_url(self, url):
-        """
-        Sanitize URL to prevent injection
-        """
-        # Your code here
-        pass
-    
-    def is_malicious(self, url):
-        """
-        Check if URL is malicious
-        """
-        # Your code here
-        pass
-    
-    def log_security_event(self, event_type, details):
-        """
-        Log security event for analysis
-        """
-        # Your code here
-        pass
-
-# Test scenarios:
-# 1. Legitimate request (should pass)
-# 2. SQL injection attempt (should block)
-# 3. Rate limit exceeded (should block)
-# 4. Malicious URL (should block)
-# 5. Failed CAPTCHA (should block)
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Bonus Challenges:**
@@ -11975,6 +9101,42 @@ class SecurityMiddleware:
 - How do you handle false positives without compromising security?
 - What's the ROI of investing in security tools and personnel?
 - How do you stay updated on emerging threats?
+
+### 🎯 Interview Questions - Security & Privacy
+
+**Beginner Level:**
+1. **Q:** "What security considerations would you have for a URL shortener?"
+   - **A:** Input validation, rate limiting, HTTPS, authentication, and protection against abuse.
+
+2. **Q:** "How would you prevent malicious URLs in a URL shortener?"
+   - **A:** URL validation, malware scanning, phishing detection, and content filtering.
+
+3. **Q:** "What privacy considerations would you have for a URL shortener?"
+   - **A:** Data encryption, user consent, data retention policies, and compliance with regulations.
+
+**Intermediate Level:**
+4. **Q:** "How would you design security for a URL shortener that needs to handle enterprise customers?"
+   - **A:** SSO integration, audit logs, compliance features, and enterprise-specific security policies.
+
+5. **Q:** "What happens if your URL shortener is attacked by malicious actors?"
+   - **A:** DDoS protection, rate limiting, circuit breakers, and incident response procedures.
+
+6. **Q:** "How would you handle security for a URL shortener that needs to work across multiple data centers?"
+   - **A:** Cross-region security, encryption in transit, secure communication, and regional compliance.
+
+**Advanced Level:**
+7. **Q:** "Design security for a URL shortener that needs to support custom domains and enterprise features."
+   - **A:** Domain-specific security, enterprise compliance, custom security policies, and advanced threat protection.
+
+8. **Q:** "How would you handle security for a URL shortener that needs to support real-time analytics?"
+   - **A:** Secure data processing, encryption at rest, secure analytics, and privacy-preserving techniques.
+
+9. **Q:** "What security optimizations would you implement for a URL shortener with high throughput?"
+   - **A:** Security at scale, distributed security, performance-optimized security, and threat detection.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design security for a URL shortener that needs to support custom domains and enterprise features?"
+    - **A:** Domain-specific security, enterprise compliance, custom security policies, and advanced threat protection.
 
 ---
 
@@ -12068,159 +9230,20 @@ URL Shortener Monitoring = System Dashboard
 
 #### Basic Monitoring Example
 
-```python
-"""
-Simple Metrics Collection
-Purpose: Track basic system health metrics
-How to call: metrics.record_request(duration, status_code)
-Expected return: Metrics stored for analysis
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import time
-from collections import defaultdict
-from datetime import datetime
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class SimpleMetrics:
-    """
-    Basic metrics collector
-    
-    Tracks:
-    - Request count
-    - Response times
-    - Error rates
-    - Success rates
-    """
-    
-    def __init__(self):
-        """Initialize metrics storage"""
-        self.requests_total = 0
-        self.requests_success = 0
-        self.requests_error = 0
-        self.response_times = []  # Store all response times
-        self.start_time = time.time()
-    
-    def record_request(self, duration_ms, status_code):
-        """
-        Record a single request
-        
-        Args:
-            duration_ms: How long request took (milliseconds)
-            status_code: HTTP status (200, 404, 500, etc.)
-        
-        Example:
-            metrics.record_request(45, 200)  # Success, 45ms
-            metrics.record_request(120, 500) # Error, 120ms
-        """
-        self.requests_total += 1
-        self.response_times.append(duration_ms)
-        
-        # Track success vs error
-        if 200 <= status_code < 300:
-            self.requests_success += 1
-        else:
-            self.requests_error += 1
-        
-        print(f"Request: {status_code} in {duration_ms}ms")
-    
-    def get_summary(self):
-        """
-        Get metrics summary
-        
-        Returns:
-            dict: Summary statistics
-        """
-        if not self.response_times:
-            return {"status": "no data"}
-        
-        # Calculate statistics
-        avg_response = sum(self.response_times) / len(self.response_times)
-        min_response = min(self.response_times)
-        max_response = max(self.response_times)
-        
-        # Sort for percentile calculation
-        sorted_times = sorted(self.response_times)
-        p95_index = int(len(sorted_times) * 0.95)
-        p95_response = sorted_times[p95_index]
-        
-        # Calculate rates
-        error_rate = (self.requests_error / self.requests_total) * 100
-        uptime = time.time() - self.start_time
-        requests_per_second = self.requests_total / uptime
-        
-        return {
-            "total_requests": self.requests_total,
-            "successful_requests": self.requests_success,
-            "failed_requests": self.requests_error,
-            "error_rate_percent": round(error_rate, 2),
-            "requests_per_second": round(requests_per_second, 2),
-            "avg_response_ms": round(avg_response, 2),
-            "min_response_ms": min_response,
-            "max_response_ms": max_response,
-            "p95_response_ms": p95_response,
-            "uptime_seconds": round(uptime, 2)
-        }
-    
-    def is_healthy(self):
-        """
-        Check if system is healthy
-        
-        Simple health check based on error rate
-        
-        Returns:
-            bool: True if healthy, False if problems
-        """
-        if self.requests_total < 10:
-            return True  # Not enough data
-        
-        error_rate = (self.requests_error / self.requests_total) * 100
-        
-        if error_rate > 5:
-            print(f"⚠️ UNHEALTHY: Error rate {error_rate:.1f}% > 5%")
-            return False
-        
-        print(f"✅ HEALTHY: Error rate {error_rate:.1f}%")
-        return True
-
-
-# Usage example:
-metrics = SimpleMetrics()
-
-# Simulate some requests
-requests_data = [
-    (45, 200),   # Fast, success
-    (52, 200),   # Fast, success
-    (380, 200),  # Slow, success
-    (48, 200),   # Fast, success
-    (156, 404),  # Error
-    (42, 200),   # Fast, success
-]
-
-for duration, status in requests_data:
-    metrics.record_request(duration, status)
-    time.sleep(0.1)
-
-# Check health
-metrics.is_healthy()
-
-# Get summary
-summary = metrics.get_summary()
-print("\n📊 Metrics Summary:")
-for key, value in summary.items():
-    print(f"  {key}: {value}")
-
-# Output:
-# ✅ HEALTHY: Error rate 16.7%
-# 📊 Metrics Summary:
-#   total_requests: 6
-#   successful_requests: 5
-#   failed_requests: 1
-#   error_rate_percent: 16.67
-#   requests_per_second: 9.52
-#   avg_response_ms: 120.5
-#   min_response_ms: 42
-#   max_response_ms: 380
-#   p95_response_ms: 380
-#   uptime_seconds: 0.63
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Simple Dashboard
@@ -12318,279 +9341,38 @@ Scenario 3: Capacity planning
 
 #### Metrics Implementation with Prometheus
 
-```python
-"""
-Prometheus Metrics for URL Shortener
-Purpose: Expose metrics for Prometheus scraping
-How to call: Automatically collected by Prometheus
-Expected return: Metrics exposed on /metrics endpoint
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-from prometheus_client import Counter, Histogram, Gauge, generate_latest
-import time
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class URLShortenerMetrics:
-    """
-    Comprehensive metrics for URL shortener
-    
-    Tracks all important aspects of the system
-    """
-    
-    def __init__(self):
-        """Initialize Prometheus metrics"""
-        
-        # Counters (always increasing)
-        self.requests_total = Counter(
-            'url_shortener_requests_total',
-            'Total number of requests',
-            ['method', 'endpoint', 'status']
-        )
-        
-        self.redirects_total = Counter(
-            'url_shortener_redirects_total',
-            'Total number of redirects',
-            ['status']  # success or failure
-        )
-        
-        self.urls_created_total = Counter(
-            'url_shortener_urls_created_total',
-            'Total number of URLs shortened'
-        )
-        
-        # Histograms (distribution of values)
-        self.request_duration = Histogram(
-            'url_shortener_request_duration_seconds',
-            'Request duration in seconds',
-            ['method', 'endpoint'],
-            buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]
-        )
-        
-        self.redirect_duration = Histogram(
-            'url_shortener_redirect_duration_seconds',
-            'Redirect lookup duration',
-            buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1]
-        )
-        
-        # Gauges (current value)
-        self.active_connections = Gauge(
-            'url_shortener_active_connections',
-            'Number of active connections'
-        )
-        
-        self.cache_size = Gauge(
-            'url_shortener_cache_size',
-            'Number of items in cache'
-        )
-    
-    def record_request(self, method, endpoint, status_code, duration):
-        """
-        Record a request
-        
-        Args:
-            method: HTTP method (GET, POST, etc.)
-            endpoint: API endpoint
-            status_code: HTTP status
-            duration: Request duration in seconds
-        """
-        # Increment counter
-        self.requests_total.labels(
-            method=method,
-            endpoint=endpoint,
-            status=status_code
-        ).inc()
-        
-        # Record duration
-        self.request_duration.labels(
-            method=method,
-            endpoint=endpoint
-        ).observe(duration)
-    
-    def record_redirect(self, success, duration):
-        """
-        Record a redirect operation
-        
-        Args:
-            success: True if successful, False if not found
-            duration: Time to lookup URL (seconds)
-        """
-        status = 'success' if success else 'not_found'
-        self.redirects_total.labels(status=status).inc()
-        self.redirect_duration.observe(duration)
-    
-    def record_url_created(self):
-        """Record creation of new short URL"""
-        self.urls_created_total.inc()
-    
-    def set_active_connections(self, count):
-        """Update active connection count"""
-        self.active_connections.set(count)
-    
-    def set_cache_size(self, size):
-        """Update cache size"""
-        self.cache_size.set(size)
-
-
-# Usage in application:
-metrics = URLShortenerMetrics()
-
-# Example: Handle redirect request
-def handle_redirect(short_code):
-    """Handle redirect with metrics"""
-    start_time = time.time()
-    
-    try:
-        # Increment active connections
-        metrics.active_connections.inc()
-        
-        # Look up URL
-        long_url = get_url_from_cache_or_db(short_code)
-        
-        if long_url:
-            # Record successful redirect
-            duration = time.time() - start_time
-            metrics.record_redirect(success=True, duration=duration)
-            metrics.record_request('GET', '/redirect', 301, duration)
-            
-            return redirect(long_url)
-        else:
-            # Record not found
-            duration = time.time() - start_time
-            metrics.record_redirect(success=False, duration=duration)
-            metrics.record_request('GET', '/redirect', 404, duration)
-            
-            return error_response("URL not found", 404)
-    
-    finally:
-        # Decrement active connections
-        metrics.active_connections.dec()
-
-
-# Prometheus scrapes /metrics endpoint
-# GET /metrics returns:
-"""
-# HELP url_shortener_requests_total Total number of requests
-# TYPE url_shortener_requests_total counter
-url_shortener_requests_total{method="GET",endpoint="/redirect",status="301"} 1234567
-url_shortener_requests_total{method="POST",endpoint="/shorten",status="201"} 567890
-
-# HELP url_shortener_request_duration_seconds Request duration in seconds
-# TYPE url_shortener_request_duration_seconds histogram
-url_shortener_request_duration_seconds_bucket{method="GET",endpoint="/redirect",le="0.005"} 1000000
-url_shortener_request_duration_seconds_bucket{method="GET",endpoint="/redirect",le="0.01"} 1200000
-...
-"""
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Structured Logging
 
-```python
-"""
-Structured Logging for URL Shortener
-Purpose: Consistent, searchable logs
-How to call: logger.info("message", key=value)
-Expected return: JSON-formatted log entries
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import json
-import logging
-from datetime import datetime
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class StructuredLogger:
-    """
-    Structured JSON logger
-    
-    Benefits:
-    - Easy to search and filter
-    - Machine-readable
-    - Consistent format
-    """
-    
-    def __init__(self, service_name, environment):
-        """
-        Initialize logger
-        
-        Args:
-            service_name: Name of service (e.g., "url-shortener")
-            environment: Environment (prod, staging, dev)
-        """
-        self.service_name = service_name
-        self.environment = environment
-        self.logger = logging.getLogger(service_name)
-    
-    def _format_log(self, level, message, **kwargs):
-        """
-        Format log entry as JSON
-        
-        Returns:
-            str: JSON-formatted log
-        """
-        log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "level": level,
-            "service": self.service_name,
-            "environment": self.environment,
-            "message": message,
-            **kwargs  # Include all extra fields
-        }
-        return json.dumps(log_entry)
-    
-    def info(self, message, **kwargs):
-        """Log info level"""
-        print(self._format_log("INFO", message, **kwargs))
-    
-    def warning(self, message, **kwargs):
-        """Log warning level"""
-        print(self._format_log("WARNING", message, **kwargs))
-    
-    def error(self, message, **kwargs):
-        """Log error level"""
-        print(self._format_log("ERROR", message, **kwargs))
-    
-    def critical(self, message, **kwargs):
-        """Log critical level"""
-        print(self._format_log("CRITICAL", message, **kwargs))
-
-
-# Usage:
-logger = StructuredLogger("url-shortener", "production")
-
-# Good: Structured logging
-logger.info(
-    "URL shortened",
-    short_code="aB3xY9",
-    long_url="https://example.com",
-    user_id="user123",
-    duration_ms=45,
-    cache_hit=True
-)
-# Output:
-# {
-#   "timestamp": "2025-01-15T14:30:00.123Z",
-#   "level": "INFO",
-#   "service": "url-shortener",
-#   "environment": "production",
-#   "message": "URL shortened",
-#   "short_code": "aB3xY9",
-#   "long_url": "https://example.com",
-#   "user_id": "user123",
-#   "duration_ms": 45,
-#   "cache_hit": true
-# }
-
-# Good: Error logging with context
-try:
-    result = database.query(short_code)
-except Exception as e:
-    logger.error(
-        "Database query failed",
-        short_code=short_code,
-        error=str(e),
-        error_type=type(e).__name__,
-        retry_attempt=3
-    )
-
-# Bad: Unstructured logging (hard to search)
-# print(f"URL {short_code} shortened by {user_id} in {duration}ms")
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Log Levels:**
@@ -12626,168 +9408,20 @@ CRITICAL (System failure)
 
 #### Distributed Tracing
 
-```python
-"""
-Distributed Tracing for URL Shortener
-Purpose: Track requests across multiple services
-How to call: Automatically via middleware/decorator
-Expected return: Trace data sent to tracing backend
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import time
-import uuid
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class SimpleTracer:
-    """
-    Simple distributed tracing implementation
-    
-    In production, use OpenTelemetry or similar
-    """
-    
-    def __init__(self):
-        """Initialize tracer"""
-        self.current_trace = None
-    
-    def start_trace(self, operation_name):
-        """
-        Start a new trace
-        
-        Args:
-            operation_name: Name of operation
-        
-        Returns:
-            TraceContext object
-        """
-        trace_id = str(uuid.uuid4())
-        trace = TraceContext(trace_id, operation_name)
-        self.current_trace = trace
-        return trace
-    
-    def start_span(self, span_name):
-        """
-        Start a span within current trace
-        
-        Span = Single operation within a trace
-        """
-        if not self.current_trace:
-            return None
-        
-        return self.current_trace.start_span(span_name)
-
-
-class TraceContext:
-    """Represents a single trace (request)"""
-    
-    def __init__(self, trace_id, operation_name):
-        self.trace_id = trace_id
-        self.operation_name = operation_name
-        self.spans = []
-        self.start_time = time.time()
-    
-    def start_span(self, span_name):
-        """Start a span (sub-operation)"""
-        span = Span(span_name, self.trace_id)
-        self.spans.append(span)
-        return span
-    
-    def finish(self):
-        """Finish trace and print summary"""
-        total_duration = (time.time() - self.start_time) * 1000
-        
-        print(f"\n🔍 Trace: {self.operation_name}")
-        print(f"   Trace ID: {self.trace_id}")
-        print(f"   Total Duration: {total_duration:.2f}ms\n")
-        
-        for span in self.spans:
-            duration = span.duration_ms if span.duration_ms else 0
-            percent = (duration / total_duration * 100) if total_duration > 0 else 0
-            indent = "   " * span.level
-            print(f"{indent}├─ {span.name}: {duration:.2f}ms ({percent:.1f}%)")
-
-
-class Span:
-    """Represents a single span (operation)"""
-    
-    def __init__(self, name, trace_id, parent=None, level=1):
-        self.name = name
-        self.trace_id = trace_id
-        self.parent = parent
-        self.level = level
-        self.start_time = time.time()
-        self.end_time = None
-        self.duration_ms = None
-    
-    def finish(self):
-        """Finish span"""
-        self.end_time = time.time()
-        self.duration_ms = (self.end_time - self.start_time) * 1000
-    
-    def __enter__(self):
-        """Context manager entry"""
-        return self
-    
-    def __exit__(self, *args):
-        """Context manager exit"""
-        self.finish()
-
-
-# Usage example: Trace a complete request
-tracer = SimpleTracer()
-
-def handle_shorten_request(long_url):
-    """
-    Handle URL shortening with tracing
-    
-    Shows where time is spent in the request
-    """
-    # Start trace
-    trace = tracer.start_trace("POST /shorten")
-    
-    # Span 1: Validate URL
-    with trace.start_span("validate_url"):
-        time.sleep(0.005)  # Simulate validation (5ms)
-        is_valid = True
-    
-    # Span 2: Check if URL exists
-    with trace.start_span("check_existing"):
-        time.sleep(0.010)  # Simulate DB query (10ms)
-        exists = False
-    
-    # Span 3: Generate short code
-    with trace.start_span("generate_code"):
-        time.sleep(0.002)  # Simulate generation (2ms)
-        short_code = "aB3xY9"
-    
-    # Span 4: Save to database
-    with trace.start_span("save_to_database"):
-        time.sleep(0.050)  # Simulate DB write (50ms)
-        saved = True
-    
-    # Span 5: Update cache
-    with trace.start_span("update_cache"):
-        time.sleep(0.003)  # Simulate cache write (3ms)
-    
-    # Finish trace
-    trace.finish()
-    
-    return short_code
-
-
-# Run example
-result = handle_shorten_request("https://example.com/very/long/url")
-
-# Output:
-# 🔍 Trace: POST /shorten
-#    Trace ID: 123e4567-e89b-12d3-a456-426614174000
-#    Total Duration: 70.00ms
-#
-#    ├─ validate_url: 5.00ms (7.1%)
-#    ├─ check_existing: 10.00ms (14.3%)
-#    ├─ generate_code: 2.00ms (2.9%)
-#    ├─ save_to_database: 50.00ms (71.4%)
-#    ├─ update_cache: 3.00ms (4.3%)
-
-# This shows: Database write is the bottleneck (71.4% of time)!
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 ---
@@ -12865,132 +9499,20 @@ Error Budget:
 
 **Error Budget Calculation:**
 
-```python
-"""
-Error Budget Tracker
-Purpose: Track how much error budget remaining
-How to call: budget.record_request(success)
-Expected return: Error budget percentage remaining
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class ErrorBudgetTracker:
-    """
-    Track error budget for SLO compliance
-    
-    Example: 99.9% SLO = 0.1% error budget
-    """
-    
-    def __init__(self, slo_target, window_size=30):
-        """
-        Initialize error budget tracker
-        
-        Args:
-            slo_target: SLO target (e.g., 0.999 for 99.9%)
-            window_size: Window in days
-        """
-        self.slo_target = slo_target
-        self.error_budget = 1 - slo_target  # e.g., 0.001 for 99.9%
-        self.window_size = window_size
-        
-        self.total_requests = 0
-        self.failed_requests = 0
-    
-    def record_request(self, success):
-        """
-        Record a request
-        
-        Args:
-            success: True if request succeeded
-        """
-        self.total_requests += 1
-        if not success:
-            self.failed_requests += 1
-    
-    def get_current_sli(self):
-        """
-        Get current SLI value
-        
-        Returns:
-            float: Current success rate (0.0 to 1.0)
-        """
-        if self.total_requests == 0:
-            return 1.0
-        
-        return (self.total_requests - self.failed_requests) / self.total_requests
-    
-    def get_error_budget_remaining(self):
-        """
-        Get remaining error budget
-        
-        Returns:
-            dict: Error budget information
-        """
-        current_sli = self.get_current_sli()
-        current_error_rate = 1 - current_sli
-        
-        # How much of budget consumed?
-        budget_consumed = current_error_rate / self.error_budget
-        budget_remaining = 1 - budget_consumed
-        
-        # Convert to percentages for display
-        return {
-            "current_sli": f"{current_sli * 100:.3f}%",
-            "slo_target": f"{self.slo_target * 100:.1f}%",
-            "error_budget": f"{self.error_budget * 100:.2f}%",
-            "budget_consumed": f"{budget_consumed * 100:.1f}%",
-            "budget_remaining": f"{budget_remaining * 100:.1f}%",
-            "total_requests": self.total_requests,
-            "failed_requests": self.failed_requests,
-            "status": "HEALTHY" if budget_remaining > 0 else "EXCEEDED"
-        }
-    
-    def can_deploy(self):
-        """
-        Check if safe to deploy
-        
-        Returns:
-            bool: True if error budget allows deployment
-        """
-        info = self.get_error_budget_remaining()
-        
-        # Only deploy if >25% budget remaining
-        budget_remaining = float(info["budget_remaining"].rstrip('%'))
-        
-        return budget_remaining > 25
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-
-# Usage:
-budget = ErrorBudgetTracker(slo_target=0.999, window_size=30)
-
-# Simulate requests
-for i in range(100000):
-    success = i % 500 != 0  # 1 failure every 500 requests (0.2% error rate)
-    budget.record_request(success)
-
-# Check error budget
-info = budget.get_error_budget_remaining()
-print("📊 Error Budget Status:")
-for key, value in info.items():
-    print(f"  {key}: {value}")
-
-# Check if can deploy
-if budget.can_deploy():
-    print("\n✅ Safe to deploy (enough error budget)")
-else:
-    print("\n⚠️ DON'T DEPLOY! Low error budget")
-
-# Output:
-# 📊 Error Budget Status:
-#   current_sli: 99.800%
-#   slo_target: 99.9%
-#   error_budget: 0.10%
-#   budget_consumed: 200.0%
-#   budget_remaining: -100.0%
-#   total_requests: 100000
-#   failed_requests: 200
-#   status: EXCEEDED
-#
-# ⚠️ DON'T DEPLOY! Low error budget
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Service Level Agreements (SLAs)
@@ -13084,208 +9606,20 @@ Multi-signal: "Latency > 200ms AND error rate > 1%" (more confident)
 
 **Intelligent Alert Configuration:**
 
-```python
-"""
-Intelligent Alerting System
-Purpose: Alert only on real issues, reduce noise
-How to call: Continuously monitors metrics
-Expected return: Alerts sent when issues detected
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-import time
-from datetime import datetime, timedelta
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class IntelligentAlerting:
-    """
-    Smart alerting that reduces alert fatigue
-    
-    Features:
-    - Multi-signal correlation
-    - Anomaly detection
-    - Alert throttling
-    - Automatic recovery detection
-    """
-    
-    def __init__(self, alert_sender):
-        """
-        Initialize alerting system
-        
-        Args:
-            alert_sender: Service to send alerts (PagerDuty, Slack, etc.)
-        """
-        self.alert_sender = alert_sender
-        self.active_alerts = {}  # Track active alerts
-        self.alert_history = []  # Alert history for analysis
-    
-    def check_latency_alert(self, current_metrics):
-        """
-        Check if latency alert should fire
-        
-        Multi-signal approach:
-        - P95 latency > threshold
-        - Sustained for 5 minutes
-        - Error rate also elevated (optional)
-        
-        Args:
-            current_metrics: Current system metrics
-        """
-        alert_key = "high_latency"
-        
-        # Get metrics
-        p95_latency = current_metrics.get('p95_latency_ms', 0)
-        error_rate = current_metrics.get('error_rate_percent', 0)
-        
-        # Define thresholds
-        latency_threshold = 200  # ms
-        error_threshold = 1  # percent
-        
-        # Check conditions
-        latency_high = p95_latency > latency_threshold
-        errors_elevated = error_rate > error_threshold
-        
-        if latency_high:
-            if alert_key not in self.active_alerts:
-                # First time seeing this issue
-                self.active_alerts[alert_key] = {
-                    'started_at': datetime.now(),
-                    'notified': False
-                }
-            
-            alert = self.active_alerts[alert_key]
-            duration = datetime.now() - alert['started_at']
-            
-            # Only alert if sustained for 5 minutes
-            if duration > timedelta(minutes=5) and not alert['notified']:
-                severity = 'CRITICAL' if errors_elevated else 'WARNING'
-                
-                self._send_alert(
-                    severity=severity,
-                    title="High Latency Detected",
-                    message=f"P95 latency: {p95_latency}ms (threshold: {latency_threshold}ms)\n"
-                            f"Error rate: {error_rate}% (threshold: {error_threshold}%)\n"
-                            f"Duration: {duration}",
-                    runbook="https://wiki.company.com/runbooks/high-latency",
-                    metrics={
-                        'p95_latency_ms': p95_latency,
-                        'error_rate_percent': error_rate
-                    }
-                )
-                
-                alert['notified'] = True
-        
-        else:
-            # Latency back to normal
-            if alert_key in self.active_alerts:
-                # Send recovery notification
-                duration = datetime.now() - self.active_alerts[alert_key]['started_at']
-                
-                self._send_recovery(
-                    title="Latency Recovered",
-                    message=f"P95 latency back to normal: {p95_latency}ms\n"
-                            f"Incident duration: {duration}"
-                )
-                
-                # Clear alert
-                del self.active_alerts[alert_key]
-    
-    def check_error_budget_alert(self, error_budget_tracker):
-        """
-        Alert when error budget is low
-        
-        Three tiers:
-        - <50% remaining: Warning (Slack)
-        - <25% remaining: Error (email + Slack)
-        - <10% remaining: Critical (page on-call)
-        """
-        alert_key = "error_budget_low"
-        
-        budget_info = error_budget_tracker.get_error_budget_remaining()
-        budget_remaining = float(budget_info['budget_remaining'].rstrip('%'))
-        
-        if budget_remaining < 10:
-            severity = 'CRITICAL'
-            message = "ERROR BUDGET CRITICAL! Stop all deployments!"
-        elif budget_remaining < 25:
-            severity = 'ERROR'
-            message = "Error budget low. Reduce deployment frequency."
-        elif budget_remaining < 50:
-            severity = 'WARNING'
-            message = "Error budget below 50%. Monitor closely."
-        else:
-            # Budget healthy, clear any existing alerts
-            if alert_key in self.active_alerts:
-                self._send_recovery(
-                    title="Error Budget Recovered",
-                    message=f"Error budget: {budget_remaining:.1f}%"
-                )
-                del self.active_alerts[alert_key]
-            return
-        
-        # Send alert (with throttling)
-        if not self._should_throttle_alert(alert_key, severity):
-            self._send_alert(
-                severity=severity,
-                title=f"Error Budget: {budget_remaining:.1f}% Remaining",
-                message=message,
-                runbook="https://wiki.company.com/runbooks/error-budget",
-                metrics=budget_info
-            )
-    
-    def _should_throttle_alert(self, alert_key, severity):
-        """
-        Prevent alert spam
-        
-        Don't re-alert for same issue within:
-        - WARNING: 1 hour
-        - ERROR: 30 minutes
-        - CRITICAL: No throttling (always alert)
-        """
-        if severity == 'CRITICAL':
-            return False  # Never throttle critical
-        
-        if alert_key not in self.active_alerts:
-            return False  # First alert
-        
-        last_alert = self.active_alerts[alert_key].get('last_alert_time')
-        if not last_alert:
-            return False
-        
-        time_since_last = datetime.now() - last_alert
-        throttle_duration = timedelta(hours=1) if severity == 'WARNING' else timedelta(minutes=30)
-        
-        return time_since_last < throttle_duration
-    
-    def _send_alert(self, severity, title, message, runbook, metrics):
-        """Send alert through configured channels"""
-        alert = {
-            'timestamp': datetime.now().isoformat(),
-            'severity': severity,
-            'title': title,
-            'message': message,
-            'runbook': runbook,
-            'metrics': metrics
-        }
-        
-        # Send to appropriate channel based on severity
-        if severity == 'CRITICAL':
-            self.alert_sender.page_oncall(alert)
-        elif severity == 'ERROR':
-            self.alert_sender.send_email(alert)
-        else:  # WARNING
-            self.alert_sender.send_slack(alert)
-        
-        # Record alert
-        self.alert_history.append(alert)
-        print(f"🚨 {severity}: {title}")
-    
-    def _send_recovery(self, title, message):
-        """Send recovery notification"""
-        print(f"✅ RECOVERED: {title} - {message}")
-        self.alert_sender.send_slack({
-            'title': title,
-            'message': message,
-            'severity': 'INFO'
-        })
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Observability Dashboard Design
@@ -13574,83 +9908,20 @@ Goal: Reduce to <5 meaningful alerts per week
 
 Implement complete observability client:
 
-```python
-"""
-Your task: Complete ObservabilityClient class
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-Requirements:
-- Collect metrics (counters, histograms, gauges)
-- Structured logging (JSON format)
-- Distributed tracing (context propagation)
-- Periodic metrics export
-- Buffer management (don't lose data)
-"""
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-class ObservabilityClient:
-    def __init__(self, service_name, environment):
-        # Your code here
-        pass
-    
-    def increment_counter(self, name, value=1, labels=None):
-        """
-        Increment a counter metric
-        
-        Example: increment_counter("requests_total", labels={"status": "200"})
-        """
-        # Your code here
-        pass
-    
-    def record_histogram(self, name, value, labels=None):
-        """
-        Record histogram value (for latencies, sizes)
-        
-        Example: record_histogram("request_duration", 0.045, labels={"endpoint": "/redirect"})
-        """
-        # Your code here
-        pass
-    
-    def set_gauge(self, name, value, labels=None):
-        """
-        Set gauge value (for current state)
-        
-        Example: set_gauge("active_connections", 150)
-        """
-        # Your code here
-        pass
-    
-    def log(self, level, message, **kwargs):
-        """
-        Structured logging
-        
-        Example: log("info", "URL shortened", short_code="abc", duration_ms=45)
-        """
-        # Your code here
-        pass
-    
-    def start_span(self, name, parent_context=None):
-        """
-        Start distributed trace span
-        
-        Returns context manager for span
-        """
-        # Your code here
-        pass
-    
-    def export_metrics(self):
-        """
-        Export metrics to monitoring backend
-        
-        Should be called periodically (every 10-60 seconds)
-        """
-        # Your code here
-        pass
-
-# Test scenarios:
-# 1. Track 10,000 requests with various latencies
-# 2. Handle metric export failure gracefully
-# 3. Propagate trace context across service boundary
-# 4. Buffer metrics during network outage
-# 5. Generate Prometheus-compatible output
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 **Bonus Challenges:**
@@ -13670,6 +9941,42 @@ class ObservabilityClient:
 - How does observability change for microservices vs monolith?
 - What metrics would you add for security monitoring?
 - How do you measure the ROI of observability?
+
+### 🎯 Interview Questions - Monitoring & Health
+
+**Beginner Level:**
+1. **Q:** "What monitoring would you implement for a URL shortener?"
+   - **A:** System health checks, performance metrics, error rates, database performance, and user experience metrics.
+
+2. **Q:** "How would you handle monitoring for a URL shortener that needs to work across multiple data centers?"
+   - **A:** Cross-region monitoring, regional dashboards, global health checks, and distributed monitoring.
+
+3. **Q:** "What happens if your monitoring system goes down during peak traffic?"
+   - **A:** Fallback monitoring, alerting systems, incident response, and recovery procedures.
+
+**Intermediate Level:**
+4. **Q:** "How would you design monitoring for a URL shortener that needs to handle 1 billion redirects per day?"
+   - **A:** Distributed monitoring, real-time metrics, performance tracking, and scalable monitoring infrastructure.
+
+5. **Q:** "What monitoring optimizations would you implement for a URL shortener with high throughput?"
+   - **A:** Performance monitoring, resource tracking, bottleneck identification, and optimization recommendations.
+
+6. **Q:** "How would you handle monitoring for a URL shortener that needs to support real-time analytics?"
+   - **A:** Real-time monitoring, analytics tracking, performance metrics, and data quality monitoring.
+
+**Advanced Level:**
+7. **Q:** "Design monitoring for a URL shortener that needs to support enterprise features."
+   - **A:** Enterprise monitoring, compliance tracking, audit logs, and enterprise-specific metrics.
+
+8. **Q:** "How would you handle monitoring for a URL shortener that needs to support custom domains and enterprise features?"
+   - **A:** Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
+
+9. **Q:** "What monitoring optimizations would you implement for a URL shortener with high throughput?"
+   - **A:** Performance monitoring, resource tracking, bottleneck identification, and optimization recommendations.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design monitoring for a URL shortener that needs to support custom domains and enterprise features?"
+    - **A:** Domain-specific monitoring, enterprise dashboards, custom metrics, and compliance monitoring.
 
 ---
 
@@ -14342,226 +10649,20 @@ Context Matters!
 
 #### Cost-Benefit Analysis Framework
 
-```python
-"""
-Cost-Benefit Analysis for Design Decisions
-Purpose: Quantify trade-offs to make data-driven choices
-How to use: Compare total cost vs expected benefit
-Expected return: Decision recommendation based on ROI
-"""
+```text
+[HLD Note: Detailed implementation removed for interview focus]
 
-class CostBenefitAnalyzer:
-    """
-    Framework for evaluating system design trade-offs
-    
-    Helps quantify "soft" factors for comparison
-    """
-    
-    def __init__(self, company_context):
-        """
-        Initialize with company context
-        
-        Args:
-            company_context: dict with company_size, revenue, stage
-        """
-        self.context = company_context
-        
-        # Engineering cost (hourly rate by level)
-        self.eng_cost = {
-            'junior': 50,    # $/hour
-            'mid': 100,
-            'senior': 150,
-            'staff': 200
-        }
-    
-    def analyze_decision(self, option_a, option_b):
-        """
-        Compare two design options
-        
-        Args:
-            option_a: dict with costs and benefits
-            option_b: dict with costs and benefits
-        
-        Returns:
-            str: Recommendation with reasoning
-        """
-        # Calculate total costs
-        cost_a = self._calculate_total_cost(option_a)
-        cost_b = self._calculate_total_cost(option_b)
-        
-        # Calculate total benefits
-        benefit_a = self._calculate_total_benefit(option_a)
-        benefit_b = self._calculate_total_benefit(option_b)
-        
-        # Calculate ROI
-        roi_a = (benefit_a - cost_a) / cost_a if cost_a > 0 else 0
-        roi_b = (benefit_b - cost_b) / cost_b if cost_b > 0 else 0
-        
-        # Generate recommendation
-        return self._generate_recommendation(
-            option_a, option_b,
-            cost_a, cost_b,
-            benefit_a, benefit_b,
-            roi_a, roi_b
-        )
-    
-    def _calculate_total_cost(self, option):
-        """Calculate 3-year TCO"""
-        costs = option.get('costs', {})
-        
-        # Development cost (one-time)
-        dev_time_hours = costs.get('dev_time_hours', 0)
-        dev_level = costs.get('dev_level', 'mid')
-        dev_cost = dev_time_hours * self.eng_cost[dev_level]
-        
-        # Infrastructure cost (recurring)
-        monthly_infra = costs.get('monthly_infrastructure', 0)
-        infra_cost_3yr = monthly_infra * 36
-        
-        # Operational cost (recurring)
-        monthly_ops_hours = costs.get('monthly_ops_hours', 0)
-        ops_cost_3yr = monthly_ops_hours * 36 * self.eng_cost['mid']
-        
-        # Opportunity cost (what else could we build?)
-        opportunity_cost = costs.get('opportunity_cost', 0)
-        
-        # Migration risk (potential future cost)
-        migration_risk = costs.get('migration_risk_cost', 0)
-        
-        total = (dev_cost + 
-                infra_cost_3yr + 
-                ops_cost_3yr + 
-                opportunity_cost + 
-                migration_risk)
-        
-        return total
-    
-    def _calculate_total_benefit(self, option):
-        """Calculate quantified benefits"""
-        benefits = option.get('benefits', {})
-        
-        # Revenue impact
-        revenue_impact = benefits.get('revenue_impact_3yr', 0)
-        
-        # Cost savings (vs alternative)
-        cost_savings = benefits.get('cost_savings_3yr', 0)
-        
-        # Productivity gain
-        productivity_hours = benefits.get('productivity_hours_3yr', 0)
-        productivity_value = productivity_hours * self.eng_cost['mid']
-        
-        # Risk reduction (potential incidents prevented)
-        risk_reduction = benefits.get('risk_reduction_value', 0)
-        
-        # Quality of life (engineer happiness)
-        qol_value = benefits.get('quality_of_life_value', 0)
-        
-        total = (revenue_impact + 
-                cost_savings + 
-                productivity_value + 
-                risk_reduction + 
-                qol_value)
-        
-        return total
-    
-    def _generate_recommendation(self, opt_a, opt_b, 
-                                 cost_a, cost_b,
-                                 benefit_a, benefit_b,
-                                 roi_a, roi_b):
-        """Generate human-readable recommendation"""
-        
-        report = f"""
-Cost-Benefit Analysis Results:
+High-Level Architecture:
+├─ Component: """
+├─ Purpose: Generate/process data at scale
+├─ Technology: Python/Go/Java (implementation detail)
+└─ Key concept: Focus on WHAT it does, not HOW it's coded
 
-Option A: {opt_a['name']}
-├─ Total Cost (3yr): ${cost_a:,.0f}
-├─ Total Benefit (3yr): ${benefit_a:,.0f}
-├─ Net Benefit: ${benefit_a - cost_a:,.0f}
-└─ ROI: {roi_a * 100:.1f}%
-
-Option B: {opt_b['name']}
-├─ Total Cost (3yr): ${cost_b:,.0f}
-├─ Total Benefit (3yr): ${benefit_b:,.0f}
-├─ Net Benefit: ${benefit_b - cost_b:,.0f}
-└─ ROI: {roi_b * 100:.1f}%
-
-Recommendation:
-"""
-        
-        if roi_a > roi_b * 1.2:  # 20% better
-            report += f"✅ Choose Option A ({opt_a['name']})\n"
-            report += f"   Significantly better ROI ({roi_a*100:.1f}% vs {roi_b*100:.1f}%)\n"
-        elif roi_b > roi_a * 1.2:
-            report += f"✅ Choose Option B ({opt_b['name']})\n"
-            report += f"   Significantly better ROI ({roi_b*100:.1f}% vs {roi_a*100:.1f}%)\n"
-        else:
-            report += f"⚖️ ROIs similar - consider qualitative factors:\n"
-            report += f"   - Team expertise and preference\n"
-            report += f"   - Reversibility (easier to change later?)\n"
-            report += f"   - Strategic alignment (company direction)\n"
-        
-        return report
-
-
-# Example usage: Redis vs Memcached for caching
-analyzer = CostBenefitAnalyzer({
-    'company_size': 50,
-    'stage': 'growth',
-    'revenue': 5_000_000
-})
-
-# Option A: Redis
-redis_option = {
-    'name': 'Redis',
-    'costs': {
-        'dev_time_hours': 40,  # 1 week
-        'dev_level': 'mid',
-        'monthly_infrastructure': 500,  # AWS ElastiCache
-        'monthly_ops_hours': 4,  # Monitoring, updates
-        'opportunity_cost': 0,  # Team knows Redis
-        'migration_risk_cost': 5000  # Moderate lock-in
-    },
-    'benefits': {
-        'revenue_impact_3yr': 100000,  # Better UX → more users
-        'cost_savings_3yr': 18000,  # Reduced DB load (vs no cache)
-        'productivity_hours_3yr': 100,  # Familiar technology
-        'risk_reduction_value': 10000,  # Proven, reliable
-        'quality_of_life_value': 5000  # Engineers know it
-    }
-}
-
-# Option B: Memcached
-memcached_option = {
-    'name': 'Memcached',
-    'costs': {
-        'dev_time_hours': 40,
-        'dev_level': 'mid',
-        'monthly_infrastructure': 400,  # Slightly cheaper
-        'monthly_ops_hours': 4,
-        'opportunity_cost': 2000,  # Team needs to learn
-        'migration_risk_cost': 3000  # Less lock-in (simpler)
-    },
-    'benefits': {
-        'revenue_impact_3yr': 100000,  # Similar performance
-        'cost_savings_3yr': 18000,  # Same DB savings
-        'productivity_hours_3yr': 50,  # Learning curve
-        'risk_reduction_value': 8000,  # Proven but less flexible
-        'quality_of_life_value': 2000  # Team less familiar
-    }
-}
-
-# Analyze
-recommendation = analyzer.analyze_decision(redis_option, memcached_option)
-print(recommendation)
-
-# Output:
-# ✅ Choose Option A (Redis)
-#    Significantly better ROI (183.2% vs 145.8%)
-#    
-#    Key factors:
-#    - Team already knows Redis (no learning curve)
-#    - More flexible (supports more data structures)
-#    - Cost difference minimal ($500 vs $400/month)
+For interviews, explain:
+1. What problem this solves
+2. Architecture/algorithm at high level
+3. Trade-offs vs alternatives
+4. Scale characteristics
 ```
 
 #### Context-Dependent Decision Tree
@@ -14858,6 +10959,42 @@ Bonus: Explain how this proves "start simple, evolve later" was correct!
 - How do you handle technical debt from "good enough" early decisions?
 - What's the role of ego in technical decision-making?
 - How do you communicate trade-offs to non-technical stakeholders?
+
+### 🎯 Interview Questions - Trade-offs & Decision Framework
+
+**Beginner Level:**
+1. **Q:** "What are the main trade-offs in designing a URL shortener?"
+   - **A:** Consistency vs availability, performance vs cost, simplicity vs features, and security vs usability.
+
+2. **Q:** "How would you decide between different database options for a URL shortener?"
+   - **A:** Consider read/write patterns, consistency requirements, scalability needs, and cost constraints.
+
+3. **Q:** "What factors would you consider when choosing caching strategies?"
+   - **A:** Hit rate requirements, latency needs, cost constraints, and complexity trade-offs.
+
+**Intermediate Level:**
+4. **Q:** "How would you handle trade-offs between performance and cost in a URL shortener?"
+   - **A:** Performance optimization, cost analysis, ROI calculations, and strategic decision-making.
+
+5. **Q:** "What happens if you need to choose between consistency and availability in a URL shortener?"
+   - **A:** Analyze business requirements, user impact, and system constraints to make informed decisions.
+
+6. **Q:** "How would you handle trade-offs between security and usability in a URL shortener?"
+   - **A:** Security-first approach, user experience optimization, and balanced security measures.
+
+**Advanced Level:**
+7. **Q:** "Design trade-offs for a URL shortener that needs to support enterprise features."
+   - **A:** Enterprise requirements, compliance needs, security considerations, and cost-benefit analysis.
+
+8. **Q:** "How would you handle trade-offs between scalability and complexity in a URL shortener?"
+   - **A:** Scalability planning, complexity management, and strategic architecture decisions.
+
+9. **Q:** "What trade-offs would you consider for a URL shortener that needs to support custom domains and enterprise features?"
+   - **A:** Domain management, enterprise requirements, compliance needs, and cost considerations.
+
+**System Design Deep Dive:**
+10. **Q:** "How would you design trade-offs for a URL shortener that needs to support custom domains and enterprise features?"
+    - **A:** Domain-specific trade-offs, enterprise requirements, compliance needs, and strategic decision-making.
 
 ---
 
