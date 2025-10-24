@@ -2785,6 +2785,108 @@ Library Organization = Data Storage
 └─ = Request logs, usage patterns
 ```
 
+#### Key Technologies Explained
+
+Before diving into data types, let's understand the core technologies we'll use:
+
+**What is Redis?**
+
+Redis (Remote Dictionary Server) is like a super-fast notepad in your computer's memory. Instead of writing to a slow hard drive, it keeps everything in RAM (memory), making it incredibly fast.
+
+```text
+Think of it like:
+Hard Drive (Regular Database) = Filing cabinet across the room
+├─ Need to walk there
+├─ Open drawer
+├─ Find file
+└─ Takes seconds
+
+Redis (In-Memory) = Sticky note on your desk
+├─ Right in front of you
+├─ Grab it instantly
+└─ Takes milliseconds!
+
+Why so fast?
+- Stores data in RAM (not disk)
+- Simple data structures (strings, counters, lists)
+- No complex queries needed
+- Optimized for speed
+
+Perfect for: Counters, caches, real-time data that changes frequently
+```
+
+**What is PostgreSQL?**
+
+PostgreSQL (often called Postgres) is a traditional relational database that stores data permanently on disk. Think of it as a filing cabinet - slower to access than Redis, but your data is safe even if the power goes out.
+
+```text
+PostgreSQL characteristics:
+- Stores on disk (permanent, survives restarts)
+- Supports complex queries (JOIN, GROUP BY, etc.)
+- ACID compliant (data is always consistent)
+- Great for structured data with relationships
+
+Perfect for: User accounts, API keys, configuration - data that must never be lost
+```
+
+**What is TimescaleDB?**
+
+TimescaleDB is PostgreSQL specifically optimized for time-series data (data with timestamps). It's like a specialized filing system for chronological records.
+
+```text
+Regular Database:
+- Finding "all requests from last week" = Slow (scan all rows)
+
+TimescaleDB:
+- Automatically organizes data by time
+- Finding "all requests from last week" = Fast (only scan that week's data)
+- Compresses old data automatically
+
+Perfect for: Logs, metrics, analytics - anything with a timestamp
+```
+
+**What are Atomic Operations?**
+
+Atomic means "all or nothing" - an operation either completes entirely or doesn't happen at all. Like flipping a light switch - it's either on or off, never halfway.
+
+```text
+Non-Atomic (Bad!):
+Step 1: Read counter = 5
+Step 2: Add 1
+Step 3: Write counter = 6
+
+Problem: Two requests at the same time:
+- Request A reads 5, adds 1, writes 6
+- Request B reads 5 (before A writes!), adds 1, writes 6
+- Result: 6 instead of 7! Lost a count!
+
+Atomic (Good!):
+INCR counter
+
+Result: Redis does all steps as ONE operation
+- No other request can interfere
+- Always correct count
+```
+
+**What is TTL (Time To Live)?**
+
+TTL is like an expiration date on food. After the TTL expires, Redis automatically deletes the data.
+
+```text
+Example:
+- Set counter for hour 2:00 PM
+- Set TTL = 2 hours
+- After 4:00 PM: Redis automatically deletes it
+- No manual cleanup needed!
+
+Why useful?
+- Old counters deleted automatically
+- Saves memory
+- No code needed to clean up
+```
+
+---
+
 #### Three Types of Data
 
 **Type 1: Metadata (Cold Data - PostgreSQL)**

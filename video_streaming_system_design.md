@@ -2232,6 +2232,597 @@ For real-time (Twitch):
 
 ### 🎯 Interview Questions - Live Streaming
 
+#### Beginner Level
+
+**Q1:** What's the difference between live streaming and video-on-demand (VOD)?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Key Differences:**
+
+| Aspect | Live Streaming | Video-on-Demand (VOD) |
+|--------|---------------|----------------------|
+| **Timing** | Real-time broadcast | Pre-recorded content |
+| **Latency** | 3-30 seconds delay | No latency concerns |
+| **Processing** | Transcoding must be real-time | Can transcode in batch |
+| **Storage** | Temporary, then archived | Permanent storage |
+| **Scalability** | Spiky (event-based) | Predictable patterns |
+| **Cost** | High (always-on infrastructure) | Lower (cache-friendly) |
+
+**Live Streaming Characteristics:**
+- Content created and consumed simultaneously
+- Cannot pause/rewind during live (unless DVR enabled)
+- Requires low-latency infrastructure
+- Examples: Sports events, concerts, gaming streams
+
+**VOD Characteristics:**
+- Content fully encoded before viewing
+- Users can pause, rewind, fast-forward
+- Can be heavily cached at CDN edge
+- Examples: Netflix shows, YouTube videos
+
+**Interview Tip:** Emphasize that live streaming requires real-time transcoding and can't benefit from caching as much as VOD, making it more challenging and expensive.
+
+</details>
+
+**Q2:** How do you reduce latency in live streaming?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Multi-Level Latency Reduction Strategy:**
+
+**1. Protocol Selection:**
+- **HLS (15-30s latency):** Standard, works everywhere
+  - Uses: Large audiences, not time-critical
+- **Low-Latency HLS (3-5s):** Apple's improvement
+  - Uses: Sports, news where some delay acceptable
+- **WebRTC (<1s):** Real-time communication
+  - Uses: Gaming, video calls, interactive streams
+- **SRT (2-3s):** Secure Reliable Transport
+  - Uses: Professional broadcasting
+
+**2. Segment Size Reduction:**
+```text
+Traditional HLS:
+├─ Segment size: 10 seconds
+├─ 3 segments buffered = 30 seconds latency
+└─ Problem: Too slow for interactive content
+
+Low-Latency HLS:
+├─ Segment size: 2 seconds
+├─ Partial segments: 0.5 seconds
+├─ 2-3 segments buffered = 3-5 seconds
+└─ Result: 6x faster!
+```
+
+**3. Edge Computing:**
+- Transcode at CDN edge (closer to users)
+- Reduces network hops
+- Local caching of live segments
+
+**4. Optimize Transcoding:**
+- Use hardware encoders (GPU-based)
+- Parallel processing
+- Preset tuning for speed vs quality
+
+**5. Network Optimization:**
+- Use WebSockets for bidirectional communication
+- Implement adaptive bitrate for network changes
+- Reduce TCP handshakes with persistent connections
+
+**Trade-offs:**
+- Lower latency = Higher infrastructure cost
+- Lower latency = Less buffer = More rebuffering risk
+- WebRTC low latency but doesn't scale as well as HLS
+
+**Interview Tip:** Start with HLS (most common), then explain how to optimize to Low-Latency HLS, and mention WebRTC only if ultra-low latency (<1s) is required.
+
+</details>
+
+**Q3:** How do you handle a sudden spike of 100K concurrent viewers for a live event?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Multi-Layered Scaling Strategy:**
+
+**Immediate Response (0-60 seconds):**
+
+**1. CDN Auto-Scaling:**
+```text
+Normal state:
+├─ 50 CDN edge servers active
+├─ Handling 10K viewers
+└─ Cost: $500/hour
+
+Spike detected (100K viewers):
+├─ Auto-scale to 500 edge servers (10x)
+├─ Geographic distribution (US, EU, Asia)
+├─ Serves 200 viewers per edge
+└─ Cost: $5,000/hour (10x increase)
+```
+
+**2. Origin Server Scaling:**
+- Horizontal scaling: Add more transcoding servers
+- Pre-warming: If event is scheduled, scale up 15 minutes early
+- Load balancing: Distribute across multiple origins
+
+**Short-Term Response (1-5 minutes):**
+
+**3. Adaptive Bitrate Adjustment:**
+```text
+Under normal load:
+├─ Offer: 4K, 1080p, 720p, 480p, 360p
+└─ Users typically choose 1080p
+
+Under spike:
+├─ Prioritize: 720p, 480p, 360p
+├─ Reduce 4K transcoding (save resources)
+├─ Graceful degradation (quality vs availability)
+└─ Result: More viewers can watch at lower quality
+```
+
+**4. Connection Management:**
+- Use connection pooling
+- Implement rate limiting for new connections
+- Queue system for viewers (if capacity exceeded)
+
+**Long-Term Response (5-30 minutes):**
+
+**5. Infrastructure Expansion:**
+```text
+If spike sustains >5 minutes:
+├─ AWS Auto Scaling Group triggered
+├─ Launch 50 additional transcoding servers
+├─ DNS updates to route to new servers
+├─ Time to fully operational: 10-15 minutes
+└─ Cost: $2,000/hour for transcoders
+```
+
+**6. Monitoring & Alerting:**
+- Real-time dashboard: Viewer count, bitrate, errors
+- Alerts: >80% capacity = trigger auto-scale
+- Metrics: CPU, bandwidth, concurrent connections
+
+**Cost Estimation:**
+
+```text
+Sudden 100K viewer spike (2-hour event):
+
+CDN Bandwidth:
+├─ 100K viewers × 3 Mbps average × 2 hours
+├─ = 600K GB transferred
+├─ × $0.05/GB = $30,000
+
+Transcoding:
+├─ 20 transcoding servers × $2/hour × 2 hours
+├─ = $80
+
+Origin Servers:
+├─ 10 servers × $1/hour × 2 hours
+├─ = $20
+
+Total: ~$30,100 for 2-hour event
+Per viewer cost: $0.30
+```
+
+**Interview Tip:** Mention that CDN costs dominate (99% of cost), and pre-warming for scheduled events is much cheaper than emergency scaling.
+
+</details>
+
+#### Intermediate Level
+
+**Q1:** Design the architecture for Twitch-like live game streaming with chat
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Complete Architecture:**
+
+```text
+[Streamer]
+    ↓ (RTMP: 1080p60 @ 6 Mbps)
+[Ingest Server]
+    ↓
+[Live Transcoder] ← GPU-accelerated
+    ├─ 1080p60 (6 Mbps)
+    ├─ 720p60 (3 Mbps)
+    ├─ 480p30 (1.5 Mbps)
+    └─ 360p30 (0.8 Mbps)
+    ↓
+[Origin Server] → HLS packaging
+    ↓
+[CDN] → Global distribution
+    ↓
+[100K Viewers] ← Adaptive bitrate
+
+[Chat System] (separate)
+    ├─ WebSocket connections
+    ├─ Chat server cluster (Redis Pub/Sub)
+    ├─ Message rate limiting
+    └─ Moderation (profanity filter, spam detection)
+```
+
+**Key Components:**
+
+**1. Streaming Pipeline:**
+- **Ingest:** RTMP server (Nginx-RTMP module)
+- **Transcoding:** FFmpeg on GPU instances (real-time)
+- **Packaging:** HLS segments (2-second chunks for low latency)
+- **Delivery:** CloudFront CDN (global edge caching)
+
+**2. Chat System:**
+```text
+Chat Architecture:
+
+WebSocket Gateway (10 servers):
+├─ Each handles 10K connections = 100K total
+├─ Load balanced (sticky sessions by channel)
+├─ Heartbeat: 30-second keep-alive
+└─ Cost: $200/hour
+
+Redis Pub/Sub (3-node cluster):
+├─ Channels: One per stream
+├─ Messages: Pub to channel, all subscribers receive
+├─ Rate limit: 100 messages/second per channel
+└─ Cost: $50/hour
+
+Chat Database (PostgreSQL):
+├─ Store: Last 1,000 messages per channel
+├─ Persistence: Chat history for replay
+├─ Moderation logs: Bans, timeouts
+└─ Cost: $20/hour
+```
+
+**3. Integration Points:**
+- Stream metadata (title, viewer count) via REST API
+- Emotes, badges stored in Redis cache
+- Streamer alerts (new subscriber) via WebSocket
+
+**4. Latency Optimization:**
+```text
+End-to-End Latency Budget:
+
+Streamer → Ingest: 0.5s (network)
+Ingest → Transcode: 1.0s (processing)
+Transcode → Package: 0.5s (HLS segments)
+Package → CDN: 0.5s (propagation)
+CDN → Viewer: 1.0s (buffering)
+─────────────────────────────
+Total: 3.5 seconds (acceptable for gaming)
+```
+
+**5. Scalability:**
+- Horizontal: Add more transcoding servers per stream quality
+- Vertical: Use better GPUs (T4 → A10 for 4K)
+- Chat: Shard by channel (each channel = separate Redis Pub/Sub)
+
+**Interview Tip:** Emphasize that streaming and chat are separate systems. Chat uses WebSockets (bidirectional) while streaming is one-way HLS.
+
+</details>
+
+**Q2:** How do you implement DVR functionality for live streams?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**DVR (Digital Video Recorder) allows viewers to:**
+- Pause live stream
+- Rewind to earlier moments
+- Fast-forward (up to live edge)
+
+**Architecture:**
+
+```text
+DVR System:
+
+[Live Stream] → [DVR Buffer Storage]
+                      ↓
+              Rolling Window (2 hours)
+                      ↓
+         [S3] ← Archive segments
+                      ↓
+              [Playback Service]
+                      ↓
+              [CDN] → [Viewers]
+
+Timeline:
+Live Edge ←←←←←←←←←←← 2 hours DVR window
+        Now    -30min   -60min   -90min  -120min
+```
+
+**Implementation Details:**
+
+**1. Segment Storage:**
+```text
+Every 2-second HLS segment:
+├─ Store in S3 with timestamp key
+├─ Example: stream_123/2024-01-15/14-30-00/segment_001.ts
+├─ Keep for 2 hours (sliding window)
+├─ Auto-delete segments older than 2 hours (S3 lifecycle)
+└─ Cost: ~$0.023/GB/month storage
+```
+
+**2. Playback Logic:**
+```text
+User requests "pause at T-30min":
+
+1. Client records current timestamp
+2. Switches from live manifest to DVR manifest
+3. DVR manifest points to archived segments
+4. User can seek within archived range
+5. "Go Live" button jumps back to live edge
+```
+
+**3. Manifest Generation:**
+```text
+Live Manifest (master.m3u8):
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXTINF:2.0,
+segment_current-2.ts
+#EXTINF:2.0,
+segment_current-1.ts
+#EXTINF:2.0,
+segment_current.ts
+
+DVR Manifest (dvr_t-1800.m3u8):
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-PLAYLIST-TYPE:EVENT
+#EXTINF:2.0,
+segment_t-1800.ts
+... (3600 segments for 2 hours)
+```
+
+**4. Storage Optimization:**
+```text
+DVR Window Sizing:
+
+2-hour window for 10K streams:
+├─ Each stream: 3 Mbps × 2 hours = 2.7 GB
+├─ Total: 10K × 2.7 GB = 27 TB
+├─ Cost: 27,000 GB × $0.023/GB = $621/month
+└─ Plus retrieval: $0.0004/GB for reads
+
+Optimization:
+├─ Only store DVR for popular streams (>100 viewers)
+├─ Reduces to 1,000 streams = $62/month
+└─ Savings: 90%
+```
+
+**5. User Experience:**
+```text
+Viewer Actions:
+
+Pause:
+├─ Client stops downloading new segments
+├─ Displays "paused at T-30s behind live"
+├─ Can resume or seek
+
+Rewind (-30s):
+├─ Client requests DVR manifest at T-30s
+├─ Fetches archived segments from S3
+├─ Plays from that point
+└─ Can fast-forward back to live
+
+Fast-Forward:
+├─ Skip segments (2x, 4x, 8x speed)
+├─ Only fetch keyframes for efficiency
+├─ Stop at live edge (can't go beyond)
+```
+
+**Trade-offs:**
+- Storage cost increases with DVR window size
+- Latency between live edge and DVR viewer increases
+- Complexity in manifest management
+
+**Interview Tip:** Mention that most platforms offer DVR only for premium users or large channels to save costs.
+
+</details>
+
+#### Advanced Level
+
+**Q1:** Design ultra-low-latency streaming (<500ms) for esports tournaments
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Requirements for <500ms latency:**
+- Esports tournaments need near-real-time (competitive advantage)
+- Traditional HLS (3-5s) too slow
+- Must scale to millions of viewers globally
+
+**Architecture: WebRTC + SFU (Selective Forwarding Unit)**
+
+```text
+Ultra-Low-Latency Architecture:
+
+[Game Stream] (1080p60 @ 6 Mbps)
+     ↓ RTMP
+[Ingest Server]
+     ↓
+[WebRTC Transcoder] ← Real-time H.264/VP8
+     ├─ 1080p60 (6 Mbps)
+     ├─ 720p60 (3 Mbps)
+     └─ 480p30 (1.5 Mbps)
+     ↓
+[SFU Cluster] ← Mesh topology
+     ├─ SFU Node 1 (US-East)
+     ├─ SFU Node 2 (US-West)
+     ├─ SFU Node 3 (EU)
+     └─ SFU Node 4 (Asia)
+     ↓
+[WebRTC Clients] ← 1M viewers
+
+Latency Breakdown:
+├─ Game → Ingest: 50ms (LAN)
+├─ Ingest → Transcode: 100ms (real-time encoding)
+├─ Transcode → SFU: 50ms (internal network)
+├─ SFU → Viewer: 200ms (WebRTC peer connection)
+├─ Viewer decode/render: 100ms
+└─ Total: 500ms glass-to-glass
+```
+
+**Key Technologies:**
+
+**1. WebRTC Instead of HLS:**
+```text
+HLS Problems:
+├─ Segment-based (2-10s chunks)
+├─ TCP-based (retransmissions add latency)
+├─ Cannot achieve <1s latency
+└─ Good for scale, bad for latency
+
+WebRTC Solutions:
+├─ Real-time (no segments, continuous stream)
+├─ UDP-based (no retransmissions, accept packet loss)
+├─ Achieves <500ms latency
+└─ Challenge: Harder to scale to millions
+```
+
+**2. SFU (Selective Forwarding Unit):**
+```text
+SFU vs Traditional CDN:
+
+Traditional CDN:
+├─ Pull-based: Viewers request from cache
+├─ Works for HLS segments
+├─ High latency due to caching
+└─ Great for scale (millions of viewers)
+
+SFU Architecture:
+├─ Push-based: Real-time forwarding
+├─ Each SFU node handles 5K viewers
+├─ Mesh topology: SFUs connect to each other
+├─ 1M viewers = 200 SFU nodes
+└─ Cost: $0.50/hour per SFU = $100/hour total
+```
+
+**3. Cascading SFUs for Scale:**
+```text
+3-Tier SFU Architecture:
+
+Tier 1: Origin SFU (1 node)
+├─ Receives stream from ingest
+├─ Connects to 10 Tier-2 SFUs
+└─ Handles transcoding
+
+Tier 2: Regional SFUs (10 nodes)
+├─ Each connects to 20 Tier-3 SFUs
+├─ Geographic distribution
+└─ No transcoding, just forwarding
+
+Tier 3: Edge SFUs (200 nodes)
+├─ Each handles 5K viewers
+├─ Total: 200 × 5K = 1M viewers
+└─ Closest to end users
+
+Advantages:
+├─ Scalable: Add more Tier-3 SFUs
+├─ Low latency: Max 3 hops (Tier1 → 2 → 3)
+├─ Fault tolerant: If SFU fails, reconnect to another
+└─ Cost: $0.50/SFU × 211 nodes = $105/hour
+```
+
+**4. Adaptive Bitrate for WebRTC:**
+```text
+Network Conditions:
+
+Good network (low packet loss):
+├─ Send 1080p60 @ 6 Mbps
+├─ Low latency maintained
+└─ High quality
+
+Poor network (5% packet loss):
+├─ SFU detects packet loss
+├─ Switches to 720p30 @ 2 Mbps
+├─ Reduces bandwidth, maintains latency
+└─ Forward error correction (FEC) for lost packets
+
+Very poor network (10%+ packet loss):
+├─ Switches to 480p30 @ 1 Mbps
+├─ Aggressive FEC
+├─ May temporarily buffer to reduce jitter
+└─ Fallback: Graceful degradation, not complete failure
+```
+
+**5. Monitoring & Optimization:**
+```text
+Real-Time Metrics:
+
+Per-Viewer:
+├─ Latency: Track glass-to-glass delay
+├─ Packet loss: % of packets dropped
+├─ Bitrate: Actual vs target
+└─ Jitter: Variation in packet arrival time
+
+Per-SFU:
+├─ CPU usage: Encoding/decoding load
+├─ Bandwidth: Inbound and outbound
+├─ Connection count: Number of viewers
+└─ Error rate: Failed connections
+
+Alerting:
+├─ Latency >1s: Investigate SFU performance
+├─ Packet loss >5%: Network congestion
+├─ CPU >80%: Add more SFU nodes
+└─ Viewer drops: Check for SFU failures
+```
+
+**6. Cost Analysis:**
+```text
+Ultra-Low-Latency Cost (1M viewers, 2-hour tournament):
+
+SFU Infrastructure:
+├─ 211 SFU nodes × $0.50/hour × 2 hours
+├─ = $211
+
+Bandwidth (more expensive than HLS):
+├─ No CDN caching benefits
+├─ Each viewer: 3 Mbps average
+├─ 1M viewers × 3 Mbps × 2 hours = 2.7 PB
+├─ Cost: 2,700,000 GB × $0.05/GB = $135,000
+
+Transcoding:
+├─ Real-time WebRTC encoding
+├─ 5 GPU servers × $2/hour × 2 hours
+├─ = $20
+
+Total: $135,231 for 2 hours
+Per viewer: $0.135
+
+Compare to HLS (3-5s latency):
+├─ CDN caching reduces bandwidth 90%
+├─ Cost: ~$15,000 for same event
+└─ Ultra-low-latency is 9x more expensive!
+```
+
+**Trade-offs:**
+- **Latency:** 500ms vs 3-5s (10x improvement)
+- **Cost:** $135K vs $15K (9x increase)
+- **Complexity:** WebRTC much harder than HLS
+- **Browser support:** WebRTC requires modern browsers
+
+**Interview Tip:** Emphasize that <500ms latency is only needed for highly interactive content (esports, betting, gaming). For most use cases, Low-Latency HLS (3-5s) is sufficient and 9x cheaper.
+
+</details>
 
 ---
 

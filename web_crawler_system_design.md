@@ -845,6 +845,7 @@ Metadata Storage (per page):
 ├─ Links count: 4 bytes
 ├─ Domain: 50 bytes
 ├─ Crawl depth: 4 bytes
+
 ├─ Total: ~220 bytes per page
 │
 ├─ Total metadata: 10B × 220 bytes = 2,200 GB = 2.2 TB
@@ -853,6 +854,8 @@ Metadata Storage (per page):
 URL Frontier Storage:
 ├─ Active frontier: 10B URLs
 ├─ Per URL: 170 bytes (URL + priority + domain + metadata)
+
+
 ├─ Total: 10B × 170 bytes = 1,700 GB = 1.7 TB
 ├─ In-memory (Redis): Store 100M most recent
 ├─ = 100M × 170 bytes = 17 GB (fits in RAM!)
@@ -1007,6 +1010,7 @@ With per-domain rate limiting:
 ├─ Popular domains (top 1,000): Many pages but slow crawling
 ├─ Long-tail domains (999,000): Few pages but fast crawling
 │
+
 ├─ Effective rate: ~600 pages/sec (40% reduction!)
 └─ Need 170 machines to hit 1,000 pages/sec target!
 
@@ -1068,9 +1072,57 @@ Savings: $2,753/month (24% reduction!)
 
 **What the interviewer wants to know:**
 - Can you do back-of-the-envelope calculations? - Do you understand throughput requirements?
-- Do you consider politeness constraints? **Answer Framework:**
+- Do you consider politeness constraints?
 
-```text Step 1: Calculate Required Throughput ├─ Total: 10 billion pages ├─ Time: 30 days × 24 hours × 3600 seconds = 2,592,000 seconds ├─ Required rate: 10B / 2.592M = 3,858 pages/second └─ Round up: 4,000 pages/second to have buffer Step 2: Per-Machine Capacity ├─ Network bottleneck: Each machine can fetch ~100 pages/sec ├─ But politeness limits: 5 requests/sec per domain ├─ With 1M domains: Effective rate ~10-20 pages/sec per machine └─ Conservative: 10 pages/sec per machine Step 3: Calculate Machines Needed ├─ Required: 4,000 pages/sec ├─ Per machine: 10 pages/sec ├─ Machines: 4,000 / 10 = 400 machines └─ Add 20% buffer: 480 machines Step 4: Cost Estimate ├─ 480 machines × $2,000/month = $960,000/month ├─ Optimization with spot instances (-70%): $288,000/month ├─ Storage: 500TB × $23/TB = $11,500/month └─ Total: ~$300K/month ``` **Follow-up: What if budget is only $100K/month?** ```text Options: 1. Extend timeline: 3 months instead of 1 month ├─ Machines: 160 instead of 480 ├─ Cost: $100K/month └─ Trade-off: Slower completion 2. Reduce scope: Crawl 3B pages instead of 10B ├─ Same timeline ├─ Prioritize important domains └─ Trade-off: Incomplete coverage 3. Optimize aggressively: ├─ Spot instances: -70% compute cost ├─ Compression: -50% storage cost ├─ Skip low-value content: -30% pages to crawl └─ Result: 7B pages in 1 month for $100K ```
+**Answer Framework:**
+
+```text
+Step 1: Calculate Required Throughput 
+├─ Total: 10 billion pages 
+├─ Time: 30 days × 24 hours × 3600 seconds = 2,592,000 seconds 
+├─ Required rate: 10B / 2.592M = 3,858 pages/second 
+└─ Round up: 4,000 pages/second to have buffer 
+
+Step 2: Per-Machine Capacity 
+├─ Network bottleneck: Each machine can fetch ~100 pages/sec 
+├─ But politeness limits: 5 requests/sec per domain 
+├─ With 1M domains: Effective rate ~10-20 pages/sec per machine 
+└─ Conservative: 10 pages/sec per machine 
+
+Step 3: Calculate Machines Needed 
+├─ Required: 4,000 pages/sec 
+├─ Per machine: 10 pages/sec 
+├─ Machines: 4,000 / 10 = 400 machines 
+└─ Add 20% buffer: 480 machines 
+
+Step 4: Cost Estimate 
+├─ 480 machines × $2,000/month = $960,000/month 
+├─ Optimization with spot instances (-70%): $288,000/month 
+├─ Storage: 500TB × $23/TB = $11,500/month 
+└─ Total: ~$300K/month
+```
+
+**Follow-up: What if budget is only $100K/month?**
+
+```text
+Options:
+
+1. Extend timeline: 3 months instead of 1 month
+   ├─ Machines: 160 instead of 480
+   ├─ Cost: $100K/month
+   └─ Trade-off: Slower completion
+
+2. Reduce scope: Crawl 3B pages instead of 10B
+   ├─ Same timeline
+   ├─ Prioritize important domains
+   └─ Trade-off: Incomplete coverage
+
+3. Optimize aggressively:
+   ├─ Spot instances: -70% compute cost
+   ├─ Compression: -50% storage cost
+   ├─ Skip low-value content: -30% pages to crawl
+   └─ Result: 7B pages in 1 month for $100K
+```
 
 </details>
 
@@ -1083,7 +1135,44 @@ Savings: $2,753/month (24% reduction!)
 
 **Answer Framework:**
 
-```text Step 1: Raw Storage Calculation ├─ Average page size: 50KB (HTML average) ├─ Total: 10B × 50KB = 500,000,000,000 KB ├─ Convert: 500TB raw content └─ This is UNCOMPRESSED size Step 2: Apply Compression (gzip) ├─ HTML compression ratio: 70-80% ├─ Compressed: 500TB × 0.25 = 125TB └─ Savings: 375TB (75% reduction) Step 3: Apply Deduplication ├─ Duplicate rate: 30% of web content ├─ After dedup: 125TB × 0.7 = 87.5TB └─ Savings: Additional 37.5TB Step 4: Add Replication (3x) ├─ For durability: 3 copies ├─ Total: 87.5TB × 3 = 262.5TB └─ Round up: 300TB Step 5: Add Metadata & Indexes ├─ URL metadata: 10B × 220 bytes = 2.2TB ├─ Bloom filter: 12GB ├─ Indexes: ~10TB └─ Total metadata: ~15TB Final Answer: ├─ Content: 300TB ├─ Metadata: 15TB ├─ Total: 315TB (~0.3 PB) └─ Monthly cost: 315 × 1024 × $0.023 = $7,414 ```
+```text
+Step 1: Raw Storage Calculation 
+├─ Average page size: 50KB (HTML average) 
+
+├─ Total: 10B × 50KB = 500,000,000,000 KB 
+├─ Convert: 500TB raw content 
+└─ This is UNCOMPRESSED size 
+
+Step 2: Apply Compression (gzip) 
+├─ HTML compression ratio: 70-80% 
+├─ Compressed: 500TB × 0.25 = 125TB 
+└─ Savings: 375TB (75% reduction) 
+
+Step 3: Apply Deduplication 
+├─ Duplicate rate: 30% of web content 
+├─ After dedup: 125TB × 0.7 = 87.5TB 
+└─ Savings: Additional 37.5TB 
+
+Step 4: Add Replication (3x) 
+├─ For durability: 3 copies 
+├─ Total: 87.5TB × 3 = 262.5TB 
+
+└─ Round up: 300TB 
+
+
+
+Step 5: Add Metadata & Indexes 
+├─ URL metadata: 10B × 220 bytes = 2.2TB 
+├─ Bloom filter: 12GB 
+├─ Indexes: ~10TB 
+└─ Total metadata: ~15TB Final Answer:
+
+├─ Content: 300TB 
+├─ Metadata: 15TB 
+├─ Total: 315TB (~0.3 PB) 
+└─ Monthly cost: 315 × 1024 × $0.023 = $7,414 
+
+```
 
 </details>
 
@@ -1096,7 +1185,33 @@ Savings: $2,753/month (24% reduction!)
 
 **Answer Framework:**
 
-```text Scenario: Crawling 1M domains at 5 requests/sec per domain Theoretical Maximum (no politeness): ├─ 100 machines × 100 requests/sec = 10,000 pages/sec └─ Perfect parallelization With Politeness (1 second delay per domain): ├─ 1M domains total ├─ Each domain: 1 request per second maximum ├─ But not evenly distributed! │ ├─ Problem: Popular domains have many pages │ - example.com: 1M pages (would take 11.5 days at 1 req/sec!) │ - small-blog.com: 10 pages (takes 10 seconds) │ ├─ Queue management becomes complex ├─ Effective rate: ~40-60% of theoretical max └─ Actual: 4,000-6,000 pages/sec (vs 10,000 theoretical) Impact on Architecture: ├─ Need domain-based queues (separate queue per domain) ├─ Need fairness algorithm (don't starve small domains) ├─ Need 1.5-2x more machines to compensate └─ Result: Politeness is the PRIMARY bottleneck! ```
+```text
+Scenario: Crawling 1M domains at 5 requests/sec per domain
+
+Theoretical Maximum (no politeness):
+├─ 100 machines × 100 requests/sec = 10,000 pages/sec
+└─ Perfect parallelization
+
+With Politeness (1 second delay per domain):
+├─ 1M domains total
+├─ Each domain: 1 request per second maximum
+├─ But not evenly distributed!
+│
+├─ Problem: Popular domains have many pages
+│   - example.com: 1M pages (would take 11.5 days at 1 req/sec!)
+│   - small-blog.com: 10 pages (takes 10 seconds)
+│
+├─ Queue management becomes complex
+├─ Effective rate: ~40-60% of theoretical max
+└─ Actual: 4,000-6,000 pages/sec (vs 10,000 theoretical)
+
+Impact on Architecture:
+
+├─ Need domain-based queues (separate queue per domain) 
+├─ Need fairness algorithm (don't starve small domains) 
+├─ Need 1.5-2x more machines to compensate 
+└─ Result: Politeness is the PRIMARY bottleneck! 
+```
 
 </details>
 
@@ -1444,10 +1559,83 @@ added complexity only when needed!
 **Answer:**
 
 **What the interviewer wants to know:**
-- Can you identify the key components? - Do you understand data flow? - Can you communicate visually? **Answer Framework:**
+- Can you identify the key components? - Do you understand data flow? - Can you communicate visually?
 
-```text "Let me draw the architecture with 5 core components: [Draw this diagram while talking] ┌─────────────┐ │ Seed URLs │ └──────┬──────┘ ↓ ┌──────────────────┐ │ URL Frontier │ ← Redis (priority queues) │ (To-Do List) │ └──────┬───────────┘ ↓ ┌──────────────────┐ │ Crawler Workers │ ← 100 machines │ (Fetch Pages) │ └──────┬───────────┘ ↓ ┌──────────────────┐ │ Content Storage │ ← S3/HDFS (500TB) │ (Archive) │ └──────┬───────────┘ ↓ ┌──────────────────┐ │ Link Extraction │ │ (Find New URLs) │ └──────┬───────────┘ ↓ (cycle back) URL Frontier Supporting Components: - Bloom Filter (duplicate detection, 12GB) - Robots.txt Cache (Redis, politeness rules) - DNS Cache (reduce lookup latency)
-- Metadata DB (PostgreSQL, tracking) Data Flow: 1. Workers pull URLs from frontier 2. Check robots.txt (allowed?) 3. Fetch page from web 4. Store content in S3 5. Extract links 6. Deduplicate URLs (Bloom filter) 7. Add new URLs back to frontier" ``` **Follow-up: Why use Redis for URL Frontier instead of a database?** ```text Answer: Redis (In-Memory): ├─ Pro: Sub-millisecond operations (LPUSH/LPOP) ├─ Pro: Native support for lists, sorted sets ├─ Pro: Can handle 100K+ ops/second ├─ Con: Memory expensive ($5K/month for 100GB) └─ Use for: Active frontier (hot 100M URLs) PostgreSQL (Disk-Based): ├─ Pro: Cheaper storage ├─ Pro: ACID compliance ├─ Pro: Complex queries ├─ Con: Slower (10-50ms operations) └─ Use for: Overflow frontier, metadata Hybrid Approach (Best): ├─ Redis: Hot 100M URLs (17GB, $500/month) ├─ PostgreSQL: Cold 10B URLs (1.7TB, $2K/month) ├─ Workers pull from Redis (fast) ├─ Background job moves URLs Redis ← PostgreSQL └─ Result: Speed of Redis, capacity of PostgreSQL ```
+**Answer Framework:**
+
+```text
+"Let me draw the architecture with 5 core components:
+
+[Draw this diagram while talking]
+
+┌─────────────┐
+│ Seed URLs   │
+└──────┬──────┘
+       ↓
+┌──────────────────┐
+│ URL Frontier     │ ← Redis (priority queues)
+│ (To-Do List)     │
+└──────┬───────────┘
+       ↓
+┌──────────────────┐
+│ Crawler Workers  │ ← 100 machines
+│ (Fetch Pages)    │
+└──────┬───────────┘
+       ↓
+┌──────────────────┐
+│ Content Storage  │ ← S3/HDFS (500TB)
+│ (Archive)        │
+└──────┬───────────┘
+       ↓
+┌──────────────────┐
+│ Link Extraction  │
+│ (Find New URLs)  │
+└──────┬───────────┘
+       ↓
+   (cycle back) URL Frontier
+
+Supporting Components:
+- Bloom Filter (duplicate detection, 12GB)
+- Robots.txt Cache (Redis, politeness rules)
+- DNS Cache (reduce lookup latency)
+- Metadata DB (PostgreSQL, tracking)
+
+Data Flow:
+1. Workers pull URLs from frontier
+2. Check robots.txt (allowed?)
+3. Fetch page from web
+4. Store content in S3
+5. Extract links
+6. Deduplicate URLs (Bloom filter)
+7. Add new URLs back to frontier"
+```
+
+**Follow-up: Why use Redis for URL Frontier instead of a database?**
+
+```text
+Answer:
+
+Redis (In-Memory):
+├─ Pro: Sub-millisecond operations (LPUSH/LPOP)
+├─ Pro: Native support for lists, sorted sets
+├─ Pro: Can handle 100K+ ops/second
+├─ Con: Memory expensive ($5K/month for 100GB)
+└─ Use for: Active frontier (hot 100M URLs)
+
+PostgreSQL (Disk-Based):
+├─ Pro: Cheaper storage
+├─ Pro: ACID compliance
+├─ Pro: Complex queries
+├─ Con: Slower (10-50ms operations)
+└─ Use for: Overflow frontier, metadata
+
+Hybrid Approach (Best):
+├─ Redis: Hot 100M URLs (17GB, $500/month)
+├─ PostgreSQL: Cold 10B URLs (1.7TB, $2K/month)
+├─ Workers pull from Redis (fast)
+├─ Background job moves URLs Redis ← PostgreSQL
+└─ Result: Speed of Redis, capacity of PostgreSQL
+```
 
 </details>
 
@@ -1460,7 +1648,34 @@ added complexity only when needed!
 
 **Answer Framework:**
 
-```text Problem: Politeness requires 1 request/sec per domain - If 2 workers hit same domain → violate politeness - Result: Get blocked by website Solution: Domain-Based Partitioning Approach 1: Consistent Hashing ├─ Hash domain → Assign to worker ├─ same.com always goes to Worker 3 ├─ example.com always goes to Worker 7 ├─ Worker owns all URLs from its domains └─ Result: No conflicts, automatic politeness Approach 2: Domain Lock (Kafka/Redis) ├─ Worker requests: "Can I crawl example.com?" ├─ Coordinator checks: Is another worker crawling it? ├─ If free: Grant lock for 60 seconds ├─ If busy: Return different domain └─ Result: Only 1 worker per domain at any time I prefer Consistent Hashing because: ├─ No central coordinator needed ├─ Automatic load balancing ├─ Add/remove workers easily ├─ Politeness guaranteed by design └─ Used by: Google, Common Crawl ```
+```text
+Problem: Politeness requires 1 request/sec per domain
+- If 2 workers hit same domain → violate politeness
+- Result: Get blocked by website
+
+Solution: Domain-Based Partitioning
+
+Approach 1: Consistent Hashing
+├─ Hash domain → Assign to worker
+├─ same.com always goes to Worker 3
+├─ example.com always goes to Worker 7
+├─ Worker owns all URLs from its domains
+└─ Result: No conflicts, automatic politeness
+
+Approach 2: Domain Lock (Kafka/Redis)
+├─ Worker requests: "Can I crawl example.com?"
+├─ Coordinator checks: Is another worker crawling it?
+├─ If free: Grant lock for 60 seconds
+├─ If busy: Return different domain
+└─ Result: Only 1 worker per domain at any time
+
+I prefer Consistent Hashing because:
+├─ No central coordinator needed
+├─ Automatic load balancing
+├─ Add/remove workers easily
+├─ Politeness guaranteed by design
+└─ Used by: Google, Common Crawl
+```
 
 </details>
 
@@ -1572,11 +1787,13 @@ A Bloom filter is like a bouncer's memory at a club entrance who remembers faces
 Problem: You've crawled 1 billion URLs. New URL arrives. Have you seen it before?
 
 Bad solution: Check all 1 billion URLs
+
 ├─ Time: Seconds
 ├─ Memory: Gigabytes
 └─ Too slow!
 
 Bloom Filter solution: Use special data structure
+
 ├─ Time: Microseconds
 ├─ Memory: Megabytes (1000x less!)
 ├─ Tradeoff: Might say "seen it" when you haven't (false positive)
@@ -2203,6 +2420,7 @@ Business Impact:
 Engineering Cost:
 ├─ ML team: 20 engineers × $300K = $6M/year
 ├─ Infrastructure: $2M/year
+
 ├─ Total: $8M/year
 └─ ROI: 87x return on investment!
 ```
@@ -2313,9 +2531,73 @@ Adaptive systems that learn per-domain behavior work best!
 
 **What the interviewer wants to know:**
 - Do you understand priority queue data structures? - Can you explain how politeness fits in?
-- Do you know how to scale this component? **Answer Framework:**
+- Do you know how to scale this component?
 
-```text Three-Tier Priority System: Tier 1: High Priority (Redis Sorted Set) ├─ Homepages, sitemaps, news sites ├─ Score: 0.7-1.0 ├─ Crawl frequency: Every 1 hour ├─ Storage: 20M URLs (~3GB in Redis) └─ Workers pull: 60% of time Tier 2: Medium Priority (Redis List) ├─ Regular content pages ├─ Score: 0.3-0.7 ├─ Crawl frequency: Every 24 hours ├─ Storage: 80M URLs (~14GB in Redis) └─ Workers pull: 30% of time Tier 3: Low Priority (PostgreSQL) ├─ Deep pages, old content ├─ Score: 0.0-0.3 ├─ Crawl frequency: Every 7 days ├─ Storage: 10B URLs (~1.7TB in database) └─ Workers pull: 10% of time Implementation: # High priority: Redis sorted set (score-based) ZADD frontier:high 0.95 "https://cnn.com/breaking" # Medium: Redis list (FIFO within tier) RPUSH frontier:medium "https://blog.com/post" # Low: PostgreSQL (overflow storage) INSERT INTO url_frontier (url, priority) VALUES (?, 0.2) Worker pulls: 1. ZPOPMAX frontier:high (get highest score) 2. If empty: LPOP frontier:medium 3. If empty: SELECT from PostgreSQL LIMIT 100 ``` **Follow-up: How do you handle a domain with 1M pages and 1-second crawl delay?** ```text Problem: 1M pages × 1 sec = 1M seconds = 11.5 days! Solution: Domain Queue Fairness 1. Limit per-domain queue size: Max 1,000 URLs in frontier 2. Round-robin across domains: Don't crawl same domain continuously 3. Time-based scheduling: Spread crawls over 24 hours 4. Priority mixing: Interleave high-priority URLs from many domains Example: Instead of: ├─ domain-A: url1, url2, url3, ..., url1000 (1000 seconds) ├─ domain-B: url1, url2, ... (wait 1000 seconds!) Do this: ├─ domain-A: url1 (1 sec) ├─ domain-B: url1 (1 sec) ├─ domain-C: url1 (1 sec) ├─ ... ├─ domain-A: url2 (1 sec after url1) └─ Result: All domains make progress simultaneously ```
+**Answer Framework:**
+
+```text
+Three-Tier Priority System:
+
+Tier 1: High Priority (Redis Sorted Set)
+├─ Homepages, sitemaps, news sites
+├─ Score: 0.7-1.0
+├─ Crawl frequency: Every 1 hour
+├─ Storage: 20M URLs (~3GB in Redis)
+└─ Workers pull: 60% of time
+
+Tier 2: Medium Priority (Redis List)
+├─ Regular content pages
+├─ Score: 0.3-0.7
+├─ Crawl frequency: Every 24 hours
+├─ Storage: 80M URLs (~14GB in Redis)
+└─ Workers pull: 30% of time
+
+Tier 3: Low Priority (PostgreSQL)
+├─ Deep pages, old content
+├─ Score: 0.0-0.3
+├─ Crawl frequency: Every 7 days
+├─ Storage: 10B URLs (~1.7TB in database)
+└─ Workers pull: 10% of time
+
+Implementation:
+# High priority: Redis sorted set (score-based)
+ZADD frontier:high 0.95 "https://cnn.com/breaking"
+
+# Medium: Redis list (FIFO within tier)
+RPUSH frontier:medium "https://blog.com/post"
+
+# Low: PostgreSQL (overflow storage)
+INSERT INTO url_frontier (url, priority) VALUES (?, 0.2)
+
+Worker pulls:
+1. ZPOPMAX frontier:high (get highest score)
+2. If empty: LPOP frontier:medium
+3. If empty: SELECT from PostgreSQL LIMIT 100
+``` **Follow-up: How do you handle a domain with 1M pages and 1-second crawl delay?**
+
+```text
+Problem: 1M pages × 1 sec = 1M seconds = 11.5 days!
+
+Solution: Domain Queue Fairness
+
+1. Limit per-domain queue size: Max 1,000 URLs in frontier
+2. Round-robin across domains: Don't crawl same domain continuously
+3. Time-based scheduling: Spread crawls over 24 hours
+4. Priority mixing: Interleave high-priority URLs from many domains
+
+Example:
+Instead of:
+├─ domain-A: url1, url2, url3, ..., url1000 (1000 seconds)
+├─ domain-B: url1, url2, ... (wait 1000 seconds!)
+
+Do this:
+├─ domain-A: url1 (1 sec)
+├─ domain-B: url1 (1 sec)
+├─ domain-C: url1 (1 sec)
+├─ ...
+├─ domain-A: url2 (1 sec after url1)
+└─ Result: All domains make progress simultaneously
+```
 
 </details>
 
@@ -2328,7 +2610,37 @@ Adaptive systems that learn per-domain behavior work best!
 
 **Answer Framework:**
 
-```text Challenge: 100 workers, 1M domains, 1 req/sec per domain - How to ensure only 1 worker crawls each domain at a time? Solution: Domain-Based Partitioning (Consistent Hashing) Step 1: Partition URLs by Domain ├─ hash(domain) % num_workers = assigned_worker ├─ "example.com" → Worker 42 ├─ "test.com" → Worker 17 └─ Same domain always goes to same worker Step 2: Worker Owns Its Domains ├─ Worker 42 handles ALL example.com URLs ├─ Worker 17 handles ALL test.com URLs ├─ No coordination needed! └─ Politeness enforced locally per worker Step 3: Load Balancing with Virtual Nodes ├─ Each worker gets 150 virtual nodes on hash ring ├─ Even distribution even with hash clustering ├─ Adding worker: Only 1/N URLs redistribute └─ Removing worker: URLs redistribute to others Benefits: ├─ No central coordinator (no bottleneck!) ├─ Automatic politeness (by design) ├─ Fault tolerant (workers fail, URLs redistribute) ├─ Scales linearly (1000+ workers) └─ Used by: Google, Common Crawl, Bing ```
+```text
+Challenge: 100 workers, 1M domains, 1 req/sec per domain
+- How to ensure only 1 worker crawls each domain at a time?
+
+Solution: Domain-Based Partitioning (Consistent Hashing)
+
+Step 1: Partition URLs by Domain
+├─ hash(domain) % num_workers = assigned_worker
+├─ "example.com" → Worker 42
+├─ "test.com" → Worker 17
+└─ Same domain always goes to same worker
+
+Step 2: Worker Owns Its Domains
+├─ Worker 42 handles ALL example.com URLs
+├─ Worker 17 handles ALL test.com URLs
+├─ No coordination needed!
+└─ Politeness enforced locally per worker
+
+Step 3: Load Balancing with Virtual Nodes
+├─ Each worker gets 150 virtual nodes on hash ring
+├─ Even distribution even with hash clustering
+├─ Adding worker: Only 1/N URLs redistribute
+└─ Removing worker: URLs redistribute to others
+
+Benefits:
+├─ No central coordinator (no bottleneck!)
+├─ Automatic politeness (by design)
+├─ Fault tolerant (workers fail, URLs redistribute)
+├─ Scales linearly (1000+ workers)
+└─ Used by: Google, Common Crawl, Bing
+```
 
 </details>
 
@@ -2341,7 +2653,45 @@ Adaptive systems that learn per-domain behavior work best!
 
 **Answer Framework:**
 
-```text Problem: 10B URLs crawled, need to check "have I seen this URL?" Hash Set Approach: ├─ Store: All 10B URL hashes ├─ Memory: 10B × 8 bytes (64-bit hash) = 80GB ├─ Lookup: O(1), fast ├─ Accuracy: 100% └─ Cost: $1,000/month (80GB RAM) Bloom Filter Approach: ├─ Store: Probabilistic data structure ├─ Memory: 12GB (for 1% false positive rate) ├─ Lookup: O(1), microseconds ├─ Accuracy: 99% (1% false positives, 0% false negatives) └─ Cost: $150/month (12GB RAM) How it Works: 1. Hash URL with K hash functions (K=7 for 1% FPR) 2. Set K bits in bit array 3. Check: All K bits set? → "Probably seen" 4. Check: Any bit not set? → "Definitely not seen" Trade-off: ├─ 1% false positives: Might skip 1% of new URLs ├─ Mitigation: Double-check in database for positives ├─ Savings: 85% less memory (12GB vs 80GB) └─ Decision: Worth it! Formula for size: bits = -n × ln(p) / (ln(2))^2 where n = number of URLs, p = false positive rate For 10B URLs, 1% FP: ├─ bits = -10B × ln(0.01) / (ln(2))^2 ├─ = 95.8 billion bits ├─ = 12GB └─ Fits in RAM! ```
+```text
+Problem: 10B URLs crawled, need to check "have I seen this URL?"
+
+Hash Set Approach:
+├─ Store: All 10B URL hashes
+├─ Memory: 10B × 8 bytes (64-bit hash) = 80GB
+├─ Lookup: O(1), fast
+├─ Accuracy: 100%
+└─ Cost: $1,000/month (80GB RAM)
+
+Bloom Filter Approach:
+├─ Store: Probabilistic data structure
+├─ Memory: 12GB (for 1% false positive rate)
+├─ Lookup: O(1), microseconds
+├─ Accuracy: 99% (1% false positives, 0% false negatives)
+└─ Cost: $150/month (12GB RAM)
+
+How it Works:
+1. Hash URL with K hash functions (K=7 for 1% FPR)
+2. Set K bits in bit array
+3. Check: All K bits set? → "Probably seen"
+4. Check: Any bit not set? → "Definitely not seen"
+
+Trade-off:
+├─ 1% false positives: Might skip 1% of new URLs
+├─ Mitigation: Double-check in database for positives
+├─ Savings: 85% less memory (12GB vs 80GB)
+└─ Decision: Worth it!
+
+Formula for size:
+bits = -n × ln(p) / (ln(2))^2
+where n = number of URLs, p = false positive rate
+
+For 10B URLs, 1% FP:
+├─ bits = -10B × ln(0.01) / (ln(2))^2
+├─ = 95.8 billion bits
+├─ = 12GB
+└─ Fits in RAM!
+```
 
 </details>
 
@@ -3066,6 +3416,7 @@ Cost:
 ├─ 3-node Kafka cluster: $500/month
 ├─ 100 crawler workers: $5,000/month
 ├─ S3 storage (10TB): $230/month
+
 ├─ Total: ~$6,000/month for 10B pages/week
 └─ vs Master-worker: Similar cost but more reliable
 
@@ -3524,6 +3875,7 @@ Total Savings: 86% reduction in storage costs!
 1996 - Early Days:
 ├─ 100 million pages stored
 ├─ No compression, no deduplication
+
 ├─ Total: 100 TB
 ├─ Storage: Local hard drives
 └─ Cost: $100K for drives
@@ -3531,6 +3883,7 @@ Total Savings: 86% reduction in storage costs!
 2005 - Optimization Era:
 ├─ 40 billion pages
 ├─ Added gzip compression (70% reduction)
+
 ├─ Total: 2 PB (compressed)
 ├─ Storage: Petabox (custom hardware)
 └─ Cost: $1M/year for storage
@@ -3538,6 +3891,7 @@ Total Savings: 86% reduction in storage costs!
 2015 - Cloud Migration:
 ├─ 450 billion pages
 ├─ Compression + deduplication
+
 ├─ Total: 15 PB (optimized)
 ├─ Storage: Mix of local + cloud
 ├─ Innovation: WARC format for efficient storage
@@ -3546,6 +3900,7 @@ Total Savings: 86% reduction in storage costs!
 2023 - Modern Architecture:
 ├─ 735 billion pages
 ├─ Compression + deduplication + tiering
+
 ├─ Total: 70 PB (multi-tier)
 ├─ Storage: Hybrid (local + S3 Glacier)
 ├─ Innovation: AI-based similarity detection finds near-duplicates
@@ -5340,6 +5695,8 @@ Step 3: Long-term Solution (Deploy within 24 hours)
 ├─ Retention policy: Define what to keep vs delete
 ├─ Monitoring: Alert at 70% (not 90%!)
 └─ Scaling: Add storage capacity
+
+
 
 Step 4: Cost Optimization
 ├─ Before: 1 PB all in S3 STANDARD = $23K/month
