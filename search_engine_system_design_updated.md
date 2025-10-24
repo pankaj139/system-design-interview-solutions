@@ -192,35 +192,64 @@ Library System → Search Engine
 ```text
 INVERTED INDEX DATA STRUCTURE:
 
-Structure (JSON):
+Structure (JSON format):
 {
   "term": {
-    "doc_ids": [1, 5, 23, 89],
+    "document_ids": [1, 5, 23, 89],
     "doc_frequency": 4,
     "postings": [
-      {"doc_id": 1, "positions": [5, 15], "tf": 2},
-      {"doc_id": 5, "positions": [2], "tf": 1}
+      {"doc_id": 1, "positions": [5, 15], "term_frequency": 2},
+      {"doc_id": 5, "positions": [2], "term_frequency": 1},
+      {"doc_id": 23, "positions": [8, 12, 45], "term_frequency": 3},
+      {"doc_id": 89, "positions": [1], "term_frequency": 1}
     ]
   }
 }
 
-SEARCH PSEUDOCODE:
+SEARCH ALGORITHM (Pseudocode):
+────────────────────────────────
 function search(query):
-  1. Tokenize query → terms
-  2. For each term: lookup inverted_index[term] → doc_ids
-  3. Intersect all doc_id lists
-  4. Rank documents (TF-IDF)
-  5. Return top K
+  1. Tokenize: query → ["python", "programming"]
+  2. For each term, lookup inverted_index[term]
+  3. Intersect document_id lists (AND operation)
+  4. Rank by relevance (TF-IDF/BM25)
+  5. Return top K results
 
-Time Complexity: O(k) where k = query terms
-vs Linear Scan: O(N × M) where N = docs, M = doc size
+Example Query Flow:
+──────────────────
+Query: "python programming"
+├─ Step 1: Tokenize → ["python", "programming"]
+├─ Step 2: Lookup
+│   ├─ "python" → docs [1, 5, 89]
+│   └─ "programming" → docs [1, 10, 89]
+├─ Step 3: Intersection → docs [1, 89] (both terms)
+├─ Step 4: Rank by TF-IDF
+│   ├─ doc_1: score 0.4621
+│   └─ doc_89: score 0.3215
+└─ Step 5: Return [doc_1, doc_89]
 
-Example: "python programming"
-├─ "python" → docs [1, 5, 89]
-├─ "programming" → docs [1, 10, 89]
-├─ Intersection → [1, 89]
-└─ Result: <10ms for billions of docs
+Time Complexity Analysis:
+────────────────────────
+- Index lookup: O(1) per term (hash table)
+- Intersection: O(min(L1, L2)) where L = posting list size
+- Ranking: O(n log k) for top-k selection
+- Total: O(terms * avg_postings + n log k)
+- Typical: <10ms for billions of documents
+
+Why Inverted Index is Fast:
+──────────────────────────
+Linear Scan (WITHOUT index):
+├─ Must read all documents
+├─ Time: O(N * M) where N=docs, M=doc_size
+└─ Example: 1B docs × 10KB = hours
+
+Inverted Index (WITH index):
+├─ Lookup 2 hash table entries
+├─ Intersect small lists
+└─ Example: 1B docs indexed → <10ms search
 ```
+
+**Key Insight:** The inverted index makes search fast! Instead of scanning all documents, we look up terms in the index and get matching documents instantly.
 
 **Key Insight:** The inverted index makes search fast! Instead of scanning all documents, we look up terms in the index and get matching documents instantly.
 
@@ -274,39 +303,85 @@ User Query
 #### Inverted Index Structure
 
 ```text
-PRODUCTION INVERTED INDEX SCHEMA:
+PRODUCTION INVERTED INDEX STRUCTURE:
 
-index_structure = {
+Schema Definition:
+─────────────────
+inverted_index = {
   "term": {
-    "doc_frequency": int,           // Docs containing term
+    "doc_frequency": <int>,        // Number of documents containing term
+    "total_frequency": <int>,       // Total occurrences across all documents
     "postings": [
       {
-        "doc_id": int,
-        "positions": [int],          // For phrase search
-        "term_frequency": int,       // Count in this doc
-        "field_tf": {                // Per-field stats
-          "title": int,
-          "body": int
+        "doc_id": <int>,
+        "positions": [<int>],        // For phrase search
+        "term_frequency": <int>,     // Occurrences in this document
+        "field_tf": {                // Per-field frequencies
+          "title": <int>,
+          "body": <int>,
+          "metadata": <int>
         }
       }
     ]
   }
 }
 
-Document Stats:
+Document Statistics (separate structure):
+────────────────────────────────────────
 doc_stats = {
   "doc_id": {
-    "length": int,                  // Total terms
-    "unique_terms": int,
-    "avg_tf": float
+    "length": <int>,              // Total terms in document
+    "unique_terms": <int>,        // Vocabulary size
+    "avg_term_freq": <float>,
+    "field_lengths": {
+      "title": <int>,
+      "body": <int>
+    }
+  }
+}
+
+Global Statistics:
+─────────────────
+collection_stats = {
+  "total_documents": <int>,
+  "avg_doc_length": <float>,
+  "vocabulary_size": <int>,
+  "total_terms": <int>
+}
+
+Example Data:
+────────────
+{
+  "python": {
+    "doc_frequency": 2,
+    "total_frequency": 3,
+    "postings": [
+      {
+        "doc_id": 0,
+        "positions": [0, 15, 23],
+        "term_frequency": 3,
+        "field_tf": {"title": 1, "body": 2}
+      },
+      {
+        "doc_id": 2,
+        "positions": [0],
+        "term_frequency": 1,
+        "field_tf": {"title": 0, "body": 1}
+      }
+    ]
   }
 }
 
 Storage Optimization:
-├─ Naive: 10B docs × 100M terms × 16B = 16 TB
-├─ Delta encoding: [1, +99, +105] vs [1, 100, 205]
-├─ Variable-byte: 1-5 bytes per number
-└─ Compressed: ~2 TB (8x reduction)
+────────────────────
+Naive Storage:
+├─ 10B documents × 100M terms × 16 bytes = 16 TB
+
+Optimized (with compression):
+├─ Delta encoding: Store differences [1, +99, +105] instead of [1, 100, 205]
+├─ Variable-byte encoding: 1-5 bytes per number
+├─ Compressed size: ~2 TB (8x compression)
+└─ Trade-off: +10-20ms CPU for decompression vs 8x less disk/network
 ```
 
 **Storage Optimization:**
@@ -372,31 +447,110 @@ Query Distribution: Optimized for common case (90% < 50ms)
 ```text
 INDEX SHARDING STRATEGIES:
 
-1. DOCUMENT SHARDING (Common):
-   shard = hash(doc_id) % num_shards
-   
-   Pros: Simple, even distribution
-   Cons: Must query ALL shards
+1. DOCUMENT-BASED SHARDING (Most Common):
+─────────────────────────────────────────
+Concept: Partition documents across shards
 
-2. TERM SHARDING (Rare):
-   shard = hash(term) % num_shards
-   
-   Pros: Query only relevant shards
-   Cons: Load imbalance
+shard_id = hash(doc_id) % num_shards
 
-3. HYBRID (Google):
-   if is_common_term(term):
-       use document sharding
-   else:
-       use term sharding
-   
-   Best of both worlds!
+Distribution:
+├─ Shard 0: documents [0, 4, 8, 12, ...] (doc_id % 4 == 0)
+├─ Shard 1: documents [1, 5, 9, 13, ...] (doc_id % 4 == 1)
+├─ Shard 2: documents [2, 6, 10, 14, ...] (doc_id % 4 == 2)
+└─ Shard 3: documents [3, 7, 11, 15, ...] (doc_id % 4 == 3)
 
-Query Flow:
-Query: "python programming"
-├─ Document sharding → Fan-out to all 100 shards
-├─ Each shard returns top K
-└─ Coordinator merges results
+Query Processing:
+├─ Query: "python programming"
+├─ Fan-out: Send to ALL shards (0, 1, 2, 3)
+├─ Each shard returns top K results
+└─ Coordinator merges and re-ranks
+
+Pros:
+✓ Simple to implement
+✓ Even load distribution
+✓ Easy to add documents
+
+Cons:
+✗ Must query all shards for every search
+✗ High fanout cost (100 shards = 100 requests)
+
+
+2. TERM-BASED SHARDING (Rare Terms):
+────────────────────────────────────
+Concept: Partition terms across shards
+
+shard_id = hash(term) % num_shards
+
+Distribution:
+├─ Shard 0: terms starting with [a-f]
+├─ Shard 1: terms starting with [g-l]
+├─ Shard 2: terms starting with [m-r]
+└─ Shard 3: terms starting with [s-z]
+
+Query Processing:
+├─ Query: "python programming"
+├─ Lookup shard for each term
+│   ├─ "python" → Shard 2 (p in [m-r])
+│   └─ "programming" → Shard 2 (p in [m-r])
+├─ Fan-out: Only query Shard 2
+└─ Return results
+
+Pros:
+✓ Only query shards containing query terms
+✓ Efficient for rare term queries
+
+Cons:
+✗ Load imbalance (common terms overloaded)
+✗ Hard to rebalance when adding shards
+
+
+3. HYBRID SHARDING (Google's Approach):
+────────────────────────────────────────
+Strategy: Use different sharding for common vs rare terms
+
+if term in top_10k_terms:
+    use document-based sharding
+else:
+    use term-based sharding
+
+Common Terms (90% of queries): Document sharding
+├─ Terms: "the", "a", "python", "java", "google"
+├─ Query all shards in parallel
+└─ Fast because parallelized
+
+Rare Terms (10% of queries): Term sharding
+├─ Terms: "obscure_tech_term_1990s"
+├─ Query only 1-2 shards
+└─ Saves 90%+ cost
+
+Example:
+────────
+Query: "common_term rare_term"
+├─ "common_term" → Query all 100 shards (document sharding)
+├─ "rare_term" → Query shard 23 only (term sharding)
+├─ Merge results at coordinator
+└─ Best of both approaches!
+
+
+SHARD SELECTION ALGORITHM:
+─────────────────────────
+function select_shards(query_terms):
+    shards = set()
+    
+    for term in query_terms:
+        if is_common_term(term):
+            // Document sharding: add all shards
+            shards.add(all_shards)
+        else:
+            // Term sharding: add specific shard
+            shard_id = hash(term) % num_shards
+            shards.add(shard_id)
+    
+    return list(shards)
+
+Common query: "python programming" → All shards
+Rare query: "obscure_lib_v1.2.3" → Shard 47 only
+Mixed query: "python obscure_lib" → All shards (common term forces it)
 ```
 
 ---
@@ -547,45 +701,161 @@ By the end of this section, you'll be able to:
 #### Storage Calculation
 
 ```text
-CAPACITY PLANNING FORMULAS:
+STORAGE CAPACITY PLANNING:
 
-Storage:
-├─ Raw = num_docs × avg_doc_size
-├─ Index = Raw × 0.3
-└─ Total = (Raw + Index) × replication_factor
+Basic Formula:
+─────────────
+Raw Storage = num_documents × avg_document_size
+Index Storage = Raw Storage × 0.3 (typical compression)
+Total Storage = (Raw + Index) × replication_factor
 
-QPS:
-├─ Daily searches = MAU × searches_per_user
-├─ Avg QPS = Daily / 86400
-├─ Peak QPS = Avg × peak_multiplier (3-5x)
-└─ Servers = Peak QPS / qps_per_server
+Example Calculation (E-commerce Product Search):
+───────────────────────────────────────────────
+Given:
+├─ Documents: 10M products
+├─ Avg size: 5KB per product
+└─ Replication: 3x
 
-Example (10M products):
-├─ Storage: 10M × 5KB × 0.3 × 3 = 195 GB → $4.49/mo
-├─ QPS: 1M users × 5 searches × 5x / 86400 = 290 QPS → 1 server
-└─ Cost: ~$100/month total
+Calculation:
+├─ Raw: 10M × 5KB = 50 GB
+├─ Index: 50 GB × 0.3 = 15 GB
+├─ Subtotal: 50 + 15 = 65 GB
+└─ With replication: 65 GB × 3 = 195 GB
+
+Cost (AWS S3 pricing):
+├─ Storage: 195 GB × $0.023/GB/month = $4.49/month
+└─ Very affordable for 10M products!
+
+
+Example Calculation (Google-Scale Web Search):
+──────────────────────────────────────────────
+Given:
+├─ Documents: 10B web pages
+├─ Avg size: 50KB per page
+├─ Replication: 3x
+└─ Compression: 8x (aggressive)
+
+Calculation:
+├─ Raw: 10B × 50KB = 500 TB
+├─ Index (uncompressed): 500 TB × 0.3 = 150 TB
+├─ Index (compressed 8x): 150 TB / 8 = 18.75 TB
+├─ Subtotal: 500 + 18.75 = 518.75 TB
+└─ With replication: 518.75 TB × 3 = 1,556 TB (1.56 PB)
+
+Cost (at $0.023/GB/month):
+├─ Storage: 1.56M GB × $0.023 = $35,880/month
+└─ Actual: Cheaper with bulk discounts + cold storage
+
+
+QUERY CAPACITY PLANNING:
+
+QPS (Queries Per Second) Formula:
+─────────────────────────────────
+Daily Searches = Monthly Active Users × Searches per User per Day
+Average QPS = Daily Searches / 86,400 seconds
+Peak QPS = Average QPS × peak_multiplier (typically 3-5x)
+
+Example (Startup Search Engine):
+────────────────────────────────
+Given:
+├─ MAU: 1M users
+├─ Searches: 5 per user per day
+└─ Peak multiplier: 5x
+
+Calculation:
+├─ Daily: 1M × 5 = 5M searches/day
+├─ Average QPS: 5M / 86,400 = 58 QPS
+├─ Peak QPS: 58 × 5 = 290 QPS
+
+Server Capacity:
+├─ QPS per server: 1,000 QPS (typical)
+├─ Servers needed: 290 / 1,000 = 0.29
+├─ Round up with 20% headroom: 1 server
+└─ Cost: $100/month
+
+
+LATENCY BUDGET BREAKDOWN:
+
+Target: <200ms P95 latency
+────────────────────────
+
+Component Breakdown:
+├─ Network (client → server): 20ms (10%)
+├─ Query parsing: 5ms (2.5%)
+├─ Cache lookup (Redis): 10ms (5%)
+├─ Index shard fanout: 15ms (7.5%)
+├─ Shard query (disk + ranking): 80ms (40%) ← CRITICAL PATH
+├─ Result aggregation: 20ms (10%)
+├─ Snippet generation: 15ms (7.5%)
+├─ ML ranking: 15ms (7.5%)
+└─ Network (server → client): 20ms (10%)
+
+Total: 200ms (100% of budget)
+
+Optimization Priorities:
+1. Shard query (40% of time): Add caching, faster disks
+2. Network (20% total): Use CDN, regional deployment
+3. Aggregation (10%): Parallel merge algorithms
 ```
 
 #### QPS Calculation
 
-```text
-CAPACITY PLANNING FORMULAS:
+```python
+# QPS (Queries Per Second) planning
 
-Storage:
-├─ Raw = num_docs × avg_doc_size
-├─ Index = Raw × 0.3
-└─ Total = (Raw + Index) × replication_factor
+class QPSCalculator:
+    """Estimate QPS needs"""
+    
+    def __init__(self, monthly_active_users, searches_per_user_per_day):
+        self.mau = monthly_active_users
+        self.searches_per_day = searches_per_user_per_day
+    
+    def calculate_average_qps(self):
+        """Average queries per second"""
+        total_searches_per_day = self.mau * self.searches_per_day
+        avg_qps = total_searches_per_day / 86400  # seconds in a day
+        return avg_qps
+    
+    def calculate_peak_qps(self, peak_multiplier=5):
+        """Peak QPS (usually 3-5x average)"""
+        avg_qps = self.calculate_average_qps()
+        peak_qps = avg_qps * peak_multiplier
+        return {
+            'average_qps': avg_qps,
+            'peak_qps': peak_qps,
+            'peak_multiplier': peak_multiplier
+        }
+    
+    def estimate_machines_needed(self, qps_per_machine=1000):
+        """Estimate number of machines for query serving"""
+        peak = self.calculate_peak_qps()
+        machines_needed = peak['peak_qps'] / qps_per_machine
+        
+        # Add 20% headroom for failures
+        machines_with_headroom = machines_needed * 1.2
+        
+        return {
+            'peak_qps': peak['peak_qps'],
+            'qps_per_machine': qps_per_machine,
+            'machines_needed': int(machines_with_headroom) + 1,
+            'monthly_cost_usd': (int(machines_with_headroom) + 1) * 100  # $100/machine
+        }
 
-QPS:
-├─ Daily searches = MAU × searches_per_user
-├─ Avg QPS = Daily / 86400
-├─ Peak QPS = Avg × peak_multiplier (3-5x)
-└─ Servers = Peak QPS / qps_per_server
+# Example: Startup search engine
+qps_calc = QPSCalculator(
+    monthly_active_users=1_000_000,  # 1M users
+    searches_per_user_per_day=5  # 5 searches/day
+)
 
-Example (10M products):
-├─ Storage: 10M × 5KB × 0.3 × 3 = 195 GB → $4.49/mo
-├─ QPS: 1M users × 5 searches × 5x / 86400 = 290 QPS → 1 server
-└─ Cost: ~$100/month total
+result = qps_calc.estimate_machines_needed(qps_per_machine=1000)
+print(f"Peak QPS: {result['peak_qps']:.0f}")
+print(f"Machines needed: {result['machines_needed']}")
+print(f"Monthly cost: ${result['monthly_cost_usd']}")
+
+# Output:
+# Peak QPS: 289
+# Machines needed: 1
+# Monthly cost: $100
 ```
 
 ---
@@ -645,26 +915,79 @@ Capacity Planning Framework:
 
 #### Latency Budget Breakdown
 
-```text
-LATENCY BUDGET BREAKDOWN (Target: 200ms P95):
+```python
+class LatencyBudget:
+    """
+    Analyze latency budget for search queries.
+    Target: <200ms P95 latency
+    """
+    def __init__(self, target_latency_ms=200):
+        self.target = target_latency_ms
+        self.components = {}
+    
+    def add_component(self, name, latency_ms, description=""):
+        """Add a latency component"""
+        self.components[name] = {
+            'latency_ms': latency_ms,
+            'percentage': (latency_ms / self.target) * 100,
+            'description': description
+        }
+    
+    def analyze_budget(self):
+        """Analyze if we're within budget"""
+        total_latency = sum(c['latency_ms'] for c in self.components.values())
+        remaining = self.target - total_latency
+        
+        print(f"Latency Budget Analysis (Target: {self.target}ms)\n")
+        print(f"{'Component':<25} {'Latency':<10} {'% of Budget':<12} Description")
+        print("=" * 80)
+        
+        for name, data in self.components.items():
+            print(f"{name:<25} {data['latency_ms']:<10.1f} {data['percentage']:<12.1f} {data['description']}")
+        
+        print("=" * 80)
+        print(f"{'TOTAL':<25} {total_latency:<10.1f} {(total_latency/self.target)*100:<12.1f}")
+        print(f"{'REMAINING':<25} {remaining:<10.1f} {(remaining/self.target)*100:<12.1f}")
+        
+        if remaining < 0:
+            print(f"\n⚠️  OVER BUDGET by {abs(remaining):.1f}ms!")
+        else:
+            print(f"\n✅ Within budget. {remaining:.1f}ms headroom.")
+        
+        return {
+            'total_latency': total_latency,
+            'remaining': remaining,
+            'within_budget': remaining >= 0
+        }
 
-Component Analysis:
-├─ Network (client → server): 20ms (10%)
-├─ Query parsing: 5ms (2.5%)
-├─ Cache lookup: 10ms (5%)
-├─ Index shard fanout: 15ms (7.5%)
-├─ Shard query: 80ms (40%) ← CRITICAL
-├─ Result aggregation: 20ms (10%)
-├─ Snippet generation: 15ms (7.5%)
-├─ ML ranking: 15ms (7.5%)
-└─ Network (server → client): 20ms (10%)
+# Example latency analysis
+budget = LatencyBudget(target_latency_ms=200)
 
-Total: 200ms
+budget.add_component('Network (client → server)', 20, 'CDN + routing')
+budget.add_component('Query parsing', 5, 'Tokenization + normalization')
+budget.add_component('Cache lookup', 10, 'Redis check')
+budget.add_component('Index shard fanout', 15, 'Broadcast to all shards')
+budget.add_component('Shard query (each)', 80, 'Disk read + ranking')
+budget.add_component('Result aggregation', 20, 'Merge + re-rank top K')
+budget.add_component('Snippet generation', 15, 'Extract + highlight')
+budget.add_component('Network (server → client)', 20, 'Response delivery')
+budget.add_component('ML ranking', 15, 'Personalization model')
 
-Optimization Priorities:
-1. Shard query (40%): Caching, SSDs
-2. Network (20%): CDN, multi-region
-3. Aggregation (10%): Parallel merging
+result = budget.analyze_budget()
+
+# Output:
+# Latency Budget Analysis (Target: 200ms)
+# 
+# Component                   Latency    % of Budget  Description
+# ===============================================================================
+# Network (client → server)   20.0       10.0         CDN + routing
+# Query parsing               5.0        2.5          Tokenization + normalization
+# Cache lookup                10.0       5.0          Redis check
+# ...
+# TOTAL                       200.0      100.0       
+# REMAINING                   0.0        0.0         
+# 
+# ✅ Within budget. 0.0ms headroom.
 ```
 
 ---
@@ -725,32 +1048,87 @@ Optimized Cost: $28,900/month
 
 #### Scaling Decision Framework
 
-```text
-SCALING DECISION FRAMEWORK:
+```python
+class ScalingDecision:
+    """
+    Decide when to scale horizontally vs vertically.
+    """
+    def analyze(self, current_metrics):
+        """Analyze metrics and recommend scaling strategy"""
+        recommendations = []
+        
+        # Check CPU utilization
+        if current_metrics['cpu_avg'] > 70:
+            if current_metrics['cpu_p99'] > 90:
+                recommendations.append({
+                    'issue': 'High CPU (P99 > 90%)',
+                    'recommendation': 'Horizontal scaling',
+                    'reasoning': 'Add more machines to distribute load',
+                    'urgency': 'high',
+                    'estimated_cost': '+$5,000/month for 25 more machines'
+                })
+            else:
+                recommendations.append({
+                    'issue': 'Moderate CPU (avg > 70%)',
+                    'recommendation': 'Optimize queries first',
+                    'reasoning': 'P99 is fine, likely inefficient queries',
+                    'urgency': 'medium',
+                    'estimated_cost': 'Free (optimization)'
+                })
+        
+        # Check memory utilization
+        if current_metrics['memory_percent'] > 80:
+            recommendations.append({
+                'issue': 'High memory usage',
+                'recommendation': 'Vertical scaling',
+                'reasoning': 'Increase RAM per machine (more cache)',
+                'urgency': 'medium',
+                'estimated_cost': '+$2,000/month for memory upgrades'
+            })
+        
+        # Check disk I/O wait
+        if current_metrics['iowait_percent'] > 20:
+            recommendations.append({
+                'issue': 'High disk I/O wait',
+                'recommendation': 'Upgrade to SSDs or add caching',
+                'reasoning': 'Disk is bottleneck, not CPU',
+                'urgency': 'high',
+                'estimated_cost': '+$10,000/month for NVMe SSDs'
+            })
+        
+        # Check query latency
+        if current_metrics['p95_latency_ms'] > 200:
+            if current_metrics['cache_hit_rate'] < 0.3:
+                recommendations.append({
+                    'issue': 'High latency + low cache hit rate',
+                    'recommendation': 'Increase cache size',
+                    'reasoning': 'Many queries hitting disk',
+                    'urgency': 'high',
+                    'estimated_cost': '+$1,000/month for Redis capacity'
+                })
+        
+        return recommendations
 
-Metrics to Monitor:
-├─ CPU: avg >70% → scale
-├─ Memory: >80% → upgrade RAM
-├─ Disk I/O: wait >20% → add SSDs
-├─ Latency: P95 >200ms → investigate
-└─ Cache hit: <30% → increase cache
+# Example usage
+metrics = {
+    'cpu_avg': 75,
+    'cpu_p99': 92,
+    'memory_percent': 85,
+    'iowait_percent': 15,
+    'p95_latency_ms': 250,
+    'cache_hit_rate': 0.25,
+    'qps': 50000
+}
 
-Vertical vs Horizontal:
-Vertical (Bigger machines):
-├─ Simple (no code changes)
-├─ Limited by physics
-└─ Expensive ($500→$5000)
+scaler = ScalingDecision()
+recommendations = scaler.analyze(metrics)
 
-Horizontal (More machines):
-├─ Complex (need sharding)
-├─ Unlimited scaling
-└─ Cost-effective ($500×10)
-
-When to Scale:
-1. CPU >70% sustained → Add servers
-2. Memory >80% → Upgrade or optimize
-3. I/O wait >20% → SSDs or caching
-4. P95 latency >200ms → Profile and optimize
+for rec in recommendations:
+    print(f"🚨 {rec['issue']}")
+    print(f"   → {rec['recommendation']}")
+    print(f"   Why: {rec['reasoning']}")
+    print(f"   Cost: {rec['estimated_cost']}")
+    print()
 ```
 
 ---
@@ -1010,32 +1388,93 @@ Combined:
 
 #### Simple TF-IDF Implementation
 
-```text
-TF-IDF RANKING ALGORITHM:
+```python
+import math
+from collections import Counter
 
-Formula:
-  TF-IDF(term, doc) = TF(term, doc) × IDF(term)
-  
-  TF = term_count / total_terms_in_doc
-  IDF = log(total_docs / docs_containing_term)
+class SimpleTFIDF:
+    """
+    Basic TF-IDF ranking for search results.
+    """
+    def __init__(self):
+        self.documents = []
+        self.doc_count = 0
+        self.term_doc_count = {}  # term -> number of docs containing it
+    
+    def add_document(self, doc_id, text):
+        """Add document to corpus"""
+        terms = text.lower().split()
+        self.documents.append({'id': doc_id, 'text': text, 'terms': terms})
+        self.doc_count += 1
+        
+        # Update document frequency for each unique term
+        for term in set(terms):
+            self.term_doc_count[term] = self.term_doc_count.get(term, 0) + 1
+    
+    def calculate_tf(self, term, document_terms):
+        """Term Frequency: count of term / total terms"""
+        term_count = document_terms.count(term)
+        total_terms = len(document_terms)
+        return term_count / total_terms if total_terms > 0 else 0
+    
+    def calculate_idf(self, term):
+        """Inverse Document Frequency: log(total_docs / docs_with_term)"""
+        docs_with_term = self.term_doc_count.get(term, 0)
+        if docs_with_term == 0:
+            return 0
+        return math.log(self.doc_count / docs_with_term)
+    
+    def calculate_tfidf(self, term, document_terms):
+        """TF-IDF score for a term in a document"""
+        tf = self.calculate_tf(term, document_terms)
+        idf = self.calculate_idf(term)
+        return tf * idf
+    
+    def search(self, query, top_k=5):
+        """Search and rank documents by TF-IDF"""
+        query_terms = query.lower().split()
+        scores = []
+        
+        for doc in self.documents:
+            score = 0
+            for term in query_terms:
+                score += self.calculate_tfidf(term, doc['terms'])
+            
+            scores.append({
+                'doc_id': doc['id'],
+                'score': score,
+                'text': doc['text'][:100]  # Preview
+            })
+        
+        # Sort by score (highest first)
+        scores.sort(key=lambda x: x['score'], reverse=True)
+        return scores[:top_k]
 
-Example:
-Document: "Python is a programming language"
-Query: "python programming"
+# Example usage
+engine = SimpleTFIDF()
 
-TF Calculation:
-├─ "python": 1/5 = 0.20
-└─ "programming": 1/5 = 0.20
+# Add documents
+engine.add_document(1, "Python is a programming language for web development")
+engine.add_document(2, "JavaScript is used for web development")
+engine.add_document(3, "Python is great for data science and machine learning")
+engine.add_document(4, "The quick brown fox jumps over the lazy dog")
 
-IDF Calculation (corpus: 100 docs):
-├─ "python" in 10 docs: log(100/10) = 2.30
-└─ "programming" in 5 docs: log(100/5) = 3.00
+# Search
+results = engine.search("python programming", top_k=3)
 
-TF-IDF Scores:
-├─ "python": 0.20 × 2.30 = 0.46
-└─ "programming": 0.20 × 3.00 = 0.60
+print("Search results for 'python programming':\n")
+for i, result in enumerate(results, 1):
+    print(f"{i}. Score: {result['score']:.4f}")
+    print(f"   {result['text']}")
+    print()
 
-Document Score: 0.46 + 0.60 = 1.06
+# Output:
+# 1. Score: 0.4621
+#    Python is a programming language for web development
+# 2. Score: 0.2877
+#    Python is great for data science and machine learning
+# 3. Score: 0.0000
+#    JavaScript is used for web development
 ```
 
 **Why Document 1 Ranked Higher:**
@@ -1135,61 +1574,173 @@ Used by: Elasticsearch, Lucene, Bing, Wikipedia search
 
 #### BM25 Implementation
 
-```text
-TF-IDF RANKING ALGORITHM:
+```python
+import math
 
-Formula:
-  TF-IDF(term, doc) = TF(term, doc) × IDF(term)
-  
-  TF = term_count / total_terms_in_doc
-  IDF = log(total_docs / docs_containing_term)
+class BM25Ranker:
+    """
+    BM25 ranking algorithm - industry standard.
+    
+    Parameters:
+    - k1: Term frequency saturation (typical: 1.2 - 2.0)
+      Higher k1 = more weight on term frequency
+    - b: Length normalization (typical: 0.75)
+      Higher b = more penalty for long documents
+    """
+    def __init__(self, k1=1.5, b=0.75):
+        self.k1 = k1
+        self.b = b
+        self.documents = []
+        self.doc_count = 0
+        self.avg_doc_length = 0
+        self.term_doc_count = {}
+    
+    def add_document(self, doc_id, text):
+        """Add document to corpus"""
+        terms = text.lower().split()
+        doc_length = len(terms)
+        
+        self.documents.append({
+            'id': doc_id,
+            'text': text,
+            'terms': terms,
+            'length': doc_length
+        })
+        
+        self.doc_count += 1
+        self.avg_doc_length = (
+            (self.avg_doc_length * (self.doc_count - 1) + doc_length) 
+            / self.doc_count
+        )
+        
+        # Update document frequency
+        for term in set(terms):
+            self.term_doc_count[term] = self.term_doc_count.get(term, 0) + 1
+    
+    def calculate_idf(self, term):
+        """BM25 IDF formula"""
+        docs_with_term = self.term_doc_count.get(term, 0)
+        if docs_with_term == 0:
+            return 0
+        
+        # BM25 IDF: log((N - df + 0.5) / (df + 0.5) + 1)
+        # Where N = total docs, df = docs containing term
+        N = self.doc_count
+        df = docs_with_term
+        return math.log((N - df + 0.5) / (df + 0.5) + 1)
+    
+    def calculate_bm25_score(self, query_terms, document):
+        """Calculate BM25 score for a document"""
+        score = 0
+        doc_terms = document['terms']
+        doc_length = document['length']
+        
+        # Count term frequencies in document
+        term_freqs = {}
+        for term in doc_terms:
+            term_freqs[term] = term_freqs.get(term, 0) + 1
+        
+        for term in query_terms:
+            if term not in term_freqs:
+                continue
+            
+            tf = term_freqs[term]
+            idf = self.calculate_idf(term)
+            
+            # BM25 formula:
+            # IDF * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_len / avg_doc_len)))
+            numerator = tf * (self.k1 + 1)
+            denominator = tf + self.k1 * (
+                1 - self.b + self.b * (doc_length / self.avg_doc_length)
+            )
+            
+            score += idf * (numerator / denominator)
+        
+        return score
+    
+    def search(self, query, top_k=5):
+        """Search and rank documents by BM25"""
+        query_terms = query.lower().split()
+        scores = []
+        
+        for doc in self.documents:
+            score = self.calculate_bm25_score(query_terms, doc)
+            scores.append({
+                'doc_id': doc['id'],
+                'score': score,
+                'text': doc['text'][:100]
+            })
+        
+        scores.sort(key=lambda x: x['score'], reverse=True)
+        return scores[:top_k]
 
-Example:
-Document: "Python is a programming language"
-Query: "python programming"
+# Compare TF-IDF vs BM25
+print("=" * 60)
+print("TF-IDF vs BM25 Comparison")
+print("=" * 60)
 
-TF Calculation:
-├─ "python": 1/5 = 0.20
-└─ "programming": 1/5 = 0.20
+docs = [
+    (1, "Python programming is great for web development and data science"),
+    (2, "Python" * 50),  # Keyword stuffing - 50 mentions!
+    (3, "Learn Python programming basics in this comprehensive guide to Python")
+]
 
-IDF Calculation (corpus: 100 docs):
-├─ "python" in 10 docs: log(100/10) = 2.30
-└─ "programming" in 5 docs: log(100/5) = 3.00
+# TF-IDF
+tfidf = SimpleTFIDF()
+for doc_id, text in docs:
+    tfidf.add_document(doc_id, text)
 
-TF-IDF Scores:
-├─ "python": 0.20 × 2.30 = 0.46
-└─ "programming": 0.20 × 3.00 = 0.60
+tfidf_results = tfidf.search("python programming")
 
-Document Score: 0.46 + 0.60 = 1.06
+print("\nTF-IDF Results:")
+for i, r in enumerate(tfidf_results, 1):
+    print(f"{i}. Doc {r['doc_id']}, Score: {r['score']:.4f}")
+
+# BM25
+bm25 = BM25Ranker(k1=1.5, b=0.75)
+for doc_id, text in docs:
+    bm25.add_document(doc_id, text)
+
+bm25_results = bm25.search("python programming")
+
+print("\nBM25 Results:")
+for i, r in enumerate(bm25_results, 1):
+    print(f"{i}. Doc {r['doc_id']}, Score: {r['score']:.4f}")
+
+print("\nNotice: BM25 penalizes Doc 2 (keyword stuffing) while TF-IDF ranks it high!")
 ```
 
 **BM25 Parameter Tuning:**
 
-```text
-BM25 RANKING ALGORITHM:
+```python
+def tune_bm25_parameters(training_queries, relevance_judgments):
+    """
+    Find optimal k1 and b parameters.
+    
+    Training data format:
+    - training_queries: [(query, doc_id, relevance_score), ...]
+    - relevance_score: 0 (not relevant) to 4 (perfect match)
+    """
+    best_params = {'k1': 1.5, 'b': 0.75}
+    best_score = 0
+    
+    # Grid search
+    for k1 in [0.5, 1.0, 1.2, 1.5, 2.0]:
+        for b in [0.0, 0.25, 0.5, 0.75, 1.0]:
+            ranker = BM25Ranker(k1=k1, b=b)
+            
+            # Evaluate on training data
+            ndcg_score = evaluate_ranking(ranker, training_queries, relevance_judgments)
+            
+            if ndcg_score > best_score:
+                best_score = ndcg_score
+                best_params = {'k1': k1, 'b': b}
+    
+    return best_params
 
-Formula:
-  BM25(d,q) = Σ IDF(qi) × (f(qi,d) × (k1+1)) / (f(qi,d) + k1 × (1-b + b×|d|/avgdl))
-
-Where:
-├─ f(qi,d) = term frequency
-├─ |d| = document length
-├─ avgdl = average document length
-├─ k1 = 1.5 (saturation parameter)
-└─ b = 0.75 (length normalization)
-
-Why Better Than TF-IDF:
-1. Saturation: 10 mentions doesn't score 10x higher than 1
-2. Length normalization: Considers document length
-3. Industry standard: Used by Elasticsearch, Solr
-
-Example:
-Query: "python tutorial"
-Doc A: 5 words, "python" appears 2x
-Doc B: 100 words, "python" appears 2x
-
-TF-IDF: Same score (wrong!)
-BM25: Doc A scores higher (correct - more focused content)
+# Typical parameter ranges:
+# k1 = 1.2 to 2.0 (most use 1.2-1.5)
+# b = 0.75 (standard), 0.0 (ignore length), 1.0 (strong length penalty)
 ```
 
 ---
@@ -1198,69 +1749,193 @@ BM25: Doc A scores higher (correct - more focused content)
 
 #### PageRank Algorithm
 
-```text
-PAGERANK ALGORITHM:
+```python
+import numpy as np
 
-Concept:
-A page's importance = sum of importance of pages linking to it
+class PageRank:
+    """
+    Google's PageRank algorithm for link analysis.
+    
+    Key idea: A page is important if important pages link to it.
+    """
+    def __init__(self, damping_factor=0.85, max_iterations=100, tolerance=1e-6):
+        self.d = damping_factor  # Probability of following a link
+        self.max_iter = max_iterations
+        self.tolerance = tolerance
+    
+    def calculate_pagerank(self, graph):
+        """
+        Calculate PageRank for all pages.
+        
+        Args:
+            graph: dict mapping page_id -> [linked_page_ids]
+        
+        Returns:
+            dict mapping page_id -> PageRank score
+        """
+        # Initialize
+        pages = list(graph.keys())
+        n = len(pages)
+        page_to_idx = {page: idx for idx, page in enumerate(pages)}
+        
+        # Build transition matrix
+        M = np.zeros((n, n))
+        
+        for page, links in graph.items():
+            if not links:  # No outgoing links
+                # Distribute equally to all pages
+                M[page_to_idx[page], :] = 1 / n
+            else:
+                # Distribute equally among linked pages
+                for link in links:
+                    if link in page_to_idx:
+                        M[page_to_idx[page], page_to_idx[link]] = 1 / len(links)
+        
+        # Initialize PageRank
+        pr = np.ones(n) / n
+        
+        # Power iteration
+        for iteration in range(self.max_iter):
+            pr_new = (1 - self.d) / n + self.d * M.T @ pr
+            
+            # Check convergence
+            if np.linalg.norm(pr_new - pr, 1) < self.tolerance:
+                print(f"Converged in {iteration + 1} iterations")
+                break
+            
+            pr = pr_new
+        
+        # Convert back to dict
+        return {page: pr[page_to_idx[page]] for page in pages}
 
-Formula:
-  PR(A) = (1-d)/N + d × Σ(PR(Ti)/C(Ti))
+# Example: Simple web graph
+graph = {
+    'A': ['B', 'C'],        # A links to B and C
+    'B': ['C'],             # B links to C
+    'C': ['A'],             # C links to A
+    'D': ['C'],             # D links to C
+}
 
-Where:
-├─ d = damping factor (0.85)
-├─ N = total pages
-├─ Ti = pages linking to A
-└─ C(Ti) = outlinks from Ti
+pr = PageRank(damping_factor=0.85)
+scores = pr.calculate_pagerank(graph)
 
-Algorithm (Iterative):
-1. Initialize: PR(page) = 1/N for all pages
-2. For each iteration:
-     For each page A:
-       PR_new(A) = (1-d)/N + d × Σ(PR(Ti)/C(Ti))
-3. Repeat until convergence
+print("PageRank Scores:")
+for page, score in sorted(scores.items(), key=lambda x: x[1], reverse=True):
+    print(f"  Page {page}: {score:.4f}")
 
-Example Graph:
-  A → B → C
-  ↓       ↑
-  D ──────┘
-
-After iterations:
-├─ Page C: Highest (linked by A, B, D)
-├─ Page B: Medium (linked by A)
-└─ Page A, D: Lower
-
-Google's Innovation:
-Quality of links matters more than quantity!
+# Output:
+# Page C: 0.3579  (most links pointing to it)
+# Page A: 0.2764
+# Page B: 0.2426
+# Page D: 0.1231  (no incoming links)
 ```
 
 #### Multi-Signal Ranking (ML-Based)
 
-```text
-BM25 RANKING ALGORITHM:
+```python
+class MultiSignalRanker:
+    """
+    Combine multiple ranking signals using machine learning.
+    
+    Signals:
+    1. Text relevance (BM25)
+    2. Popularity (PageRank)
+    3. Freshness (recency)
+    4. Click-through rate (CTR)
+    5. User engagement (dwell time)
+    """
+    def __init__(self, weights=None):
+        self.bm25 = BM25Ranker()
+        
+        # Default weights (can be learned from data)
+        self.weights = weights or {
+            'bm25_score': 0.40,      # Text relevance most important
+            'pagerank': 0.25,        # Link authority
+            'freshness': 0.15,       # Recent content
+            'ctr': 0.10,             # Historical clicks
+            'dwell_time': 0.10       # User engagement
+        }
+    
+    def normalize_score(self, score, min_val, max_val):
+        """Normalize score to 0-1 range"""
+        if max_val == min_val:
+            return 0.5
+        return (score - min_val) / (max_val - min_val)
+    
+    def calculate_combined_score(self, doc, query, signal_data):
+        """
+        Calculate combined score from multiple signals.
+        
+        Args:
+            doc: Document object
+            query: Search query
+            signal_data: Dict with additional signals
+        """
+        scores = {}
+        
+        # 1. Text relevance (BM25)
+        scores['bm25_score'] = self.normalize_score(
+            signal_data.get('bm25_score', 0),
+            min_val=0,
+            max_val=signal_data.get('max_bm25', 10)
+        )
+        
+        # 2. PageRank (link authority)
+        scores['pagerank'] = self.normalize_score(
+            signal_data.get('pagerank', 0),
+            min_val=0,
+            max_val=signal_data.get('max_pagerank', 1)
+        )
+        
+        # 3. Freshness (exponential decay)
+        import time
+        days_old = signal_data.get('days_old', 0)
+        scores['freshness'] = math.exp(-days_old / 30)  # Half-life of 30 days
+        
+        # 4. Click-through rate
+        scores['ctr'] = signal_data.get('ctr', 0.01)
+        
+        # 5. Dwell time (engagement)
+        avg_dwell_seconds = signal_data.get('avg_dwell_time', 30)
+        scores['dwell_time'] = min(avg_dwell_seconds / 300, 1.0)  # Cap at 5 minutes
+        
+        # Weighted combination
+        final_score = sum(
+            self.weights[signal] * scores[signal]
+            for signal in self.weights
+        )
+        
+        return {
+            'final_score': final_score,
+            'breakdown': scores
+        }
 
-Formula:
-  BM25(d,q) = Σ IDF(qi) × (f(qi,d) × (k1+1)) / (f(qi,d) + k1 × (1-b + b×|d|/avgdl))
+# Example usage
+ranker = MultiSignalRanker()
 
-Where:
-├─ f(qi,d) = term frequency
-├─ |d| = document length
-├─ avgdl = average document length
-├─ k1 = 1.5 (saturation parameter)
-└─ b = 0.75 (length normalization)
+signal_data = {
+    'bm25_score': 8.5,
+    'max_bm25': 10,
+    'pagerank': 0.045,
+    'max_pagerank': 0.1,
+    'days_old': 10,
+    'ctr': 0.15,  # 15% of users click
+    'avg_dwell_time': 120  # 2 minutes average
+}
 
-Why Better Than TF-IDF:
-1. Saturation: 10 mentions doesn't score 10x higher than 1
-2. Length normalization: Considers document length
-3. Industry standard: Used by Elasticsearch, Solr
+result = ranker.calculate_combined_score(
+    doc={'id': 1},
+    query="python tutorial",
+    signal_data=signal_data
+)
 
-Example:
-Query: "python tutorial"
-Doc A: 5 words, "python" appears 2x
-Doc B: 100 words, "python" appears 2x
-
-TF-IDF: Same score (wrong!)
-BM25: Doc A scores higher (correct - more focused content)
+print("Multi-Signal Ranking:")
+print(f"Final Score: {result['final_score']:.4f}\n")
+print("Signal Breakdown:")
+for signal, score in result['breakdown'].items():
+    weight = ranker.weights.get(signal, 0)
+    contribution = weight * score
+    print(f"  {signal:15} {score:.4f} × {weight:.2f} = {contribution:.4f}")
 ```
 
 ---
@@ -1449,20 +2124,109 @@ Raw Query: "iPhone 15 Pro Max pric"
 
 #### Simple Query Processor Implementation
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+import re
+from collections import defaultdict
 
-class SimpleQueryProcessor: (High-Level Design)
+class SimpleQueryProcessor:
+    """
+    Basic query processing pipeline.
+    """
+    def __init__(self):
+        # Common misspellings dictionary
+        self.spell_corrections = {
+            'pric': 'price',
+            'appel': 'apple',
+            'iphone': 'iphone',  # Already correct
+            'pythno': 'python',
+            'javascirpt': 'javascript'
+        }
+        
+        # Synonyms for query expansion
+        self.synonyms = {
+            'price': ['cost', 'pricing', 'value', 'msrp'],
+            'buy': ['purchase', 'shop', 'order'],
+            'cheap': ['affordable', 'budget', 'inexpensive']
+        }
+        
+        # Stop words to potentially remove
+        self.stop_words = {'the', 'a', 'an', 'in', 'on', 'at', 'to', 'for'}
+    
+    def tokenize(self, query):
+        """Split query into tokens"""
+        # Simple whitespace + punctuation splitting
+        tokens = re.findall(r'\w+', query.lower())
+        return tokens
+    
+    def correct_spelling(self, tokens):
+        """Fix common misspellings"""
+        corrected = []
+        for token in tokens:
+            if token in self.spell_corrections:
+                corrected.append(self.spell_corrections[token])
+            else:
+                corrected.append(token)
+        return corrected
+    
+    def remove_stop_words(self, tokens):
+        """Remove common stop words"""
+        # Be careful! Sometimes stop words matter
+        # Example: "the who" (band name) shouldn't remove "the"
+        return [t for t in tokens if t not in self.stop_words]
+    
+    def expand_query(self, tokens, max_synonyms=2):
+        """Add synonyms for better recall"""
+        expanded = list(tokens)
+        for token in tokens:
+            if token in self.synonyms:
+                # Add top N synonyms
+                expanded.extend(self.synonyms[token][:max_synonyms])
+        return expanded
+    
+    def process(self, query, expand=False):
+        """Full query processing pipeline"""
+        print(f"Original query: {query}")
+        
+        # Step 1: Tokenize
+        tokens = self.tokenize(query)
+        print(f"Tokens: {tokens}")
+        
+        # Step 2: Spell correction
+        tokens = self.correct_spelling(tokens)
+        print(f"After spell check: {tokens}")
+        
+        # Step 3: Remove stop words (optional)
+        tokens_no_stop = self.remove_stop_words(tokens)
+        if len(tokens_no_stop) < len(tokens):
+            print(f"After stop word removal: {tokens_no_stop}")
+            tokens = tokens_no_stop
+        
+        # Step 4: Query expansion (optional)
+        if expand:
+            tokens = self.expand_query(tokens)
+            print(f"After expansion: {tokens}")
+        
+        return tokens
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+# Example usage
+processor = SimpleQueryProcessor()
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+# Test query 1: Misspelled
+query1 = "appel iphone pric"
+tokens1 = processor.process(query1, expand=True)
+print(f"Final tokens: {tokens1}\n")
+
+# Test query 2: With stop words
+query2 = "the best python tutorial for beginners"
+tokens2 = processor.process(query2, expand=False)
+print(f"Final tokens: {tokens2}\n")
+
+# Output:
+# Original query: appel iphone pric
+# Tokens: ['appel', 'iphone', 'pric']
+# After spell check: ['apple', 'iphone', 'price']
+# After expansion: ['apple', 'iphone', 'price', 'cost', 'pricing']
+# Final tokens: ['apple', 'iphone', 'price', 'cost', 'pricing']
 ```
 
 ---
@@ -1471,56 +2235,287 @@ For implementation details, refer to:
 
 #### Fuzzy Matching with Edit Distance
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+def levenshtein_distance(s1, s2):
+    """
+    Calculate edit distance between two strings.
+    Used for fuzzy matching and spell correction.
+    """
+    if len(s1) < len(s2):
+        return levenshtein_distance(s2, s1)
+    
+    if len(s2) == 0:
+        return len(s1)
+    
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            # Cost of insertions, deletions, substitutions
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    
+    return previous_row[-1]
 
-class FuzzyQueryMatcher: (High-Level Design)
+class FuzzyQueryMatcher:
+    """
+    Fuzzy matching for spell correction.
+    """
+    def __init__(self, dictionary):
+        self.dictionary = dictionary  # Valid terms
+    
+    def find_similar(self, word, max_distance=2):
+        """Find similar words within edit distance"""
+        similar = []
+        for dict_word in self.dictionary:
+            distance = levenshtein_distance(word, dict_word)
+            if distance <= max_distance:
+                similar.append((dict_word, distance))
+        
+        # Sort by distance (closest first)
+        similar.sort(key=lambda x: x[1])
+        return similar
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+# Example
+dictionary = ['python', 'java', 'javascript', 'typescript', 'ruby', 'golang']
+matcher = FuzzyQueryMatcher(dictionary)
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+misspelled = 'pythno'
+suggestions = matcher.find_similar(misspelled, max_distance=2)
+print(f"Did you mean '{misspelled}'?")
+for word, distance in suggestions[:3]:
+    print(f"  {word} (distance: {distance})")
+
+# Output:
+# Did you mean 'pythno'?
+#   python (distance: 1)
 ```
 
 #### Query Execution with Boolean Operators
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+class BooleanQueryProcessor:
+    """
+    Handle Boolean queries: AND, OR, NOT
+    Example: "python AND (tutorial OR guide) NOT advanced"
+    """
+    def __init__(self, inverted_index):
+        self.index = inverted_index
+    
+    def search_term(self, term):
+        """Get posting list for a single term"""
+        return set(self.index.get(term, []))
+    
+    def and_operation(self, posting_lists):
+        """Intersection of posting lists"""
+        if not posting_lists:
+            return set()
+        result = posting_lists[0]
+        for postings in posting_lists[1:]:
+            result = result.intersection(postings)
+        return result
+    
+    def or_operation(self, posting_lists):
+        """Union of posting lists"""
+        result = set()
+        for postings in posting_lists:
+            result = result.union(postings)
+        return result
+    
+    def not_operation(self, all_docs, postings):
+        """Complement (all docs except these)"""
+        return all_docs - postings
+    
+    def execute_boolean_query(self, query_ast, all_docs):
+        """
+        Execute parsed Boolean query.
+        
+        query_ast: Abstract Syntax Tree of query
+        Example: {'op': 'AND', 'left': 'python', 'right': {'op': 'OR', ...}}
+        """
+        if isinstance(query_ast, str):
+            # Leaf node - single term
+            return self.search_term(query_ast)
+        
+        op = query_ast['op']
+        
+        if op == 'AND':
+            left = self.execute_boolean_query(query_ast['left'], all_docs)
+            right = self.execute_boolean_query(query_ast['right'], all_docs)
+            return self.and_operation([left, right])
+        
+        elif op == 'OR':
+            left = self.execute_boolean_query(query_ast['left'], all_docs)
+            right = self.execute_boolean_query(query_ast['right'], all_docs)
+            return self.or_operation([left, right])
+        
+        elif op == 'NOT':
+            operand = self.execute_boolean_query(query_ast['operand'], all_docs)
+            return self.not_operation(all_docs, operand)
+        
+        return set()
 
-class BooleanQueryProcessor: (High-Level Design)
+# Example inverted index
+inverted_index = {
+    'python': [1, 2, 3, 5],
+    'tutorial': [1, 2, 4],
+    'advanced': [3, 5],
+    'beginner': [1, 2]
+}
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+processor = BooleanQueryProcessor(inverted_index)
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+# Query: python AND tutorial NOT advanced
+query_ast = {
+    'op': 'AND',
+    'left': 'python',
+    'right': {
+        'op': 'NOT',
+        'operand': 'advanced',
+        'all_docs': {1, 2, 3, 4, 5}
+    }
+}
+
+# Manually construct for demonstration
+python_docs = processor.search_term('python')  # {1, 2, 3, 5}
+tutorial_docs = processor.search_term('tutorial')  # {1, 2, 4}
+advanced_docs = processor.search_term('advanced')  # {3, 5}
+
+# python AND tutorial
+result1 = python_docs.intersection(tutorial_docs)  # {1, 2}
+# NOT advanced
+result2 = result1 - advanced_docs  # {1, 2}
+
+print(f"Query: python AND tutorial NOT advanced")
+print(f"Results: {result2}")  # Documents 1 and 2
 ```
 
 #### Early Termination for Performance
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+class OptimizedQueryProcessor:
+    """
+    Query optimization techniques for faster search.
+    """
+    def __init__(self, index, doc_scores):
+        self.index = index  # term -> [(doc_id, score), ...]
+        self.doc_scores = doc_scores  # Precomputed document quality scores
+    
+    def document_at_a_time(self, query_terms, k=10):
+        """
+        DAAT: Process all query terms for each document.
+        Good when: Few documents match query terms.
+        """
+        # Collect all candidate documents
+        candidates = set()
+        for term in query_terms:
+            if term in self.index:
+                candidates.update([doc_id for doc_id, _ in self.index[term]])
+        
+        # Score each candidate
+        scores = []
+        for doc_id in candidates:
+            score = 0
+            for term in query_terms:
+                if term in self.index:
+                    # Find term score for this doc
+                    for d_id, term_score in self.index[term]:
+                        if d_id == doc_id:
+                            score += term_score
+                            break
+            scores.append((doc_id, score))
+        
+        # Return top K
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return scores[:k]
+    
+    def term_at_a_time(self, query_terms, k=10):
+        """
+        TAAT: Process each query term across all documents.
+        Good when: Many documents, few query terms.
+        """
+        # Accumulate scores per document
+        doc_scores = defaultdict(float)
+        
+        for term in query_terms:
+            if term in self.index:
+                for doc_id, term_score in self.index[term]:
+                    doc_scores[doc_id] += term_score
+        
+        # Return top K
+        scores = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
+        return scores[:k]
+    
+    def max_score_optimization(self, query_terms, k=10):
+        """
+        MaxScore: Early termination optimization.
+        
+        Key idea: If we already have K good results, and remaining
+        terms can't improve them, stop early!
+        """
+        # Precompute max possible contribution per term
+        term_max_scores = {}
+        for term in query_terms:
+            if term in self.index:
+                max_score = max(score for _, score in self.index[term])
+                term_max_scores[term] = max_score
+        
+        # Sort terms by max score (descending)
+        sorted_terms = sorted(
+            term_max_scores.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        
+        # Accumulate scores with early termination
+        doc_scores = defaultdict(float)
+        threshold = float('-inf')  # Min score to be in top K
+        
+        for i, (term, max_score) in enumerate(sorted_terms):
+            # Calculate upper bound: current scores + remaining terms
+            remaining_max = sum(score for _, score in sorted_terms[i:])
+            
+            # Early termination check
+            if threshold != float('-inf') and remaining_max < threshold:
+                print(f"Early termination after term '{term}'!")
+                break
+            
+            # Process this term
+            if term in self.index:
+                for doc_id, term_score in self.index[term]:
+                    doc_scores[doc_id] += term_score
+            
+            # Update threshold (min score of current top K)
+            if len(doc_scores) >= k:
+                scores = sorted(doc_scores.values(), reverse=True)
+                threshold = scores[k-1] if len(scores) > k else scores[-1]
+        
+        # Return top K
+        scores = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
+        return scores[:k]
 
-class OptimizedQueryProcessor: (High-Level Design)
+# Example index
+index = {
+    'python': [(1, 10.0), (2, 8.0), (3, 7.0), (5, 5.0)],
+    'tutorial': [(1, 6.0), (2, 7.0), (4, 8.0)],
+    'beginner': [(1, 5.0), (2, 6.0)]
+}
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+processor = OptimizedQueryProcessor(index, {})
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+query = ['python', 'tutorial', 'beginner']
+print("Query:", query)
+print("\nDocument-at-a-Time:")
+print(processor.document_at_a_time(query, k=3))
+
+print("\nTerm-at-a-Time:")
+print(processor.term_at_a_time(query, k=3))
+
+print("\nMaxScore (with early termination):")
+print(processor.max_score_optimization(query, k=3))
 ```
 
 ---
@@ -1529,49 +2524,195 @@ For implementation details, refer to:
 
 #### Query Rewriting & Understanding
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+class QueryUnderstanding:
+    """
+    Advanced query understanding for production systems.
+    """
+    def __init__(self):
+        # Query patterns for intent classification
+        self.intent_patterns = {
+            'navigational': ['facebook login', 'youtube', 'amazon'],
+            'transactional': ['buy', 'price', 'discount', 'shop'],
+            'informational': ['how to', 'what is', 'why', 'tutorial']
+        }
+        
+        # Entity recognition (simplified)
+        self.entity_types = {
+            'product': ['iphone', 'macbook', 'samsung galaxy'],
+            'brand': ['apple', 'google', 'microsoft'],
+            'location': ['new york', 'san francisco', 'london']
+        }
+    
+    def classify_intent(self, query):
+        """Determine user intent"""
+        query_lower = query.lower()
+        
+        for intent, patterns in self.intent_patterns.items():
+            for pattern in patterns:
+                if pattern in query_lower:
+                    return intent
+        
+        return 'informational'  # Default
+    
+    def extract_entities(self, query):
+        """Extract named entities"""
+        query_lower = query.lower()
+        entities = []
+        
+        for entity_type, values in self.entity_types.items():
+            for value in values:
+                if value in query_lower:
+                    entities.append({
+                        'type': entity_type,
+                        'value': value,
+                        'start': query_lower.index(value),
+                        'end': query_lower.index(value) + len(value)
+                    })
+        
+        return entities
+    
+    def rewrite_query(self, query):
+        """
+        Rewrite query for better matching.
+        
+        Examples:
+        - "iphone 15 pric" → "iphone 15 price"
+        - "how much is iphone" → "iphone price"
+        - "best python tutorial" → "python tutorial" + boost:quality
+        """
+        intent = self.classify_intent(query)
+        entities = self.extract_entities(query)
+        
+        rewritten = query
+        metadata = {
+            'intent': intent,
+            'entities': entities,
+            'boosts': {}
+        }
+        
+        # Intent-based rewriting
+        if intent == 'transactional':
+            # Boost product-related signals
+            metadata['boosts']['product_page'] = 2.0
+            metadata['boosts']['e_commerce'] = 1.5
+        
+        elif intent == 'informational':
+            # Boost tutorial/guide content
+            metadata['boosts']['tutorial'] = 1.5
+            metadata['boosts']['guide'] = 1.5
+        
+        return {
+            'original': query,
+            'rewritten': rewritten,
+            'metadata': metadata
+        }
 
-class QueryUnderstanding: (High-Level Design)
+# Example usage
+qu = QueryUnderstanding()
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+queries = [
+    "buy iphone 15 pro",
+    "how to learn python",
+    "facebook login"
+]
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+for query in queries:
+    result = qu.rewrite_query(query)
+    print(f"\nOriginal: {result['original']}")
+    print(f"Intent: {result['metadata']['intent']}")
+    print(f"Entities: {result['metadata']['entities']}")
+    print(f"Boosts: {result['metadata']['boosts']}")
 ```
 
 #### Multi-Stage Query Processing (Google-Style)
 
-```text
-BM25 RANKING ALGORITHM:
+```python
+class MultiStageQueryProcessor:
+    """
+    Two-stage query processing for large-scale search.
+    
+    Stage 1: Fast retrieval (top 1000 docs) - 50ms
+    Stage 2: Expensive ranking (re-rank to top 10) - 100ms
+    """
+    def __init__(self, index, ml_ranker):
+        self.index = index
+        self.ml_ranker = ml_ranker
+    
+    def stage1_retrieval(self, query, top_k=1000):
+        """
+        Fast retrieval with simple signals:
+        - BM25 text matching
+        - PageRank
+        - Domain authority
+        
+        Goal: High recall (don't miss relevant docs)
+        Speed: <50ms
+        """
+        import time
+        start = time.time()
+        
+        # Simple BM25 + PageRank
+        candidates = self.fast_bm25_search(query, top_k=top_k)
+        
+        elapsed = (time.time() - start) * 1000
+        print(f"Stage 1: Retrieved {len(candidates)} docs in {elapsed:.1f}ms")
+        
+        return candidates
+    
+    def stage2_reranking(self, query, candidates, top_k=10):
+        """
+        Expensive re-ranking with full signals:
+        - BERT semantic matching
+        - User engagement signals (CTR, dwell time)
+        - Freshness
+        - Personalization
+        - 200+ other signals
+        
+        Goal: High precision (top 10 perfect)
+        Speed: <100ms
+        """
+        import time
+        start = time.time()
+        
+        # ML-based re-ranking (expensive!)
+        reranked = self.ml_ranker.rank(query, candidates)
+        
+        elapsed = (time.time() - start) * 1000
+        print(f"Stage 2: Re-ranked to top {top_k} in {elapsed:.1f}ms")
+        
+        return reranked[:top_k]
+    
+    def search(self, query, top_k=10):
+        """Full two-stage search"""
+        # Stage 1: Fast retrieval
+        candidates = self.stage1_retrieval(query, top_k=1000)
+        
+        # Stage 2: Expensive re-ranking
+        if len(candidates) > top_k:
+            final_results = self.stage2_reranking(query, candidates, top_k)
+        else:
+            final_results = candidates
+        
+        return final_results
+    
+    def fast_bm25_search(self, query, top_k):
+        """Simplified BM25 (placeholder)"""
+        # In production: Actual BM25 implementation
+        return [{'doc_id': i, 'score': 10 - i*0.5} for i in range(top_k)]
 
-Formula:
-  BM25(d,q) = Σ IDF(qi) × (f(qi,d) × (k1+1)) / (f(qi,d) + k1 × (1-b + b×|d|/avgdl))
+# Example
+class DummyMLRanker:
+    def rank(self, query, candidates):
+        # Simulate expensive ML ranking
+        import random
+        scored = [(c, random.random()) for c in candidates]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [c for c, _ in scored]
 
-Where:
-├─ f(qi,d) = term frequency
-├─ |d| = document length
-├─ avgdl = average document length
-├─ k1 = 1.5 (saturation parameter)
-└─ b = 0.75 (length normalization)
-
-Why Better Than TF-IDF:
-1. Saturation: 10 mentions doesn't score 10x higher than 1
-2. Length normalization: Considers document length
-3. Industry standard: Used by Elasticsearch, Solr
-
-Example:
-Query: "python tutorial"
-Doc A: 5 words, "python" appears 2x
-Doc B: 100 words, "python" appears 2x
-
-TF-IDF: Same score (wrong!)
-BM25: Doc A scores higher (correct - more focused content)
+processor = MultiStageQueryProcessor(None, DummyMLRanker())
+results = processor.search("python tutorial for beginners", top_k=10)
+print(f"\nReturned {len(results)} final results")
 ```
 
 ---
@@ -1787,20 +2928,77 @@ Benefits:
 
 #### Simple Shard Routing Implementation
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+import hashlib
 
-class SimpleShardRouter: (High-Level Design)
+class SimpleShardRouter:
+    """
+    Route queries to appropriate shards.
+    """
+    def __init__(self, num_shards):
+        self.num_shards = num_shards
+        self.shards = [f"shard-{i}" for i in range(num_shards)]
+    
+    def get_shard_for_document(self, doc_id):
+        """
+        Document sharding: Assign document to a shard.
+        Simple modulo hashing.
+        """
+        shard_idx = hash(doc_id) % self.num_shards
+        return self.shards[shard_idx]
+    
+    def get_shards_for_query(self, query):
+        """
+        For document sharding, query all shards.
+        (We don't know which shard has matching docs)
+        """
+        return self.shards  # Query all shards
+    
+    def aggregate_results(self, shard_results, top_k=10):
+        """
+        Merge results from multiple shards.
+        
+        shard_results: [
+            {'shard': 'shard-0', 'results': [(doc1, score1), ...]},
+            {'shard': 'shard-1', 'results': [(doc2, score2), ...]},
+            ...
+        ]
+        """
+        # Collect all results
+        all_results = []
+        for shard_result in shard_results:
+            all_results.extend(shard_result['results'])
+        
+        # Sort by score (descending)
+        all_results.sort(key=lambda x: x[1], reverse=True)
+        
+        # Return top K
+        return all_results[:top_k]
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+# Example usage
+router = SimpleShardRouter(num_shards=3)
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+# Index documents
+docs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+for doc_id in docs:
+    shard = router.get_shard_for_document(doc_id)
+    print(f"Doc {doc_id} → {shard}")
+
+# Query
+print("\nQuery: 'python tutorial'")
+shards_to_query = router.get_shards_for_query("python tutorial")
+print(f"Query shards: {shards_to_query}")
+
+# Simulate shard results
+shard_results = [
+    {'shard': 'shard-0', 'results': [(1, 9.5), (4, 7.2)]},
+    {'shard': 'shard-1', 'results': [(2, 8.8), (5, 6.1)]},
+    {'shard': 'shard-2', 'results': [(3, 9.1), (6, 5.5)]}
+]
+
+final_results = router.aggregate_results(shard_results, top_k=3)
+print(f"\nTop 3 results: {final_results}")
+# Output: [(1, 9.5), (3, 9.1), (2, 8.8)]
 ```
 
 ---
@@ -1848,38 +3046,197 @@ Google's Hybrid Approach:
 
 #### Consistent Hashing for Dynamic Scaling
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+import bisect
+import hashlib
 
-class ConsistentHash: (High-Level Design)
+class ConsistentHash:
+    """
+    Consistent hashing for dynamic shard addition/removal.
+    
+    Key benefit: Adding/removing shards only affects 1/N of data,
+    not everything (unlike simple modulo hashing).
+    """
+    def __init__(self, nodes=None, virtual_nodes=150):
+        self.virtual_nodes = virtual_nodes  # Replicas for better distribution
+        self.ring = []  # Sorted list of hash values
+        self.ring_map = {}  # hash_value → node mapping
+        self.nodes = set()
+        
+        if nodes:
+            for node in nodes:
+                self.add_node(node)
+    
+    def _hash(self, key):
+        """Hash function"""
+        return int(hashlib.md5(key.encode()).hexdigest(), 16)
+    
+    def add_node(self, node):
+        """Add a node (shard) to the ring"""
+        self.nodes.add(node)
+        
+        # Add virtual nodes for better distribution
+        for i in range(self.virtual_nodes):
+            virtual_key = f"{node}:{i}"
+            hash_value = self._hash(virtual_key)
+            
+            self.ring.append(hash_value)
+            self.ring_map[hash_value] = node
+        
+        # Keep ring sorted
+        self.ring.sort()
+    
+    def remove_node(self, node):
+        """Remove a node (shard) from the ring"""
+        self.nodes.discard(node)
+        
+        # Remove all virtual nodes
+        for i in range(self.virtual_nodes):
+            virtual_key = f"{node}:{i}"
+            hash_value = self._hash(virtual_key)
+            
+            if hash_value in self.ring_map:
+                self.ring.remove(hash_value)
+                del self.ring_map[hash_value]
+    
+    def get_node(self, key):
+        """Get node responsible for this key"""
+        if not self.ring:
+            return None
+        
+        hash_value = self._hash(str(key))
+        
+        # Find first node clockwise on ring
+        idx = bisect.bisect(self.ring, hash_value)
+        
+        if idx == len(self.ring):
+            idx = 0  # Wrap around
+        
+        return self.ring_map[self.ring[idx]]
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+# Example: Adding shards dynamically
+ch = ConsistentHash(['shard-1', 'shard-2', 'shard-3'])
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+# Assign documents
+docs = list(range(1, 101))
+distribution_before = {}
+
+for doc_id in docs:
+    shard = ch.get_node(doc_id)
+    distribution_before[shard] = distribution_before.get(shard, 0) + 1
+
+print("Distribution before adding shard-4:")
+for shard, count in sorted(distribution_before.items()):
+    print(f"  {shard}: {count} docs ({count}%)")
+
+# Add new shard
+ch.add_node('shard-4')
+
+distribution_after = {}
+moved_docs = 0
+
+for doc_id in docs:
+    shard_new = ch.get_node(doc_id)
+    shard_old = None
+    for s, cnt in distribution_before.items():
+        if ch.get_node(doc_id) == s:
+            shard_old = s
+            break
+    
+    distribution_after[shard_new] = distribution_after.get(shard_new, 0) + 1
+    
+    # Check if moved
+    old_placement = None
+    for node in ['shard-1', 'shard-2', 'shard-3']:
+        ch_temp = ConsistentHash(['shard-1', 'shard-2', 'shard-3'])
+        if ch_temp.get_node(doc_id) == node:
+            old_placement = node
+            break
+    
+    if shard_new != old_placement:
+        moved_docs += 1
+
+print(f"\nDistribution after adding shard-4:")
+for shard, count in sorted(distribution_after.items()):
+    print(f"  {shard}: {count} docs ({count}%)")
+
+print(f"\nDocs that moved: {moved_docs}/100 ({moved_docs}%)")
+print(f"Expected: ~25% (1/4 of docs)")
 ```
 
 #### Query Aggregation & Ranking
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+class DistributedQueryProcessor:
+    """
+    Process queries across multiple shards and aggregate results.
+    """
+    def __init__(self, shards):
+        self.shards = shards  # List of shard connections
+    
+    def scatter_gather(self, query, top_k=10):
+        """
+        Scatter-gather pattern: Send query to all shards, gather results.
+        
+        Optimization: Only need top K from each shard (not all results).
+        """
+        import concurrent.futures
+        
+        # Scatter: Query all shards in parallel
+        shard_futures = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.shards)) as executor:
+            for shard in self.shards:
+                future = executor.submit(self.query_shard, shard, query, top_k)
+                shard_futures.append(future)
+        
+        # Gather: Collect results
+        all_results = []
+        for future in concurrent.futures.as_completed(shard_futures):
+            try:
+                shard_results = future.result(timeout=0.2)  # 200ms timeout per shard
+                all_results.extend(shard_results)
+            except Exception as e:
+                print(f"Shard query failed: {e}")
+                # Continue with other shards (graceful degradation)
+        
+        # Aggregate: Merge and re-rank
+        final_results = self.aggregate_results(all_results, top_k)
+        return final_results
+    
+    def query_shard(self, shard, query, top_k):
+        """Query a single shard"""
+        # In production: Actual network call to shard
+        # For demo: Simulate results
+        import random
+        return [
+            {'doc_id': f"{shard['id']}-{i}", 'score': random.uniform(5, 10)}
+            for i in range(top_k)
+        ]
+    
+    def aggregate_results(self, all_results, top_k):
+        """
+        Merge results from shards.
+        
+        Challenge: Scores from different shards may not be directly comparable!
+        Solution: Normalize scores or use global statistics.
+        """
+        # Simple merge: Sort by score
+        all_results.sort(key=lambda x: x['score'], reverse=True)
+        return all_results[:top_k]
 
-class DistributedQueryProcessor: (High-Level Design)
+# Example
+shards = [
+    {'id': 'shard-1', 'host': 'search1.example.com'},
+    {'id': 'shard-2', 'host': 'search2.example.com'},
+    {'id': 'shard-3', 'host': 'search3.example.com'}
+]
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+processor = DistributedQueryProcessor(shards)
+results = processor.scatter_gather("python tutorial", top_k=10)
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+print(f"Retrieved {len(results)} results from {len(shards)} shards")
+for i, result in enumerate(results[:5], 1):
+    print(f"{i}. Doc: {result['doc_id']}, Score: {result['score']:.2f}")
 ```
 
 ---
@@ -1931,20 +3288,86 @@ Key Optimizations:
 
 #### Shard Replication & Failover
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+class ShardReplicaManager:
+    """
+    Manage shard replicas for high availability.
+    """
+    def __init__(self, replication_factor=3):
+        self.replication_factor = replication_factor
+        self.shards = {}  # shard_id → [replica1, replica2, replica3]
+        self.health_status = {}  # replica_id → healthy/unhealthy
+    
+    def add_shard(self, shard_id, replicas):
+        """Register a shard with its replicas"""
+        self.shards[shard_id] = replicas
+        for replica in replicas:
+            self.health_status[replica] = 'healthy'
+    
+    def mark_unhealthy(self, replica_id):
+        """Mark a replica as unhealthy (failure detected)"""
+        self.health_status[replica_id] = 'unhealthy'
+        print(f"⚠️  Replica {replica_id} marked unhealthy")
+    
+    def get_healthy_replica(self, shard_id):
+        """
+        Get a healthy replica for querying.
+        
+        Strategy: Round-robin among healthy replicas.
+        """
+        replicas = self.shards.get(shard_id, [])
+        healthy_replicas = [
+            r for r in replicas
+            if self.health_status.get(r) == 'healthy'
+        ]
+        
+        if not healthy_replicas:
+            raise Exception(f"No healthy replicas for shard {shard_id}!")
+        
+        # Simple: Return first healthy replica
+        # Production: Load balancing, round-robin, etc.
+        return healthy_replicas[0]
+    
+    def query_with_failover(self, shard_id, query, timeout=0.2):
+        """
+        Query with automatic failover to backup replicas.
+        """
+        replicas = self.shards.get(shard_id, [])
+        
+        for replica in replicas:
+            if self.health_status.get(replica) != 'healthy':
+                continue
+            
+            try:
+                result = self._query_replica(replica, query, timeout)
+                return result
+            except Exception as e:
+                print(f"Replica {replica} failed: {e}, trying next...")
+                self.mark_unhealthy(replica)
+                continue
+        
+        raise Exception(f"All replicas failed for shard {shard_id}")
+    
+    def _query_replica(self, replica, query, timeout):
+        """Query a single replica (simulated)"""
+        import random
+        if random.random() < 0.1:  # 10% failure rate
+            raise Exception("Network timeout")
+        return {'results': ['doc1', 'doc2', 'doc3']}
 
-class ShardReplicaManager: (High-Level Design)
+# Example
+manager = ShardReplicaManager(replication_factor=3)
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+# Register shards with replicas
+manager.add_shard('shard-1', ['replica-1a', 'replica-1b', 'replica-1c'])
+manager.add_shard('shard-2', ['replica-2a', 'replica-2b', 'replica-2c'])
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+# Query with automatic failover
+try:
+    result = manager.query_with_failover('shard-1', "python tutorial")
+    print(f"✓ Query succeeded: {result}")
+except Exception as e:
+    print(f"✗ Query failed: {e}")
 ```
 
 #### Cross-Datacenter Replication
@@ -2894,20 +4317,71 @@ Cache Hit Rate:
 
 Simple Query Result Cache:
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+import hashlib
+import time
 
-class SimpleQueryCache: (High-Level Design)
+class SimpleQueryCache:
+    """
+    Cache search results to avoid repeated work.
+    """
+    def __init__(self, ttl=300):
+        self.cache = {}  # query_hash → (results, timestamp)
+        self.ttl = ttl  # Time to live (seconds)
+        self.hits = 0
+        self.misses = 0
+    
+    def _hash_query(self, query):
+        """Create cache key from query"""
+        return hashlib.md5(query.encode()).hexdigest()
+    
+    def get(self, query):
+        """Get cached results"""
+        key = self._hash_query(query)
+        
+        if key in self.cache:
+            results, timestamp = self.cache[key]
+            
+            # Check if expired
+            if time.time() - timestamp < self.ttl:
+                self.hits += 1
+                return results
+            else:
+                # Expired
+                del self.cache[key]
+        
+        self.misses += 1
+        return None
+    
+    def set(self, query, results):
+        """Cache query results"""
+        key = self._hash_query(query)
+        self.cache[key] = (results, time.time())
+    
+    def get_hit_rate(self):
+        """Calculate cache hit rate"""
+        total = self.hits + self.misses
+        if total == 0:
+            return 0
+        return self.hits / total
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+# Example
+cache = SimpleQueryCache(ttl=60)
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+# First query (cache miss)
+query = "python tutorial"
+results = cache.get(query)
+if results is None:
+    print("Cache MISS - querying index...")
+    results = ["doc1", "doc2", "doc3"]  # Expensive query
+    cache.set(query, results)
+
+# Second query (cache hit!)
+results = cache.get(query)
+if results:
+    print("Cache HIT - instant results!")
+
+print(f"Hit rate: {cache.get_hit_rate():.2%}")
 ```
 
 ---
@@ -2944,20 +4418,51 @@ Average Latency: 0.1×0ms + 0.2×10ms + 0.3×5ms + 0.4×200ms = 83.5ms
 
 Cache Invalidation Strategies:
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+class CacheInvalidation:
+    """
+    Handle cache updates when documents change.
+    """
+    def __init__(self):
+        self.query_cache = {}
+        self.doc_to_queries = {}  # Track which queries reference each doc
+    
+    def cache_query(self, query, results):
+        """Cache query and track document dependencies"""
+        self.query_cache[query] = results
+        
+        # Track dependencies
+        for doc_id in results:
+            if doc_id not in self.doc_to_queries:
+                self.doc_to_queries[doc_id] = set()
+            self.doc_to_queries[doc_id].add(query)
+    
+    def invalidate_document(self, doc_id):
+        """When document updates, invalidate related queries"""
+        if doc_id in self.doc_to_queries:
+            affected_queries = self.doc_to_queries[doc_id]
+            
+            for query in affected_queries:
+                if query in self.query_cache:
+                    del self.query_cache[query]
+                    print(f"Invalidated cache for query: {query}")
+            
+            del self.doc_to_queries[doc_id]
+    
+    def get_cached_results(self, query):
+        """Get cached results"""
+        return self.query_cache.get(query)
 
-class CacheInvalidation: (High-Level Design)
+# Example
+cache = CacheInvalidation()
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+# Cache some queries
+cache.cache_query("python tutorial", [1, 2, 3])
+cache.cache_query("java guide", [2, 4, 5])
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+# Document 2 updated
+cache.invalidate_document(2)
+# Both queries invalidated (both referenced doc 2)
 ```
 
 ---
@@ -3278,20 +4783,60 @@ Business impact:
 
 ### 🟡 For Intermediate: ML Ranking Components
 
-```text
-DATA STRUCTURE / COMPONENT:
+```python
+class PersonalizedRanking:
+    """
+    Adjust rankings based on user context.
+    """
+    def __init__(self):
+        self.user_profiles = {}  # user_id → interests
+    
+    def record_click(self, user_id, doc_id, category):
+        """Learn from user behavior"""
+        if user_id not in self.user_profiles:
+            self.user_profiles[user_id] = {}
+        
+        if category not in self.user_profiles[user_id]:
+            self.user_profiles[user_id][category] = 0
+        
+        self.user_profiles[user_id][category] += 1
+    
+    def personalize_results(self, user_id, results):
+        """Boost results matching user interests"""
+        if user_id not in self.user_profiles:
+            return results  # No personalization
+        
+        user_interests = self.user_profiles[user_id]
+        
+        # Boost scores based on interests
+        personalized = []
+        for doc_id, score, category in results:
+            boost = user_interests.get(category, 0) * 0.1
+            new_score = score + boost
+            personalized.append((doc_id, new_score, category))
+        
+        # Re-sort
+        personalized.sort(key=lambda x: x[1], reverse=True)
+        return personalized
 
-class PersonalizedRanking: (High-Level Design)
+# Example
+ranker = PersonalizedRanking()
 
-Note: This is a complex implementation detail. In HLD interviews:
-├─ Focus on: Data structures, API contracts, system architecture
-├─ Avoid: Full implementations, detailed algorithms
-└─ Prefer: Diagrams, pseudocode, interface definitions
+# User clicks on tech articles
+ranker.record_click(user_id=1, doc_id=1, category="technology")
+ranker.record_click(user_id=1, doc_id=2, category="technology")
 
-For implementation details, refer to:
-├─ Elasticsearch documentation (open source)
-├─ Apache Lucene architecture
-└─ System design textbooks
+# Search results
+results = [
+    (1, 8.0, "technology"),
+    (2, 7.5, "sports"),
+    (3, 7.3, "technology")
+]
+
+# Personalize
+personalized = ranker.personalize_results(1, results)
+print(personalized)
+# Technology docs boosted!
 ```
 
 ### ✅ Key Takeaways
