@@ -4486,3 +4486,1575 @@ def renew_subscriptions():
 
 *Next Up:* In Section 5, we'll design the REST API that powers the platform. We'll define endpoints for authentication, submissions, and more. Ready to become an API architect? 🔌
 
+
+## Section 5: How Users Interact (API Design)
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Design RESTful API endpoints for a coding platform
+- Implement JWT-based authentication and authorization
+- Apply rate limiting strategies to prevent abuse
+- Version APIs for backward compatibility
+
+### Why This Matters
+
+API design determines how developers interact with your platform. Poor API design leads to frustrated developers, security vulnerabilities, and scaling problems. Real-world example: Twitter changed their API from free to paid without proper versioning, breaking thousands of third-party applications overnight and causing massive backlash. Good API design with versioning prevents such disasters!
+
+---
+
+### 🟢 For Beginners: The Fundamentals
+
+#### What is an API?
+
+Think of an API (Application Programming Interface) like a restaurant menu:
+- **Menu** = List of available actions (endpoints)
+- **Order** = Your request (HTTP request)
+- **Kitchen** = Backend system (processes request)
+- **Food delivered** = Response (data returned)
+
+You don't need to know how the kitchen works - you just order from the menu!
+
+**Example API Call:**
+```text
+You: "Hey API, give me problem #42"
+API: "Here's the problem description, test cases, and examples"
+
+Behind the scenes:
+1. Your browser sends: GET /v1/problems/two-sum
+2. API server receives request
+3. Checks: Are you logged in? Do you have permission?
+4. Fetches problem from database
+5. Returns JSON response
+```
+
+#### Core API Concepts
+
+**1. HTTP Methods (Verbs)**
+
+```text
+GET    = Read (get me data, don't change anything)
+POST   = Create (make something new)
+PUT    = Update (replace entirely)
+PATCH  = Update (change specific fields)
+DELETE = Delete (remove it)
+
+Examples:
+├─ GET /v1/problems → "Show me all problems"
+├─ POST /v1/submissions → "Submit my code"
+├─ PATCH /v1/users/me → "Update my profile"
+└─ DELETE /v1/sessions → "Log me out"
+```
+
+**2. Endpoints (URLs)**
+
+```text
+Base URL: https://api.leetcode.com/v1
+
+Endpoints:
+├─ /v1/auth/login → Authentication
+├─ /v1/problems → Browse problems
+├─ /v1/problems/{id} → Get specific problem
+├─ /v1/submissions → Submit code
+└─ /v1/users/me → My profile
+
+Pattern: /version/resource/action
+Why /v1/? So we can release /v2/ later without breaking old apps!
+```
+
+**3. Request & Response**
+
+Every API interaction has two parts:
+
+**Request (from you):**
+```http
+POST /v1/submissions
+Authorization: Bearer abc123token
+Content-Type: application/json
+
+{
+  "problem_id": "prob-42",
+  "language": "python",
+  "code": "def twoSum(nums, target): ..."
+}
+```
+
+**Response (from server):**
+```json
+{
+  "success": true,
+  "data": {
+    "submission_id": "sub-12345",
+    "status": "pending",
+    "message": "Code submitted successfully"
+  }
+}
+```
+
+#### Authentication: Who Are You?
+
+**Why authentication matters:**
+```text
+Without auth:
+Anyone: "Show me all users' submissions"
+Server: "Here's everyone's code!" ❌ Security disaster!
+
+With auth:
+User: "Show me MY submissions" + [login token]
+Server: "You're Alice. Here are YOUR submissions." ✅ Secure!
+```
+
+**JWT (JSON Web Token) - Like a Concert Wristband:**
+
+```text
+Concert analogy:
+1. Buy ticket (login)
+2. Get wristband (JWT token)
+3. Show wristband to enter VIP area (authenticated requests)
+4. Security checks wristband without asking box office
+   (Server verifies token without database lookup - fast!)
+
+JWT structure:
+header.payload.signature
+eyJhbGci.eyJ1c2VyX2lk.SflKxwRJ
+
+Decoded:
+{
+  "user_id": "550e8400",
+  "username": "alice",
+  "exp": 1635724800  (expires in 15 minutes)
+}
+```
+
+**Login Flow:**
+
+```text
+1. User submits username/password
+   ↓
+2. Server verifies credentials
+   ↓
+3. Server creates JWT token
+   {user_id: "alice", expires: 15_minutes_from_now}
+   ↓
+4. Server signs token (so it can't be tampered with)
+   ↓
+5. Server returns token to user
+   ↓
+6. User stores token (browser localStorage or cookie)
+   ↓
+7. Every future request includes token in header:
+   Authorization: Bearer eyJhbGci...
+   ↓
+8. Server verifies signature and checks expiry
+   ↓
+9. If valid, processes request. If expired, ask user to login again.
+```
+
+💡 **Pro Tip:** Access tokens expire quickly (15 min) for security. Refresh tokens last longer (7 days) to get new access tokens without re-entering password!
+
+---
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### REST API Design Principles
+
+**1. Resource-Oriented URLs**
+
+```text
+Good (noun-based):
+✅ GET /v1/problems
+✅ GET /v1/problems/42
+✅ POST /v1/submissions
+✅ GET /v1/users/alice/submissions
+
+Bad (verb-based):
+❌ GET /v1/getProblems
+❌ POST /v1/submitCode
+❌ GET /v1/fetchUserSubmissions
+```
+
+**2. HTTP Status Codes**
+
+```text
+2xx Success:
+├─ 200 OK: Request succeeded
+├─ 201 Created: Resource created successfully
+├─ 204 No Content: Success, no data to return
+
+4xx Client Errors:
+├─ 400 Bad Request: Invalid input
+├─ 401 Unauthorized: Not logged in
+├─ 403 Forbidden: Logged in but no permission
+├─ 404 Not Found: Resource doesn't exist
+├─ 429 Too Many Requests: Rate limit exceeded
+
+5xx Server Errors:
+├─ 500 Internal Server Error: Bug in our code
+├─ 503 Service Unavailable: System overloaded
+└─ 504 Gateway Timeout: Request took too long
+
+Interview tip: Always explain the difference between 401 and 403!
+├─ 401: "Who are you?" (authentication)
+└─ 403: "I know who you are, but you can't do this" (authorization)
+```
+
+**3. Pagination Pattern**
+
+```text
+Problem: Returning all 3,000 problems in one response
+├─ Response size: 15 MB
+├─ Load time: 30 seconds
+└─ User experience: Terrible!
+
+Solution: Pagination
+GET /v1/problems?page=1&limit=20
+
+Response:
+{
+  "data": [...20 problems...],
+  "pagination": {
+    "current_page": 1,
+    "total_pages": 150,
+    "total_items": 3000,
+    "has_next": true,
+    "has_previous": false
+  }
+}
+
+Interview questions:
+Q: "Offset vs cursor pagination?"
+A: "Offset (page=5) has issues with data changes. Cursor (after=id_100) is more reliable but complex."
+```
+
+#### Complete API Specification
+
+**Authentication Endpoints:**
+
+```http
+POST /v1/auth/register
+├─ Body: {username, email, password}
+├─ Returns: {user, access_token, refresh_token}
+└─ Status: 201 Created
+
+POST /v1/auth/login
+├─ Body: {email, password}
+├─ Returns: {user, access_token, refresh_token}
+└─ Status: 200 OK
+
+POST /v1/auth/refresh
+├─ Body: {refresh_token}
+├─ Returns: {access_token}
+└─ Status: 200 OK
+
+POST /v1/auth/logout
+├─ Headers: Authorization: Bearer {token}
+├─ Returns: {success: true}
+└─ Status: 200 OK
+```
+
+**Problem Endpoints:**
+
+```http
+GET /v1/problems
+├─ Query: ?difficulty=easy&tags=array&page=1&limit=20
+├─ Returns: {problems[], pagination}
+├─ Caching: 5 minutes (problems rarely change)
+└─ Status: 200 OK
+
+GET /v1/problems/{slug}
+├─ Path: slug (e.g., "two-sum")
+├─ Returns: {problem details, examples, constraints}
+├─ Caching: 1 hour (individual problems even more stable)
+└─ Status: 200 OK or 404 Not Found
+
+GET /v1/problems/{slug}/submissions
+├─ Auth: Required
+├─ Returns: User's submissions for this problem
+└─ Status: 200 OK or 401 Unauthorized
+```
+
+**Submission Endpoints:**
+
+```http
+POST /v1/submissions
+├─ Auth: Required
+├─ Body: {problem_id, language, code}
+├─ Returns: {submission_id, status: "pending"}
+├─ Rate limit: 10/minute per user
+└─ Status: 201 Created
+
+GET /v1/submissions/{id}
+├─ Auth: Required (only owner can view)
+├─ Returns: {submission details, status, results}
+└─ Status: 200 OK or 403 Forbidden
+
+POST /v1/submissions/{id}/run
+├─ Auth: Required
+├─ Body: {test_cases: ["case1", "case2"]}
+├─ Returns: {output, errors}
+├─ Note: Runs code without judging (for testing)
+└─ Status: 200 OK
+```
+
+**User Endpoints:**
+
+```http
+GET /v1/users/me
+├─ Auth: Required
+├─ Returns: {user profile, stats, solved_problems}
+└─ Status: 200 OK
+
+PATCH /v1/users/me
+├─ Auth: Required
+├─ Body: {full_name?, avatar_url?}
+├─ Returns: {updated user}
+└─ Status: 200 OK
+
+GET /v1/users/{username}
+├─ Auth: Optional (public profiles)
+├─ Returns: {public profile, stats}
+└─ Status: 200 OK or 404 Not Found
+```
+
+#### Rate Limiting Strategy
+
+**Why rate limiting?**
+
+```text
+Without rate limiting:
+Attacker: Sends 10,000 requests/second
+Server: Crashes under load ❌
+
+With rate limiting:
+Attacker: Sends 10,000 requests/second
+Server: Accepts first 100, blocks the rest ✅
+Returns: 429 Too Many Requests
+```
+
+**Rate Limits by User Type:**
+
+```text
+Anonymous (no login):
+├─ 20 requests/minute
+├─ Prevents scraping without account
+└─ Encourages registration
+
+Authenticated Free User:
+├─ 100 requests/minute
+├─ Allows normal usage
+└─ Prevents abuse
+
+Premium User:
+├─ 500 requests/minute
+├─ Power users need higher limits
+└─ Revenue incentive
+
+Special: Code Submissions
+├─ 10 submissions/minute (all users)
+├─ Prevents brute-force spamming
+└─ Protects judge system resources
+```
+
+**Implementation (Token Bucket Algorithm):**
+
+```python
+class RateLimiter:
+    def __init__(self, max_requests=100, window_seconds=60):
+        self.max_requests = max_requests
+        self.window = window_seconds
+        self.redis = Redis()
+    
+    def is_allowed(self, user_id):
+        key = f"ratelimit:{user_id}"
+        current_time = time.time()
+        
+        # Get request count in current window
+        count = self.redis.incr(key)
+        
+        if count == 1:
+            # First request in window, set expiration
+            self.redis.expire(key, self.window)
+        
+        if count > self.max_requests:
+            # Rate limit exceeded
+            ttl = self.redis.ttl(key)
+            raise RateLimitExceeded(f"Try again in {ttl} seconds")
+        
+        return True
+
+# Usage in API endpoint
+@app.post("/v1/submissions")
+def submit_code(request):
+    user_id = get_user_from_token(request.headers['Authorization'])
+    
+    # Check rate limit
+    if not rate_limiter.is_allowed(user_id):
+        return JSONResponse(
+            status_code=429,
+            content={"error": "Rate limit exceeded"},
+            headers={"Retry-After": "60"}
+        )
+    
+    # Process submission...
+```
+
+**Rate Limit Response Headers:**
+
+```http
+HTTP/1.1 200 OK
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 87
+X-RateLimit-Reset: 1635724800
+
+(User has made 13 requests, 87 remaining in this window)
+```
+
+---
+
+### 🔴 For Advanced: Production Considerations
+
+#### API Versioning Strategies
+
+**Why versioning matters:**
+
+```text
+Scenario: You need to change response format
+Old API: {user_id: "123", name: "Alice"}
+New API: {id: "123", firstName: "Alice", lastName: "Smith"}
+
+Without versioning:
+├─ Change breaks all existing mobile apps
+├─ Users see blank screens
+└─ 1-star reviews flood in ❌
+
+With versioning:
+├─ /v1/users → Old format (still works)
+├─ /v2/users → New format (new apps use this)
+└─ Gradual migration, no breaking changes ✅
+```
+
+**Versioning Approaches:**
+
+**1. URL Path Versioning (Recommended):**
+```text
+https://api.leetcode.com/v1/problems
+https://api.leetcode.com/v2/problems
+
+Pros:
+├─ Explicit and clear
+├─ Easy to route different versions to different servers
+├─ Can deprecate entire /v1/ and shut down servers
+└─ Industry standard (Stripe, Twitter, GitHub use this)
+
+Cons:
+├─ URL changes (but that's the point!)
+└─ Need to maintain code for multiple versions
+```
+
+**2. Header Versioning:**
+```text
+GET /problems
+Accept: application/vnd.leetcode.v1+json
+
+Pros:
+├─ URL stays clean
+└─ RESTful purists prefer this
+
+Cons:
+├─ Less visible (developers might miss it)
+├─ Harder to debug (version in headers not URL)
+└─ Can't cache different versions easily
+```
+
+**3. Query Parameter:**
+```text
+GET /problems?version=1
+
+Pros:
+├─ Easy to implement
+
+Cons:
+├─ Ugly URLs
+├─ Optional parameter (users might forget it)
+└─ Not recommended
+```
+
+**Deprecation Strategy:**
+
+```text
+v1 Released: Jan 2023
+v2 Released: Jan 2024
+├─ Announce v1 deprecation (6 months notice)
+├─ Add deprecation header: Sunset: Sat, 01 Jul 2024 23:59:59 GMT
+├─ Send emails to developers still using v1
+└─ Provide migration guide
+
+v1 Sunset: Jul 2024
+├─ Return 410 Gone for v1 requests
+├─ Point to migration docs
+└─ Shut down v1 infrastructure (cost savings)
+
+Timeline:
+├─ Development: 3 months (build v2)
+├─ Beta: 1 month (test with partners)
+├─ Public release: Announce to all users
+├─ Deprecation notice: 6 months before shutdown
+└─ Shutdown: Delete v1 code
+```
+
+#### API Gateway Architecture
+
+**Centralized API Gateway Benefits:**
+
+```text
+Without Gateway:
+[Clients] → [Problem Service] → Auth logic duplicated
+         → [Submission Service] → Auth logic duplicated
+         → [User Service] → Auth logic duplicated
+
+With Gateway:
+[Clients] → [API Gateway] → [Problem Service]
+              ├─ Auth          → [Submission Service]
+              ├─ Rate Limiting → [User Service]
+              ├─ Logging
+              └─ Caching
+
+Centralized cross-cutting concerns:
+├─ Single point for authentication
+├─ Consistent rate limiting
+├─ Unified logging/metrics
+└─ Easier to add features (all traffic goes through gateway)
+```
+
+**API Gateway Implementation (Kong/AWS API Gateway):**
+
+```yaml
+# Kong configuration example
+services:
+  - name: submission-service
+    url: http://submission-service:3000
+    routes:
+      - paths: ["/v1/submissions"]
+    plugins:
+      - name: jwt
+        config:
+          secret: "jwt-secret-key"
+      - name: rate-limiting
+        config:
+          minute: 100
+          hour: 5000
+      - name: request-transformer
+        config:
+          add:
+            headers: ["X-Service:submission"]
+      - name: response-cache
+        config:
+          ttl: 300
+
+  - name: problem-service
+    url: http://problem-service:3000
+    routes:
+      - paths: ["/v1/problems"]
+    plugins:
+      - name: response-cache
+        config:
+          ttl: 3600  # Cache problems for 1 hour
+```
+
+#### Advanced Authentication Patterns
+
+**OAuth 2.0 for Third-Party Integrations:**
+
+```text
+Use case: "Login with LeetCode" button on other sites
+
+Flow:
+1. User clicks "Login with LeetCode" on thirdparty.com
+   ↓
+2. Redirected to leetcode.com/oauth/authorize
+   ↓
+3. User logs in and approves permission:
+   "Allow thirdparty.com to view your profile and solved problems?"
+   ↓
+4. LeetCode redirects back with authorization code:
+   thirdparty.com/callback?code=abc123
+   ↓
+5. thirdparty.com exchanges code for access token:
+   POST /oauth/token {code: "abc123", client_secret: "xxx"}
+   ↓
+6. LeetCode returns access token
+   ↓
+7. thirdparty.com uses token to fetch user data:
+   GET /v1/users/me {Authorization: Bearer token}
+   ↓
+8. thirdparty.com creates account for user
+
+Security benefits:
+├─ thirdparty.com never sees user's password
+├─ User can revoke access anytime
+├─ Limited scope (only approved permissions)
+└─ Token expires (refresh token for long-term access)
+```
+
+**API Key for Programmatic Access:**
+
+```text
+Use case: Automated scripts, CI/CD integrations
+
+Example:
+# Generate API key (once)
+POST /v1/api-keys {name: "CI/CD Pipeline", scopes: ["read:problems"]}
+Returns: {api_key: "sk_live_abc123...", expires: never}
+
+# Use API key in scripts
+curl -H "Authorization: Bearer sk_live_abc123..." \
+     https://api.leetcode.com/v1/problems
+
+Advantages:
+├─ No user login required (for automation)
+├─ Can be rotated without changing code (regenerate key)
+├─ Scoped permissions (read-only, write-only, etc.)
+└─ Easy revocation (delete key)
+
+Security:
+├─ Store in environment variables, never in code
+├─ Rotate regularly (every 90 days)
+├─ Monitor usage (alert on unusual patterns)
+└─ Rate limit per API key
+```
+
+#### GraphQL Alternative
+
+**Why GraphQL for coding platforms?**
+
+```text
+REST Problems:
+├─ Over-fetching: GET /problems returns ALL fields, even if you only need title
+├─ Under-fetching: Need 3 requests to get problem + submissions + user stats
+└─ No flexibility: Mobile app needs different fields than web
+
+GraphQL Solution:
+query {
+  problem(slug: "two-sum") {
+    title
+    difficulty
+    mySubmissions(limit: 5) {
+      status
+      runtime
+    }
+  }
+  me {
+    solvedCount
+  }
+}
+
+Single request, exact data needed!
+```
+
+**GraphQL Schema Example:**
+
+```graphql
+type Query {
+  problems(
+    difficulty: Difficulty
+    tags: [String]
+    page: Int
+    limit: Int
+  ): ProblemConnection!
+  
+  problem(slug: String!): Problem
+  
+  me: User!
+}
+
+type Problem {
+  id: ID!
+  title: String!
+  slug: String!
+  difficulty: Difficulty!
+  description: String!
+  tags: [Tag!]!
+  submissions(limit: Int): [Submission!]!
+  acceptanceRate: Float!
+}
+
+type Submission {
+  id: ID!
+  code: String!
+  language: Language!
+  status: SubmissionStatus!
+  runtime: Int
+  memory: Int
+  submittedAt: DateTime!
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum SubmissionStatus {
+  PENDING
+  ACCEPTED
+  WRONG_ANSWER
+  TIME_LIMIT_EXCEEDED
+}
+```
+
+**REST vs GraphQL Trade-offs:**
+
+```text
+REST Advantages:
+├─ Simpler (easier to learn and implement)
+├─ Better caching (HTTP cache works out of box)
+├─ Smaller payload (no query parsing overhead)
+└─ Mature ecosystem (tools, libraries, knowledge)
+
+GraphQL Advantages:
+├─ Flexible queries (clients get exactly what they need)
+├─ Single endpoint (no versioning needed, just add fields)
+├─ Strongly typed (schema validation)
+└─ Great for complex, nested data
+
+Recommendation for coding platform:
+├─ REST for public API (simplicity, caching)
+├─ GraphQL for internal tools (flexibility)
+└─ Hybrid: Offer both (Stripe, GitHub do this)
+```
+
+---
+
+### Real-World Example: LeetCode's API Evolution
+
+**2015: Simple REST API**
+```text
+Endpoints:
+├─ GET /problems
+├─ POST /submit
+└─ GET /user/stats
+
+Problems:
+├─ No versioning (breaking changes broke mobile apps)
+├─ No rate limiting (scrapers overloaded servers)
+└─ No pagination (returning 1000+ problems in one request)
+```
+
+**2017: Versioned REST API**
+```text
+Improvements:
+├─ /v1/ prefix for versioning
+├─ JWT authentication (was basic auth before)
+├─ Rate limiting (100 req/min authenticated)
+├─ Pagination (page/limit params)
+└─ API documentation (Swagger/OpenAPI)
+
+Still problems:
+├─ Over-fetching (mobile app got too much data)
+└─ Multiple requests needed for dashboard (slow on mobile)
+```
+
+**2020: GraphQL + REST Hybrid**
+```text
+Added:
+├─ GraphQL endpoint (/graphql) for web/mobile
+├─ REST API (/v1/) maintained for backward compatibility
+├─ API Gateway (Kong) for unified management
+├─ OAuth 2.0 for third-party integrations
+└─ Webhooks for real-time notifications
+
+Architecture:
+[Clients]
+    ↓
+[CloudFlare CDN] (DDoS protection)
+    ↓
+[Kong API Gateway]
+    ├─ Auth, rate limiting, logging
+    ↓
+[GraphQL Federation]
+    ├─ Problem subgraph
+    ├─ User subgraph
+    ├─ Submission subgraph
+    └─ Contest subgraph
+
+Benefits:
+├─ 50% fewer API calls (GraphQL efficiency)
+├─ 90% cache hit rate (CDN + Redis)
+├─ Zero downtime deployments (blue-green via gateway)
+└─ API versioning without code duplication
+```
+
+**2023: Current State**
+```text
+REST API (/v1/):
+├─ Used by: Public integrations, CI/CD tools, scrapers
+├─ Cached heavily (CloudFlare + Redis)
+├─ Rate limited strictly (prevent abuse)
+└─ Simple CRUD operations
+
+GraphQL (/graphql):
+├─ Used by: Web app, mobile apps, internal tools
+├─ Batching/caching with DataLoader
+├─ Subscriptions for real-time updates (contest leaderboards)
+└─ Complex, nested queries
+
+Technology Stack:
+├─ API Gateway: Kong Enterprise
+├─ GraphQL: Apollo Federation (Node.js)
+├─ Authentication: Auth0 (managed service)
+├─ Rate Limiting: Redis + Lua scripts
+└─ Monitoring: Datadog APM
+```
+
+---
+
+### 🎯 Interview Questions: API Design
+
+**Question 1:** A user submits code, which is judged asynchronously. How should the API handle this?
+
+<details>
+<summary>💡 Hint</summary>
+Think about async processing, polling vs WebSockets, and when to return a response.
+</details>
+
+<details>
+<summary>✅ Sample Answer</summary>
+
+**Problem:**
+```text
+Code execution takes 1-3 seconds. Can't block API request for that long.
+```
+
+**Solution: Async Processing with Multiple Options**
+
+**Option 1: Polling (Simpler)**
+
+```text
+POST /v1/submissions
+├─ Immediately returns: {submission_id: "sub-123", status: "pending"}
+├─ Status: 202 Accepted (not 200 OK, signals async processing)
+└─ Client polls for results
+
+Client polls:
+GET /v1/submissions/sub-123 (every 1 second)
+├─ While pending: {status: "pending"}
+├─ Once complete: {status: "accepted", runtime: 45ms, memory: 12MB}
+└─ Client stops polling
+```
+
+**Implementation:**
+```python
+@app.post("/v1/submissions")
+def submit_code(request):
+    # 1. Validate and save submission
+    submission = db.insert({
+        'user_id': request.user_id,
+        'problem_id': request.problem_id,
+        'code_s3_key': upload_to_s3(request.code),
+        'status': 'pending'
+    })
+    
+    # 2. Enqueue for judging (non-blocking)
+    queue.send({
+        'submission_id': submission.id,
+        'code_s3_key': submission.code_s3_key
+    })
+    
+    # 3. Return immediately
+    return JSONResponse(
+        status_code=202,  # Accepted
+        content={
+            "submission_id": submission.id,
+            "status": "pending",
+            "poll_url": f"/v1/submissions/{submission.id}"
+        },
+        headers={
+            "Location": f"/v1/submissions/{submission.id}"
+        }
+    )
+
+@app.get("/v1/submissions/{id}")
+def get_submission(id):
+    submission = db.get(id)
+    
+    if submission.status == 'pending':
+        return JSONResponse(
+            status_code=200,
+            content={"status": "pending"},
+            headers={"Retry-After": "1"}  # Suggest polling interval
+        )
+    else:
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": submission.status,
+                "runtime": submission.runtime_ms,
+                "memory": submission.memory_kb,
+                "test_cases_passed": submission.test_cases_passed
+            }
+        )
+```
+
+**Option 2: WebSockets (More Complex, Real-Time)**
+
+```text
+1. User connects to WebSocket:
+   ws://api.leetcode.com/v1/submissions/listen
+
+2. User submits code via REST:
+   POST /v1/submissions
+   Returns: {submission_id: "sub-123", status: "pending"}
+
+3. Server pushes updates via WebSocket:
+   {"submission_id": "sub-123", "event": "judging_started"}
+   {"submission_id": "sub-123", "event": "test_case_1_passed"}
+   {"submission_id": "sub-123", "event": "test_case_2_passed"}
+   {"submission_id": "sub-123", "event": "completed", "status": "accepted"}
+
+4. User receives real-time updates (no polling needed!)
+```
+
+**Implementation:**
+```python
+from fastapi import WebSocket
+
+@app.websocket("/v1/submissions/listen")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    user_id = authenticate_websocket(websocket)
+    
+    # Subscribe to Redis channel for this user's submissions
+    pubsub = redis.pubsub()
+    pubsub.subscribe(f"user:{user_id}:submissions")
+    
+    try:
+        for message in pubsub.listen():
+            # Forward updates to client
+            await websocket.send_json(message['data'])
+    except WebSocketDisconnect:
+        pubsub.unsubscribe()
+
+# When judge completes, publish to Redis
+def on_submission_complete(submission_id, user_id, results):
+    redis.publish(f"user:{user_id}:submissions", {
+        "submission_id": submission_id,
+        "event": "completed",
+        "results": results
+    })
+```
+
+**Option 3: Webhooks (For Integrations)**
+
+```text
+User registers webhook URL:
+POST /v1/webhooks
+{
+  "url": "https://myapp.com/leetcode-callback",
+  "events": ["submission.completed"]
+}
+
+When submission completes:
+Server sends:
+POST https://myapp.com/leetcode-callback
+{
+  "event": "submission.completed",
+  "submission_id": "sub-123",
+  "status": "accepted",
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+```
+
+**Comparison:**
+
+```text
+Polling:
+├─ Pros: Simple, works everywhere (HTTP only)
+├─ Cons: Inefficient (many unnecessary requests), delayed updates
+└─ Use when: Simplicity matters, real-time not critical
+
+WebSockets:
+├─ Pros: True real-time, efficient (push-based)
+├─ Cons: Complex (maintain connections), harder to scale, some firewalls block
+└─ Use when: Real-time critical (contests, live coding interviews)
+
+Webhooks:
+├─ Pros: No polling, event-driven, scalable
+├─ Cons: Requires receiver to have public endpoint, retry logic complex
+└─ Use when: Server-to-server integrations, CI/CD pipelines
+
+Recommendation for LeetCode:
+├─ Public users: Polling (simple, works everywhere)
+├─ Contests: WebSockets (real-time leaderboards)
+└─ Integrations: Webhooks (automated workflows)
+```
+
+</details>
+
+**Question 2:** How would you design an API that returns different data for free vs premium users without duplicating endpoints?
+
+<details>
+<summary>💡 Hint</summary>
+Think about field-level authorization and dynamic response filtering.
+</details>
+
+<details>
+<summary>✅ Sample Answer</summary>
+
+**Approach: Single Endpoint with Dynamic Filtering**
+
+```text
+Bad (duplication):
+❌ GET /v1/problems (free users)
+❌ GET /v1/premium/problems (premium users)
+
+Good (single endpoint):
+✅ GET /v1/problems (dynamic based on user tier)
+```
+
+**Implementation Strategies:**
+
+**1. Field-Level Filtering:**
+
+```python
+@app.get("/v1/problems/{slug}")
+def get_problem(slug: str, current_user: User):
+    problem = db.get_problem(slug)
+    
+    # Base response (available to all)
+    response = {
+        "title": problem.title,
+        "difficulty": problem.difficulty,
+        "description": problem.description,
+        "examples": problem.examples
+    }
+    
+    # Premium-only fields
+    if current_user.is_premium:
+        response.update({
+            "hints": problem.hints,  # Premium only
+            "video_explanation_url": problem.video_url,  # Premium only
+            "similar_problems": problem.similar_problems,  # Premium only
+            "optimal_solution": problem.optimal_solution  # Premium only
+        })
+    
+    # Premium indicator (so free users know what they're missing)
+    if not current_user.is_premium:
+        response["premium_features_available"] = [
+            "hints", "video_explanation", "similar_problems", "optimal_solution"
+        ]
+    
+    return response
+```
+
+**Response for Free User:**
+```json
+{
+  "title": "Two Sum",
+  "difficulty": "easy",
+  "description": "Given an array...",
+  "examples": [...],
+  "premium_features_available": ["hints", "video_explanation", ...]
+}
+```
+
+**Response for Premium User:**
+```json
+{
+  "title": "Two Sum",
+  "difficulty": "easy",
+  "description": "Given an array...",
+  "examples": [...],
+  "hints": ["Try using a hash map", "Think about O(n) time"],
+  "video_explanation_url": "https://...",
+  "similar_problems": ["Three Sum", "Four Sum"],
+  "optimal_solution": "Use hash map for O(n) time..."
+}
+```
+
+**2. GraphQL Approach (Even Better):**
+
+```graphql
+type Problem {
+  title: String!
+  difficulty: Difficulty!
+  description: String!
+  examples: [Example!]!
+  
+  # Premium fields with @auth directive
+  hints: [String!] @requiresPremium
+  videoExplanation: String @requiresPremium
+  similarProblems: [Problem!] @requiresPremium
+}
+
+# Custom directive
+directive @requiresPremium on FIELD_DEFINITION
+```
+
+**Resolver with field-level auth:**
+```javascript
+const resolvers = {
+  Problem: {
+    hints: (problem, args, context) => {
+      if (!context.user.isPremium) {
+        throw new Error("Premium subscription required");
+      }
+      return problem.hints;
+    },
+    
+    videoExplanation: (problem, args, context) => {
+      if (!context.user.isPremium) {
+        return null;  // Or throw error, depending on UX
+      }
+      return problem.videoExplanationUrl;
+    }
+  }
+};
+```
+
+**Query:**
+```graphql
+query {
+  problem(slug: "two-sum") {
+    title
+    difficulty
+    description
+    hints  # Only returned if user is premium
+    videoExplanation  # Only returned if user is premium
+  }
+}
+```
+
+**3. Response Transformation Middleware:**
+
+```python
+class PremiumFilterMiddleware:
+    def __init__(self, app):
+        self.app = app
+    
+    async def __call__(self, request, call_next):
+        response = await call_next(request)
+        
+        # Parse response JSON
+        body = await response.body()
+        data = json.loads(body)
+        
+        # Filter based on user tier
+        user = request.state.user
+        if not user.is_premium:
+            data = self.filter_premium_fields(data)
+        
+        # Return modified response
+        return JSONResponse(content=data)
+    
+    def filter_premium_fields(self, data):
+        premium_fields = ['hints', 'video_explanation_url', 'optimal_solution']
+        
+        # Recursively remove premium fields
+        if isinstance(data, dict):
+            return {
+                k: self.filter_premium_fields(v)
+                for k, v in data.items()
+                if k not in premium_fields
+            }
+        elif isinstance(data, list):
+            return [self.filter_premium_fields(item) for item in data]
+        else:
+            return data
+```
+
+**4. Rate Limiting by Tier:**
+
+```python
+def get_rate_limit(user):
+    if user.is_premium:
+        return 500  # requests per minute
+    elif user.is_authenticated:
+        return 100
+    else:
+        return 20  # anonymous
+
+@app.get("/v1/problems")
+async def list_problems(request):
+    user = get_user_from_token(request)
+    limit = get_rate_limit(user)
+    
+    if not check_rate_limit(user.id, limit):
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "Rate limit exceeded",
+                "limit": limit,
+                "upgrade_url": "/pricing" if not user.is_premium else None
+            }
+        )
+    
+    # Process request...
+```
+
+**5. API Documentation (OpenAPI):**
+
+```yaml
+/problems/{slug}:
+  get:
+    summary: Get problem details
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      200:
+        description: Problem details
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                difficulty:
+                  type: string
+                  enum: [easy, medium, hard]
+                description:
+                  type: string
+                hints:
+                  type: array
+                  items:
+                    type: string
+                  description: "⭐ Premium only"
+                video_explanation_url:
+                  type: string
+                  description: "⭐ Premium only"
+```
+
+**Benefits:**
+
+```text
+Single Endpoint:
+├─ No code duplication
+├─ Easier to maintain (one place to update)
+├─ Consistent API contract
+└─ Clear upgrade path (users see what they're missing)
+
+Field-Level Control:
+├─ Fine-grained permissions
+├─ Can mix free and premium features
+├─ Easy to A/B test (make field premium or free)
+└─ Future-proof (add new tiers easily)
+
+Business Value:
+├─ Free users see what they're missing (conversion funnel)
+├─ Premium users get more data (value for money)
+├─ Can track which premium features are most accessed
+└─ Easy to offer limited-time promotions (temporarily unlock premium fields)
+```
+
+</details>
+
+---
+
+### 🤔 Think About It
+
+1. **Why use JWT instead of storing sessions in database?**
+   - Hint: Think about scalability and stateless servers
+
+2. **What's the security risk of returning detailed error messages in API responses?**
+   - Hint: "User with email alice@example.com not found" vs "Invalid credentials"
+
+3. **How would you handle API requests from mobile apps that go offline?**
+   - Hint: Request queuing, offline-first architecture
+
+4. **Should you version every change to the API or only breaking changes?**
+   - Hint: Backward compatible additions vs breaking removals
+
+---
+
+### ✅ Key Takeaways
+
+🎯 **API Design Principles:**
+- **Resource-oriented URLs** (nouns not verbs): /problems not /getProblems
+- **HTTP status codes** matter: 401 (who are you?) vs 403 (you can't do this)
+- **Pagination** is mandatory: Never return thousands of items at once
+- **Versioning from day one**: /v1/ prefix prevents future headaches
+
+🔐 **Authentication & Security:**
+- **JWT for stateless auth**: Scales horizontally, no server-side session storage
+- **Rate limiting by tier**: Anonymous (20/min), Free (100/min), Premium (500/min)
+- **Separate submission limits**: 10 submissions/minute prevents abuse
+
+📊 **API Patterns:**
+- **Async processing**: 202 Accepted for long-running operations
+- **Polling vs WebSockets**: Polling for simplicity, WebSockets for real-time
+- **Field-level authorization**: Single endpoint, dynamic response based on user tier
+
+💡 **Interview Tips:**
+- Always mention rate limiting (prevents DOS attacks)
+- Discuss versioning strategy (URL path is industry standard)
+- Explain authentication flow (JWT creation, verification, expiry)
+- Consider mobile use cases (offline support, smaller payloads)
+
+---
+
+### 🎯 Practice Exercise
+
+**Challenge:** Design API endpoints for a coding contest feature
+
+**Requirements:**
+- Users can register for upcoming contests
+- Contests have start/end times (e.g., 2 hours)
+- During contest, users submit code for contest problems
+- Real-time leaderboard (updated every 10 seconds)
+- After contest, users can view all solutions
+
+**Deliverables:**
+1. List 5-7 API endpoints needed
+2. Specify HTTP methods and request/response formats
+3. Explain authentication requirements
+4. Discuss real-time leaderboard strategy (polling vs WebSocket)
+
+<details>
+<summary>📝 Sample Solution</summary>
+
+**API Endpoints:**
+
+```http
+1. POST /v1/contests/{id}/register
+   ├─ Auth: Required
+   ├─ Body: {}
+   ├─ Response: {registered: true, contest_start: "2025-01-15T10:00:00Z"}
+   └─ Idempotent: Re-registering returns same response
+
+2. GET /v1/contests/{id}
+   ├─ Auth: Optional (public info visible, private only for participants)
+   ├─ Response:
+      {
+        "title": "Weekly Contest 123",
+        "start_time": "2025-01-15T10:00:00Z",
+        "end_time": "2025-01-15T12:00:00Z",
+        "duration_minutes": 120,
+        "problems": [...] // Only visible to registered users during contest
+        "participant_count": 5000
+      }
+
+3. GET /v1/contests/{id}/problems
+   ├─ Auth: Required (must be registered)
+   ├─ Available: Only during contest time window
+   ├─ Response: [{problem_id, title, difficulty, points}, ...]
+   └─ Rate limit: 100/minute (prevent scraping)
+
+4. POST /v1/contests/{id}/submissions
+   ├─ Auth: Required
+   ├─ Available: Only during contest time window
+   ├─ Body: {problem_id, language, code}
+   ├─ Response: {submission_id, status: "pending"}
+   ├─ Rate limit: 10/minute
+   └─ Validation: Ensure contest is active, user is registered
+
+5. GET /v1/contests/{id}/leaderboard
+   ├─ Auth: Optional (public after contest starts)
+   ├─ Available: During and after contest
+   ├─ Query params: ?page=1&limit=100
+   ├─ Response:
+      {
+        "rankings": [
+          {
+            "rank": 1,
+            "username": "alice",
+            "score": 300,
+            "penalty_time": 1200,  // Seconds
+            "problems_solved": 3
+          }
+        ],
+        "updated_at": "2025-01-15T10:15:30Z"
+      }
+   ├─ Caching: 10 seconds during contest, 1 hour after
+   └─ Alternative: WebSocket at /v1/contests/{id}/leaderboard/stream
+
+6. GET /v1/contests/{id}/my-submissions
+   ├─ Auth: Required
+   ├─ Response: User's submissions for this contest
+   └─ Use case: "Show me my submission history"
+
+7. GET /v1/contests/{id}/solutions
+   ├─ Auth: Required
+   ├─ Available: Only after contest ends
+   ├─ Response: Top solutions for each problem (community voted)
+   └─ Purpose: Learning from others after contest
+```
+
+**Real-Time Leaderboard Strategy:**
+
+**Option A: Polling (Recommended for MVP)**
+```javascript
+// Client-side
+let leaderboardInterval;
+
+function startContest() {
+  // Poll every 10 seconds during contest
+  leaderboardInterval = setInterval(() => {
+    fetch(`/v1/contests/${contestId}/leaderboard`)
+      .then(res => res.json())
+      .then(data => updateLeaderboard(data.rankings));
+  }, 10000);  // 10 seconds
+}
+
+function endContest() {
+  clearInterval(leaderboardInterval);
+}
+```
+
+**Server-side caching:**
+```python
+@app.get("/v1/contests/{id}/leaderboard")
+def get_leaderboard(id: str):
+    # Check cache first
+    cached = redis.get(f"contest:{id}:leaderboard")
+    if cached:
+        return json.loads(cached)
+    
+    # Compute leaderboard
+    rankings = db.query("""
+        SELECT 
+            cp.user_id,
+            u.username,
+            cp.total_score,
+            cp.penalty_time,
+            cp.rank
+        FROM contest_participants cp
+        JOIN users u ON cp.user_id = u.user_id
+        WHERE cp.contest_id = %s
+        ORDER BY cp.total_score DESC, cp.penalty_time ASC
+        LIMIT 100
+    """, [id])
+    
+    # Cache for 10 seconds
+    redis.setex(
+        f"contest:{id}:leaderboard",
+        10,  # TTL
+        json.dumps(rankings)
+    )
+    
+    return rankings
+```
+
+**Benefits:**
+- Simple to implement
+- Works with HTTP load balancers
+- 10K users polling every 10s = 1000 QPS (manageable with caching)
+
+**Option B: WebSocket (For Better UX)**
+```javascript
+// Client-side
+const ws = new WebSocket(`wss://api.leetcode.com/v1/contests/${contestId}/leaderboard/stream`);
+
+ws.onmessage = (event) => {
+  const update = JSON.parse(event.data);
+  
+  if (update.type === 'full_leaderboard') {
+    updateLeaderboard(update.rankings);
+  } else if (update.type === 'rank_change') {
+    updateSingleRank(update.user, update.new_rank);
+  }
+};
+```
+
+**Server-side:**
+```python
+from fastapi import WebSocket
+
+@app.websocket("/v1/contests/{id}/leaderboard/stream")
+async def leaderboard_stream(websocket: WebSocket, id: str):
+    await websocket.accept()
+    
+    # Subscribe to Redis pub/sub
+    pubsub = redis.pubsub()
+    pubsub.subscribe(f"contest:{id}:leaderboard_updates")
+    
+    # Send initial state
+    leaderboard = get_leaderboard(id)
+    await websocket.send_json({
+        "type": "full_leaderboard",
+        "rankings": leaderboard
+    })
+    
+    # Stream updates
+    try:
+        for message in pubsub.listen():
+            await websocket.send_json(message['data'])
+    except WebSocketDisconnect:
+        pubsub.unsubscribe()
+
+# When submission is judged, publish update
+def on_submission_judged(contest_id, user_id, new_score):
+    # Recalculate rank
+    new_rank = calculate_rank(contest_id, user_id)
+    
+    # Publish to all connected clients
+    redis.publish(f"contest:{contest_id}:leaderboard_updates", {
+        "type": "rank_change",
+        "user_id": user_id,
+        "new_score": new_score,
+        "new_rank": new_rank
+    })
+```
+
+**Benefits:**
+- True real-time (updates within 100ms)
+- Efficient (push-based, not polling)
+- Better UX during live contests
+
+**Challenges:**
+- More complex infrastructure
+- Need sticky sessions (or Redis pub/sub for multi-server)
+- 10K concurrent WebSockets = more memory/connections
+
+**Hybrid Approach (Best):**
+```text
+During contest:
+├─ Top 100 users: WebSocket (competitive, want real-time)
+├─ Other users: Polling every 30 seconds (less competitive)
+└─ Automatically upgrade to WebSocket if user enters top 100
+
+After contest:
+├─ Everyone: HTTP with 1-hour cache
+└─ WebSocket connections closed
+```
+
+**Authentication for Contest Endpoints:**
+
+```python
+def verify_contest_access(contest_id: str, user_id: str, action: str):
+    contest = db.get_contest(contest_id)
+    participant = db.get_participant(contest_id, user_id)
+    
+    # Check if user is registered
+    if action in ['submit', 'view_problems']:
+        if not participant:
+            raise HTTPException(403, "Not registered for contest")
+    
+    # Check if contest is active
+    if action == 'submit':
+        now = datetime.now()
+        if now < contest.start_time:
+            raise HTTPException(403, "Contest hasn't started yet")
+        if now > contest.end_time:
+            raise HTTPException(403, "Contest has ended")
+    
+    # Check if solutions are available
+    if action == 'view_solutions':
+        if datetime.now() < contest.end_time:
+            raise HTTPException(403, "Solutions available after contest")
+    
+    return True
+```
+
+</details>
+
+**Time Budget:** 30 minutes  
+**Difficulty:** 🟡 Intermediate
+
+---
+
+*Next Up:* In Section 6, we'll dive deep into the judge system - the heart of our platform. We'll explore Docker containerization, sandboxing strategies, and security measures to safely execute untrusted code. Ready to build a secure code execution engine? 🔒
+
