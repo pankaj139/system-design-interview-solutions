@@ -819,6 +819,365 @@ Peak traffic (3x average):
 This is called QPS (Queries Per Second)
 ```
 
+**Step 3: Estimate Storage**
+
+```text
+Average message size:
+├─ Text message: ~100 bytes ("Hello, how are you?")
+├─ Metadata (sender, timestamp, ID): ~50 bytes
+└─ Total per text message: ~150 bytes
+
+Daily text storage:
+100M messages × 150 bytes = 15 GB/day (That's tiny!)
+
+But wait - what about photos and videos?
+├─ Photos: ~2MB average (after compression)
+├─ Videos: ~10MB average  
+├─ 20% of messages have media attachments
+└─ Daily media: 20M messages × 2MB = 40 TB/day (That's huge!)
+```
+
+Think of it like this: Text messages are like sticky notes (tiny), but photos/videos are like photo albums (bulky)!
+
+---
+
+### 🟡 For Intermediate: WhatsApp-Scale Calculations
+
+Now let's calculate for WhatsApp's actual scale: 500M daily active users!
+
+#### Traffic Estimation
+
+**Message Volume:**
+
+```text
+Daily Active Users: 500M
+Messages per user per day: 100
+├─ Power users: 500 messages/day (teens)
+├─ Normal users: 50 messages/day
+└─ Light users: 10 messages/day
+
+Total daily messages: 500M × 100 = 50 billion messages/day
+
+Messages per second (average):
+50B messages ÷ 86,400 seconds = 578,704 messages/second
+≈ 580K QPS (Queries Per Second)
+
+Peak messages per second (3x average):
+580K × 3 = 1.7 million QPS
+
+Read operations (message retrieval):
+├─ Every message sent is read by recipient
+├─ Group messages read by multiple people
+├─ Ratio: 1 write : 4 reads (conservative)
+└─ Peak read QPS: 1.7M × 4 = 6.8M QPS
+```
+
+**Group Message Amplification:**
+
+```text
+Group messages: 20% of total = 10B messages/day
+Average group size: 8 members
+
+Fan-out factor:
+├─ 1 message sent to group
+├─ Must be delivered to 8 members
+└─ Creates 8 delivery operations
+
+Total group fan-out operations:
+10B messages × 8 members = 80B operations/day
+≈ 926K operations/second average
+≈ 2.8M operations/second peak
+
+This is why group messaging is expensive!
+```
+
+#### Storage Calculations
+
+**Text Message Storage:**
+
+```text
+Text messages: 80% of 50B = 40B messages/day
+Average size: 100 bytes (just the text)
+Metadata: 200 bytes (sender, receiver, timestamp, message_id, etc.)
+Total per message: 300 bytes
+
+Daily text storage:
+40B × 300 bytes = 12 TB/day
+Monthly: 360 TB
+Yearly: 4.4 PB (Petabytes!)
+```
+
+**Multimedia Storage:**
+
+```text
+Multimedia messages: 20% of 50B = 10B messages/day
+
+Breakdown:
+├─ Images: 60% = 6B images/day × 2MB = 12 PB/day
+├─ Videos: 30% = 3B videos/day × 10MB = 30 PB/day
+├─ Voice: 8% = 800M voice/day × 500KB = 400 TB/day
+└─ Files: 2% = 200M files/day × 5MB = 1 PB/day
+
+Total multimedia per day: ~43 PB/day
+Monthly: ~1.3 Exabytes (EB)
+Yearly: ~16 Exabytes
+
+Cost at $0.023/GB/month (S3):
+Yearly cost = 16EB × 1M GB × $0.023 = $368M/year just for storage!
+```
+
+**Storage Optimization with Compression:**
+
+```text
+Image Compression (WhatsApp Strategy):
+├─ Original: 5MB photo from iPhone
+├─ After compression: 200KB (96% reduction!)
+├─ Quality: Still looks great on phone screen
+└─ Cost saving: 25x reduction
+
+Storage with compression:
+43 PB/day → ~2 PB/day after aggressive compression
+Yearly cost: $368M → ~$15M (24x cheaper!)
+```
+
+#### Bandwidth Estimation
+
+**Network Bandwidth Requirements:**
+
+```text
+Incoming bandwidth (message uploads):
+├─ Peak message rate: 1.7M messages/second
+├─ Average message size: 2MB (with multimedia)
+├─ Peak bandwidth: 1.7M × 2MB = 3.4 TB/second = 27 Tbps
+
+Outgoing bandwidth (message delivery):
+├─ Peak delivery rate: 6.8M operations/second (4x fan-out)
+├─ Average delivery size: 2MB
+└─ Peak bandwidth: 6.8M × 2MB = 13.6 TB/second = 109 Tbps
+
+Total bandwidth: ~136 Tbps (Terabits per second)
+
+Cost: ~$10M/month for CDN bandwidth
+```
+
+#### Infrastructure Requirements
+
+**WebSocket Servers for Real-Time Connections:**
+
+```text
+Concurrent users: 100M users online simultaneously
+Connections per server: 10,000 (C10K problem solved!)
+
+Required servers:
+100M ÷ 10,000 = 10,000 WebSocket servers
+
+Server specs:
+├─ 16 CPU cores
+├─ 64 GB RAM
+├─ Cost: $500/month per server
+└─ Total: $5M/month for WebSocket layer
+```
+
+**Database Servers:**
+
+```text
+Write QPS: 1.7M messages/second (peak)
+Read QPS: 6.8M operations/second (peak)
+
+Typical database capacity:
+├─ PostgreSQL: 10K-20K QPS per instance
+├─ Cassandra: 50K-100K QPS per node
+└─ We'll use Cassandra for messages (write-heavy)
+
+Required Cassandra nodes:
+├─ Write capacity: 1.7M ÷ 50K = 34 nodes (3x for safety = 102 nodes)
+├─ Read capacity: 6.8M ÷ 100K = 68 nodes
+└─ Total: ~100 Cassandra nodes (includes replication)
+
+Cost: 100 nodes × $2,000/month = $200K/month
+```
+
+**Cache Servers (Redis):**
+
+```text
+Hot data to cache:
+├─ Recent messages (last 24 hours): ~50B messages × 300 bytes = 15 TB
+├─ User online status: 500M users × 1KB = 500 GB
+├─ Active WebSocket mappings: 100M × 1KB = 100 GB
+└─ Total cache needs: ~16 TB
+
+Redis cluster:
+├─ 200 Redis instances
+├─ Each with 100 GB RAM
+├─ Total capacity: 20 TB (with headroom)
+└─ Cost: 200 × $300/month = $60K/month
+```
+
+### 🔴 For Advanced: Capacity Planning at Scale
+
+#### Detailed Resource Breakdown
+
+**Complete Infrastructure Estimate:**
+
+```text
+Component              | Quantity | Cost/Month | Total/Month
+-----------------------------------------------------------------
+WebSocket Gateways     | 10,000   | $500       | $5,000,000
+Message Queue (Kafka)  | 200      | $1,000     | $200,000
+API Servers            | 5,000    | $300       | $1,500,000
+Cassandra Cluster      | 100      | $2,000     | $200,000
+PostgreSQL (Users)     | 50       | $1,500     | $75,000
+Redis Cache            | 200      | $300       | $60,000
+Load Balancers         | 100      | $500       | $50,000
+S3 Storage (30 days)   | 60 PB    | $23/TB     | $1,380,000
+CDN (CloudFlare)       | N/A      | N/A        | $10,000,000
+Monitoring & Logging   | N/A      | N/A        | $500,000
+-----------------------------------------------------------------
+TOTAL                                           | $18,965,000/month
+                                                 | $227M/year
+```
+
+**Cost per User:**
+
+```text
+Monthly cost: $19M
+Monthly active users: 2B (WhatsApp scale)
+Cost per user: $19M ÷ 2B = $0.0095 (~1 cent per user)
+
+Why WhatsApp is free:
+├─ Revenue from WhatsApp Business API: $0.005-0.01 per message
+├─ 1B business messages/day × $0.005 = $1.8B/year revenue
+└─ Profit margin: ($1.8B - $227M) / $1.8B = 87% (amazing!)
+```
+
+#### Peak Load Planning (New Year's Eve)
+
+```text
+Normal peak: 1.7M messages/second
+New Year's Eve: 10x spike (everyone texts "Happy New Year!")
+
+Spike load: 17M messages/second
+
+Strategy:
+1. Pre-scale infrastructure (2 weeks before)
+   ├─ Double WebSocket servers: 10K → 20K
+   ├─ Double Kafka partitions: 200 → 400
+   └─ Extra cache capacity: 16TB → 32TB
+
+2. Queue-based buffering
+   ├─ Messages queue during spike
+   ├─ Processed within 5 minutes (acceptable for celebrations)
+   └─ Users see "Sending..." briefly
+
+3. Graceful degradation
+   ├─ Disable typing indicators (saves 70% network bandwidth)
+   ├─ Batch read receipts (update every 10s instead of real-time)
+   ├─ Delay group message fan-out by few seconds
+   └─ Users barely notice, system survives
+
+Cost of spike:
+├─ Extra infrastructure: $5M for 2 weeks
+├─ Compare to: $60M market cap loss from outage (WhatsApp 2021)
+└─ Worth it!
+```
+
+### 💭 Think About It
+
+1. **Storage Trade-offs:** WhatsApp compresses images from 5MB to 200KB. The quality is slightly worse, but the cost saving is 25x. Would you make the same trade-off? How would you decide the "right" compression level?
+
+2. **Peak Planning:** Most apps are designed for 3x peak load. But New Year's Eve is 10x peak for WhatsApp. Is it worth spending $5M for infrastructure that's only used once a year?
+
+3. **Cost Per User:** WhatsApp spends ~1 cent per user per month, but charges businesses 0.5-1 cent per message. If you were WhatsApp, what other revenue models would you explore?
+
+### ✅ Key Takeaways
+
+```text
+Back-of-Envelope Calculations for Chat Apps:
+
+1. Traffic Patterns:
+   ├─ Average QPS: 580K messages/second
+   ├─ Peak QPS: 1.7M messages/second (3x)
+   ├─ Read/Write Ratio: 4:1 (read-heavy)
+   └─ Group amplification: 1 message → 8 deliveries
+
+2. Storage Requirements:
+   ├─ Text: 12 TB/day (cheap)
+   ├─ Multimedia: 43 PB/day → 2 PB after compression (expensive)
+   ├─ Compression is critical: 96% size reduction
+   └─ Cost: ~$15M/year for storage
+
+3. Infrastructure Needs:
+   ├─ WebSocket servers: 10,000 (for 100M concurrent)
+   ├─ Database nodes: 100 Cassandra nodes
+   ├─ Cache: 200 Redis instances (16TB total)
+   └─ Total cost: ~$19M/month = $227M/year
+
+4. Optimization Opportunities:
+   ├─ Compression: 25x storage savings
+   ├─ CDN: Reduces origin bandwidth by 90%
+   ├─ Caching: Reduces database load by 80%
+   └─ Smart fan-out: Batch group messages
+
+5. Interview Tips:
+   ├─ Always calculate both average and peak
+   ├─ Don't forget fan-out amplification
+   ├─ Show cost awareness
+   ├─ Explain optimization strategies
+   └─ Reference real systems (WhatsApp, Telegram)
+```
+
+### 🏋️ Practice Exercise
+
+**Scenario:** You're designing a messaging app for a startup. Expected scale:
+- 10 million daily active users
+- Each user sends 50 messages/day
+- 30% of messages are images (1MB average after compression)
+- Target: 99.9% availability, <200ms latency
+
+**Calculate:**
+
+1. **Traffic:**
+   - Messages per second (average and peak)
+   - Read QPS (assume 1:5 write:read ratio)
+
+2. **Storage:**
+   - Daily storage requirement (text + images)
+   - Monthly storage cost (use $0.023/GB/month)
+
+3. **Infrastructure:**
+   - WebSocket servers needed (assume 5K connections/server, 20% of DAU concurrent)
+   - Database nodes (assume 20K QPS per PostgreSQL instance)
+
+**Sample Answer:**
+
+```text
+Traffic:
+- Messages/day: 10M × 50 = 500M
+- Messages/second (avg): 500M ÷ 86,400 = 5,787 QPS
+- Messages/second (peak): 5,787 × 3 = 17,361 QPS
+- Read QPS: 17,361 × 5 = 86,805 QPS
+
+Storage:
+- Text (70%): 350M × 300 bytes = 105 GB/day
+- Images (30%): 150M × 1MB = 150 TB/day
+- Total/day: ~150 TB
+- Monthly cost: 150TB × 30 days × $0.023/GB = $103,500
+
+Infrastructure:
+- Concurrent users: 10M × 20% = 2M
+- WebSocket servers: 2M ÷ 5K = 400 servers
+- DB write capacity: 17,361 ÷ 20K = 1 master (with replicas)
+- DB read capacity: 86,805 ÷ 20K = 5 read replicas
+
+Total infrastructure: ~500 servers
+Estimated cost: ~$250K/month
+Cost per user: $250K ÷ 10M = $0.025 (2.5 cents/user)
+```
+
+---
+
+```
+
 ### Storage Estimates
 
 ```text
