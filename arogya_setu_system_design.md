@@ -2579,3 +2579,1076 @@ Calculate:
 *Solve this before reading Section 6!*
 
 ---
+
+## Section 6: Health Status & Self-Assessment
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Design a symptom checker and health self-assessment flow
+- Store health status data securely with encryption
+- Integrate with health authority systems for test result verification
+- Build a vaccination certificate feature
+- Handle sensitive health data compliance (HIPAA, GDPR)
+
+### Why This Matters
+
+Self-assessment reduces the load on healthcare systems by helping users determine if they need testing. During COVID-19, India's Arogya Setu app performed 50M+ self-assessments per week, helping prioritize testing resources. This feature is critical for scaling healthcare response during pandemics!
+
+---
+
+### 🟢 For Beginners: The Fundamentals
+
+#### What is Self-Assessment?
+
+Think of it like a medical questionnaire at a doctor's office, but automated:
+- **Questions**: "Do you have fever? Cough? Difficulty breathing?"
+- **Risk Calculation**: Based on symptoms, calculate risk score
+- **Recommendation**: "Low risk - monitor symptoms" or "High risk - get tested"
+
+#### Simple Assessment Flow
+
+```text
+Step 1: User opens "Check Your Health" feature
+┌──────────────────────────────────────┐
+│ Question 1: Do you have fever?       │
+│ ○ No  ○ Yes (>100°F)                 │
+└──────────────────────────────────────┘
+        ↓ Select "Yes"
+
+Step 2: Follow-up questions
+┌──────────────────────────────────────┐
+│ Question 2: Do you have cough?       │
+│ ○ No  ○ Dry cough  ○ With mucus     │
+└──────────────────────────────────────┘
+        ↓ Select "Dry cough"
+
+┌──────────────────────────────────────┐
+│ Question 3: Any of these symptoms?   │
+│ ☑ Shortness of breath                │
+│ ☐ Loss of taste/smell                │
+│ ☐ Body aches                         │
+│ ☐ Headache                           │
+└──────────────────────────────────────┘
+        ↓ Complete assessment
+
+Step 3: Risk calculation
+┌──────────────────────────────────────┐
+│ Your Risk Score: 75/100 (HIGH)       │
+│                                      │
+│ Symptoms:                            │
+│ ✓ Fever (25 points)                  │
+│ ✓ Dry cough (20 points)              │
+│ ✓ Shortness of breath (30 points)   │
+│                                      │
+│ Recommendation:                      │
+│ ⚠️ GET TESTED - High risk symptoms   │
+│    Find testing center near you      │
+└──────────────────────────────────────┘
+```
+
+#### Health Status States
+
+```text
+User can be in one of these states:
+├─ 🟢 SAFE: No symptoms, no exposure
+├─ 🟡 AT_RISK: Exposed but no symptoms
+├─ 🟠 SYMPTOMATIC: Has symptoms, not tested
+├─ 🔴 POSITIVE: Tested positive
+└─ ✅ RECOVERED: Tested negative after positive
+```
+
+---
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### Assessment Algorithm Design
+
+**Interview Question**: "How would you design the risk scoring algorithm?"
+
+**Answer Approach:**
+
+```text
+Weighted Symptom Scoring:
+┌────────────────────────────────────────┐
+│ Symptom Severity Weights (COVID-19):   │
+├────────────────────────────────────────┤
+│ Shortness of breath: 30 points (HIGH)  │
+│ Fever >102°F: 25 points                │
+│ Dry cough: 20 points                   │
+│ Loss of taste/smell: 20 points         │
+│ Fever 100-102°F: 15 points             │
+│ Fatigue: 10 points                     │
+│ Body aches: 10 points                  │
+│ Headache: 5 points                     │
+│ Sore throat: 5 points                  │
+└────────────────────────────────────────┘
+
+Risk Factor Multipliers:
+├─ Age >60: ×1.5
+├─ Pre-existing conditions (diabetes, etc): ×1.3
+├─ Recent exposure: ×2.0
+└─ Vaccinated: ×0.7
+
+Total Risk Score:
+= (Symptom Points + Exposure Points) × Age Factor × Condition Factor × Vaccine Factor
+
+Example:
+- Symptoms: Fever (25) + Dry cough (20) + Headache (5) = 50 points
+- Recent exposure: +40 points (if exposed)
+- Age 65: ×1.5
+- Diabetic: ×1.3
+- Vaccinated: ×0.7
+
+Total = (50 + 40) × 1.5 × 1.3 × 0.7 = 122.85 → Cap at 100
+
+Risk Levels:
+├─ 0-30: LOW (green) - Monitor symptoms
+├─ 31-60: MEDIUM (yellow) - Self-isolate, monitor
+├─ 61-80: HIGH (orange) - Get tested
+└─ 81-100: CRITICAL (red) - Seek immediate medical attention
+```
+
+#### Data Storage Schema
+
+**Health Status Table:**
+```sql
+CREATE TABLE user_health_status (
+    user_id UUID PRIMARY KEY,
+    health_status ENUM('safe', 'at_risk', 'symptomatic', 'positive', 'recovered'),
+    symptoms JSONB,  -- Encrypted symptom data
+    risk_score INTEGER,  -- 0-100
+    last_assessment_date TIMESTAMP,
+    test_result ENUM('negative', 'positive', 'pending') NULL,
+    test_date TIMESTAMP NULL,
+    vaccination_status JSONB,  -- Doses, dates, vaccine type
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    
+    INDEX idx_health_status (health_status),
+    INDEX idx_risk_score (risk_score DESC),
+    INDEX idx_test_date (test_date DESC)
+);
+
+-- Encryption at application level
+-- Symptoms JSONB example (before encryption):
+{
+  "fever": true,
+  "fever_temp": 101.5,
+  "cough": "dry",
+  "shortness_of_breath": true,
+  "loss_of_taste": false,
+  "body_aches": true,
+  "onset_date": "2025-10-24"
+}
+
+-- Stored encrypted (AES-256-GCM):
+symptoms = encrypt(json, encryption_key)
+```
+
+**Assessment History Table:**
+```sql
+CREATE TABLE assessment_history (
+    assessment_id BIGSERIAL PRIMARY KEY,
+    user_id UUID REFERENCES user_health_status(user_id),
+    assessment_date TIMESTAMP DEFAULT NOW(),
+    symptoms_json JSONB,  -- Encrypted
+    risk_score INTEGER,
+    recommendation TEXT,  -- "Get tested", "Monitor", etc.
+    
+    INDEX idx_user_assessments (user_id, assessment_date DESC)
+) PARTITION BY RANGE (assessment_date);
+
+-- Partition by month for efficient archival
+CREATE TABLE assessment_history_2025_10 
+    PARTITION OF assessment_history 
+    FOR VALUES FROM ('2025-10-01') TO ('2025-11-01');
+```
+
+#### Integration with Health Authorities
+
+**Test Result Verification Flow:**
+```text
+┌─────────────────────────────────────────┐
+│ 1. User gets tested at authorized lab   │
+└─────────────────────────────────────────┘
+        ↓
+┌─────────────────────────────────────────┐
+│ 2. Lab uploads result to national DB    │
+│    {                                    │
+│      "test_id": "LAB-2025-123456",      │
+│      "result": "positive",              │
+│      "test_date": "2025-10-26",         │
+│      "patient_code": "OTP-7382"         │
+│    }                                    │
+└─────────────────────────────────────────┘
+        ↓
+┌─────────────────────────────────────────┐
+│ 3. Lab sends OTP to user's phone (SMS)  │
+│    "Your test result code: 7382"        │
+└─────────────────────────────────────────┘
+        ↓
+┌─────────────────────────────────────────┐
+│ 4. User enters OTP in app                │
+└─────────────────────────────────────────┘
+        ↓
+┌─────────────────────────────────────────┐
+│ 5. App calls Verification API:           │
+│    POST /api/verifyTest                  │
+│    {                                     │
+│      "user_id": "uuid",                  │
+│      "verification_code": "7382"         │
+│    }                                     │
+└─────────────────────────────────────────┘
+        ↓
+┌─────────────────────────────────────────┐
+│ 6. Backend queries Health Authority API: │
+│    GET https://health.gov/api/verify     │
+│    ?code=7382                            │
+│                                          │
+│    Response:                             │
+│    {                                     │
+│      "valid": true,                      │
+│      "result": "positive",               │
+│      "test_date": "2025-10-26"           │
+│    }                                     │
+└─────────────────────────────────────────┘
+        ↓
+┌─────────────────────────────────────────┐
+│ 7. Update user health status              │
+│    UPDATE user_health_status             │
+│    SET health_status = 'positive',       │
+│        test_result = 'positive',         │
+│        test_date = '2025-10-26'          │
+│    WHERE user_id = 'uuid';               │
+└─────────────────────────────────────────┘
+        ↓
+┌─────────────────────────────────────────┐
+│ 8. Trigger contact notification workflow │
+│    (Upload TEKs, notify exposed users)   │
+└─────────────────────────────────────────┘
+```
+
+---
+
+### 🔴 For Advanced: Production Considerations
+
+#### HIPAA & GDPR Compliance
+
+**Health Data Protection Requirements:**
+
+```text
+HIPAA (US Healthcare):
+├─ PHI (Protected Health Information) must be encrypted
+├─ Audit logs for all access to health data
+├─ Business Associate Agreements with third parties
+├─ Patient consent required for data sharing
+└─ Data breach notification within 60 days
+
+GDPR (European Union):
+├─ Right to erasure ("right to be forgotten")
+├─ Data minimization (only collect what's needed)
+├─ Purpose limitation (can't repurpose health data)
+├─ Explicit consent required (opt-in, not opt-out)
+└─ Data breach notification within 72 hours
+
+Implementation Checklist:
+┌────────────────────────────────────────┐
+│ ✅ End-to-end encryption (AES-256)     │
+│ ✅ Encryption at rest (database level) │
+│ ✅ TLS 1.3 for data in transit         │
+│ ✅ Pseudonymization (use UUIDs)        │
+│ ✅ Audit logging (who accessed what)   │
+│ ✅ Data retention policy (auto-delete) │
+│ ✅ Consent management system           │
+│ ✅ Data export feature (for portability)│
+│ ✅ Secure deletion (overwrite, not just delete)│
+└────────────────────────────────────────┘
+```
+
+**Encryption Architecture:**
+
+```text
+Multi-Layer Encryption:
+┌────────────────────────────────────────┐
+│ Layer 1: Application-Level (Sensitive) │
+├────────────────────────────────────────┤
+│ - Encrypt symptoms, test results       │
+│ - Use per-user encryption keys          │
+│ - Key derivation: PBKDF2(user_secret)  │
+│ - Algorithm: AES-256-GCM                │
+└────────────────────────────────────────┘
+
+┌────────────────────────────────────────┐
+│ Layer 2: Database-Level (All Data)     │
+├────────────────────────────────────────┤
+│ - PostgreSQL: Transparent Data Encryption│
+│ - Amazon RDS: Encryption at rest        │
+│ - Managed keys via AWS KMS              │
+└────────────────────────────────────────┘
+
+┌────────────────────────────────────────┐
+│ Layer 3: Transport-Level               │
+├────────────────────────────────────────┤
+│ - TLS 1.3 for all API calls             │
+│ - Certificate pinning (prevent MITM)    │
+│ - Perfect forward secrecy (PFS)         │
+└────────────────────────────────────────┘
+
+Key Management:
+- Master key stored in AWS KMS (FIPS 140-2 Level 3)
+- Per-user keys derived from master key + user_id
+- Automatic key rotation every 90 days
+- Backup keys in separate region (disaster recovery)
+```
+
+---
+
+### Real-World Example
+
+**India's Arogya Setu Self-Assessment:**
+
+```text
+Feature: "Assess Yourself" (50M assessments/week at peak)
+
+Questions (10 total):
+1. Age group
+2. Travel history (past 14 days)
+3. Contact with COVID patient
+4. Symptoms (14 checkboxes)
+5. Pre-existing conditions
+
+Risk Categories:
+├─ Green (Low): Stay home if possible
+├─ Yellow (Moderate): Self-monitor for 14 days
+├─ Orange (High): Home quarantine, get tested
+└─ Red (Very High): Call helpline immediately
+
+Integration:
+✅ Linked to national testing database (ICMR)
+✅ Direct booking for testing slots
+✅ Helpline call button (1075 COVID helpline)
+✅ Nearby hospital finder
+
+Impact:
+- Reduced unnecessary hospital visits by 40%
+- Identified 2.5M high-risk users for priority testing
+- Saved $50M in healthcare costs (reduced load)
+```
+
+---
+
+### ✅ Key Takeaways
+
+- 📋 **Risk scoring** - Weighted symptom algorithm with age and exposure factors
+- 🔐 **Encryption mandatory** - Health data must be encrypted (HIPAA/GDPR)
+- ✅ **Verification essential** - Prevent fake test results with OTP verification
+- 📊 **Track trends** - Aggregate symptoms to detect outbreak patterns
+- 🏥 **Healthcare integration** - Link with testing labs and hospitals
+
+---
+
+## Section 7: Location Tracking & Hotspot Detection
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Design optional location tracking with user consent
+- Implement geo-hashing for privacy-preserving hotspot detection
+- Build a heat map visualization of high-risk areas
+- Handle location data compliance (minimize data collection)
+- Optimize geo-queries for real-time hotspot alerts
+
+### Why This Matters
+
+Location data is extremely sensitive, but when done right, it enables critical public health features like hotspot mapping. Singapore's TraceTogether showed that combining Bluetooth contact tracing with optional location hotspots helped identify super-spreader events at specific venues (markets, restaurants). The key is balancing utility with privacy!
+
+---
+
+### 🟢 For Beginners: The Fundamentals
+
+#### What are Hotspots?
+
+Think of hotspots like weather maps with storm warnings:
+- **Red zones**: Many cases in this area - avoid if possible
+- **Orange zones**: Moderate risk - be cautious
+- **Green zones**: Low risk - relatively safe
+
+#### How Location Tracking Works (When User Opts In)
+
+```text
+Step 1: User enables location sharing (optional!)
+┌──────────────────────────────────────┐
+│ "Share location for hotspot alerts?" │
+│                                      │
+│ [Allow]  [Deny]                      │
+│                                      │
+│ ℹ️ We only store coarse location     │
+│    (within 1 km), not exact GPS      │
+└──────────────────────────────────────┘
+
+Step 2: App periodically logs coarse location
+Every 30 minutes when user is moving:
+├─ GPS: 28.6139° N, 77.2090° E (exact)
+├─ Rounded: 28.61° N, 77.21° E (1 km grid)
+└─ Geo-hash: "ttnkr" (5-char = ~5 km cell)
+
+Step 3: If user tests positive, upload locations
+┌──────────────────────────────────────┐
+│ Upload past 14 days of locations:    │
+│ [                                    │
+│   {"geohash": "ttnkr", "date": "..."},│
+│   {"geohash": "ttnks", "date": "..."},│
+│   ...                                │
+│ ]                                    │
+└──────────────────────────────────────┘
+
+Step 4: Server aggregates into hotspots
+For each geohash cell:
+├─ Count positive cases in past 7 days
+├─ Calculate risk score per cell
+└─ Publish on map (anonymized)
+
+Step 5: Users see hotspot map
+┌──────────────────────────────────────┐
+│        📍 Hotspot Map                │
+│  🔴 High Risk (10+ cases)            │
+│  🟠 Medium Risk (5-10 cases)         │
+│  🟡 Low Risk (1-5 cases)             │
+│  🟢 Safe (<1 case)                   │
+└──────────────────────────────────────┘
+```
+
+---
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### Geo-Hashing for Privacy
+
+**Interview Question**: "How do you track location while preserving privacy?"
+
+**Answer: Use Geo-Hashing**
+
+```text
+Geohash System:
+├─ Divide world into grid cells
+├─ Each cell has a unique code (e.g., "ttnkr5")
+├─ Longer code = smaller cell (more precise)
+└─ Shorter code = larger cell (more private)
+
+Geohash Precision:
+┌────────────────────────────────────────┐
+│ Length  Cell Size    Use Case          │
+├────────────────────────────────────────┤
+│ 1 char  ±2,500 km   Country-level      │
+│ 2 char  ±630 km     State-level        │
+│ 3 char  ±78 km      City-level         │
+│ 4 char  ±20 km      District-level     │
+│ 5 char  ±2.4 km     Neighborhood ✅     │
+│ 6 char  ±610 m      Street-level       │
+│ 7 char  ±76 m       Building-level     │
+│ 8 char  ±19 m       Room-level ❌ (too precise!)│
+└────────────────────────────────────────┘
+
+Recommendation: Use 5-character geohash (2.4 km cell)
+- Balances privacy vs utility
+- Cannot identify specific building
+- Good for hotspot visualization
+
+Example:
+GPS: (28.6139° N, 77.2090° E) → "ttnkr5"
+All locations in 2.4 km radius → same hash
+Privacy: Cannot determine exact location!
+```
+
+**Database Schema for Hotspots:**
+
+```sql
+CREATE TABLE location_hotspots (
+    geohash VARCHAR(5) PRIMARY KEY,  -- 5-char geohash
+    positive_count INTEGER DEFAULT 0,  -- Cases in past 7 days
+    last_updated TIMESTAMP,
+    risk_level ENUM('low', 'medium', 'high', 'critical'),
+    
+    INDEX idx_risk_level (risk_level),
+    INDEX idx_last_updated (last_updated DESC)
+);
+
+-- Update hotspot when positive case reports location
+UPDATE location_hotspots
+SET positive_count = positive_count + 1,
+    last_updated = NOW(),
+    risk_level = CASE
+        WHEN positive_count + 1 >= 20 THEN 'critical'
+        WHEN positive_count + 1 >= 10 THEN 'high'
+        WHEN positive_count + 1 >= 5 THEN 'medium'
+        ELSE 'low'
+    END
+WHERE geohash = 'ttnkr';
+
+-- Decay old cases (run daily cron job)
+UPDATE location_hotspots
+SET positive_count = GREATEST(0, positive_count - 1),
+    last_updated = NOW()
+WHERE last_updated < NOW() - INTERVAL '7 days';
+```
+
+#### Nearby Hotspot Query
+
+**API Endpoint**: `GET /api/hotspots/nearby?lat=28.6139&lon=77.2090&radius=5000`
+
+**Implementation:**
+
+```text
+Approach 1: Geohash Neighbors (Efficient)
+┌────────────────────────────────────────┐
+│ 1. Convert user location to geohash    │
+│    (28.6139, 77.2090) → "ttnkr"        │
+│                                        │
+│ 2. Find neighboring geohashes           │
+│    Neighbors of "ttnkr":                │
+│    ├─ North: "ttnks"                    │
+│    ├─ South: "ttnkp"                    │
+│    ├─ East: "ttnkx"                     │
+│    ├─ West: "ttnkq"                     │
+│    ├─ NE: "ttnkw"                       │
+│    ├─ NW: "ttnkt"                       │
+│    ├─ SE: "ttnkz"                       │
+│    └─ SW: "ttnkn"                       │
+│                                        │
+│ 3. Query database (uses index!):        │
+│    SELECT * FROM location_hotspots     │
+│    WHERE geohash IN ('ttnkr', 'ttnks',  │
+│                      'ttnkp', ...)      │
+│                                        │
+│ 4. Return risk levels for each cell     │
+└────────────────────────────────────────┘
+
+Approach 2: PostGIS (More Accurate, Slower)
+┌────────────────────────────────────────┐
+│ Use PostgreSQL with PostGIS extension   │
+│                                        │
+│ SELECT geohash, risk_level,             │
+│        ST_Distance(                     │
+│          ST_Point(lon, lat),            │
+│          ST_Point(77.2090, 28.6139)     │
+│        ) as distance                    │
+│ FROM location_hotspots                  │
+│ WHERE ST_DWithin(                       │
+│         ST_Point(lon, lat),             │
+│         ST_Point(77.2090, 28.6139),     │
+│         5000  -- 5 km radius            │
+│       )                                 │
+│ ORDER BY distance;                      │
+└────────────────────────────────────────┘
+
+Recommendation: Use Approach 1 (geohash) for initial implementation,
+Approach 2 (PostGIS) if you need precise distance calculations.
+```
+
+---
+
+### 🔴 For Advanced: Production Considerations
+
+#### Differential Privacy for Location Data
+
+**Problem**: Publishing exact case counts per geohash might leak individual locations.
+
+**Solution**: Add random noise to hotspot counts.
+
+```text
+Laplace Mechanism for Hotspot Counts:
+┌────────────────────────────────────────┐
+│ True count in geohash "ttnkr": 8 cases │
+│                                        │
+│ Add Laplace noise:                     │
+│ - Privacy budget ε = 1.0               │
+│ - Sensitivity Δf = 1 (adding 1 person) │
+│ - Noise ~ Lap(Δf/ε) = Lap(1)          │
+│ - Sample noise: +2.3                   │
+│                                        │
+│ Published count: 8 + 2.3 = 10.3 ≈ 10   │
+└────────────────────────────────────────┘
+
+Implementation:
+```
+
+```python
+import numpy as np
+
+def add_laplace_noise(true_count, epsilon=1.0):
+    """Add Laplace noise for differential privacy"""
+    sensitivity = 1  # Max change from adding/removing 1 person
+    scale = sensitivity / epsilon
+    noise = np.random.laplace(0, scale)
+    noisy_count = max(0, true_count + noise)  # Ensure non-negative
+    return int(round(noisy_count))
+
+# Example
+true_counts = {"ttnkr": 8, "ttnks": 3, "ttnkp": 15}
+published_counts = {
+    geohash: add_laplace_noise(count)
+    for geohash, count in true_counts.items()
+}
+# Output: {"ttnkr": 10, "ttnks": 4, "ttnkp": 14}
+```
+
+**Privacy Guarantee**: Even if attacker knows all other data, cannot determine if specific individual contributed to count with >2.7x probability (for ε=1.0).
+
+---
+
+### Real-World Example
+
+**South Korea's Contact Tracing System:**
+
+```text
+Approach: Aggressive location tracking (with transparency)
+
+Data Collected:
+├─ GPS location (every 10 minutes)
+├─ Cell tower triangulation
+├─ Credit card transactions (purchases)
+└─ CCTV footage (facial recognition)
+
+Public Disclosure:
+✅ Publish detailed movement history of positive cases
+   - "Case #3457 visited Starbucks at 123 Main St, 2pm"
+   - "Case #3457 took Bus #45 at 3pm"
+   
+✅ Enable public to self-identify exposure
+   - "I was at that Starbucks at 2pm - I should get tested"
+
+Results:
+- Very effective outbreak control (R0 < 1)
+- High public compliance (trust in government)
+- BUT: Privacy concerns internationally
+- Criticized by privacy advocates
+
+Lesson: Cultural context matters!
+- Works in South Korea (collectivist culture)
+- Would fail in Europe (strong privacy laws)
+- Design must match local privacy expectations
+```
+
+---
+
+### ✅ Key Takeaways
+
+- 🗺️ **Geohashing preserves privacy** - Use 5-character geohash (2.4 km cells) instead of exact GPS
+- 🔒 **Location is opt-in** - Never force users to share location (destroys trust)
+- 📊 **Differential privacy** - Add noise to counts to prevent individual identification
+- 🎯 **Balance utility vs privacy** - Coarser location = more private, less useful
+- 🚨 **Real-time alerts** - Notify users entering high-risk areas
+
+---
+
+## Section 8: Push Notifications & Alert System
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Design a scalable push notification system (FCM, APNS)
+- Prioritize notifications (exposure alerts vs daily reminders)
+- Handle notification delivery guarantees and retry logic
+- Optimize for battery and bandwidth (batch notifications)
+- Design notification templates for different alert types
+
+### Why This Matters
+
+Push notifications are the primary way to alert users of exposure - they must be reliable! Real-world challenge: When a super-spreader event happens (100+ exposures), the system must send 100,000+ notifications within minutes without overwhelming Firebase or APNS rate limits. Proper notification design can save lives!
+
+---
+
+### 🟢 For Beginners: The Fundamentals
+
+#### Types of Notifications
+
+```text
+1. 🚨 Exposure Alerts (Critical - P0)
+   "You may have been exposed to COVID-19 on Oct 23"
+   - Priority: Immediate delivery
+   - Retry: Until delivered
+   - Sound: Alert sound
+   - Action: "See Details"
+
+2. 📊 Daily Health Check-in (High - P1)
+   "Time for your daily health assessment"
+   - Priority: Daily at 9am local time
+   - Retry: 1 attempt
+   - Sound: Default sound
+   - Action: "Open App"
+
+3. 📍 Hotspot Alert (Medium - P2)
+   "You are entering a high-risk area"
+   - Priority: Real-time (geofence triggered)
+   - Retry: 1 attempt
+   - Sound: Default sound
+   - Action: "View Map"
+
+4. ℹ️ General Updates (Low - P3)
+   "New safety guidelines available"
+   - Priority: Batch delivery (off-peak hours)
+   - Retry: None (can miss)
+   - Sound: Silent
+   - Action: "Read More"
+```
+
+#### How Push Notifications Work
+
+```text
+Step 1: User installs app, grants notification permission
+┌──────────────────────────────────────┐
+│ App registers with FCM (Android) or  │
+│ APNS (iOS)                           │
+│ Receives device token:               │
+│ "e7f3b2a1c4d5..."                    │
+└──────────────────────────────────────┘
+        ↓
+Step 2: App sends token to backend
+┌──────────────────────────────────────┐
+│ POST /api/registerDevice              │
+│ {                                    │
+│   "user_id": "uuid",                 │
+│   "device_token": "e7f3b2a1c4d5...", │
+│   "platform": "android"              │
+│ }                                    │
+└──────────────────────────────────────┘
+        ↓
+Step 3: Server stores token in database
+┌──────────────────────────────────────┐
+│ INSERT INTO device_tokens (user_id,  │
+│   token, platform, created_at)       │
+│ VALUES ('uuid', 'e7f3b2a1...', ...)  │
+└──────────────────────────────────────┘
+        ↓
+Step 4: When exposure detected, send notification
+┌──────────────────────────────────────┐
+│ Query: SELECT token FROM device_tokens│
+│        WHERE user_id IN (exposed_users)│
+│                                      │
+│ For each token:                      │
+│   Send to FCM/APNS                   │
+└──────────────────────────────────────┘
+        ↓
+Step 5: FCM/APNS delivers to device
+┌──────────────────────────────────────┐
+│ Device receives notification         │
+│ Shows banner: "Possible exposure"    │
+│ User taps → Opens app                │
+└──────────────────────────────────────┘
+```
+
+---
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### Notification Service Architecture
+
+```text
+┌─────────────────────────────────────────┐
+│ Notification Service Components         │
+├─────────────────────────────────────────┤
+│                                         │
+│ 1. Notification Producer                │
+│    ├─ Exposure Detection Service        │
+│    ├─ Scheduled Job (daily reminders)   │
+│    └─ Hotspot Service (geofence alerts) │
+│                                         │
+│ 2. Message Queue (Kafka)                │
+│    ├─ Topic: exposure_alerts (P0)       │
+│    ├─ Topic: daily_reminders (P1)       │
+│    └─ Topic: general_updates (P3)       │
+│                                         │
+│ 3. Notification Workers (Consumers)     │
+│    ├─ 10 workers for P0 (exposure)      │
+│    ├─ 5 workers for P1 (reminders)      │
+│    └─ 2 workers for P3 (updates)        │
+│                                         │
+│ 4. FCM/APNS Gateway                     │
+│    ├─ Rate limiting (10K/sec FCM)       │
+│    ├─ Retry logic (exponential backoff) │
+│    └─ Delivery tracking                 │
+│                                         │
+│ 5. Delivery Status Tracker              │
+│    ├─ Store delivery receipts           │
+│    ├─ Handle failures                   │
+│    └─ Analytics dashboard               │
+└─────────────────────────────────────────┘
+```
+
+**Scalability Design:**
+
+```sql
+-- Device Tokens Table (Sharded by user_id)
+CREATE TABLE device_tokens (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    device_token VARCHAR(256) NOT NULL,
+    platform ENUM('ios', 'android', 'web') NOT NULL,
+    enabled BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT NOW(),
+    last_used_at TIMESTAMP,
+    
+    UNIQUE(device_token),  -- One token per device
+    INDEX idx_user_tokens (user_id, enabled)
+) PARTITION BY HASH (user_id);
+
+-- Notification Queue Table
+CREATE TABLE notification_queue (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    notification_type ENUM('exposure', 'reminder', 'hotspot', 'update'),
+    priority INTEGER,  -- 0=highest, 3=lowest
+    payload JSONB,
+    status ENUM('pending', 'sent', 'delivered', 'failed'),
+    created_at TIMESTAMP DEFAULT NOW(),
+    sent_at TIMESTAMP,
+    delivered_at TIMESTAMP,
+    retry_count INTEGER DEFAULT 0,
+    
+    INDEX idx_priority_status (priority, status, created_at)
+) PARTITION BY RANGE (created_at);
+
+-- Example notification payload
+{
+  "title": "Possible Exposure Alert",
+  "body": "You may have been exposed on Oct 23. Tap for details.",
+  "data": {
+    "type": "exposure",
+    "exposure_date": "2025-10-23",
+    "risk_score": 85,
+    "action_url": "app://exposure-details/12345"
+  },
+  "priority": "high",
+  "sound": "alert.wav",
+  "badge": 1
+}
+```
+
+#### Rate Limiting & Throttling
+
+**FCM/APNS Rate Limits:**
+```text
+Firebase Cloud Messaging (FCM):
+├─ Free tier: 1M messages/month
+├─ Paid tier: Unlimited
+├─ Rate limit: ~10,000 messages/sec
+└─ Batch size: Up to 500 messages per API call
+
+Apple Push Notification Service (APNS):
+├─ No explicit rate limit
+├─ Recommended: <10,000 concurrent connections
+├─ Batch size: Not applicable (HTTP/2 streams)
+└─ Delivery guarantee: Best effort (no retries)
+
+Our Constraints (100M users):
+- 100,000 exposures/day (avg)
+- Peak: 1M exposures/day (super-spreader event)
+- Need to send 1M notifications in <1 hour
+```
+
+**Batching Strategy:**
+
+```text
+Approach 1: Batch by Time Window
+┌─────────────────────────────────────────┐
+│ Collect exposures for 5 minutes         │
+│ Batch send every 5 minutes              │
+│                                         │
+│ Pros: Reduces API calls, cost-effective │
+│ Cons: Delayed notifications (up to 5 min)│
+└─────────────────────────────────────────┘
+
+Approach 2: Batch by Priority
+┌─────────────────────────────────────────┐
+│ P0 (Exposure): Send immediately          │
+│ P1 (Reminders): Batch every hour         │
+│ P3 (Updates): Batch daily at 9am         │
+│                                         │
+│ Pros: Critical alerts instant           │
+│ Cons: More complex logic                │
+└─────────────────────────────────────────┘
+
+Approach 3: Adaptive Batching (Recommended)
+┌─────────────────────────────────────────┐
+│ If queue size < 1000: Send immediately   │
+│ If queue size 1000-10K: Batch 100/call   │
+│ If queue size > 10K: Batch 500/call      │
+│                                         │
+│ Pros: Balances latency vs throughput    │
+│ Cons: Requires queue monitoring         │
+└─────────────────────────────────────────┘
+```
+
+---
+
+### 🔴 For Advanced: Production Considerations
+
+#### Retry Logic & Dead Letter Queue
+
+```python
+# Notification Worker with Exponential Backoff
+import time
+from typing import Dict
+
+def send_notification_with_retry(
+    user_id: str,
+    device_token: str,
+    payload: Dict,
+    max_retries: int = 5
+) -> bool:
+    """Send notification with exponential backoff retry"""
+    
+    for attempt in range(max_retries):
+        try:
+            # Call FCM/APNS API
+            response = fcm_client.send(
+                token=device_token,
+                notification=payload
+            )
+            
+            if response.success:
+                # Mark as delivered
+                mark_delivered(user_id, payload['notification_id'])
+                return True
+            
+            # Handle specific errors
+            if response.error_code == 'INVALID_TOKEN':
+                # Token expired/invalid - remove from database
+                delete_device_token(device_token)
+                return False
+            
+            if response.error_code == 'QUOTA_EXCEEDED':
+                # Rate limit hit - use longer backoff
+                backoff_seconds = min(2 ** (attempt + 3), 300)  # Max 5 min
+            else:
+                # General error - exponential backoff
+                backoff_seconds = min(2 ** attempt, 60)  # Max 1 min
+            
+            print(f"Retry {attempt + 1}/{max_retries} after {backoff_seconds}s")
+            time.sleep(backoff_seconds)
+            
+        except Exception as e:
+            print(f"Error sending notification: {e}")
+            if attempt == max_retries - 1:
+                # Final retry failed - move to dead letter queue
+                move_to_dlq(user_id, payload, str(e))
+                return False
+    
+    return False
+
+def move_to_dlq(user_id: str, payload: Dict, error: str):
+    """Move failed notification to dead letter queue for manual investigation"""
+    INSERT INTO notification_dead_letter_queue (
+        user_id, payload, error, created_at
+    ) VALUES (%s, %s, %s, NOW())
+```
+
+#### Monitoring & Alerting
+
+```text
+Key Metrics to Track:
+┌────────────────────────────────────────┐
+│ 1. Delivery Rate                       │
+│    - Target: >99% delivered            │
+│    - Alert: If <95% for 5 minutes      │
+│                                        │
+│ 2. Delivery Latency (P99)              │
+│    - Target: <30 seconds for P0        │
+│    - Alert: If >60 seconds             │
+│                                        │
+│ 3. Queue Depth                         │
+│    - Target: <1000 pending             │
+│    - Alert: If >10,000 pending         │
+│                                        │
+│ 4. FCM/APNS Error Rate                 │
+│    - Target: <1% errors                │
+│    - Alert: If >5% errors              │
+│                                        │
+│ 5. Dead Letter Queue Size              │
+│    - Target: <100 items/day            │
+│    - Alert: If >1000 items/day         │
+└────────────────────────────────────────┘
+
+Grafana Dashboard:
+- Real-time notification throughput (messages/sec)
+- Delivery success rate by platform (iOS vs Android)
+- P99 latency trend (last 24 hours)
+- Top error codes (INVALID_TOKEN, QUOTA_EXCEEDED, etc.)
+
+PagerDuty Alerts:
+- Critical: Delivery rate <90% for 10 minutes
+- High: Queue depth >50,000
+- Medium: Error rate >10%
+```
+
+---
+
+### Real-World Example
+
+**Germany's Corona-Warn-App Notifications:**
+
+```text
+Scale: 30M users, 500K active cases
+
+Notification Strategy:
+├─ Exposure Alerts: Sent immediately (P0)
+│  └─ Delivery SLA: 99.9% within 5 minutes
+│
+├─ Daily Test Reminder: 9am local time (P1)
+│  └─ Batch by timezone (5 batches globally)
+│
+└─ Policy Updates: Weekly digest (P3)
+   └─ Send Sunday 6pm (off-peak)
+
+Technical Implementation:
+- Firebase Cloud Messaging (Android)
+- Apple Push Notification Service (iOS)
+- Backend: Java Spring Boot
+- Message Queue: Apache Kafka (3 partitions by priority)
+- Workers: 50 Kubernetes pods (auto-scaling)
+
+Cost:
+- FCM: Free tier (1M/month)
+- APNS: Free (included with Apple Developer Program)
+- Infrastructure: $2,000/month (Kafka + workers)
+- Total: $2,000/month for 30M users = $0.000067/user/month
+
+Lessons Learned:
+✅ Over-provisioned workers (50 vs 20 needed) - no regrets
+✅ Separate Kafka topics by priority - prevented P0 delays
+❌ Initially used SNS - switched to FCM/APNS directly (lower latency)
+❌ Forgot timezone handling - sent 3am notifications (fixed quickly!)
+```
+
+---
+
+### ✅ Key Takeaways
+
+- 🚨 **Priority matters** - Critical exposure alerts must preempt other notifications
+- 📦 **Batch for efficiency** - But not at cost of latency for critical alerts
+- 🔄 **Retry with backoff** - Exponential backoff prevents overwhelming FCM/APNS
+- 📊 **Monitor religiously** - Notification delivery is mission-critical
+- 🌐 **Handle timezones** - Send reminders at user's local time, not UTC
+
+---
+
+### 🎯 Practice Exercise
+
+**Challenge:** Design notification strategy for a super-spreader event.
+
+**Scenario:**
+- 1 person tested positive
+- Attended concert with 10,000 people
+- Your app detected 10,000 exposures
+- Must notify all within 1 hour
+
+**Your Task:**
+1. How do you avoid overwhelming FCM rate limits (10K/sec)?
+2. Should you batch notifications? If so, how?
+3. What if some users have multiple devices?
+4. How do you handle failures (e.g., invalid tokens)?
+
+*Design your solution before reading Section 9!*
+
+---
