@@ -36,19 +36,32 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
-**Status:** ✅ Complete
+**Status:** ✅ Complete (Educational Multi-Level Template - 12,190 lines)
 
-Online coding platform with judge system, sandboxed code execution, and real-time feedback.
+Online coding platform with judge system, sandboxed code execution, and real-time feedback. **Now features comprehensive educational content with beginner/intermediate/advanced learning paths.**
 
 **Key Features:**
 
-- Secure code execution sandbox (Docker + gVisor)
-- Asynchronous job processing with message queues
-- Multi-language support (Python, Java, C++, JavaScript)
-- Comprehensive API design (16 endpoints)
-- Database sharding strategy
+- **Educational Template:** 3 difficulty levels (🟢 Beginner, 🟡 Intermediate, 🔴 Advanced) across all 12 sections
+- **Secure Code Execution:** Docker + gVisor sandboxing with defense-in-depth security (7 layers)
+- **Complete System Coverage:** Judge system, API design, caching, analytics, scalability, security, monitoring
+- **Real-World Examples:** LeetCode's architecture evolution from 2015 to 2023
+- **Interview Preparation:** 40+ interview questions with detailed solutions, 15+ practice exercises
+- **Multi-language Support:** Python, Java, C++, JavaScript with warm container pools
+- **Comprehensive API Design:** 15+ RESTful endpoints with JWT authentication and rate limiting
+- **Advanced Topics:** OAuth 2.0, GraphQL, Kubernetes auto-scaling, ML-powered insights
 
-**Scale:** 100K DAU, 500K submissions/day
+**Educational Content:**
+
+- 50+ everyday analogies for beginners (restaurant menus, chemistry labs, concert wristbands)
+- Interview frameworks and decision templates
+- Cost optimization analysis ($51K/month → $35K optimized)
+- Practice exercises with budget constraints and step-by-step solutions
+- 60+ Python code examples and configurations
+
+**Scale:** 10M MAU, 500K submissions/day, 5K QPS, <100ms API latency, <1s judge execution
+
+**Reading Time:** 🟢 10-12h (full depth) | 🟡 6-8h (focused) | 🔴 4-6h (advanced topics)
 
 ---
 
