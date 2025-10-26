@@ -120,16 +120,18 @@
 
 ## 🚧 In Progress (Template Conversion Required)
 
-### 1. 🚧 LeetCode System Design
+### 1. 🚧 LeetCode System Design (IN PROGRESS - 37% Complete)
 
-- **Status:** ❌ Template Conversion Required
+- **Status:** 🚧 Template Conversion In Progress (Sections 1-4 complete)
 - **File:** `leetcode_system_design.md`
-- **Current Format:** Traditional system design (lacks Welcome section, multi-level content)
+- **Current Status:** Partial transformation (Welcome section ✅, 🟢🟡🔴 levels ✅, 4 of 15 sections complete)
 - **Priority:** P1 - High
-- **Scale:** 100K DAU, 500K submissions/day
-- **Key Features:** Sandboxed code execution, async job processing, multi-language support
-- **Lines:** 2,325 (needs educational transformation)
-- **Conversion Time:** 6-8 hours
+- **Scale:** 10M MAU, 500K submissions/day, 5K QPS
+- **Key Features:** Sandboxed code execution (Docker/gVisor), async judge system, multi-language support (Python/Java/C++/JS), contest management, real-time leaderboards
+- **Lines:** 4,489 / 12,000+ target (37% complete)
+- **Sections Complete:** Welcome, Section 1 (Requirements), Section 2 (Capacity Planning), Section 3 (Architecture), Section 4 (Database)
+- **Sections Remaining:** 11 sections (API Design, Judge System, Caching, Analytics, Scalability, Security, Monitoring, Trade-offs, Putting It Together, Resources, Conclusion)
+- **Estimated Completion:** Additional 4-6 hours needed
 
 ### 2. 🚧 Google Photos System Design
 
