@@ -1035,3 +1035,571 @@ Calculate:
 **Bonus:** Create a spreadsheet with formulas so you can adjust assumptions and see impact on costs!
 
 ---
+
+## Section 3: Designing the System Architecture
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Design a high-level architecture for a contact tracing app
+- Understand the role of each component (mobile app, backend services, databases)
+- Explain data flow from Bluetooth detection to exposure notification
+- Choose between monolithic vs microservices architecture
+- Design for offline-first mobile experience with eventual consistency
+
+### Why This Matters
+
+Architecture decisions made early are hard to change later. Real-world example: Singapore's TraceTogether initially used a monolithic architecture, which worked well for 4M users but had to be redesigned when they scaled to support regional deployment across Southeast Asia. Getting the architecture right from the start saves months of refactoring!
+
+---
+
+### 🟢 For Beginners: The Fundamentals
+
+#### What Are the Main Components?
+
+Think of the system like a hospital network:
+- **Mobile App** = Patient (records their own health, detects nearby patients)
+- **API Gateway** = Reception Desk (routes requests to right department)
+- **Backend Services** = Doctors/Labs (process health data, run tests)
+- **Database** = Medical Records (stores patient history)
+- **Push Notification Service** = Emergency Alert System (notifies patients of urgent results)
+
+#### Simple Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph "User's Phone"
+        A[Mobile App]
+        B[Local Database]
+        C[Bluetooth Module]
+    end
+    
+    subgraph "Backend Services"
+        D[API Gateway]
+        E[User Service]
+        F[Contact Matching Service]
+        G[Notification Service]
+    end
+    
+    subgraph "Data Storage"
+        H[User DB]
+        I[Infected Keys DB]
+        J[Redis Cache]
+    end
+    
+    K[Push Service - FCM/APNS]
+    
+    A --> C
+    C -.Bluetooth.-> C
+    A --> B
+    A --> D
+    D --> E
+    D --> F
+    D --> G
+    E --> H
+    F --> I
+    E --> J
+    F --> J
+    G --> K
+    K -.Push Notification.-> A
+```
+
+#### How Data Flows (Step by Step)
+
+**Flow 1: Recording a Contact**
+```text
+1. Your phone broadcasts: "Hi, I'm Device-ABC123" (via Bluetooth)
+2. Nearby phone receives: "I heard Device-ABC123 at 2:30 PM, signal -65 dBm"
+3. Nearby phone saves locally: {id: ABC123, time: 14:30, rssi: -65, duration: 0}
+4. Phones exchange IDs every 15 minutes
+5. After 15 minutes, update: {duration: 15} (close contact confirmed!)
+6. No server involved - all happens locally on device
+
+Privacy Win: Server never knows you met anyone! 🔐
+```
+
+**Flow 2: Reporting Positive Test**
+```text
+1. User tests positive at lab
+2. Lab sends verification code to user's phone (via SMS)
+3. User enters code in app
+4. App uploads anonymous encounter keys from past 14 days
+5. Server stores keys in "Infected Keys" database
+6. Server publishes keys to CDN (so all users can download)
+7. Server doesn't know WHO the user is, just their anonymous keys
+
+Privacy Win: Server knows keys are infected, but not whose keys! 🔐
+```
+
+**Flow 3: Checking for Exposure**
+```text
+1. User opens app daily (or app checks in background)
+2. App downloads list of infected keys from CDN
+3. App compares downloaded keys with locally stored encounters
+4. If match found: "You met Device-ABC123 on March 15"
+5. App calculates risk: Duration + RSSI → Risk Score
+6. If high risk: Show "You may have been exposed" notification
+7. All matching happens on device, not server!
+
+Privacy Win: Server never knows if you were exposed! 🔐
+```
+
+#### Why This Architecture?
+
+**Offline-First Design:**
+- ✅ Works without internet (Bluetooth encounters saved locally)
+- ✅ Users can check exposure even with poor network
+- ✅ Reduces server costs (most computation happens on device)
+- ✅ Better privacy (less data sent to server)
+
+**Decentralized Matching:**
+- ✅ Server never knows your social graph
+- ✅ Complies with strict privacy laws (GDPR, CCPA)
+- ✅ Users trust it more (transparency)
+- ❌ Health authorities get less outbreak data (tradeoff)
+
+---
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### High-Level Architecture (Interview-Ready)
+
+```mermaid
+graph TB
+    subgraph "Mobile Layer"
+        MA[iOS App]
+        MB[Android App]
+        MC[Bluetooth LE Module]
+        MD[Local SQLite DB]
+    end
+    
+    subgraph "API Gateway & Load Balancing"
+        LB[NGINX Load Balancer]
+        AG[API Gateway - Kong/AWS API Gateway]
+    end
+    
+    subgraph "Microservices Layer"
+        MS1[Auth Service]
+        MS2[User Registration Service]
+        MS3[Health Status Service]
+        MS4[Contact Upload Service]
+        MS5[Infected Key Distribution Service]
+        MS6[Notification Service]
+        MS7[Analytics Service]
+        MS8[Hotspot Service]
+    end
+    
+    subgraph "Data Layer"
+        DB1[(User DB - PostgreSQL)]
+        DB2[(Infected Keys DB - Cassandra)]
+        DB3[(Analytics DB - ClickHouse)]
+        CACHE[Redis Cache Cluster]
+        CDN[CloudFront CDN]
+    end
+    
+    subgraph "External Services"
+        FCM[Firebase Cloud Messaging]
+        APNS[Apple Push Notification Service]
+        LAB[Health Authority API]
+    end
+    
+    MA --> LB
+    MB --> LB
+    LB --> AG
+    AG --> MS1
+    AG --> MS2
+    AG --> MS3
+    AG --> MS4
+    AG --> MS5
+    AG --> MS6
+    AG --> MS7
+    AG --> MS8
+    
+    MS1 --> DB1
+    MS2 --> DB1
+    MS3 --> DB1
+    MS4 --> DB2
+    MS5 --> DB2
+    MS5 --> CDN
+    MS7 --> DB3
+    MS8 --> DB1
+    
+    MS2 --> CACHE
+    MS3 --> CACHE
+    MS5 --> CACHE
+    
+    MS6 --> FCM
+    MS6 --> APNS
+    MS4 --> LAB
+    
+    CDN -.Download Keys.-> MA
+    CDN -.Download Keys.-> MB
+```
+
+#### Component Breakdown
+
+**1. Mobile App Components**
+
+```text
+Mobile App Architecture:
+├─ UI Layer
+│  ├─ Home Screen (health status, exposure alerts)
+│  ├─ Self-Assessment Wizard
+│  ├─ Settings (enable/disable features)
+│  └─ Notifications History
+│
+├─ Business Logic Layer
+│  ├─ Bluetooth Manager (BLE scanning/advertising)
+│  ├─ Contact Tracing Engine (exposure detection algorithm)
+│  ├─ Crypto Module (key generation, encryption)
+│  ├─ Sync Manager (upload/download data)
+│  └─ Risk Calculator (compute exposure risk score)
+│
+└─ Data Layer
+   ├─ Local SQLite Database (encounter records)
+   ├─ Secure Enclave (cryptographic keys)
+   └─ Shared Preferences (app settings)
+
+Technologies:
+- iOS: Swift + SwiftUI, Core Bluetooth, CryptoKit
+- Android: Kotlin, Jetpack Compose, Bluetooth LE API, Tink Crypto
+- Shared: Google/Apple Exposure Notification API (GAEN)
+```
+
+**2. Backend Microservices**
+
+```text
+Microservice Decomposition:
+
+┌─────────────────────────────────────────┐
+│ 1. Auth Service                         │
+├─────────────────────────────────────────┤
+│ - Anonymous user registration           │
+│ - JWT token generation                  │
+│ - Device authentication                 │
+│ - Rate limiting (prevent abuse)         │
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│ 2. User Registration Service            │
+├─────────────────────────────────────────┤
+│ - Create anonymous user ID              │
+│ - Store device token (for push)         │
+│ - Link to health authority (optional)   │
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│ 3. Health Status Service                │
+├─────────────────────────────────────────┤
+│ - Store self-assessment results         │
+│ - Track symptom progression             │
+│ - Vaccination status                    │
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│ 4. Contact Upload Service               │
+├─────────────────────────────────────────┤
+│ - Verify test result (lab integration)  │
+│ - Receive encounter keys from positive  │
+│ - Validate key format & signatures      │
+│ - Store in Infected Keys database       │
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│ 5. Infected Key Distribution Service    │
+├─────────────────────────────────────────┤
+│ - Aggregate infected keys daily         │
+│ - Publish to CDN                        │
+│ - Support incremental updates           │
+│ - Geographic filtering                  │
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│ 6. Notification Service                 │
+├─────────────────────────────────────────┤
+│ - Send push notifications (FCM/APNS)    │
+│ - Handle exposure alerts                │
+│ - Daily reminders (self-assessment)     │
+│ - Batch processing (cost optimization)  │
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│ 7. Analytics Service                    │
+├─────────────────────────────────────────┤
+│ - Aggregate anonymous statistics        │
+│ - Epidemic curves (new cases/day)       │
+│ - App adoption metrics                  │
+│ - Privacy-preserving analytics          │
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│ 8. Hotspot Service                      │
+├─────────────────────────────────────────┤
+│ - Cluster detection (geo-hashing)       │
+│ - Heat map generation                   │
+│ - Alert for high-risk areas             │
+└─────────────────────────────────────────┘
+```
+
+**3. Database Selection**
+
+```text
+Database Strategy (Polyglot Persistence):
+
+┌──────────────────────────────────────────┐
+│ PostgreSQL (User Profiles)               │
+├──────────────────────────────────────────┤
+│ Use Case: User registration, settings    │
+│ Why: ACID transactions, complex queries  │
+│ Scale: 100M users = 25 GB                │
+│ Sharding: By userID hash                 │
+└──────────────────────────────────────────┘
+
+┌──────────────────────────────────────────┐
+│ Cassandra (Infected Keys Time-Series)    │
+├──────────────────────────────────────────┤
+│ Use Case: Storing infected encounter keys│
+│ Why: Write-heavy, time-series, high avail│
+│ Scale: 5K writes/sec, 100K reads/sec     │
+│ Partition: By date (TTL: 14 days)        │
+└──────────────────────────────────────────┘
+
+┌──────────────────────────────────────────┐
+│ Redis (Caching & Session Management)     │
+├──────────────────────────────────────────┤
+│ Use Case: Cache user profiles, hot data  │
+│ Why: Sub-millisecond latency             │
+│ Scale: 100 GB cache, 1M ops/sec          │
+│ Eviction: LRU (Least Recently Used)      │
+└──────────────────────────────────────────┘
+
+┌──────────────────────────────────────────┐
+│ ClickHouse (Analytics OLAP)              │
+├──────────────────────────────────────────┤
+│ Use Case: Aggregate statistics, dashboards│
+│ Why: Fast analytical queries, compression │
+│ Scale: 1B events/day, 10 TB storage      │
+│ Retention: 90 days                       │
+└──────────────────────────────────────────┘
+
+┌──────────────────────────────────────────┐
+│ S3 (Blob Storage)                        │
+├──────────────────────────────────────────┤
+│ Use Case: Daily infected key exports     │
+│ Why: Cheap, durable, CDN-compatible      │
+│ Scale: 1.12 MB/day × 365 = 410 MB/year   │
+│ Lifecycle: Delete after 21 days          │
+└──────────────────────────────────────────┘
+```
+
+#### Communication Patterns
+
+**Synchronous (REST API):**
+```text
+Use for:
+✅ User registration (needs immediate confirmation)
+✅ Health status updates (critical path)
+✅ Verification code validation (security-sensitive)
+
+Technology: HTTP/2, JSON, JWT authentication
+Load Balancing: Round-robin with health checks
+```
+
+**Asynchronous (Message Queue):**
+```text
+Use for:
+✅ Processing positive case uploads (can take seconds)
+✅ Sending push notifications (batch processing)
+✅ Analytics event ingestion (eventual consistency ok)
+
+Technology: Apache Kafka (durability) or AWS SQS (simplicity)
+Partitioning: By userID for ordering guarantees
+```
+
+**CDN (Content Delivery):**
+```text
+Use for:
+✅ Distributing infected keys (static, cacheable)
+✅ Serving app resources (images, configs)
+
+Technology: CloudFront, Akamai
+TTL: 1 hour for infected keys (balances freshness vs cost)
+```
+
+---
+
+### 🔴 For Advanced: Production Considerations
+
+#### Microservices vs Monolith Decision
+
+**Interview Discussion Points:**
+
+```text
+Start with Modular Monolith:
+✅ Faster initial development (1-2 months vs 4-6 months)
+✅ Easier to debug (single codebase, logs in one place)
+✅ Lower operational complexity (one deployment)
+✅ Good for: MVP with <10M users
+
+Migrate to Microservices when:
+❌ Team grows beyond 30 engineers (avoid coordination overhead)
+❌ Need to scale components independently (notifications vs analytics)
+❌ Different SLAs (99.99% for core vs 99% for analytics)
+❌ Multiple programming languages (Go for performance, Python for ML)
+
+Hybrid Approach (Recommended):
+├─ Core Monolith: Auth, User, Health Status (tightly coupled)
+└─ Separate Services: Notifications, Analytics, Hotspots (independent scaling)
+```
+
+#### Data Consistency Strategy
+
+**CAP Theorem Application:**
+
+```text
+Scenario 1: User Reports Positive Test
+├─ Requirement: Strong Consistency (can't lose data)
+├─ Choice: Consistency > Availability
+└─ Implementation: Synchronous write to PostgreSQL with replication
+   └─ Use 2PC (Two-Phase Commit) for distributed transaction
+   └─ Timeout: Fail request if write doesn't complete in 5 sec
+
+Scenario 2: User Downloads Infected Keys
+├─ Requirement: Availability (must work during outbreaks)
+├─ Choice: Availability > Consistency
+└─ Implementation: Eventual consistency via CDN
+   └─ Stale data ok (keys updated hourly, not real-time critical)
+   └─ Use versioning (ETag) for cache invalidation
+
+Scenario 3: Analytics Dashboard
+├─ Requirement: Neither (eventual consistency fine)
+├─ Choice: Partition Tolerance
+└─ Implementation: Batch processing with Spark
+   └─ Update dashboards every 15 minutes
+   └─ Use materialized views for fast queries
+```
+
+#### Deployment Architecture (Multi-Region)
+
+```text
+Geographic Distribution:
+├─ Region 1: US East (Virginia) - Primary
+│  ├─ App Servers: 20
+│  ├─ Database: Multi-AZ master
+│  └─ Users: 30M
+│
+├─ Region 2: Europe (Frankfurt) - Secondary
+│  ├─ App Servers: 15
+│  ├─ Database: Read replica (10s lag ok)
+│  └─ Users: 20M
+│
+├─ Region 3: Asia (Mumbai) - Secondary
+│  ├─ App Servers: 25
+│  ├─ Database: Read replica
+│  └─ Users: 50M
+│
+└─ CDN: 200+ edge locations globally
+   └─ Serves infected keys (reduces latency from 500ms to 50ms)
+
+DNS Routing: GeoDNS (route to nearest region)
+Failover: Automatic failover to next region if primary down (<30s)
+Cost: $50,000/month (3 regions) vs $25,000/month (single region)
+```
+
+#### Event-Driven Architecture for Scalability
+
+```text
+Event Flow:
+1. User tests positive → Emit event: "PositiveTestReported"
+2. Event picked up by multiple consumers:
+   ├─ Contact Upload Service: Store infected keys
+   ├─ Notification Service: Alert close contacts (if centralized model)
+   ├─ Analytics Service: Increment case count
+   ├─ Hotspot Service: Update geographic clusters
+   └─ Audit Service: Log for compliance
+
+Benefits:
+✅ Decoupled services (change one without affecting others)
+✅ Easy to add new consumers (e.g., ML model for prediction)
+✅ Built-in retry (Kafka retains events for 7 days)
+✅ Replay capability (reprocess events for bug fixes)
+
+Technology:
+- Kafka: High throughput (100K events/sec), durable
+- Schema Registry: Avro schemas for backward compatibility
+- Kafka Streams: Real-time aggregations (cases per region)
+```
+
+---
+
+### Real-World Example
+
+**UK's NHS COVID-19 App Architecture:**
+
+```text
+Launch: September 2020
+Downloads: 20M+ in England & Wales
+
+Architecture Decisions:
+✅ Used Google/Apple Exposure Notification API (decentralized)
+✅ Hybrid cloud: AWS + Google Cloud (avoid vendor lock-in)
+✅ Open-source: Published code on GitHub (transparency)
+
+Components:
+├─ Mobile App: React Native (cross-platform, faster development)
+├─ Backend: Node.js microservices on Kubernetes
+├─ Database: Amazon DynamoDB (serverless, auto-scaling)
+├─ CDN: CloudFront (infected keys distributed via S3)
+└─ Analytics: Amazon Athena (query S3 logs)
+
+Challenges Faced:
+❌ Initial version was centralized (privacy backlash)
+❌ Switched to GAEN API (delayed launch by 3 months)
+✅ End result: Higher adoption (80% trust rate)
+
+Cost: £35M total (~$43M) - includes development + 2 years operation
+Per User: £1.75 (~$2.15) - higher than expected due to rework
+```
+
+---
+
+### 🤔 Think About It
+
+1. **Monolith vs Microservices**: If you only have 3 months to launch before a pandemic surge, would you still choose microservices? Why or why not?
+
+2. **Database Choice**: Why use Cassandra for infected keys instead of PostgreSQL? What would break if we used PostgreSQL?
+
+3. **CDN vs Direct Download**: If CDN costs $10,000/month but reduces latency from 500ms to 50ms, is it worth it for a health app?
+
+---
+
+### ✅ Key Takeaways
+
+- 🏗️ **Mobile-first architecture** - Most computation happens on device (privacy + cost savings)
+- 🔄 **Offline-first design** - Bluetooth encounters logged locally, sync to server later
+- 🎯 **Polyglot persistence** - Use the right database for each use case (PostgreSQL, Cassandra, Redis, ClickHouse)
+- 🌍 **Multi-region deployment** - Required for global health apps (reduce latency + compliance)
+- 📡 **Event-driven architecture** - Decouple services for scalability and resilience
+- 💰 **Cost optimization** - CDN for static content, caching for hot data, async processing for non-critical paths
+
+---
+
+### 🎯 Practice Exercise
+
+**Design Challenge:** Sketch an architecture diagram for a contact tracing app for your university.
+
+**Requirements:**
+- 50,000 students (peak: 20,000 concurrent during class hours)
+- Budget: $1,000/month
+- Privacy: Students don't trust university with location data
+- Special requirement: Integrate with campus ID card system
+
+**Your Task:**
+1. Choose databases (which ones and why?)
+2. Decide: Microservices or Monolith?
+3. Where to deploy? (Cloud, on-premise, hybrid?)
+4. How to reduce costs below $1,000/month?
+
+*Sketch your solution before reading Section 4!*
+
+---
