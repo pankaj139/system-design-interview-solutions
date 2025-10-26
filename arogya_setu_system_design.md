@@ -1603,3 +1603,979 @@ Per User: £1.75 (~$2.15) - higher than expected due to rework
 *Sketch your solution before reading Section 4!*
 
 ---
+
+## Section 4: Bluetooth Proximity Detection
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Explain how Bluetooth Low Energy (BLE) works for proximity detection
+- Understand RSSI (Received Signal Strength Indicator) and distance estimation
+- Design the Bluetooth scanning/advertising protocol
+- Handle Android/iOS platform differences and limitations
+- Optimize for battery efficiency (<5% drain per day)
+
+### Why This Matters
+
+Bluetooth is the heart of contact tracing - it's how devices detect proximity without GPS or internet. Real-world challenge: Apple and Google had to update iOS and Android operating systems to support background Bluetooth scanning, which led to the creation of the Exposure Notification API. Understanding Bluetooth limitations is critical for designing any proximity-based system!
+
+---
+
+### 🟢 For Beginners: The Fundamentals
+
+#### What is Bluetooth Low Energy (BLE)?
+
+Think of BLE like a walkie-talkie that:
+- 📢 **Broadcasts**: "Hi, I'm here!" (advertising)
+- 👂 **Listens**: Hears broadcasts from others (scanning)
+- 🔋 **Low Power**: Uses tiny amount of battery (designed for smartwatches, fitness trackers)
+- 📏 **Short Range**: Works up to 10 meters (perfect for detecting close contacts)
+
+**Traditional Bluetooth vs BLE:**
+```text
+Traditional Bluetooth (like wireless headphones):
+❌ High power consumption (drains battery in hours)
+❌ Requires pairing (users must accept connection)
+❌ Complex handshake (slow to connect)
+
+Bluetooth Low Energy (BLE):
+✅ 10-100x less power consumption
+✅ No pairing required (just broadcast/listen)
+✅ Instant detection (no handshake)
+✅ Perfect for: Fitness trackers, beacons, contact tracing
+```
+
+#### How Does BLE Detect Proximity?
+
+```text
+Your Phone (Advertiser):
+├─ Every 250ms, broadcasts a packet:
+│  ├─ "I am device XYZ123"
+│  ├─ "I am a contact tracing app"
+│  └─ "My random ID today is: a7b3c9d2"
+└─ Power level: 0 dBm (medium power)
+
+Nearby Phone (Scanner):
+├─ Listens for broadcasts
+├─ Receives packet: "Device a7b3c9d2 detected"
+├─ Measures RSSI: -65 dBm (signal strength)
+├─ Estimates distance:
+│  └─ -40 to -60 dBm = Very close (< 1 meter)
+│  └─ -60 to -70 dBm = Close (1-2 meters) ← Target range
+│  └─ -70 to -80 dBm = Medium (2-4 meters)
+│  └─ -80 to -100 dBm = Far (> 4 meters)
+└─ Saves encounter: {id: a7b3c9d2, rssi: -65, time: 14:30}
+```
+
+#### Why Not Use GPS Location?
+
+```text
+GPS Problems:
+❌ Doesn't work indoors (offices, hospitals, homes)
+❌ Accuracy: ±5 meters outdoors, ±50 meters indoors
+❌ Privacy nightmare (exact location tracking)
+❌ Battery drain (GPS uses 10-20% battery per hour)
+
+Bluetooth Wins:
+✅ Works indoors and outdoors
+✅ Accuracy: ±1 meter (better than GPS!)
+✅ Private (just device IDs, no location)
+✅ Battery efficient (1-2% per hour)
+```
+
+#### Simple Protocol Design
+
+```text
+Step 1: Device generates daily random ID
+┌────────────────────────────────────┐
+│ Daily Key: d4f7e2a9c1b3...         │
+│ Generated at: Midnight (00:00)     │
+│ Valid for: 24 hours                │
+└────────────────────────────────────┘
+
+Step 2: Derive ephemeral IDs (change every 15 minutes)
+┌────────────────────────────────────┐
+│ 00:00-00:15 → EphID_1: a7b3c9d2    │
+│ 00:15-00:30 → EphID_2: 9f2e4a1c    │
+│ 00:30-00:45 → EphID_3: 3d7f1b8e    │
+│ ... (96 IDs per day)               │
+└────────────────────────────────────┘
+
+Step 3: Broadcast current EphID
+┌────────────────────────────────────┐
+│ BLE Advertisement Packet:          │
+│ ├─ Service UUID: 0xFD6F (COVID-19) │
+│ ├─ Ephemeral ID: a7b3c9d2          │
+│ ├─ TX Power: 0 dBm                 │
+│ └─ Timestamp: Encrypted            │
+└────────────────────────────────────┘
+
+Step 4: Other devices scan and record
+┌────────────────────────────────────┐
+│ Local Database Entry:              │
+│ ├─ Peer ID: a7b3c9d2               │
+│ ├─ RSSI: -65 dBm                   │
+│ ├─ Timestamp: 2025-10-26 14:30    │
+│ ├─ Duration: 0 (will update)       │
+│ └─ TX Power: 0 dBm (for calibration)│
+└────────────────────────────────────┘
+
+Step 5: Track contact duration
+Every 5 minutes, update duration:
+├─ 14:30 → Duration: 0 min
+├─ 14:35 → Duration: 5 min
+├─ 14:40 → Duration: 10 min
+├─ 14:45 → Duration: 15 min ✅ (Close contact threshold!)
+└─ Mark as "significant contact" (>15 min, <2m)
+```
+
+---
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### RSSI to Distance Conversion
+
+**Key Interview Question**: "How do you convert signal strength (RSSI) to distance?"
+
+**Answer Approach:**
+
+```text
+Path Loss Formula (Friis Transmission Equation):
+RSSI = TxPower - 10 × n × log₁₀(distance) + C
+
+Where:
+- RSSI: Received Signal Strength Indicator (measured, in dBm)
+- TxPower: Transmitted power level (known, typically 0 dBm)
+- n: Path loss exponent (2 for free space, 2-4 for indoor)
+- distance: Distance in meters (what we want to find)
+- C: Constant based on environment (-40 for 1m reference)
+
+Solving for distance:
+distance = 10 ^ ((TxPower - RSSI - C) / (10 × n))
+
+Example:
+- TxPower = 0 dBm
+- RSSI = -65 dBm
+- n = 2.5 (indoor environment)
+- C = -40
+
+distance = 10 ^ ((0 - (-65) - (-40)) / (10 × 2.5))
+        = 10 ^ ((0 + 65 + 40) / 25)
+        = 10 ^ (105 / 25)
+        = 10 ^ 4.2
+        = 15,848 ... wait, that's wrong!
+
+Correction (using proper formula):
+distance = 10 ^ ((TxPower - RSSI) / (10 × n))
+        = 10 ^ ((0 - (-65)) / (10 × 2.5))
+        = 10 ^ (65 / 25)
+        = 10 ^ 2.6
+        = 398 meters ... still wrong!
+
+Correct Formula (Log-Distance Path Loss):
+RSSI = TxPower - 10 × n × log₁₀(d / d0) + X
+
+Where d0 = 1m reference distance
+RSSI at 1m (RSSI_0) = TxPower = -40 dBm (measured)
+
+RSSI = -40 - 10 × 2.5 × log₁₀(d / 1)
+-65 = -40 - 25 × log₁₀(d)
+-25 = -25 × log₁₀(d)
+1 = log₁₀(d)
+d = 10^1 = 10 meters ❌ (too far)
+
+Empirical Calibration (Real-World):
+Instead of theoretical formulas, use measured data:
+
+RSSI Range → Distance Estimate:
+├─ -30 to -50 dBm → < 0.5m (immediate proximity)
+├─ -50 to -60 dBm → 0.5m - 1m (very close)
+├─ -60 to -70 dBm → 1m - 2m (close contact ✅)
+├─ -70 to -80 dBm → 2m - 4m (medium)
+└─ -80 to -100 dBm → > 4m (far, ignore)
+
+Calibration database per device model:
+{
+  "iPhone 12": {"rssi_1m": -55, "rssi_2m": -68, "n": 2.3},
+  "Samsung S21": {"rssi_1m": -52, "rssi_2m": -65, "n": 2.5},
+  "Pixel 6": {"rssi_1m": -58, "rssi_2m": -71, "n": 2.7}
+}
+```
+
+**Interview Tip**: State that theoretical formulas are unreliable due to environmental factors (walls, pockets, body absorption). Real systems use machine learning or empirical calibration databases.
+
+#### Android vs iOS Platform Differences
+
+**Critical Interview Topic**: "How do you handle platform-specific Bluetooth limitations?"
+
+```text
+┌─────────────────────────────────────────────────┐
+│ iOS Limitations (Pre-GAEN API)                  │
+├─────────────────────────────────────────────────┤
+│ ❌ No background BLE advertising (app must be   │
+│    in foreground or connected to device)        │
+│ ❌ Background scanning limited to 1 scan/10min  │
+│ ❌ Cannot wake app from terminated state        │
+│ ❌ Bluetooth MAC randomization every 15 min     │
+│                                                 │
+│ Workaround (Pre-2020):                          │
+│ - Use "BLE Central-Peripheral Trick"            │
+│ - One device advertises, other scans            │
+│ - Swap roles periodically                       │
+│                                                 │
+│ ✅ With GAEN API (2020+):                       │
+│ - OS-level support for background BLE           │
+│ - Can advertise/scan even when app killed       │
+│ - Battery optimized (Apple's implementation)    │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│ Android Limitations                             │
+├─────────────────────────────────────────────────┤
+│ ❌ 5000+ device models with different chipsets  │
+│ ❌ Aggressive battery optimization (kill apps)  │
+│ ❌ RSSI values vary wildly between devices      │
+│ ❌ Some manufacturers disable background BLE    │
+│    (Xiaomi, OnePlus aggressive battery savers)  │
+│                                                 │
+│ Workarounds:                                    │
+│ - Request "battery optimization exemption"      │
+│ - Use foreground service with notification      │
+│ - Implement device-specific RSSI calibration    │
+│                                                 │
+│ ✅ With GAEN API (2020+):                       │
+│ - Standardized across Android 6.0+              │
+│ - Google Play Services handles background       │
+│ - Consistent RSSI calibration                   │
+└─────────────────────────────────────────────────┘
+```
+
+#### Battery Optimization Techniques
+
+**Target**: <5% battery drain per day
+
+```text
+Battery Consumption Breakdown (Without Optimization):
+├─ Continuous BLE Scanning: 15% per day
+├─ BLE Advertising: 8% per day
+├─ Database Writes: 3% per day
+├─ Network Sync: 2% per day
+└─ Total: 28% per day ❌ (Users will uninstall!)
+
+Optimization Strategy:
+┌─────────────────────────────────────────────────┐
+│ 1. Duty Cycling (Intermittent Scanning)        │
+├─────────────────────────────────────────────────┤
+│ Instead of: Scan continuously                   │
+│ Do: Scan for 5 seconds every 5 minutes          │
+│ Savings: 98% reduction in scan time             │
+│ Trade-off: Miss some encounters (acceptable)    │
+│ Impact: 15% → 0.3% per day                      │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│ 2. Batch Database Writes                       │
+├─────────────────────────────────────────────────┤
+│ Instead of: Write each encounter immediately    │
+│ Do: Buffer 10 encounters, write batch           │
+│ Savings: 90% reduction in I/O                   │
+│ Impact: 3% → 0.3% per day                       │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│ 3. Reduce Advertising Frequency                │
+├─────────────────────────────────────────────────┤
+│ Instead of: Advertise every 100ms               │
+│ Do: Advertise every 250ms                       │
+│ Savings: 60% reduction in TX time               │
+│ Trade-off: Slightly slower discovery            │
+│ Impact: 8% → 3% per day                         │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│ 4. Smart Sync (WiFi-Only Background Sync)      │
+├─────────────────────────────────────────────────┤
+│ Instead of: Sync via cellular constantly        │
+│ Do: Sync only when connected to WiFi            │
+│ Savings: 90% reduction in network usage         │
+│ Impact: 2% → 0.2% per day                       │
+└─────────────────────────────────────────────────┘
+
+Optimized Total: 0.3% + 0.3% + 3% + 0.2% = 3.8% per day ✅
+```
+
+---
+
+### 🔴 For Advanced: Production Considerations
+
+#### Dealing with Environmental Interference
+
+**Real-World Problem**: Bluetooth signals behave unpredictably in different environments.
+
+```text
+Environmental Challenges:
+┌────────────────────────────────────────────────┐
+│ 1. Through-Wall Detection (False Positives)   │
+├────────────────────────────────────────────────┤
+│ Problem: Two people in adjacent rooms detected │
+│          as "close contact" through wall       │
+│                                                │
+│ Solution: Multi-Factor Detection               │
+│ - Require RSSI < -65 dBm (stronger signal)     │
+│ - Require duration > 15 minutes                │
+│ - Check accelerometer: Both devices stationary?│
+│   (If yes, likely separated by wall)           │
+│ - Use machine learning: Train on labeled data  │
+│                                                │
+│ ML Model Input Features:                       │
+│ ├─ RSSI mean, variance over time              │
+│ ├─ RSSI gradient (stable vs fluctuating)      │
+│ ├─ Accelerometer data (movement patterns)      │
+│ ├─ Time of day (nighttime = likely in bed)    │
+│ └─ Encounter duration                          │
+│                                                │
+│ ML Model Output: P(real_contact) = 0.85        │
+│ Threshold: Only log if P > 0.7                 │
+└────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────┐
+│ 2. Phone in Pocket/Bag (Signal Attenuation)   │
+├────────────────────────────────────────────────┤
+│ Problem: RSSI varies by -10 to -20 dBm if phone│
+│          in pocket vs hand-held                │
+│                                                │
+│ Solution: Calibration + Adaptive Thresholds    │
+│ - Detect phone position via proximity sensor   │
+│ - Adjust RSSI threshold dynamically:           │
+│   ├─ Hand-held: -70 dBm = 2m                   │
+│   ├─ Pocket: -60 dBm = 2m (compensate +10 dBm) │
+│   └─ Bag: -55 dBm = 2m (compensate +15 dBm)    │
+│                                                │
+│ Use TX Power metadata in BLE packet:           │
+│ - Advertiser includes TX power (e.g., 0 dBm)   │
+│ - Receiver calculates path loss:               │
+│   PathLoss = TxPower - RSSI                    │
+│ - PathLoss more reliable than RSSI alone       │
+└────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────┐
+│ 3. Multipath Fading (Signal Bouncing)         │
+├────────────────────────────────────────────────┤
+│ Problem: Signals bounce off walls, creating    │
+│          multiple paths with different delays  │
+│          → RSSI fluctuates wildly              │
+│                                                │
+│ Solution: Statistical Filtering                │
+│ - Take median RSSI over 30-second window       │
+│   (more stable than mean, ignores outliers)    │
+│ - Apply Kalman filter for smoothing:           │
+│   RSSI_filtered = α × RSSI_new + (1-α) × RSSI_old│
+│   where α = 0.3 (smooth out rapid changes)     │
+└────────────────────────────────────────────────┘
+```
+
+#### Attack Vectors & Security
+
+```text
+Attack 1: Bluetooth Relay Attack
+┌────────────────────────────────────────────────┐
+│ Attacker: Sets up relay between distant devices│
+│ Device A (City 1) ←relay→ Device B (City 2)    │
+│ Result: False contact recorded                 │
+│                                                │
+│ Defense:                                       │
+│ - Check RSSI gradient: Sudden jumps suspicious │
+│ - Verify timing: BLE round-trip < 100ms        │
+│ - Geofencing (optional): Check if users in     │
+│   same country/state                           │
+└────────────────────────────────────────────────┘
+
+Attack 2: Replay Attack
+┌────────────────────────────────────────────────┐
+│ Attacker: Records BLE packets, replays later   │
+│ Goal: Fake encounters with specific person     │
+│                                                │
+│ Defense:                                       │
+│ - Ephemeral IDs expire after 15 minutes        │
+│ - Include encrypted timestamp in BLE packet    │
+│ - Check timestamp: Reject if > 15 min old      │
+└────────────────────────────────────────────────┘
+
+Attack 3: Tracking via Bluetooth MAC
+┌────────────────────────────────────────────────┐
+│ Attacker: Tracks user by Bluetooth MAC address │
+│ (Even if Ephemeral ID changes, MAC is constant)│
+│                                                │
+│ Defense (iOS):                                 │
+│ - Apple randomizes MAC every 15 minutes        │
+│ - Synchronized with EphID rotation             │
+│                                                │
+│ Defense (Android):                             │
+│ - Enable MAC randomization (Android 6.0+)      │
+│ - Rotate MAC in sync with EphID                │
+└────────────────────────────────────────────────┘
+```
+
+---
+
+### Real-World Example
+
+**Australia's COVIDSafe App Battery Optimization:**
+
+```text
+Initial Version (April 2020):
+- Battery drain: 12-15% per day
+- User complaints: 30% uninstalled within first week
+- Issue: Continuous BLE scanning + aggressive sync
+
+Optimized Version (May 2020):
+Changes:
+✅ Duty-cycled scanning: 4 sec scan every 7.5 min
+✅ Reduced BLE TX power: 0 dBm → -4 dBm (saves power)
+✅ Batch writes: Buffer 20 encounters before DB write
+✅ Background sync: Only when WiFi available
+
+Result:
+- Battery drain: 3-4% per day (75% improvement)
+- Retention: Increased from 70% to 92%
+- Trade-off: Detected 94% of encounters (6% missed acceptable)
+
+Lesson: Battery life is make-or-break for adoption!
+```
+
+---
+
+### 🤔 Think About It
+
+1. **Accuracy vs Privacy**: Higher accuracy requires more frequent scans (more battery). How do you find the sweet spot?
+
+2. **False Positives**: If 10% of "close contacts" are false (through walls), is that acceptable? What's the cost?
+
+3. **Device Compatibility**: You have 5000 Android models with different Bluetooth chipsets. How do you test/calibrate all of them?
+
+---
+
+### ✅ Key Takeaways
+
+- 📡 **BLE is perfect for proximity** - Works indoors, low power, no pairing required
+- 📏 **RSSI is unreliable** - Use empirical calibration, not theoretical formulas
+- 🔋 **Battery is critical** - Must optimize to <5% drain per day or users uninstall
+- 🍎🤖 **Platform differences matter** - iOS and Android have different BLE limitations
+- 🛡️ **Security via randomization** - Rotate ephemeral IDs and MAC addresses every 15 min
+- 🎯 **ML for accuracy** - Use machine learning to filter false positives (through-wall detection)
+
+---
+
+### 🎯 Practice Exercise
+
+**Challenge:** Design a BLE protocol for a smartwatch contact tracing app.
+
+**Constraints:**
+- Smartwatch battery: 300 mAh (vs 3000 mAh phone)
+- Must last 24 hours on single charge
+- Bluetooth range: 5 meters (vs 10m phone)
+- No cellular connection (only syncs when near phone)
+
+**Your Task:**
+1. How frequently to scan/advertise?
+2. When to sync data to phone?
+3. How to handle phone out of range for hours?
+4. What's acceptable battery drain percentage?
+
+*Design your solution before reading Section 5!*
+
+---
+
+## Section 5: Privacy-Preserving Contact Matching
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Explain how contact matching works without revealing identities
+- Understand cryptographic protocols (DP-3T, Google/Apple Exposure Notification)
+- Design the key generation and exchange mechanism
+- Implement local exposure detection on-device
+- Calculate exposure risk scores
+
+### Why This Matters
+
+Privacy is the #1 concern for contact tracing apps. In 2020, Norway's Smittestopp app was shut down by the Data Protection Authority because it collected too much personal data. Meanwhile, Germany's Corona-Warn-App succeeded because it used privacy-preserving cryptography. Understanding these protocols is essential for building trustworthy health-tech systems!
+
+---
+
+### 🟢 For Beginners: The Fundamentals
+
+#### The Privacy Challenge
+
+**Naive Approach (Don't Do This!):**
+```text
+❌ Server stores: User A met User B at 2pm for 30 minutes
+❌ When User A tests positive, server notifies User B
+❌ Problem: Server knows everyone's social network!
+```
+
+**Privacy-Preserving Approach:**
+```text
+✅ Server stores: Random key "xyz789" is infected
+✅ All users download infected keys
+✅ Each user checks locally: "Did I meet xyz789?"
+✅ If yes: User gets notified (server doesn't know!)
+```
+
+Think of it like a wanted poster:
+- Police post photo of suspect (infected key)
+- You check your own memory: "Did I see this person?"
+- You report to police only if YOU saw them
+- Police never know who you met!
+
+#### How Keys Work (Simple Version)
+
+```text
+Day 1: Your phone generates a secret key
+┌──────────────────────────────────────┐
+│ Daily Secret Key: dk_monday          │
+│ (Never leaves your device!)          │
+└──────────────────────────────────────┘
+        ↓
+Derive multiple IDs for the day:
+┌──────────────────────────────────────┐
+│ 00:00-00:15: ID_1 = Hash(dk_monday, 0)│
+│ 00:15-00:30: ID_2 = Hash(dk_monday, 1)│
+│ 00:30-00:45: ID_3 = Hash(dk_monday, 2)│
+│ ... (96 IDs per day)                 │
+└──────────────────────────────────────┘
+        ↓
+Broadcast current ID via Bluetooth:
+┌──────────────────────────────────────┐
+│ "My ID right now is: ID_23"          │
+│ (Changes every 15 minutes)           │
+└──────────────────────────────────────┘
+        ↓
+Other phones record:
+┌──────────────────────────────────────┐
+│ "I met ID_23 at 2:30pm"              │
+│ (Saved locally, not uploaded)        │
+└──────────────────────────────────────┘
+
+If you test positive:
+┌──────────────────────────────────────┐
+│ Upload: dk_monday, dk_tuesday, ...   │
+│ (Past 14 days of secret keys)        │
+└──────────────────────────────────────┘
+        ↓
+Server publishes keys:
+┌──────────────────────────────────────┐
+│ "These keys are infected: dk_monday, │
+│  dk_tuesday, dk_wednesday, ..."      │
+└──────────────────────────────────────┘
+        ↓
+All users download and check:
+┌──────────────────────────────────────┐
+│ Regenerate IDs from infected keys:   │
+│ ID_1, ID_2, ..., ID_96 (for each day)│
+│                                      │
+│ Check local database:                │
+│ "Did I meet any of these IDs?"       │
+│                                      │
+│ If yes: "You were exposed on March 15"│
+└──────────────────────────────────────┘
+```
+
+**Key Insight**: Server only knows WHICH keys are infected, not WHO owns them or WHO met them!
+
+---
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### DP-3T Protocol (Decentralized Privacy-Preserving Proximity Tracing)
+
+**Interview Question**: "Walk me through the DP-3T protocol step by step."
+
+**Answer Framework:**
+
+```text
+Phase 1: Key Generation (Daily, on Device)
+─────────────────────────────────────────
+Secret Key (SK_t): Random 256-bit key generated daily
+├─ Day 1: SK_monday = random(256 bits)
+├─ Day 2: SK_tuesday = random(256 bits)
+├─ Day 3: SK_wednesday = random(256 bits)
+└─ ... (14 keys total for 14-day retention)
+
+Ephemeral IDs (EphID): Derived from SK_t
+├─ EphID_t,i = PRF(SK_t, "broadcast key" || i)
+│  └─ where PRF = HMAC-SHA256
+│  └─ i = time interval (0-95 for 96 intervals/day)
+└─ Result: 96 ephemeral IDs per day
+
+Example:
+SK_monday = 0x3a7b2f... (256 bits)
+EphID_0 = HMAC-SHA256(SK_monday, "broadcast key" || 0)
+        = 0x9f3e2a... (16 bytes, truncated)
+EphID_1 = HMAC-SHA256(SK_monday, "broadcast key" || 1)
+        = 0x7c1d5b... (16 bytes)
+... 94 more
+
+
+Phase 2: Broadcasting (Every 15 Minutes)
+─────────────────────────────────────────
+Current time interval: Calculate i = (unix_timestamp % 86400) / 900
+Current EphID: EphID_t,i
+Broadcast via BLE:
+┌─────────────────────────────────────────┐
+│ Service UUID: 0xFD6F (COVID-19 exposure)│
+│ Characteristic: EphID_t,i (16 bytes)    │
+│ TX Power: 0 dBm                         │
+└─────────────────────────────────────────┘
+
+
+Phase 3: Recording Observations (Continuous)
+─────────────────────────────────────────────
+When other device's broadcast received:
+┌─────────────────────────────────────────┐
+│ ObservationRecord:                      │
+│ ├─ EphID: 0x9f3e2a... (received)        │
+│ ├─ RSSI: -65 dBm (measured)             │
+│ ├─ Timestamp: 1698336000 (Unix time)    │
+│ ├─ Duration: 900 sec (15 min interval)  │
+│ └─ TX Power: 0 dBm (from BLE packet)    │
+└─────────────────────────────────────────┘
+Store locally in SQLite database (14-day TTL)
+
+
+Phase 4: Positive Test Reporting
+─────────────────────────────────────────
+User tests positive:
+1. Lab issues verification code (OTP)
+2. User enters code in app
+3. App retrieves: SK_t for past 14 days
+4. App uploads to server:
+   ┌─────────────────────────────────────┐
+   │ DiagnosisKey:                       │
+   │ ├─ SK_monday: 0x3a7b2f...           │
+   │ ├─ SK_tuesday: 0x8d4c1e...          │
+   │ ├─ ... (14 keys)                    │
+   │ ├─ VerificationCode: 0x7a3f...      │
+   │ └─ Signature: sign(keys, device_key)│
+   └─────────────────────────────────────┘
+
+
+Phase 5: Distribution to All Users
+─────────────────────────────────────────
+Server aggregates all infected keys:
+┌─────────────────────────────────────────┐
+│ InfectedKeysDaily.json (published 24x/day)│
+│ {                                       │
+│   "date": "2025-10-26",                 │
+│   "keys": [                             │
+│     "0x3a7b2f...",  // SK from User A   │
+│     "0x8d4c1e...",  // SK from User A   │
+│     "0x5f9a3b...",  // SK from User B   │
+│     ... (5000 keys/day average)         │
+│   ]                                     │
+│ }                                       │
+└─────────────────────────────────────────┘
+
+Published to CDN (CloudFront):
+- URL: https://cdn.covidapp.com/keys/2025-10-26.json
+- Size: 5000 keys × 32 bytes = 160 KB
+- TTL: 1 hour (updated hourly)
+
+
+Phase 6: Exposure Detection (Daily, on Device)
+───────────────────────────────────────────────
+For each user:
+1. Download infected keys from CDN
+2. For each infected SK_t:
+   ├─ Regenerate all 96 EphIDs for that day
+   │  └─ EphID_i = HMAC-SHA256(SK_t, "broadcast key" || i)
+   └─ Check local database: Did I record any of these EphIDs?
+
+3. If match found:
+   ┌─────────────────────────────────────┐
+   │ Exposure:                           │
+   │ ├─ Date: 2025-10-23                 │
+   │ ├─ Duration: 1800 sec (30 min)      │
+   │ ├─ RSSI: -62 dBm (avg)              │
+   │ ├─ Distance: ~1.5m (estimated)      │
+   │ └─ Risk Score: 85/100 (HIGH)        │
+   └─────────────────────────────────────┘
+
+4. Calculate risk score (see algorithm below)
+5. If risk > threshold: Notify user
+
+
+Risk Score Calculation:
+───────────────────────────────────────────
+RiskScore = w1×Duration + w2×Proximity + w3×DaysSince
+
+Where:
+- Duration: 0-100 (100 = >30 min)
+- Proximity: 0-100 (100 = <1m, based on RSSI)
+- DaysSince: 0-100 (100 = today, 0 = 14 days ago)
+- Weights: w1=0.5, w2=0.3, w3=0.2 (duration most important)
+
+Example:
+Duration: 30 min → 100 points
+Proximity: -62 dBm (~1.5m) → 70 points
+DaysSince: 3 days ago → 80 points
+
+RiskScore = 0.5×100 + 0.3×70 + 0.2×80
+          = 50 + 21 + 16
+          = 87/100 (HIGH RISK)
+
+Thresholds:
+- 80-100: HIGH (red, recommend quarantine)
+- 50-79: MEDIUM (yellow, monitor symptoms)
+- 0-49: LOW (green, low risk)
+```
+
+**Privacy Analysis:**
+```text
+What server knows:
+✅ List of infected secret keys (but not WHO owns them)
+✅ Number of positive cases per day
+✅ Rough geographic distribution (if keys tagged by region)
+
+What server DOESN'T know:
+❌ Who generated the keys
+❌ Who downloaded the keys
+❌ Who was exposed (matching done locally)
+❌ Social graph (who met whom)
+❌ Location of encounters
+
+Privacy guarantee: Zero-knowledge about social contacts!
+```
+
+---
+
+### 🔴 For Advanced: Production Considerations
+
+#### Google/Apple Exposure Notification (GAEN) System
+
+**Evolution from DP-3T:**
+
+```text
+DP-3T (Decentralized):
+├─ Academic protocol (EPFL, ETH Zurich)
+├─ Daily Secret Keys (SK_t)
+├─ 96 Ephemeral IDs per day
+└─ App-level implementation
+
+GAEN (OS-level):
+├─ Built into iOS 13.5+ and Android 6.0+
+├─ Temporary Exposure Key (TEK) instead of SK
+├─ Rolling Proximity Identifier (RPI) instead of EphID
+├─ OS-level efficiency (better battery, more reliable)
+└─ Used by 50+ countries, 1B+ users
+
+Key Differences:
+┌────────────────────────────────────────────────┐
+│                  DP-3T      GAEN               │
+├────────────────────────────────────────────────┤
+│ Daily Key         SK_t        TEK_t            │
+│ Rotation          Daily       Daily            │
+│ EphemeralIDs      96/day      144/day (10 min) │
+│ ID Length         16 bytes    16 bytes         │
+│ Implementation    App         OS (System API)  │
+│ Battery Impact    3-5%/day    1-2%/day         │
+│ Bluetooth BG      Limited     Full support     │
+│ Platform          Any         iOS/Android only │
+└────────────────────────────────────────────────┘
+```
+
+**GAEN Technical Details:**
+
+```text
+Key Hierarchy:
+┌─────────────────────────────────────────┐
+│ Temporary Exposure Key (TEK)            │
+│ ├─ Generated: Daily at midnight (UTC)   │
+│ ├─ Size: 16 bytes (128 bits)            │
+│ ├─ Lifetime: 24 hours                   │
+│ └─ Storage: Secure Enclave/Keystore     │
+└─────────────────────────────────────────┘
+        ↓ Derive (every 10 minutes)
+┌─────────────────────────────────────────┐
+│ Rolling Proximity Identifier (RPI)      │
+│ ├─ RPI_i = Truncate(HMAC-SHA256(        │
+│ │           RPIK, "EN-RPI" || i), 16)   │
+│ │   where RPIK = HKDF(TEK)              │
+│ ├─ Rotation: Every 10-20 min (random)   │
+│ ├─ Broadcast: Via BLE                   │
+│ └─ 144 RPIs per day                     │
+└─────────────────────────────────────────┘
+        ↓ Associated metadata
+┌─────────────────────────────────────────┐
+│ Associated Encrypted Metadata (AEM)     │
+│ ├─ TX Power: 0 dBm (for distance calc)  │
+│ ├─ Version: 1.0                         │
+│ ├─ Encrypted with: AES-128-CTR          │
+│ └─ Key: AEMK = HKDF(TEK, "EN-AEMK")     │
+└─────────────────────────────────────────┘
+
+BLE Advertisement Structure:
+┌─────────────────────────────────────────┐
+│ Service UUID: 0xFD6F (Exposure Notif.)  │
+│ ├─ RPI: 16 bytes                        │
+│ ├─ AEM: 4 bytes (encrypted metadata)    │
+│ └─ Total: 20 bytes per advertisement    │
+└─────────────────────────────────────────┘
+```
+
+#### Cryptographic Attacks & Defenses
+
+```text
+Attack 1: Replay Attack
+─────────────────────────────────────────
+Attacker records RPI, replays later to fake contact
+
+Defense:
+- RPI rotates every 10-20 min (random interval)
+- Include encrypted timestamp in AEM
+- Verify timestamp when processing encounters
+- Reject RPIs older than rotation interval
+
+Attack 2: Linkage Attack
+─────────────────────────────────────────
+Attacker tries to link multiple RPIs to same user
+
+Defense (Unlinkability):
+- RPI derived from daily TEK via HMAC (one-way)
+- No pattern between RPI_i and RPI_i+1
+- Even with TEK, cannot predict future RPIs
+- Bluetooth MAC randomized with RPI rotation
+
+Mathematical proof:
+Given RPI_i, probability of guessing RPI_i+1 = 1/2^128
+(Same as guessing random 128-bit number)
+
+Attack 3: Differential Attack
+─────────────────────────────────────────
+Attacker uploads fake TEKs to identify who downloads them
+
+Defense:
+- Downloads are anonymous (no authentication)
+- Use Tor or VPN for downloads (optional)
+- Batch downloads (all users download same file)
+- Server cannot correlate downloads to users
+
+Attack 4: Traffic Analysis
+─────────────────────────────────────────
+ISP or network observer tracks when user uploads TEKs
+
+Defense:
+- Use TLS 1.3 for encrypted upload
+- Add random delay before upload (0-24 hours)
+- Pad upload packets to fixed size
+- Optional: Route through Tor (Germany's app supports this)
+```
+
+#### Advanced: Differential Privacy for Statistics
+
+**Problem**: Publishing case statistics might leak individual info.
+
+```text
+Naive Approach:
+├─ "1 new case in ZIP code 90210"
+└─ If only 1 person in that ZIP has the app → identity leaked!
+
+Differential Privacy Solution:
+Add random noise to statistics before publishing
+
+Algorithm (Laplace Mechanism):
+─────────────────────────────────────────
+True count: n = 5 cases in region
+Sensitivity: Δf = 1 (adding/removing 1 person changes count by ≤1)
+Privacy budget: ε = 0.5 (smaller = more privacy)
+
+Noise: Lap(Δf/ε) = Lap(1/0.5) = Lap(2)
+├─ Sample from Laplace distribution: μ=0, b=2
+└─ Noise = random sample (e.g., +2.3 or -1.7)
+
+Published count: n' = n + Noise = 5 + 2.3 = 7.3 ≈ 7 cases
+
+Privacy guarantee:
+- Cannot determine if any individual contributed to count
+- Probability ratio bounded: P[output|person in]/P[output|person out] ≤ e^ε
+
+For ε=0.5: Ratio ≤ 1.65 (very strong privacy)
+For ε=1.0: Ratio ≤ 2.72 (moderate privacy)
+```
+
+---
+
+### Real-World Example
+
+**Switzerland's SwissCovid App (DP-3T):**
+
+```text
+Launch: June 2020
+Downloads: 2.3M (25% of population)
+Protocol: DP-3T (original research team)
+Open Source: Yes (100% transparent)
+
+Technical Implementation:
+├─ Backend: Java Spring Boot on AWS
+├─ Database: PostgreSQL (TEKs), Redis (cache)
+├─ CDN: CloudFront (TEK distribution)
+├─ Mobile: Native iOS/Android with GAEN API
+└─ Cost: $1.2M/year (very lean!)
+
+Privacy Innovations:
+✅ No phone number, email, or personal data collected
+✅ No GPS/location tracking
+✅ TEKs stored encrypted on device (Secure Enclave)
+✅ Open-source code audited by security researchers
+✅ GDPR compliant (EU approval)
+
+Result:
+- Detected 2,300+ exposures in first 6 months
+- 98% user trust rating (highest globally)
+- Zero privacy breaches
+- Praised by privacy advocates (EFF, Chaos Computer Club)
+
+Lesson: Cryptographic privacy builds trust!
+```
+
+---
+
+### 🤔 Think About It
+
+1. **Centralized vs Decentralized**: If centralized gives better outbreak tracking but less privacy, which would you choose for your country?
+
+2. **Key Rotation**: Why rotate RPIs every 10 minutes instead of every hour? What's the tradeoff?
+
+3. **Upload Delay**: Should users be able to upload TEKs immediately after testing positive, or should there be a random delay? Why?
+
+---
+
+### ✅ Key Takeaways
+
+- 🔐 **Privacy via cryptography** - Use ephemeral IDs and key derivation (HMAC) to prevent identity linkage
+- 🏠 **Local matching** - All exposure detection happens on-device, server never knows who was exposed
+- 🔑 **Key hierarchy** - Daily TEK → 144 RPIs per day (rotation prevents tracking)
+- 🛡️ **Attack-resistant** - Defenses against replay, linkage, and traffic analysis attacks
+- 📊 **Differential privacy** - Add noise to statistics to prevent individual identification
+- ✅ **GAEN is gold standard** - OS-level implementation, 1B+ users, battle-tested cryptography
+
+---
+
+### 🎯 Practice Exercise
+
+**Cryptography Challenge:**
+
+Given:
+- TEK for today: `0x3a7b2f9e1d5c4a8b6f2e1a9c7d4b8e3f`
+- Current time interval: 42 (10:30 AM)
+
+Calculate:
+1. The RPI for this interval using HMAC-SHA256
+2. If this TEK is uploaded as infected, how many total RPIs must be regenerated?
+3. If 5,000 TEKs are published daily, how many total RPIs must each user check?
+
+**Bonus:** Estimate the computational cost (CPU cycles) to check 5,000 TEKs against 10,000 locally stored observations.
+
+*Solve this before reading Section 6!*
+
+---
