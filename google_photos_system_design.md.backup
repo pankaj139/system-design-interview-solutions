@@ -1,773 +1,177 @@
 # Photo Storage and Management System Design (Google Photos-like)
 
-**File Purpose:** Interactive, multi-level learning resource for designing a cloud-based photo storage and management platform like Google Photos. This instructional guide takes you from beginner concepts to advanced production considerations, teaching you how to build a system that supports 1 billion users with 4 trillion photos, handles 1.5 billion uploads daily, processes images with ML-powered face recognition and auto-tagging, delivers photos globally with <100ms latency, and achieves 99.99% availability (52 minutes downtime/year).
+**File Purpose:** Comprehensive system design document for a cloud-based photo storage and management platform supporting 1B users with 4 trillion photos, handling 1.5B uploads daily. The design covers image upload pipeline with quality compression, metadata extraction and indexing, duplicate detection using perceptual hashing, ML-powered auto-tagging and face recognition, smart album creation, photo search using computer vision, efficient CDN-based delivery, thumbnail generation with multiple resolutions, sharing and collaboration features, and storage optimization achieving 99.99% availability with <100ms photo load time globally.
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** January 2026  
-**Recent Updates:** Transformed into multi-level instructional format with learning objectives, real-world examples from Google Photos/iCloud/Amazon Photos, interview preparation, and practice exercises for educational platform
-
----
-
-## 🎓 Welcome to Google Photos System Design!
-
-### What You're Going to Build
-
-Imagine creating a platform where over a billion people store their most precious memories - wedding photos, baby's first steps, family vacations - totaling 4 trillion photos. Every day, 1.5 billion new photos are uploaded from smartphones around the world. Your system must automatically recognize faces of loved ones across thousands of photos, organize images into smart albums, let users search for "beach sunset" and instantly find relevant photos from years ago, and deliver any photo to any device globally in under 100 milliseconds. 
-
-By the end of this learning journey, you'll understand how to design a production-grade photo storage and management platform that:
-- Stores and manages 4 trillion photos for 1 billion users (4 exabytes of data)
-- Handles 1.5 billion photo uploads per day (17,361 uploads/second average, 52K QPS peak)
-- Processes images with ML-powered face recognition across billions of faces
-- Delivers photos globally with <100ms latency through intelligent CDN placement
-- Achieves 99.99% availability (only 52 minutes of downtime per year)
-
-### 📚 Your Learning Path
-
-This course is designed for three different learning levels. You can progress through all levels or focus on the one that matches your current needs:
-
-```text
-🟢 BEGINNER LEVEL (6-8 hours)
-├─ Learn fundamental concepts of photo storage
-├─ Understand WHY we make design choices
-├─ Build intuition with everyday analogies (photo albums, libraries)
-└─ Perfect for: New to system design or photo/media systems
-
-🟡 INTERMEDIATE LEVEL (8-10 hours)  
-├─ Master interview techniques for media platforms
-├─ Learn trade-off analysis for storage vs processing
-├─ Practice common interview questions
-└─ Perfect for: Preparing for FAANG interviews
-
-🔴 ADVANCED LEVEL (10-14 hours)
-├─ Production considerations for ML pipelines
-├─ Performance optimization techniques at scale
-├─ Handle edge cases and ML model failures
-└─ Perfect for: Senior engineers and ML system architects
-```
-
-### 🎯 Prerequisites
-
-**For Beginners:**
-- Basic understanding of how photos are stored on your phone
-- Familiarity with uploading files to websites
-- No prior system design experience needed!
-
-**For Intermediate:**
-- Understanding of databases (SQL and NoSQL concepts)
-- Basic knowledge of REST APIs
-- Familiarity with object storage (like AWS S3)
-- Basic understanding of machine learning concepts
-
-**For Advanced:**
-- Experience with distributed systems and CAP theorem
-- Knowledge of image processing pipelines
-- Understanding of ML model serving and inference
-- Familiarity with vector databases and similarity search
-- Understanding of consistency models and data replication
-
-### 📊 What Makes This Learning Experience Unique
-
-Each section follows a proven learning pattern:
-1. **What You'll Learn** - Clear learning objectives
-2. **Why This Matters** - Real-world context from Google Photos, iCloud, Amazon Photos
-3. **Multi-Level Content** - Tailored explanations for your level (🟢🟡🔴)
-4. **Real-World Examples** - How Google Photos, Apple iCloud, and Amazon Photos actually do it
-5. **Think About It** - Questions to deepen understanding
-6. **Key Takeaways** - Summary of main points
-7. **Practice Exercise** - Hands-on challenge
-
-💡 **Pro Tip:** Don't skip the "Think About It" sections - they're designed to help you internalize concepts so you can explain them in interviews or to your team!
+**Last Updated:** October 13, 2025  
+**Recent Updates:** Added comprehensive header with AI/ML features and photo management capabilities
 
 ---
 
 ## TABLE OF CONTENTS
 
-- [Section 1: Understanding What We're Building](#section-1-understanding-what-were-building)
-- [Section 2: Planning for Scale](#section-2-planning-for-scale)
-- [Section 3: Designing the System Architecture](#section-3-designing-the-system-architecture)
-- [Section 4: Storing Our Data](#section-4-storing-our-data)
-- [Section 5: How Users Interact - API Design](#section-5-how-users-interact---api-design)
-- [Section 6: Upload Pipeline - Getting Photos into the System](#section-6-upload-pipeline---getting-photos-into-the-system)
-- [Section 7: Image Processing & ML Pipeline](#section-7-image-processing--ml-pipeline)
-- [Section 8: Face Recognition at Scale](#section-8-face-recognition-at-scale)
-- [Section 9: Smart Search & Discovery](#section-9-smart-search--discovery)
-- [Section 10: Storage Architecture & CDN](#section-10-storage-architecture--cdn)
-- [Section 11: Sharing & Collaboration](#section-11-sharing--collaboration)
-- [Section 12: Growing the System - Scalability](#section-12-growing-the-system---scalability)
-- [Section 13: Protecting the System - Security](#section-13-protecting-the-system---security)
-- [Section 14: Keeping It Healthy - Monitoring](#section-14-keeping-it-healthy---monitoring)
-- [Section 15: Making Design Decisions - Trade-offs](#section-15-making-design-decisions---trade-offs)
-- [Section 16: Interview Preparation & Practice](#section-16-interview-preparation--practice)
-- [Putting It All Together](#putting-it-all-together)
-- [Next Steps](#next-steps)
+- [1. REQUIREMENTS & CLARIFICATION](#1-requirements--clarification)
+  - [User Stories](#user-stories)
+  - [Functional Requirements (MVP)](#functional-requirements-mvp)
+  - [Non-Functional Requirements](#non-functional-requirements)
+  - [Clarifying Questions & Assumptions](#clarifying-questions--assumptions)
+- [2. BACK-OF-THE-ENVELOPE CALCULATIONS](#2-back-of-the-envelope-calculations)
+  - [Traffic Estimates](#traffic-estimates)
+  - [Storage Estimates](#storage-estimates)
+  - [Resource Estimates](#resource-estimates)
+  - [Bandwidth Estimates](#bandwidth-estimates)
+- [3. HIGH-LEVEL DESIGN](#3-high-level-design)
+  - [System Architecture Diagram](#system-architecture-diagram)
+  - [Component Responsibilities](#component-responsibilities)
+  - [Data Flow](#data-flow)
+- [4. DATABASE DESIGN](#4-database-design)
+  - [User Database (PostgreSQL)](#user-database-postgresql---relational)
+  - [Photo Metadata Database (Cassandra)](#photo-metadata-database-cassandra---wide-column)
+  - [Album Database (PostgreSQL)](#album-database-postgresql---relational)
+  - [Face Recognition Database (Vector DB)](#face-recognition-database-milvus---vector-database)
+  - [Cache Layer (Redis)](#cache-layer-redis)
+- [5. API DESIGN](#5-api-design)
+  - [Base Configuration](#base-configuration)
+  - [Authentication Endpoints](#authentication-endpoints)
+  - [Upload Endpoints](#upload-endpoints)
+  - [Photo Management Endpoints](#photo-management-endpoints)
+  - [Album Endpoints](#album-endpoints)
+  - [Search Endpoints](#search-endpoints)
+  - [Sharing Endpoints](#sharing-endpoints)
+- [6. DEEP DIVE - UPLOAD FLOW](#6-deep-dive---upload-flow)
+  - [Upload Flow Diagram](#upload-flow-diagram)
+  - [Chunked Upload Process](#chunked-upload-process)
+  - [Deduplication Strategy](#deduplication-strategy)
+- [7. DEEP DIVE - IMAGE PROCESSING](#7-deep-dive---image-processing)
+  - [Processing Pipeline](#processing-pipeline)
+  - [Thumbnail Generation](#thumbnail-generation)
+  - [Face Detection & Recognition](#face-detection--recognition)
+  - [Content Analysis](#content-analysis)
+- [8. DEEP DIVE - STORAGE ARCHITECTURE](#8-deep-dive---storage-architecture)
+  - [Storage Tiers](#storage-tiers)
+  - [CDN Strategy](#cdn-strategy)
+  - [Backup & Disaster Recovery](#backup--disaster-recovery)
+- [9. DEEP DIVE - SEARCH](#9-deep-dive---search)
+  - [Search Types](#search-types)
+  - [Elasticsearch Implementation](#elasticsearch-implementation)
+  - [Vector Search for Faces](#vector-search-for-faces)
+- [10. SCALABILITY](#10-scalability)
+  - [Horizontal Scaling](#horizontal-scaling)
+  - [Database Scaling](#database-scaling)
+  - [Storage Scaling](#storage-scaling)
+  - [CDN & Edge Caching](#cdn--edge-caching)
+- [11. SECURITY](#11-security)
+  - [Authentication & Authorization](#authentication--authorization)
+  - [Data Encryption](#data-encryption)
+  - [Privacy Controls](#privacy-controls)
+  - [Malware Scanning](#malware-scanning)
+- [12. MONITORING](#12-monitoring)
+  - [Key Metrics](#key-metrics)
+  - [Logging](#logging)
+  - [Alerting](#alerting)
+- [13. TRADE-OFFS](#13-trade-offs)
+  - [Storage Trade-Offs](#storage-trade-offs)
+  - [Processing Trade-Offs](#processing-trade-offs)
+  - [Consistency Trade-Offs](#consistency-trade-offs)
+- [SUMMARY](#summary)
+  - [Key Architectural Decisions](#key-architectural-decisions)
+  - [Future Enhancements](#future-enhancements)
 
 ---
 
-## Section 1: Understanding What We're Building
+## 1. REQUIREMENTS & CLARIFICATION
 
-### What You'll Learn
+### User Stories
 
-By the end of this section, you'll be able to:
-- Explain what a photo storage platform like Google Photos does and why it exists
-- Define functional requirements (features the system provides)
-- Identify non-functional requirements (performance, scalability, reliability targets)
-- Ask the right clarifying questions in a system design interview for media platforms
+**As a user, I want to:**
 
-### Why This Matters
+- Upload photos and videos from multiple devices so that I can access them anywhere
+- Automatically backup my photos so that I never lose precious memories
+- Search photos by content, location, or date so that I can quickly find specific images
+- Create and share albums with friends and family so that we can collaborate on memories
+- View photos in high quality with fast loading so that I have a great viewing experience
+- Organize photos with automatic grouping and smart suggestions so that my library stays organized
 
-Before writing a single line of code or drawing diagrams, you need to understand WHAT you're building and WHY. This is where 60% of system design interviews are won or lost. Real-world example: Google Photos started as Google+ Photos in 2011 but failed because they didn't understand user requirements - people wanted unlimited free storage for memories, not a social network. When relaunched in 2015 with proper requirements (unlimited storage, auto-backup, smart search), it reached 1 billion users by 2018!
+### Functional Requirements (MVP)
 
----
+**Core Features:**
 
-### 🟢 For Beginners: The Fundamentals
+1. **Upload & Storage**
+   - Upload photos and videos (max 100MB per photo, 10GB per video)
+   - Support multiple formats (JPEG, PNG, RAW, MP4, MOV)
+   - Auto-backup from mobile devices
 
-#### What is a Photo Storage Platform?
+2. **Viewing & Organization**
+   - View photos in timeline view
+   - Create albums and collections
+   - Basic metadata (date, location, device)
 
-Think of Google Photos like a magical photo album that:
-- Lives in the cloud (not on your phone)
-- Never runs out of space
-- Automatically organizes your photos
-- Lets you find any photo instantly
-- Works on all your devices
+3. **Search**
+   - Search by date range
+   - Search by location
+   - Search by metadata tags
 
-**Why not just keep photos on your phone?**
+4. **Sharing**
+   - Share individual photos via link
+   - Share albums with specific users
+   - Public/private sharing controls
 
-Let's compare:
+5. **Processing**
+   - Generate multiple resolution thumbnails
+   - Extract and store metadata (EXIF data)
+   - Basic image optimization
+   - Face detection and recognition
+   - Automatic face grouping and clustering
 
-```text
-📱 Phone Storage (Traditional):
-├─ Limited space (64GB phone = ~20,000 photos)
-├─ Lose phone = lose all photos ❌
-├─ Hard to share with family
-└─ No automatic organization
+6. **People & Face Management**
+   - Detect faces in photos automatically
+   - Group similar faces together
+   - Name people and tag photos
+   - Search photos by person
+   - Face-based photo suggestions
 
-☁️ Cloud Photo Platform (Google Photos):
-├─ Unlimited space ✅
-├─ Phone stolen? Photos still safe ✅
-├─ Share albums instantly ✅
-└─ Searches "dog" → finds all dog photos ✅
-```
+### Non-Functional Requirements
 
-#### Why Do People Need Google Photos?
+**Performance:**
 
-Real-world problems it solves:
+- Upload latency: < 5 seconds for photos, < 30 seconds for videos
+- Image load time: < 200ms for thumbnails, < 1s for full resolution
+- Search results: < 500ms
 
-1. **Storage Problem**: Your wedding photos (5,000 images) + vacation videos fill up your phone instantly
+**Availability:**
 
-2. **Loss Problem**: Phone falls in pool → 10 years of memories gone forever
+- 99.9% uptime (about 8.76 hours downtime per year)
+- Multi-region deployment for disaster recovery
 
-3. **Organization Problem**: You have 50,000 photos. Good luck finding that birthday photo from 2 years ago!
+**Scalability:**
 
-4. **Sharing Problem**: Want to share 200 wedding photos with family? Email has 25MB limit, texting takes forever
+- Support 500M active users
+- Handle 100M photo uploads per day
+- Support 1B photo views per day
 
-5. **Access Problem**: Photos on iPhone, but you're on Android tablet. Can't access them!
+**Security:**
 
-#### What Features Should It Have?
+- End-to-end encryption for uploads
+- Access control for shared content
+- Secure authentication (OAuth 2.0)
 
-Let's think about what users need:
+**Consistency:**
 
-**Core Features (MVP - Must Have):**
+- Eventual consistency acceptable for non-critical operations
+- Strong consistency for ownership and permissions
 
-1. **Upload Photos**
-   - From phone camera automatically
-   - From computer manually
-   - Support all formats (JPEG, PNG, RAW, HEIC)
+### Clarifying Questions & Assumptions
 
-2. **Store Forever**
-   - Never delete unless user wants to
-   - Keep original quality available
-   - Multiple backups (don't lose data!)
+**Assumptions:**
 
-3. **View Anywhere**
-   - Phone app (iOS, Android)
-   - Web browser
-   - Tablet app
-   - Fast loading (< 1 second)
-
-4. **Basic Organization**
-   - Timeline view (sorted by date)
-   - Create albums manually
-   - See location on map
-
-5. **Simple Sharing**
-   - Share single photos via link
-   - Share whole albums
-   - Control who can see what
-
-**Smart Features (Nice to Have):**
-
-6. **Search**
-   - Find photos by typing "beach" or "dog"
-   - Search by date or location
-   - Search by person's face
-
-7. **Automatic Face Recognition**
-   - Finds all photos of same person
-   - Groups family members automatically
-   - Suggests tagging names
-
-8. **Smart Albums**
-   - Auto-creates "Best of 2025"
-   - Finds all photos from "Paris trip"
-   - Makes collages and animations
-
-💡 **Pro Tip:** In interviews, always separate "must-have" (MVP) from "nice-to-have" features. This shows you can prioritize! For Google Photos, search and face recognition are differentiators - they're what made it successful.
-
----
-
-### 🟡 For Intermediate: Interview Patterns
-
-#### Functional vs Non-Functional Requirements Framework
-
-When you're in a system design interview for a photo platform, the interviewer is testing whether you understand the unique challenges of media systems. Here's the framework:
-
-**Functional Requirements** (What the system DOES):
-
-| Requirement | Description | Interview Tip |
-|------------|-------------|---------------|
-| Photo Upload | Users can upload photos/videos | Ask: Max file size? Formats supported? Chunked upload? |
-| Storage | Store photos with redundancy | Ask: Retention policy? Original + compressed? |
-| Viewing | Display photos in various sizes | Ask: Thumbnail sizes? Progressive loading? |
-| Organization | Albums, timeline, folders | Ask: Max photos per album? Nesting depth? |
-| Search | Find photos by content/metadata | Ask: Text search? Visual search? Latency SLA? |
-| Sharing | Share photos with others | Ask: Permission levels? Expiration? Public links? |
-| Face Recognition | Detect and group faces | Ask: Real-time or async? Privacy compliance? |
-
-**Non-Functional Requirements** (How WELL it does it):
-
-| Requirement | Target | Why It Matters | Google Photos Reality |
-|------------|--------|----------------|----------------------|
-| Availability | 99.99% | 52 min downtime/year | People access memories 24/7 |
-| Upload Latency | < 5s for photos | User experience | Google: 2-3s average |
-| View Latency | < 100ms | Feels instant | Google: 50-80ms globally |
-| Storage Scale | Exabytes (1000s of PB) | 1B users × 4,000 photos each | Google: 4+ EB total |
-| Throughput | 17K uploads/sec peak | Handle global traffic | Google: Handles 1.5B daily |
-| Consistency | Eventually consistent OK | Rare conflicts acceptable | Except permissions: strong |
-
-#### Critical Clarifying Questions
-
-**Scale Questions:**
-```text
-Q: "How many daily active users?"
-Why: Determines infrastructure size
-Answer: 500M DAU (Google Photos actual: ~1B users)
-
-Q: "How many photos per user?"
-Why: Determines storage architecture
-Answer: Average 4,000 photos/user (some have 50K+)
-
-Q: "Upload vs view ratio?"
-Why: Read-heavy systems design differently
-Answer: 1:100 (typical photo platform - mostly viewing)
-
-Q: "Peak traffic patterns?"
-Why: Need to handle spikes (holidays, events)
-Answer: 3x normal during Christmas, New Year
-```
-
-**Feature Scope Questions:**
-```text
-Q: "Do we need face recognition?"
-Why: Massively increases complexity (ML pipeline)
-Answer: Yes for Google Photos (differentiator)
-Tip: Can be "Phase 2" for MVP
-
-Q: "Video support?"
-Why: Videos are 30x larger, need transcoding
-Answer: Yes but different pipeline
-Tip: "Let's focus on photos first"
-
-Q: "Photo editing features?"
-Why: Adds entire editing infrastructure
-Answer: Usually out of scope for interview
-Tip: "Users can edit before upload"
-
-Q: "Live Photos (iPhone burst mode)?"
-Why: Special handling for photo sequences
-Answer: Usually "future enhancement"
-```
-
-**Technical Deep-Dive Questions:**
-```text
-Q: "What's the upload success rate SLA?"
-Why: Determines retry logic complexity
-Answer: 99.9% success (1 in 1000 can fail)
-
-Q: "How do we handle duplicates?"
-Why: Same photo uploaded multiple times
-Answer: Perceptual hashing + deduplication
-
-Q: "Consistency model for albums?"
-Why: Multiple users editing same album
-Answer: Eventually consistent (UI optimistic updates)
-
-Q: "Data retention policy?"
-Why: Legal compliance, storage costs
-Answer: Forever (unless user deletes)
-```
-
-#### Interview Script
-
-Here's how to structure this in a 45-minute interview:
-
-**Minutes 0-10: Requirements Gathering**
-```text
-You: "Let me clarify the requirements. We're building a photo storage platform 
-      like Google Photos. Let me confirm the key features:"
-
-1. Upload photos from mobile/web
-2. Store photos reliably with redundancy
-3. View photos quickly across devices
-4. Organize in albums and timeline
-5. Share photos with others
-6. Search by content and metadata
-
-Interviewer: "Yes, and add face recognition."
-
-You: "Great. For scale, should I assume:"
-- 500M daily active users
-- 100M photo uploads per day
-- 20B photo views per day
-- Global distribution (US, Europe, Asia)
-- 99.99% availability target
-
-Interviewer: "Yes, sounds reasonable."
-
-You: "For scope, let's focus on photos first. Videos can follow similar
-      architecture with added transcoding. Face recognition we can discuss
-      as a separate ML pipeline. Should I proceed with high-level design?"
-
-Interviewer: "Yes, please."
-```
-
-**Minutes 10-15: Capacity Estimates**
-```text
-You: "Let me do quick back-of-envelope calculations:
-
-Storage:
-- 100M uploads/day × 3MB avg = 300TB/day = 110PB/year
-- With thumbnails + metadata: ~120PB/year
-- 5-year total: 600PB
-
-Bandwidth:
-- Uploads: 100M × 3MB / 86,400s = ~3.5GB/s
-- Views: 20B × 50KB (thumbnails) / 86,400s = ~12TB/s peak
-- Need strong CDN presence globally
-
-API Throughput:
-- Upload API: ~1,200 QPS average, ~3,600 QPS peak
-- View API: ~230K QPS average, ~700K QPS peak
-
-This drives our architecture decisions. Should I proceed to design?"
-
-Interviewer: "Yes."
-```
-
-**Minutes 15-45: Continue with architecture, databases, etc.**
-
-💡 **Pro Tip:** Notice how the interview script shows you understand the problem before jumping to solutions. Many candidates fail by drawing boxes without clarifying requirements!
-
----
-
-### 🔴 For Advanced: Production Considerations
-
-#### Enterprise Requirements
-
-When building Google Photos at production scale, additional requirements emerge:
-
-**1. Compliance & Privacy**
-
-```text
-GDPR (Europe):
-├─ Right to download all data (data export API)
-├─ Right to delete (cascading deletion across all systems)
-├─ Data residency (EU data stays in EU)
-└─ Consent management (face recognition opt-in)
-
-COPPA (Children's Privacy):
-├─ No face recognition for users under 13
-├─ Parental consent for accounts
-└─ Restricted sharing features
-
-CCPA (California):
-├─ Do not sell data option
-├─ Transparency in data usage
-└─ Right to opt-out of ML training
-```
-
-**2. Business Requirements**
-
-```text
-Storage Tiers for Monetization:
-├─ Free: 15GB (compressed quality)
-├─ Paid ($1.99/mo): 100GB original quality
-└─ Premium ($9.99/mo): 2TB + advanced features
-
-Feature Gating:
-├─ Free: Basic face grouping (1K faces)
-├─ Paid: Advanced ML features (unlimited faces)
-└─ Premium: Magic Eraser, HDR effects
-```
-
-**3. Cost Optimization (Critical at Scale)**
-
-Google Photos specific costs:
-- Storage: $0.023/GB/month (S3) × 4 EB = $94M/month just for storage!
-- Bandwidth: 12 TB/s × $0.08/GB = $83M/month
-- ML Inference: Face recognition on 1.5B photos/day = $30M/month
-- Total: $200M+/month operating costs
-
-Cost optimization strategies:
-1. **Compression**: Store "High Quality" (compressed) by default
-   - Reduces storage by 75%
-   - Savings: $70M/month
-   
-2. **Tiered Storage**: Move old photos to cold storage (Glacier)
-   - 80% of views are recent photos (last 30 days)
-   - Cold storage: $0.004/GB vs $0.023/GB (82% cheaper)
-   - Savings: $40M/month
-   
-3. **Smart Caching**: Cache popular photos at edge
-   - 1% of photos = 80% of views (power law distribution)
-   - CDN cache hit ratio: 95%
-   - Bandwidth savings: $75M/month
-
-**4. Multi-Tenancy & Isolation**
-
-```text
-Tenant Isolation for Enterprise Customers:
-├─ Separate encryption keys per customer
-├─ Dedicated storage buckets (compliance)
-├─ Isolated metadata databases (performance)
-└─ Separate ML model serving (IP protection)
-
-Challenge: Google Workspace customers need:
-- Corporate compliance (retain all edits for 7 years)
-- eDiscovery support (legal holds)
-- Admin controls (disable face recognition)
-- Audit logs (who viewed what, when)
-```
-
-**5. Disaster Recovery & Business Continuity**
-
-```text
-RPO (Recovery Point Objective): 0 data loss
-RTO (Recovery Time Objective): < 1 hour
-
-Multi-Region Replication:
-Primary:     US-EAST-1 (Virginia)
-Replica 1:   US-WEST-2 (Oregon)
-Replica 2:   EU-WEST-1 (Ireland)
-Replica 3:   ASIA-SOUTHEAST-1 (Singapore)
-
-Failure Scenarios:
-1. Single server failure: Auto-healing (30s)
-2. AZ failure: Traffic shifted (2 min)
-3. Region failure: DR promotion (15 min)
-4. Global disaster: Restore from tape (4 hours)
-```
-
-#### Advanced System Requirements
-
-**1. Consistency Guarantees**
-
-Different operations need different consistency:
-
-| Operation | Consistency Model | Rationale |
-|-----------|------------------|-----------|
-| Upload photo | Eventual (10s) | Can show "Processing..." |
-| Delete photo | Strong (immediate) | Must not show deleted photo |
-| Album sharing | Eventual (1-2s) | Optimistic UI acceptable |
-| Permissions | Linearizable | Security critical |
-| Face clustering | Eventual (hours/days) | Batch processing acceptable |
-
-**2. Performance SLAs by Percentile**
-
-```text
-Photo Load Time SLA:
-├─ p50 (median): 50ms
-├─ p95: 100ms
-├─ p99: 200ms
-└─ p99.9: 500ms (acceptable for slow networks)
-
-Why percentiles matter:
-- Average can hide problems (outliers)
-- p99 affects real users (1% of 1B users = 10M people!)
-- Google Photos targets: "Instantly feel responsive"
-```
-
-**3. ML Model Performance Requirements**
-
-```text
-Face Recognition Accuracy:
-├─ Precision: > 99.5% (minimize false positives)
-├─ Recall: > 95% (find most faces)
-├─ Inference latency: < 100ms per photo
-└─ Model size: < 50MB (mobile deployment)
-
-Object Detection:
-├─ 20,000 object classes (dog, car, sunset, beach...)
-├─ Multi-label (one photo: "dog" + "beach" + "sunset")
-├─ Inference: < 200ms per photo
-└─ Accuracy: > 90% top-5
-```
-
-### Real-World Example: How Google Photos Does It
-
-#### Google Photos Evolution
-
-**2015 Launch:**
-- Key decision: **Unlimited free storage** (compressed quality)
-- Why: Competitive advantage over Apple iCloud ($0.99/month for 50GB)
-- Result: Grew from 0 to 100M users in 5 months
-
-**2016 Scaling Challenge:**
-- Problem: 200M users, 24B photos, running out of money
-- Solution: ML compression (further reduce storage), tiered storage
-- Result: Cut costs by 60% while improving quality
-
-**2021 Policy Change:**
-- Ended unlimited free storage (now 15GB free)
-- Why: Reached 4 trillion photos, unsustainable costs
-- Business model: Drive users to Google One ($1.99/mo for 100GB)
-
-#### Technical Decisions
-
-```text
-Storage: Google Colossus (successor to GFS)
-├─ Reed-Solomon erasure coding (vs 3x replication)
-├─ Saves 50% storage (14 data + 4 parity vs 3 copies)
-└─ Rebuild from any 14 of 18 shards
-
-CDN: Google Global Cache (in ISP networks)
-├─ Cache nodes in 7,500+ ISP locations
-├─ 95% of views served from ISP cache (< 10ms)
-└─ Only 5% hit origin storage
-
-Face Recognition: FaceNet (2015-2018) → FaceNet-V2 (2019+)
-├─ 128-dimensional embeddings
-├─ 99.63% accuracy on LFW benchmark
-└─ Privacy: On-device clustering (iOS/Android), server for web
-```
-
-### 🎯 Interview Questions: Requirements Gathering
-
-**Q1: Why does Google Photos offer unlimited free storage?**
-
-<details>
-<summary>Click to see answer</summary>
-
-**Answer:**
-Three strategic reasons:
-
-1. **Competitive Advantage (2015)**: Apple charged $0.99/month, Google went free to rapidly gain users
-
-2. **Data for ML Training**: More photos = better ML models for object detection, face recognition
-
-3. **Ecosystem Lock-in**: Once you have 50,000 photos in Google Photos, you won't switch to Apple
-
-**Trade-off**: Lost $200M+/year in 2015-2020, but gained 1B users. Later changed to 15GB free (2021) after achieving dominance.
-
-**Interview Tip**: Shows you understand business strategy, not just technical design.
-</details>
-
-**Q2: Why does Google Photos compress photos by default instead of storing originals?**
-
-<details>
-<summary>Click to see answer</summary>
-
-**Answer:**
-Cost vs quality trade-off:
-
-```text
-Original Quality (JPEG from iPhone 14):
-- 12 MP = 4000×3000 pixels
-- File size: 3-5 MB
-- Storage cost: 3 MB × 1 trillion photos = 3 EB
-- Monthly cost: 3 EB × $0.023/GB = $70M/month
-
-"High Quality" (Google's compression):
-- Resized to 16 MP max (same as original for most phones)
-- Aggressive JPEG compression (quality 85)
-- File size: 0.8-1.2 MB (70% smaller)
-- Monthly cost: $21M/month
-- Savings: $49M/month = $588M/year!
-```
-
-**Visual quality**: 99% of users can't tell difference on phone screens
-
-**Interview Tip**: At scale, storage costs dominate. Always consider compression.
-</details>
-
-**Q3: Why is face recognition the most complex feature to build?**
-
-<details>
-<summary>Click to see answer</summary>
-
-**Answer:**
-Multiple technical challenges:
-
-**1. ML Pipeline Complexity:**
-```text
-Regular photo upload:
-Photo → Storage → Done (simple)
-
-Face recognition pipeline:
-Photo → Face Detection → Embedding Extraction → Clustering → 
-Verification → Update Index → Notify User
-(6 steps, any can fail)
-```
-
-**2. Privacy Regulations:**
-- GDPR: Must get consent before scanning faces
-- CCPA: Users can opt-out
-- BIPA (Illinois): Biometric data special protection
-- Results: Different pipeline per region!
-
-**3. Accuracy Requirements:**
-- False positive (wrong person): Very bad UX ("That's not grandma!")
-- False negative (missed face): Acceptable
-- Need precision > 99.5%, recall > 95%
-
-**4. Performance:**
-- 1.5B photos uploaded daily
-- ~3 faces per photo average
-- = 4.5B face inferences/day
-- = 52K inferences/second
-- Needs massive GPU cluster
-
-**5. Scale:**
-- 1 billion users × 10 people per user = 10B face clusters
-- Vector database with 10B entries
-- Each query: Compare against 10B faces
-- Need approximate nearest neighbor (ANN), not exact search
-
-**Interview Tip**: Face recognition alone could be entire interview. Be ready to design the ML pipeline if asked!
-</details>
-
-**Q4: What's the difference between functional and non-functional requirements? Give examples for Google Photos.**
-
-<details>
-<summary>Click to see answer</summary>
-
-**Answer:**
-
-**Functional Requirements** = WHAT the system does (features)
-```text
-Examples for Google Photos:
-- Upload photos from mobile app
-- Create albums and organize photos
-- Share photos via link
-- Search photos by content
-- Recognize faces and group people
-```
-
-**Non-Functional Requirements** = HOW WELL it does it (quality attributes)
-```text
-Examples for Google Photos:
-- Upload < 5 seconds (Performance)
-- 99.99% uptime (Reliability)
-- Handle 1B users (Scalability)
-- Encrypt data at rest (Security)
-- < 100ms photo load (Latency)
-```
-
-**Why Both Matter:**
-- Functional only: System works but is slow/unreliable
-- Non-functional only: Fast system that does nothing useful
-- Need both: Useful system that performs well
-
-**Interview Tip:** Always clarify both types early in interview. Shows structured thinking.
-</details>
-
----
-
-### 🤔 Think About It
-
-Before moving to the next section, consider these questions:
-
-1. **Storage Trade-off**: Would you offer unlimited free storage if you were designing a new photo platform in 2026? Why or why not? (Hint: Consider costs, competition, and business model)
-
-2. **Privacy vs Features**: Face recognition is Google Photos' killer feature but raises privacy concerns. How would you balance this? Would you make it opt-in or opt-out?
-
-3. **Mobile vs Web**: Should you optimize for mobile-first (where most photos are taken) or treat all platforms equally? What would change in your design?
-
-4. **Freemium Model**: If you had to monetize, what features would you put behind a paywall? What must stay free to remain competitive?
-
----
-
-### ✅ Key Takeaways
-
-```text
-✓ Photo platforms are read-heavy (1:100 write-read ratio)
-✓ Storage costs dominate at scale ($70M/month for 3 EB)
-✓ Compression saves 70% storage with minimal quality loss
-✓ Face recognition is complex: ML pipeline + privacy + scale
-✓ Functional requirements = features, Non-functional = quality
-✓ Always clarify scale before designing (100K vs 1B users = different architecture)
-✓ Google Photos' success: Unlimited free storage + smart search + face recognition
-✓ Business drives technical: Free storage was strategy, not generosity
-```
-
-**Critical Numbers to Remember:**
-- 1B users, 4 trillion photos, 1.5B uploads/day
-- 99.99% availability = 52 minutes downtime/year
-- < 100ms photo load time globally
-- 1:100 write-to-read ratio (typical for media platforms)
-
----
-
-### 🎯 Practice Exercise
-
-**Exercise: Requirements Analysis**
-
-You're in an interview. The interviewer says: *"Design Instagram."*
-
-Using what you learned, write down:
-1. 5 functional requirements (MVP features)
-2. 5 non-functional requirements (with specific numbers)
-3. 3 clarifying questions you'd ask
-4. 1 feature you'd explicitly exclude from MVP
-
-<details>
-<summary>Click to see sample answer</summary>
-
-**Functional Requirements (MVP):**
-1. Users can upload photos (JPEG/PNG, max 10MB)
-2. Users can follow other users
-3. Users can view a feed of photos from people they follow
-4. Users can like and comment on photos
-5. Users can search for users by username
-
-**Non-Functional Requirements:**
-1. Availability: 99.9% uptime (8.76 hours downtime/year)
-2. Upload latency: < 3 seconds for photos
-3. Feed load time: < 500ms
-4. Scale: 500M daily active users
-5. Throughput: 100K photo uploads/second at peak
-
-**Clarifying Questions:**
-1. "Do we need video support, or just photos for MVP?" (Videos add transcoding complexity)
-2. "What's the maximum number of followers per user?" (Affects feed generation strategy)
-3. "Do we need real-time notifications for likes/comments?" (Adds pub-sub infrastructure)
-
-**Explicitly Out of Scope for MVP:**
-- Stories/Reels (temporary content)
-- Direct messaging
-- Shopping/commerce features
-- Advanced filters/editing
-
-**Why this answer works:**
-- Shows prioritization (MVP vs future)
-- Asks scope questions (avoid gold-plating)
-- Specifies numbers (not just "fast" or "scalable")
-- Understands business (social network vs photo storage)
-</details>
-
----
-
-**Ready to move on?** In the next section, we'll do back-of-the-envelope calculations to determine the scale of infrastructure we need. You'll learn how to estimate storage, bandwidth, and compute requirements - essential skills for any system design interview!
+1. **Scale:** 500M DAU, 20% upload daily (100M uploads/day)
+2. **Usage Pattern:** Read-heavy (1:100 write-to-read ratio)
+3. **Geographic Distribution:** Global users, concentrated in US, Europe, Asia
+4. **Storage Duration:** Unlimited storage for all users
+5. **Content:** Average photo size: 3MB, average video size: 100MB
+6. **Devices:** Support web, iOS, Android clients
+7. **Out of Scope (Post-MVP):** Advanced AI features (face recognition, object detection), photo editing, live photos, collaborative editing
 
 ---
 
