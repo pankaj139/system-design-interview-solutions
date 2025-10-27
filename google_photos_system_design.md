@@ -771,96 +771,775 @@ Using what you learned, write down:
 
 ---
 
-## 2. BACK-OF-THE-ENVELOPE CALCULATIONS
+## Section 2: Planning for Scale
 
-### Traffic Estimates
+### What You'll Learn
 
-```text
-Daily Active Users (DAU): 500M
-Users uploading photos: 20% of DAU = 100M users
-Average uploads per user: 5 photos/day
-Total photos uploaded per day: 500M photos
+By the end of this section, you'll be able to:
+- Calculate storage requirements for billions of photos
+- Estimate bandwidth needs for global photo delivery
+- Determine server and database capacity requirements
+- Translate business metrics into infrastructure sizing
 
-Upload QPS:
-500M photos / 86,400 seconds = ~5,800 photos/second
-Peak upload QPS (3x): ~17,400 photos/second
+### Why This Matters
 
-Video uploads:
-10% of uploads are videos = 50M videos/day
-Video upload QPS: 50M / 86,400 = ~580 videos/second
+"Back-of-the-envelope" calculations are THE most important skill in system design interviews. They help you avoid over-engineering (wasting money) or under-engineering (system crashes). Real-world example: In 2015, Google Photos launched with "unlimited free storage" without proper capacity planning. By 2020, they had 4 trillion photos costing $200M+/month in storage alone - forcing them to end the free unlimited policy in 2021. Proper planning prevents expensive surprises!
 
-View Operations:
-80% of DAU view photos: 400M users
-Average views per user: 50 photos/day
-Total views per day: 20B views/day
-View QPS: 20B / 86,400 = ~231,000 views/second
-Peak view QPS (3x): ~693,000 views/second
-```
+---
 
-### Storage Estimates
+### 🟢 For Beginners: The Fundamentals
+
+#### Why Do We Need to Calculate Scale?
+
+Think of it like planning a wedding:
 
 ```text
-Photo Storage:
-Average photo size: 3MB
-Daily photo storage: 500M photos × 3MB = 1.5 PB/day
-Annual photo storage: 1.5 PB × 365 = 547.5 PB/year
+🎊 Without Planning:
+You: "Everyone's invited!"
+Result: 500 people show up, you ordered food for 50
+Disaster: Not enough food, chairs, space!
 
-Thumbnail Storage:
-3 thumbnail sizes per photo: 150px (10KB), 400px (50KB), 1080px (200KB)
-Total thumbnail size per photo: 260KB
-Daily thumbnail storage: 500M × 260KB = 130 TB/day
-Annual thumbnail storage: 130 TB × 365 = 47.45 PB/year
-
-Video Storage:
-Average video size: 100MB
-Daily video uploads: 50M videos
-Daily video storage: 50M × 100MB = 5 PB/day
-Annual video storage: 5 PB × 365 = 1,825 PB/year
-
-Metadata Storage:
-Per photo metadata: ~2KB (EXIF, location, user_id, timestamps)
-Daily metadata: 500M × 2KB = 1 TB/day
-Annual metadata: 365 TB/year
-
-Total Storage (per year):
-Photos: 547.5 PB
-Thumbnails: 47.45 PB
-Videos: 1,825 PB
-Metadata: 0.365 PB
-Total: ~2,420 PB/year (~2.4 EB/year)
-
-5-Year Storage: ~12 EB
+📊 With Planning:
+You: "Let's estimate: 200 invited, 70% attend = 140 people"
+Result: Order for 150 (buffer), rent right space, enough food
+Success: Happy wedding!
 ```
 
-### Bandwidth Estimates
+Same for systems:
+- Estimate users → size your databases
+- Estimate traffic → size your servers
+- Estimate storage → buy enough disks
+
+#### What Numbers Do We Start With?
+
+For Google Photos, we need to know:
+
+1. **How many users?**
+   - Total users: 1 billion
+   - Daily Active Users (DAU): 500 million
+   - Why DAU matters: They're using your system TODAY
+
+2. **How many photos per person?**
+   - Average user: 4,000 photos stored
+   - Power users: 50,000+ photos
+   - New photos per day: 5 photos per active user
+
+3. **How big are photos?**
+   - Phone photo: 3 MB average
+   - Professional camera (RAW): 25 MB
+   - Screenshot: 500 KB
+   - We'll use: 3 MB average (most photos from phones)
+
+4. **Upload vs view?**
+   - Read-heavy system: For every 1 photo uploaded, 100 are viewed
+   - Why: People upload daily, but browse all the time
+
+💡 **Pro Tip:** In interviews, if you don't know a number, make a reasonable assumption and state it clearly: *"I'll assume average photo size is 3MB based on typical smartphone cameras. Does that sound reasonable?"*
+
+#### Let's Calculate Storage (Simple Version)
+
+**Step 1: Daily uploads**
+```text
+500M active users × 20% upload daily = 100M uploading users
+100M users × 5 photos each = 500M photos/day
+```
+
+**Step 2: Daily storage needed**
+```text
+500M photos × 3 MB per photo = 1,500,000,000 MB
+= 1,500,000 GB
+= 1,500 TB
+= 1.5 PB (petabytes) per day!
+```
+
+**What's a petabyte?**
+```text
+1 PB = 1,000 TB = 1,000,000 GB
+
+To visualize:
+- Your laptop: 500 GB
+- 1 PB = 2,000 laptops worth of storage
+- 1.5 PB/day = 3,000 laptops EVERY DAY!
+```
+
+**Step 3: Yearly storage**
+```text
+1.5 PB/day × 365 days = 547.5 PB/year
+
+Over 5 years: 547.5 × 5 = 2,737 PB ≈ 2.7 EB (exabytes)!
+```
+
+**Step 4: But wait - thumbnails!**
+
+We need multiple sizes for fast loading:
+- Tiny (150×150 pixels): 10 KB (for grid view)
+- Medium (400×400 pixels): 50 KB (for preview)
+- Large (1080p): 200 KB (for phone display)
+
+```text
+Thumbnails per photo: 10 KB + 50 KB + 200 KB = 260 KB
+Daily thumbnails: 500M photos × 260 KB = 130 TB/day
+Yearly thumbnails: 130 TB × 365 = 47 PB/year
+```
+
+**Total Storage (5 years):**
+```text
+Original photos: 2,737 PB
+Thumbnails: 235 PB
+Total: ~3,000 PB = 3 EB!
+```
+
+#### Let's Calculate Bandwidth
+
+**What's bandwidth?** How fast data moves through the internet pipe.
+
+Think of it like water:
+- Storage = water tank (how much you can hold)
+- Bandwidth = pipe size (how fast water flows)
+
+**Upload bandwidth:**
+```text
+500M photos/day ÷ 86,400 seconds/day = 5,787 photos/second
+5,787 photos/s × 3 MB = 17,361 MB/s ≈ 17 GB/s average
+
+Peak times (holidays, weekends): 3× average = 51 GB/s
+```
+
+**Download bandwidth (people viewing photos):**
+```text
+Read-heavy: 100 views for every 1 upload
+20 billion views/day ÷ 86,400 seconds = 231,481 views/second
+
+Mostly thumbnails (50 KB): 231,481 × 50 KB = 11.6 GB/s
+Some full photos (10%): 23,148 × 3 MB = 69 GB/s
+Total download: ~11.6 GB/s (thumbnails dominate)
+
+Peak times: 3× = 35 GB/s download bandwidth
+```
+
+#### How Many Servers Do We Need?
+
+**Web servers (handle API requests):**
+```text
+Peak traffic: ~700,000 requests/second (uploads + views)
+One server handles: ~1,000 requests/second
+Servers needed: 700,000 ÷ 1,000 = 700 servers
+With redundancy (backup): 700 × 2 = 1,400 servers
+```
+
+**Storage servers:**
+```text
+Hard drive size: 10 TB each (modern HDD)
+Total storage needed: 3,000 PB = 3,000,000 TB
+Drives needed: 3,000,000 ÷ 10 = 300,000 drives
+With redundancy (3 copies): 300,000 × 3 = 900,000 drives!
+```
+
+💡 **Pro Tip:** These big numbers show why Google uses custom data centers. At this scale, you can't just "use AWS S3" - too expensive!
+
+---
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### Capacity Planning Framework
+
+When doing calculations in an interview, follow this structure:
+
+**1. State Your Assumptions**
+```text
+Interviewer: "How much storage for Google Photos?"
+
+You: "Let me state my assumptions:
+- 500M daily active users
+- 20% upload daily = 100M uploading users  
+- 5 photos per uploading user = 500M photos/day
+- Average photo size: 3 MB
+- Planning horizon: 5 years
+Does this sound reasonable?"
+
+Interviewer: "Yes, proceed."
+```
+
+**Why this works:** Shows structured thinking, gives interviewer chance to correct you early.
+
+**2. Calculate Step-by-Step**
+
+```text
+Storage Calculation:
+
+Daily Photos:
+500M DAU × 20% upload rate × 5 photos/user
+= 100M users × 5 photos = 500M photos/day
+
+Daily Storage:
+500M photos × 3 MB/photo = 1,500 TB/day = 1.5 PB/day
+
+Annual Storage:
+1.5 PB/day × 365 days = 547.5 PB/year
+
+5-Year Total:
+547.5 PB/year × 5 years = 2,737.5 PB ≈ 2.7 EB
+```
+
+**3. Add Thumbnails and Metadata**
+
+```text
+Thumbnails (3 sizes):
+- 150px: 10 KB
+- 400px: 50 KB  
+- 1080px: 200 KB
+Total per photo: 260 KB
+
+Daily thumbnails: 500M × 260 KB = 130 TB/day
+Annual thumbnails: 47.45 PB/year
+5-year thumbnails: 237 PB
+
+Metadata (EXIF, location, tags):
+- 2 KB per photo
+- 500M photos/day × 2 KB = 1 TB/day = 365 TB/year
+- 5-year metadata: 1.825 PB (negligible)
+
+Total 5-Year Storage:
+Photos:      2,737 PB
+Thumbnails:    237 PB
+Metadata:        2 PB
+TOTAL:       2,976 PB ≈ 3 EB
+```
+
+**4. Calculate Bandwidth Requirements**
 
 ```text
 Upload Bandwidth:
-Photos: 500M × 3MB / 86,400s = 17.4 GB/s
-Videos: 50M × 100MB / 86,400s = 57.9 GB/s
-Peak upload bandwidth (3x): 225.9 GB/s
+
+Average QPS:
+500M photos/day ÷ 86,400 sec/day = 5,787 photos/sec
+
+Average bandwidth:
+5,787 photos/sec × 3 MB/photo = 17.4 GB/sec
+
+Peak (3x average):
+17.4 GB/s × 3 = 52 GB/s upload bandwidth
+
 
 Download Bandwidth:
-Thumbnail views: 20B × 50KB / 86,400s = 11.6 TB/s
-Full image views (10% of views): 2B × 3MB / 86,400s = 69.4 GB/s
-Peak download bandwidth (3x): ~35 TB/s
 
-Total Peak Bandwidth: ~35 TB/s
+Views per day: 100× uploads = 50B views/day
+View QPS: 50B ÷ 86,400 = 578,703 views/sec
+
+Thumbnail bandwidth (90% of views):
+520,833 views/sec × 50 KB = 26 GB/s
+
+Full photo bandwidth (10% of views):
+57,870 views/sec × 3 MB = 174 GB/s
+
+Total download: 200 GB/s average, 600 GB/s peak
 ```
 
-### Resource Estimates
+**5. Cost Estimation (Advanced)**
 
 ```text
-API Servers:
-Peak QPS: ~700K requests/second
-Assuming 1,000 QPS per server: 700 servers
-With redundancy (2x): 1,400 API servers
+Storage Costs (AWS S3 pricing):
+- S3 Standard: $0.023/GB/month
+- 3 EB = 3,000,000,000 GB
+- Monthly cost: 3B GB × $0.023 = $69M/month
+- Annual cost: $828M/year (just storage!)
 
-Upload Processing Workers:
-Peak uploads: 18,000 photos/s + 1,740 videos/s
-Processing time: 5s per photo, 30s per video
-Required workers: (18,000 × 5 + 1,740 × 30) / processing capacity
-Estimated: 2,000 worker instances
+Bandwidth Costs:
+- Data transfer: $0.08/GB out
+- 600 GB/s peak × 86,400 sec/day = 51,840 TB/day
+- Daily cost: 51,840,000 GB × $0.08 = $4.1M/day
+- Annual cost: $1.5B/year (just bandwidth!)
+
+Total Infrastructure: $2.3B/year
+
+Why Google uses its own data centers:
+- Build your own: ~$100M initial investment
+- Operating costs: ~$500M/year
+- Saves: $1.8B/year!
+```
+
+#### QPS (Queries Per Second) Breakdown
+
+| Operation | Daily Count | Average QPS | Peak QPS (3x) | Latency SLA |
+|-----------|------------|-------------|---------------|-------------|
+| Photo Upload | 500M | 5,787 | 17,361 | < 5s |
+| Thumbnail View | 45B | 520,833 | 1,562,500 | < 100ms |
+| Full Photo View | 5B | 57,870 | 173,611 | < 500ms |
+| Search Query | 1B | 11,574 | 34,722 | < 300ms |
+| Album Create | 10M | 116 | 347 | < 1s |
+| Share Create | 50M | 579 | 1,736 | < 2s |
+| Face Recognition | 500M | 5,787 | N/A (async) | < 1 hour |
+
+**Total Peak Load: ~1.8M QPS** (mostly thumbnail views)
+
+#### Database Sizing
+
+**Photo Metadata Database (Cassandra):**
+```text
+Record Structure:
+- photo_id: 16 bytes (UUID)
+- user_id: 16 bytes
+- upload_timestamp: 8 bytes
+- location: 16 bytes (lat/long)
+- EXIF data: 500 bytes (camera, settings)
+- tags: 200 bytes
+Total per photo: ~756 bytes ≈ 1 KB
+
+Total photos (5 years): 500M/day × 365 × 5 = 912.5B photos
+Metadata storage: 912.5B × 1 KB = 912.5 TB
+
+With 3x replication: 2.7 PB metadata
+```
+
+**User Database (PostgreSQL):**
+```text
+Users: 1B
+Per user data: 1 KB (name, email, settings, subscription)
+Total: 1 TB (tiny compared to photos!)
+```
+
+**Face Embeddings (Vector Database):**
+```text
+Faces per photo: 3 average
+Total faces: 912.5B photos × 3 = 2.7 trillion faces
+Embedding size: 512 bytes (128-dim float32)
+Total: 2.7T × 512 bytes = 1.38 PB
+
+With HNSW index overhead (3x): 4.14 PB
+```
+
+#### Infrastructure Sizing
+
+**Compute Instances:**
+```text
+API Servers (handle uploads/downloads):
+- Peak QPS: 1.8M
+- Capacity per server: 1K QPS
+- Servers needed: 1,800
+- With 2x redundancy: 3,600 servers
+
+Image Processing Workers:
+- Photos to process: 500M/day
+- Processing time: 5 seconds/photo (thumbnails + metadata)
+- Required capacity: 500M × 5s = 2.5B seconds/day
+- Worker hours/day: 2.5B ÷ 3600 = 694,444 worker-hours
+- Workers (24hr operation): 694,444 ÷ 24 = 28,935 workers
+- Actual deployment: ~30,000 processing workers
+
+ML Inference Servers (Face Recognition):
+- Faces to process: 1.5B/day
+- Inference time: 100ms/face
+- GPU throughput: 100 faces/second (batch inference)
+- GPUs needed: 1.5B / (86,400 × 100) = 174 GPUs
+- With headroom: 250 GPUs (NVIDIA T4 or similar)
+```
+
+### 🔴 For Advanced: Production Considerations
+
+#### Multi-Region Capacity Planning
+
+Google Photos operates in 4 major regions with traffic distribution:
+
+```text
+Region Traffic Distribution:
+├─ US-EAST (Virginia): 35% of traffic
+│  ├─ Storage: 1.05 EB
+│  ├─ API servers: 1,260
+│  └─ Processing workers: 10,500
+│
+├─ US-WEST (Oregon): 15% of traffic
+│  ├─ Storage: 450 PB
+│  ├─ API servers: 540
+│  └─ Processing workers: 4,500
+│
+├─ EU-WEST (Ireland): 30% of traffic
+│  ├─ Storage: 900 PB
+│  ├─ API servers: 1,080
+│  └─ Processing workers: 9,000
+│
+└─ ASIA-SOUTHEAST (Singapore): 20% of traffic
+   ├─ Storage: 600 PB
+   ├─ API servers: 720
+   └─ Processing workers: 6,000
+
+Total Global Infrastructure:
+- Storage: 3 EB
+- API servers: 3,600
+- Processing workers: 30,000
+- ML GPUs: 250
+```
+
+#### Growth Projections & Capacity Planning
+
+```text
+Year 1 (Launch):
+├─ Users: 100M
+├─ Photos: 10B
+├─ Storage: 30 PB
+└─ Servers: 200
+
+Year 2 (10x growth):
+├─ Users: 1B
+├─ Photos: 100B
+├─ Storage: 300 PB
+└─ Servers: 2,000
+
+Year 5 (Current):
+├─ Users: 1B (plateaued)
+├─ Photos: 4T (accumulated)
+├─ Storage: 3 EB
+└─ Servers: 3,600
+
+Year 7 (Projection):
+├─ Users: 1.2B (slow growth)
+├─ Photos: 6T
+├─ Storage: 4.5 EB
+└─ Servers: 5,000
+
+Planning Strategy:
+- Add capacity 6 months before projected need
+- Storage: Grow 50%/year
+- Compute: Grow 30%/year (better efficiency)
+- GPU: Grow 100%/year (more ML features)
+```
+
+#### Cost Optimization at Scale
+
+**Storage Tiering Strategy:**
+```text
+Hot Storage (Last 30 days): 20% of photos, 80% of views
+├─ Technology: NVMe SSD
+├─ Cost: $0.10/GB/month
+├─ Size: 600 PB
+└─ Monthly cost: $60M
+
+Warm Storage (31-365 days): 30% of photos, 15% of views
+├─ Technology: HDD (SATA)
+├─ Cost: $0.023/GB/month
+├─ Size: 900 PB
+└─ Monthly cost: $20.7M
+
+Cold Storage (1+ years): 50% of photos, 5% of views
+├─ Technology: Tape/Glacier
+├─ Cost: $0.004/GB/month
+├─ Size: 1.5 EB
+└─ Monthly cost: $6M
+
+Total Storage Cost: $86.7M/month (vs $69M without tiering)
+Wait, this is MORE expensive? 
+
+With Compression:
+Hot (SSD, compressed): $30M
+Warm (HDD, compressed): $10M
+Cold (Tape, compressed): $3M
+Total: $43M/month
+SAVINGS: $26M/month = $312M/year!
+```
+
+**Bandwidth Optimization:**
+```text
+Without CDN: 
+- Origin bandwidth: 600 GB/s × $0.08/GB = $1.5B/year
+
+With Global CDN (95% cache hit):
+- Origin bandwidth: 30 GB/s (5% of traffic)
+- CDN cost: Fixed $50M/year for global PoPs
+- Origin cost: $75M/year (5% of $1.5B)
+- Total: $125M/year
+SAVINGS: $1.375B/year!
+
+This is why CDN is CRITICAL for Google Photos!
+```
+
+#### Real Numbers from Google Photos
+
+Based on publicly available information and industry reports:
+
+```text
+Google Photos (2023 data):
+├─ Total users: 1+ billion
+├─ Photos stored: 4+ trillion
+├─ Daily uploads: 1.5 billion
+├─ Storage: 4+ exabytes
+├─ Annual costs: $200-300M (est)
+├─ Revenue: $2-3B (Google One subscriptions)
+└─ Profit margin: ~85% (highly profitable!)
+
+Infrastructure:
+├─ Data centers: 23 globally
+├─ CDN PoPs: 7,500+ locations
+├─ Servers: 50,000+ (est)
+├─ TPUs for ML: 10,000+ (v4 pods)
+└─ Network capacity: 1+ Tbps per DC
+```
+
+### Real-World Example: Capacity Planning Failure
+
+**Instagram's Photo Growth Crisis (2012):**
+
+```text
+Problem:
+- Launched Oct 2010: 25K users, 100 photos/hour
+- Dec 2010: 1M users, 10K photos/hour (100x growth in 2 months!)
+- Apr 2012: 30M users (before Facebook acquisition)
+- Grossly underestimated storage needs
+
+Result:
+- Ran out of storage 3 times in first year
+- Emergency migrations to AWS S3
+- Had to re-architect entire storage system
+- Almost crashed during Facebook acquisition due diligence
+
+Lesson Learned:
+- Plan for 10x growth in first year
+- Plan for 100x growth in 3 years
+- Always have 6-month storage buffer
+- Automate capacity monitoring and alerting
+```
+
+### 🎯 Interview Questions: Capacity Planning
+
+**Q1: How do you estimate the number of photos uploaded per day?**
+
+<details>
+<summary>Click to see answer</summary>
+
+**Answer:**
+Break it down step-by-step:
+
+**Step 1: Identify active users**
+- Total users: 1B
+- Daily Active Users (DAU): Typically 30-50% for mobile apps
+- Assume: 500M DAU
+
+**Step 2: Identify uploaders**
+- Not everyone uploads daily
+- Typical: 15-25% of DAU upload
+- Assume: 20% = 100M uploading users
+
+**Step 3: Photos per uploader**
+- Light users: 1-2 photos
+- Active users: 5-10 photos
+- Power users: 20+ photos
+- Average: 5 photos/user (weighted)
+
+**Calculation:**
+```text
+100M uploading users × 5 photos/user = 500M photos/day
+```
+
+**Validation:**
+- Weekly: 3.5B photos
+- Monthly: 15B photos  
+- Yearly: 182.5B photos
+- Does this make sense? Yes - Google Photos had 4T photos total over 8 years
+
+**Interview Tip:** Always validate your final number makes sense in larger context!
+</details>
+
+**Q2: How would you estimate thumbnail storage requirements?**
+
+<details>
+<summary>Click to see answer</summary>
+
+**Answer:**
+
+**Why Multiple Thumbnails?**
+Different use cases need different sizes:
+- Grid view: 150×150 (tiny, load fast)
+- Preview hover: 400×400 (medium quality)
+- Mobile display: 1080p (full screen quality)
+
+**Size Calculation:**
+```text
+Thumbnail Compression (JPEG quality 80):
+
+150×150 pixels:
+- 150 × 150 × 3 bytes (RGB) = 67.5 KB uncompressed
+- JPEG compression (10:1): ~7-10 KB
+- Use: 10 KB
+
+400×400 pixels:
+- 400 × 400 × 3 = 480 KB uncompressed
+- JPEG compression: ~40-50 KB
+- Use: 50 KB
+
+1080p (1920×1080):
+- 1920 × 1080 × 3 = 6.2 MB uncompressed
+- JPEG compression: ~150-250 KB
+- Use: 200 KB
+
+Total per photo: 10 + 50 + 200 = 260 KB
+```
+
+**Daily Storage:**
+```text
+500M photos/day × 260 KB = 130 TB/day
+```
+
+**Yearly:**
+```text
+130 TB/day × 365 = 47.45 PB/year
+```
+
+**Ratio Check:**
+```text
+Thumbnails vs originals: 47 PB vs 547 PB = ~8.6%
+This seems reasonable!
+```
+
+**Interview Tip:** Thumbnails are ~10% of original storage - use this as quick check.
+</details>
+
+**Q3: How many API servers do you need to handle peak traffic?**
+
+<details>
+<summary>Click to see answer</summary>
+
+**Answer:**
+
+**Step 1: Calculate Peak QPS**
+```text
+Daily views: 50B
+Average QPS: 50B ÷ 86,400 = 578,703 QPS
+Peak (3x): 1,736,111 QPS
+```
+
+**Step 2: Server Capacity**
+Modern server (8-core, 32GB RAM):
+- Can handle: 500-1,500 QPS (depending on operation)
+- Conservative estimate: 1,000 QPS
+- For light operations (thumbnails): 1,500 QPS
+- For heavy operations (uploads): 500 QPS
+
+**Step 3: Separate by Operation Type**
+```text
+Thumbnail Serves (90% of traffic):
+- QPS: 1.56M
+- Capacity: 1,500 QPS/server
+- Servers: 1.56M ÷ 1,500 = 1,040 servers
+
+Upload Processing (10% of traffic):
+- QPS: 173K
+- Capacity: 500 QPS/server
+- Servers: 173K ÷ 500 = 346 servers
+
+Total: 1,386 servers
+```
+
+**Step 4: Add Redundancy**
+```text
+For high availability (99.99%):
+- Need N+1 redundancy per region
+- 4 regions × 2x redundancy = 8x multiplier
+- Actually: 2x is enough (one for failover)
+
+Final: 1,386 × 2 = 2,772 servers
+Round up: 3,000 API servers
+```
+
+**Interview Tip:** Always include redundancy! Never design single point of failure.
+</details>
+
+---
+
+### 🤔 Think About It
+
+1. **Storage Growth**: If Google Photos grows from 4 trillion to 6 trillion photos in 2 years, how much new storage capacity should you add each quarter? Consider lead time for hardware procurement.
+
+2. **Cost vs Features**: Thumbnails cost 10% extra storage but make the app 10x faster. Would you generate thumbnails for ALL photos, or only for photos viewed at least once? What's the trade-off?
+
+3. **Peak Traffic**: Photo platforms see 3-5x normal traffic on holidays (Christmas, New Year). How would you handle this WITHOUT keeping 5x servers idle 360 days/year?
+
+---
+
+### ✅ Key Takeaways
+
+```text
+✓ 500M DAU × 20% upload rate × 5 photos = 500M photos/day
+✓ 500M photos × 3 MB = 1.5 PB/day storage needed
+✓ Thumbnails add ~10% storage but crucial for performance
+✓ Read-heavy: 100 views for every 1 upload (1:100 ratio)
+✓ Peak traffic is 3x average - plan for peaks, not average
+✓ Always add 2x redundancy for high availability
+✓ Storage costs dominate: $69M/month for 3 EB on S3
+✓ CDN saves $1.3B/year by reducing origin bandwidth
+✓ Plan capacity 6 months in advance (procurement lead time)
+✓ Validate numbers: Does yearly total match known data points?
+```
+
+**Critical Formulas to Remember:**
+```text
+Daily Storage = DAU × Upload% × Photos/User × Size/Photo
+QPS = Daily_Operations ÷ 86,400
+Peak_QPS = Average_QPS × 3
+Servers = Peak_QPS ÷ Capacity_Per_Server × Redundancy_Factor
+```
+
+---
+
+### 🎯 Practice Exercise
+
+**Exercise: Capacity Planning for Instagram**
+
+Instagram has:
+- 500M DAU (same as our Google Photos estimate)
+- But 50% upload daily (vs 20% for photos)
+- Average upload: 2 photos/day (vs 5 for Google Photos)
+- Average size: 2 MB (more compressed than Google Photos)
+
+Calculate:
+1. Daily photo uploads
+2. Daily storage needed
+3. Peak upload QPS
+4. Number of API servers needed (assume 1K QPS per server with 2x redundancy)
+
+<details>
+<summary>Click to see solution</summary>
+
+**Solution:**
+
+**1. Daily Uploads:**
+```text
+500M DAU × 50% upload rate × 2 photos/user
+= 250M users × 2 photos
+= 500M photos/day
+(Same as Google Photos!)
+```
+
+**2. Daily Storage:**
+```text
+500M photos × 2 MB/photo
+= 1,000 TB/day
+= 1 PB/day
+(Less than Google Photos' 1.5 PB/day due to smaller size)
+```
+
+**3. Peak Upload QPS:**
+```text
+Average: 500M ÷ 86,400 = 5,787 photos/sec
+Peak (3x): 17,361 photos/sec
+```
+
+**4. API Servers:**
+```text
+Assuming similar view ratio (1:100):
+- Views: 50B/day
+- Peak View QPS: 1.7M QPS
+- Servers: 1.7M ÷ 1K = 1,700
+- With 2x redundancy: 3,400 servers
+
+Similar to Google Photos despite different usage patterns!
+```
+
+**Key Insight:** Instagram and Google Photos need similar infrastructure scale, but different feature focus (social vs storage).
+</details>
+
+---
+
+**Ready for Section 3?** Next, we'll design the high-level system architecture, showing how all these components (API servers, storage, databases) fit together. You'll learn how to draw clean architecture diagrams that impress interviewers!
+
+---
 
 Face Detection/Recognition Workers:
 Assume 60% of photos contain faces (300M photos/day)
