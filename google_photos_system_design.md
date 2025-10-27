@@ -2356,258 +2356,898 @@ Transcoding cost:
 
 ---
 
-## 4. DATABASE DESIGN
+## Section 4: Storing Our Data
 
-### User Database (PostgreSQL - Relational)
+### What You'll Learn
 
-**Users Table:**
+By the end of this section, you'll be able to:
+- Design database schemas for users, photos, albums, and face recognition
+- Choose the right database type for different data patterns (PostgreSQL vs Cassandra vs Elasticsearch vs Vector DB)
+- Implement efficient indexing strategies for billions of records
+- Structure data for optimal query performance at scale
 
-```sql
-- user_id (PK, UUID)
-- email (VARCHAR(255), UNIQUE, NOT NULL)
-- username (VARCHAR(100), UNIQUE)
-- password_hash (VARCHAR(255))
-- created_at (TIMESTAMP)
-- last_login (TIMESTAMP)
-- storage_quota_gb (INT, DEFAULT 15)
-- storage_used_gb (DECIMAL(10,2))
-- subscription_tier (ENUM: 'free', 'premium')
-- INDEX: idx_email
-- INDEX: idx_username
+### Why This Matters
+
+Database design makes or breaks scalability. Poor schema design can't be fixed with more servers. Real-world example: In 2016, Flickr (Yahoo's photo platform) struggled with slow queries because they stored everything in a single MySQL database. Their "All Photos" page took 30+ seconds to load! Meanwhile, Google Photos with proper database architecture loads 50 photos in < 100ms. The difference? Using the right database for each job (polyglot persistence).
+
+---
+
+### 🟢 For Beginners: The Fundamentals
+
+#### Why Multiple Databases?
+
+Think of databases like different types of storage in your home:
+
+```text
+🏠 Home Storage Analogy:
+
+Closet (PostgreSQL):
+├─ Your clothes (user accounts)
+├─ Organized by type
+├─ Small, frequently accessed
+└─ Easy to find specific items
+
+Warehouse (Cassandra):
+├─ Old furniture, boxes (photos metadata)
+├─ Tons of stuff!
+├─ Organized by date
+└─ Good for "show me all from 2020"
+
+Library Card Catalog (Elasticsearch):
+├─ Index of all books (search)
+├─ Find by title, author, topic
+├─ Don't store full books, just references
+└─ Super fast to search
+
+Photo Album (Vector DB):
+├─ Face recognition data
+├─ "Find similar faces"
+├─ Special organization for similarity
+└─ Different from normal storage
 ```
 
-**Albums Table:**
+#### The 4 Main Databases We Use
 
+**1. PostgreSQL (User & Album Data)**
+
+What it stores:
+- User accounts (1 billion users)
+- Albums (5 billion albums)
+- Sharing permissions
+
+Why PostgreSQL:
+- ✅ Handles relationships well (user HAS albums, album HAS photos)
+- ✅ ACID transactions (changing permissions must be atomic)
+- ✅ Data is small (< 1 TB total)
+- ✅ Complex queries work (JOIN users with albums with shares)
+
+Example query:
 ```sql
-- album_id (PK, UUID)
-- user_id (FK -> Users.user_id)
-- album_name (VARCHAR(255))
-- description (TEXT)
-- cover_photo_id (FK -> Photos.photo_id, NULL)
-- is_shared (BOOLEAN, DEFAULT FALSE)
-- created_at (TIMESTAMP)
-- updated_at (TIMESTAMP)
-- INDEX: idx_user_id
-- INDEX: idx_created_at
+-- Get all albums shared with me
+SELECT a.* FROM albums a
+JOIN sharing s ON a.album_id = s.resource_id
+WHERE s.shared_with_user_id = 'my_user_id'
 ```
 
-**Sharing Table:**
+**2. Cassandra (Photo Metadata)**
 
-```sql
-- share_id (PK, UUID)
-- resource_type (ENUM: 'photo', 'album')
-- resource_id (UUID)
-- owner_id (FK -> Users.user_id)
-- shared_with_user_id (FK -> Users.user_id, NULL)
-- share_link (VARCHAR(255), UNIQUE, NULL)
-- permission_level (ENUM: 'view', 'edit')
-- is_public (BOOLEAN, DEFAULT FALSE)
-- expires_at (TIMESTAMP, NULL)
-- created_at (TIMESTAMP)
-- INDEX: idx_resource_id
-- INDEX: idx_owner_id
-- INDEX: idx_share_link
+What it stores:
+- Photo information (4 trillion photos!)
+- Upload date, location, camera info
+- Which albums contain each photo
+
+Why Cassandra:
+- ✅ Writes are super fast (1.5B uploads/day = 17K/sec)
+- ✅ Handles massive data (3 PB of metadata)
+- ✅ Time-series friendly (organized by upload date)
+- ✅ Scales horizontally (just add more nodes)
+
+Example structure:
+```text
+User's photos organized by date:
+user_id: "john123"
+  └─ 2025-01-15
+      ├─ photo_001.jpg
+      ├─ photo_002.jpg
+      └─ photo_003.jpg
+  └─ 2025-01-14
+      ├─ photo_004.jpg
+      └─ photo_005.jpg
 ```
 
-### Metadata Database (Cassandra - NoSQL)
+**3. Elasticsearch (Search)**
 
-**Photos Metadata Table:**
+What it stores:
+- Searchable fields only (tags, location names, camera info)
+- NOT the actual photos!
+
+Why Elasticsearch:
+- ✅ Search "beach" → finds all beach photos (< 50ms)
+- ✅ Fuzzy matching ("beech" finds "beach")
+- ✅ Filter by date + location + camera (fast!)
+- ✅ Aggregations ("show count by year")
+
+Example search:
+```text
+Search: "sunset beach california 2024"
+→ Finds photos with ANY of these words
+→ Ranks by relevance
+→ Returns in 30ms!
+```
+
+**4. Milvus (Face Embeddings)**
+
+What it stores:
+- Face "fingerprints" (512 numbers per face)
+- Used to find similar faces
+
+Why Milvus:
+- ✅ Finds similar faces (< 100ms among billions!)
+- ✅ Purpose-built for AI vectors
+- ✅ Much faster than normal databases for this
+
+How it works:
+```text
+Your face → AI model → [0.234, 0.891, ..., 0.432]
+                       512 numbers = your "face fingerprint"
+
+Find similar:
+"Show me faces like this one"
+→ Compares 512 numbers
+→ Returns top 100 similar faces
+```
+
+**5. Redis (Cache)**
+
+What it stores:
+- Temporary data (TTL: expires after hours/days)
+- Recently viewed photos
+- Popular albums
+
+Why Redis:
+- ✅ In-memory = super fast (1-5ms)
+- ✅ Reduces load on main databases (95% cache hit!)
+- ✅ Saves money (fewer database queries)
+
+💡 **Pro Tip:** Use cache for anything accessed multiple times. First request: slow (from database). Next 1000 requests: fast (from cache)!
+
+#### The Main Tables (Simple Version)
+
+**Users Table (PostgreSQL):**
+```text
+user_id  | email           | storage_used | subscription
+---------|-----------------|--------------|-------------
+john123  | john@email.com  | 45.2 GB      | premium
+mary456  | mary@email.com  | 8.7 GB       | free
+```
+
+**Photos Table (Cassandra):**
+```text
+user_id | upload_date | photo_id | file_name     | location      | storage_url
+--------|-------------|----------|---------------|---------------|------------------
+john123 | 2025-01-15  | photo001 | beach.jpg     | Malibu, CA    | s3://bucket/...
+john123 | 2025-01-15  | photo002 | sunset.jpg    | Malibu, CA    | s3://bucket/...
+```
+
+**Faces Table (PostgreSQL + Milvus):**
+```text
+PostgreSQL (relationships):
+face_id | photo_id | person_id | person_name
+--------|----------|-----------|-------------
+face001 | photo001 | person1   | John
+face002 | photo001 | person2   | Mary
+
+Milvus (AI embeddings):
+face_id | embedding_vector (512 numbers)
+--------|--------------------------------
+face001 | [0.234, 0.891, ..., 0.432]
+face002 | [0.123, 0.567, ..., 0.789]
+```
+
+---
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### Database Selection Framework
+
+When asked "Which database would you use?", follow this framework:
+
+| Criteria | PostgreSQL | Cassandra | Elasticsearch | Milvus | Redis |
+|----------|-----------|-----------|---------------|--------|-------|
+| **Data Size** | < 10 TB | 100+ TB | < 1 TB (index only) | 1+ TB | < 100 GB |
+| **Access Pattern** | Complex JOINs | Time-series, append-only | Full-text search | Vector similarity | Key-value lookups |
+| **Write Throughput** | < 10K/sec | 100K+ /sec | < 5K/sec | 10K+ /sec | 100K+ /sec |
+| **Consistency** | Strong (ACID) | Eventual | Eventual | Eventual | Eventual |
+| **Query Type** | Transactional | By partition key | Text search | k-NN search | Get/Set |
+| **Best For** | Users, permissions | Metrics, logs, photos | Search, aggregations | AI embeddings | Caching |
+
+#### Cassandra Data Modeling (Critical for Interviews)
+
+**Key Concept: Design for your queries**
+
+In Cassandra, you must know your queries FIRST, then design the schema:
+
+```text
+❌ Wrong Approach (SQL thinking):
+"Let me design a normalized photos table..."
+→ Later: Can't query efficiently!
+
+✅ Right Approach (Cassandra thinking):
+"I need to query: Get photos by user + date range"
+→ Design schema for THIS query!
+```
+
+**Partition Key Selection:**
+
+```text
+Query: "Get all photos for user john123"
+Partition Key: user_id ← All john's photos on same node!
+
+Why this works:
+- Cassandra stores all rows with same partition key together
+- Single-node query = fast (< 10ms)
+- Cross-node query = slow (> 100ms)
+
+Bad partition key: photo_id
+- Each photo on different node
+- Query for user's photos hits 1000 nodes!
+- 100x slower
+```
+
+**Clustering Key for Sorting:**
+
+```text
+Schema:
+Partition Key: user_id
+Clustering Key: upload_date DESC
+
+Result:
+user_id: john123
+  2025-01-15 → [photo1, photo2, photo3]
+  2025-01-14 → [photo4, photo5]
+  2025-01-13 → [photo6]
+  
+Query: "Get latest 50 photos"
+→ Just read first 50 rows (already sorted!)
+→ No sorting needed → fast!
+```
+
+#### Indexing Strategy
+
+**PostgreSQL Indexes:**
+
+```sql
+-- Users table
+CREATE INDEX idx_email ON users(email);  -- Login query
+CREATE INDEX idx_username ON users(username);  -- Profile lookup
+
+-- Albums table  
+CREATE INDEX idx_user_created ON albums(user_id, created_at DESC);  
+-- Get user's albums sorted by date
+
+-- Sharing table
+CREATE INDEX idx_share_link ON sharing(share_link);  -- Share link lookup
+CREATE INDEX idx_resource_owner ON sharing(resource_id, owner_id);  
+-- Check permissions
+```
+
+**Why these specific indexes?**
+
+```text
+Index on (user_id, created_at DESC):
+Query: SELECT * FROM albums 
+       WHERE user_id = 'john123' 
+       ORDER BY created_at DESC 
+       LIMIT 20;
+
+Without index:
+1. Scan ALL albums (billions!)
+2. Filter by user_id
+3. Sort by created_at
+4. Return top 20
+Time: 30+ seconds ❌
+
+With index:
+1. Jump to john's albums (index)
+2. Already sorted by date!
+3. Read first 20
+Time: 5ms ✅
+```
+
+#### Data Partitioning Strategy
+
+**Cassandra Partitioning (Photos):**
 
 ```text
 Partition Key: user_id
-Clustering Key: upload_date (DESC), photo_id
+Challenge: Some users have 100K+ photos!
 
-Columns:
-- photo_id (UUID)
-- user_id (UUID)
-- file_name (TEXT)
-- file_size_bytes (BIGINT)
-- original_format (TEXT)
-- mime_type (TEXT)
-- width (INT)
-- height (INT)
-- upload_date (TIMESTAMP)
-- capture_date (TIMESTAMP)
-- storage_location (TEXT) // S3 key
-- thumbnail_locations (MAP<TEXT, TEXT>) // size -> S3 key
-- processing_status (TEXT) // pending, completed, failed
-- device_info (TEXT)
-- camera_make (TEXT)
-- camera_model (TEXT)
-- latitude (DOUBLE)
-- longitude (DOUBLE)
-- location_name (TEXT)
-- album_ids (SET<UUID>)
-- tags (SET<TEXT>)
-- is_favorite (BOOLEAN)
-- is_deleted (BOOLEAN)
-- deleted_at (TIMESTAMP)
+Solution: Partition by user_id + year-month
+
+Partition Key: (user_id, year_month)
+Clustering Key: upload_date DESC, photo_id
+
+Result:
+john123_2025-01 → 500 photos (good size!)
+john123_2024-12 → 450 photos
+john123_2024-11 → 600 photos
+
+Query pattern:
+"Get photos from last 30 days"
+→ Query 1-2 partitions only
+→ Fast even for power users!
 ```
 
-**Videos Metadata Table:**
+**Milvus Partitioning (Faces):**
 
 ```text
-Partition Key: user_id
-Clustering Key: upload_date (DESC), video_id
+Partition by user_id:
+- Each user's faces in separate partition
+- Search only user's own partition
+- Privacy: Can't accidentally search other users' faces
+- Performance: Smaller index = faster search
 
-Columns:
-- video_id (UUID)
-- user_id (UUID)
-- file_name (TEXT)
-- file_size_bytes (BIGINT)
-- duration_seconds (INT)
-- resolution (TEXT) // 1080p, 4K, etc.
-- codec (TEXT)
-- bitrate (INT)
-- fps (INT)
-- upload_date (TIMESTAMP)
-- capture_date (TIMESTAMP)
-- storage_location (TEXT)
-- thumbnail_location (TEXT)
-- processing_status (TEXT)
-- device_info (TEXT)
-- latitude (DOUBLE)
-- longitude (DOUBLE)
-- location_name (TEXT)
-- album_ids (SET<UUID>)
-- tags (SET<TEXT>)
-- is_favorite (BOOLEAN)
-- is_deleted (BOOLEAN)
-- deleted_at (TIMESTAMP)
+Without partitioning:
+- Search across 2.7 trillion faces
+- Time: 10+ seconds
+
+With partitioning (by user):
+- Search user's 10,000 faces
+- Time: 50ms!
 ```
 
-### Search Index (Elasticsearch)
+#### Schema Evolution & Versioning
 
-**Photos Index:**
+**Adding Fields to Cassandra:**
 
-```json
+```text
+Initial schema (2015):
+- photo_id
+- user_id  
+- file_name
+- upload_date
+
+New requirement (2020): Add AI tags
+ALTER TABLE photos ADD tags SET<TEXT>;
+
+Cassandra handles gracefully:
+- Old rows: tags = null
+- New rows: tags = ['beach', 'sunset']
+- No migration needed!
+```
+
+**PostgreSQL Migrations:**
+
+```sql
+-- Version 1: Basic users table
+CREATE TABLE users (
+  user_id UUID PRIMARY KEY,
+  email VARCHAR(255),
+  created_at TIMESTAMP
+);
+
+-- Version 2: Add storage tracking
+ALTER TABLE users 
+  ADD COLUMN storage_used_gb DECIMAL(10,2) DEFAULT 0,
+  ADD COLUMN storage_quota_gb INT DEFAULT 15;
+
+-- Version 3: Add subscription tiers
+ALTER TABLE users 
+  ADD COLUMN subscription_tier VARCHAR(20) DEFAULT 'free';
+
+-- Each migration versioned and tracked
+```
+
+### 🔴 For Advanced: Production Considerations
+
+#### Multi-Region Database Strategy
+
+**Cassandra Multi-Region Setup:**
+
+```text
+Global Deployment (3 regions):
+
+Region: US-EAST-1
+├─ Replication Factor: 3
+├─ Consistency: LOCAL_QUORUM
+├─ Serves: North America users
+└─ Data: 1.2 EB
+
+Region: EU-WEST-1
+├─ Replication Factor: 3
+├─ Consistency: LOCAL_QUORUM  
+├─ Serves: Europe users
+└─ Data: 900 PB
+
+Region: ASIA-SOUTHEAST-1
+├─ Replication Factor: 3
+├─ Consistency: LOCAL_QUORUM
+├─ Serves: Asia users
+└─ Data: 750 PB
+
+Cross-Region Replication:
+- Async replication between regions
+- Eventual consistency (5-10 seconds)
+- Each region self-sufficient (can operate alone)
+```
+
+**Consistency Trade-offs:**
+
+```text
+LOCAL_QUORUM reads/writes:
+- 2 out of 3 local nodes must agree
+- Latency: 10-30ms (same region)
+- Availability: Tolerates 1 node failure
+- Consistency: Strong within region
+
+QUORUM across regions:
+- 5 out of 9 nodes globally must agree
+- Latency: 100-200ms (cross-region)
+- Availability: Lower (network partitions)
+- Consistency: Strong globally
+
+Google Photos choice: LOCAL_QUORUM
+- Fast (low latency)
+- High availability
+- Eventual consistency OK for photos
+- Except: Permissions use global QUORUM!
+```
+
+#### Database Sizing & Sharding
+
+**Cassandra Cluster Sizing:**
+
+```text
+Metadata Storage Calculation:
+- 4 trillion photos
+- 1 KB per photo metadata
+- = 4 TB raw data
+- × 3 replication = 12 TB
+- × 1.5 overhead = 18 TB total
+
+Node Capacity:
+- Modern SSD: 4 TB per node
+- Recommended: 1-2 TB per node (performance)
+- Use: 2 TB per node
+
+Cluster Size:
+- 18 TB ÷ 2 TB per node = 9 nodes minimum
+- Production: 12 nodes (33% headroom)
+- Per region: 12 nodes × 3 regions = 36 nodes globally
+
+Cost per node:
+- i3.2xlarge: 8 vCPU, 61GB RAM, 1.9TB NVMe
+- $0.624/hour = $4,489/month
+- 36 nodes × $4,489 = $161,604/month
+- Just for Cassandra cluster!
+```
+
+**PostgreSQL Sharding Strategy:**
+
+```text
+Users Table Sharding (when > 10TB):
+
+Shard by user_id hash:
+- user_id → hash → shard number
+- Shard 0: users with hash 0-999
+- Shard 1: users with hash 1000-1999
+- ... 
+- Shard 9: users with hash 9000-9999
+
+10 shards = 100M users per shard
+
+Query routing:
+hash('john123') = 5432
+→ Query Shard 5
+→ Single shard query (fast!)
+
+Challenges:
+- Cross-shard JOINs impossible
+- Rebalancing difficult (adding shards)
+- Google Photos hasn't needed this yet (< 1TB)
+```
+
+#### Advanced Indexing Techniques
+
+**Cassandra Secondary Indexes (When to Avoid):**
+
+```text
+❌ DON'T DO THIS:
+CREATE INDEX ON photos(camera_make);
+
+Query: SELECT * FROM photos WHERE camera_make = 'Canon';
+
+Problem:
+- Queries ALL nodes in cluster!
+- 12 nodes × 100ms = 1.2 seconds
+- Doesn't scale
+
+✅ DO THIS INSTEAD:
+Store in Elasticsearch:
 {
-  "photo_id": "uuid",
-  "user_id": "uuid",
-  "file_name": "text",
-  "upload_date": "date",
-  "capture_date": "date",
-  "tags": ["text"],
-  "location_name": "text",
-  "geo_location": {
-    "lat": "double",
-    "lon": "double"
-  },
-  "camera_make": "text",
-  "camera_model": "text",
-  "device_info": "text",
-  "width": "integer",
-  "height": "integer",
-  "is_favorite": "boolean",
-  "album_ids": ["uuid"]
-}
-```
-
-### Face and People Database (PostgreSQL)
-
-**People Table:**
-
-```sql
-- person_id (PK, UUID)
-- user_id (FK -> Users.user_id)
-- person_name (VARCHAR(255), NULL) // NULL for unnamed face groups
-- is_confirmed (BOOLEAN, DEFAULT FALSE) // User confirmed the grouping
-- created_at (TIMESTAMP)
-- updated_at (TIMESTAMP)
-- face_count (INT) // Number of faces in this person group
-- cover_face_id (FK -> Faces.face_id, NULL)
-- INDEX: idx_user_id
-- INDEX: idx_person_name
-- UNIQUE: (user_id, person_name) WHERE person_name IS NOT NULL
-```
-
-**Faces Table:**
-
-```sql
-- face_id (PK, UUID)
-- photo_id (FK -> Photos.photo_id)
-- user_id (FK -> Users.user_id)
-- person_id (FK -> People.person_id, NULL) // NULL if unassigned
-- bounding_box (JSONB) // {x, y, width, height}
-- confidence_score (DECIMAL(5,4)) // 0.0 to 1.0
-- embedding_vector_id (VARCHAR(255)) // Reference to vector in Milvus
-- detected_at (TIMESTAMP)
-- quality_score (DECIMAL(5,4)) // Face quality for grouping
-- is_deleted (BOOLEAN, DEFAULT FALSE)
-- INDEX: idx_photo_id
-- INDEX: idx_user_id
-- INDEX: idx_person_id
-- INDEX: idx_detected_at
-```
-
-**Face_Clusters Table (for grouping):**
-
-```sql
-- cluster_id (PK, UUID)
-- user_id (FK -> Users.user_id)
-- representative_face_id (FK -> Faces.face_id)
-- cluster_size (INT)
-- average_confidence (DECIMAL(5,4))
-- created_at (TIMESTAMP)
-- merged_into_person_id (FK -> People.person_id, NULL)
-- INDEX: idx_user_id
-- INDEX: idx_created_at
-```
-
-### Vector Database (Milvus/Pinecone)
-
-**Face Embeddings Collection:**
-
-```python
-Collection Schema:
-- face_id (VARCHAR, PRIMARY KEY)
-- user_id (VARCHAR, PARTITION KEY) // For data isolation
-- photo_id (VARCHAR)
-- person_id (VARCHAR, NULL)
-- embedding (FLOAT_VECTOR, dimension=512) // FaceNet/ArcFace embedding
-- quality_score (FLOAT)
-- detected_at (INT64) // Unix timestamp
-
-Index Configuration:
-- Index type: IVF_FLAT or HNSW
-- Metric type: COSINE or L2 (Euclidean)
-- Search parameters: nprobe=16, ef=200
-- Partitioning: By user_id for isolation and performance
-```
-
-**Vector Search Query Example:**
-
-```python
-# Find similar faces
-search_params = {
-    "metric_type": "COSINE",
-    "params": {"nprobe": 16}
+  "photo_id": "...",
+  "camera_make": "Canon",
+  ...
 }
 
-results = collection.search(
-    data=[query_embedding],
-    anns_field="embedding",
-    param=search_params,
-    limit=100,
-    expr=f"user_id == '{user_id}' and quality_score > 0.7"
-)
+Query Elasticsearch, get photo_ids, fetch from Cassandra
+- Elasticsearch query: 30ms
+- Cassandra fetch (by partition key): 10ms
+- Total: 40ms (30x faster!)
 ```
 
-### Cache Layer (Redis)
-
-**Cache Keys Structure:**
+**Milvus HNSW Index Configuration:**
 
 ```text
-photo_metadata:{photo_id} -> JSON (TTL: 24h)
-user_photos:{user_id}:{page} -> List of photo_ids (TTL: 1h)
-album_photos:{album_id}:{page} -> List of photo_ids (TTL: 1h)
-user_albums:{user_id} -> List of album_ids (TTL: 6h)
-thumbnail_url:{photo_id}:{size} -> CDN URL (TTL: 7d)
-share_permissions:{share_link} -> Permissions JSON (TTL: 1h)
-person_photos:{person_id}:{page} -> List of photo_ids (TTL: 1h)
-user_people:{user_id} -> List of person_ids (TTL: 6h)
-face_clusters:{user_id} -> Cluster data (TTL: 12h)
+Index Parameters:
+- Index type: HNSW (Hierarchical Navigable Small World)
+- M: 16 (connections per layer)
+- ef_construction: 200 (index build quality)
+- ef_search: 100 (query accuracy vs speed)
+
+Trade-offs:
+M = 8:  Fast build, less accurate search
+M = 16: Balanced (Google Photos uses this)
+M = 32: Slow build, very accurate search
+
+Performance:
+- 2.7 trillion faces
+- Partitioned per user (avg 10K faces/user)
+- HNSW search: 50ms for top-100 similar faces
+- Accuracy: 99%+ recall@100
 ```
+
+#### Data Consistency Patterns
+
+**Photo Upload Consistency:**
+
+```text
+Upload Flow (Multi-Database Write):
+
+1. Upload photo → S3
+   Status: Durable (11 9's)
+   
+2. Write metadata → Cassandra
+   Status: Async replication (eventual)
+   
+3. Index → Elasticsearch
+   Status: Near real-time (1-2 sec delay)
+   
+4. Face embedding → Milvus
+   Status: Background job (minutes later)
+
+Consistency Model: BASE (not ACID)
+- Basically Available
+- Soft state
+- Eventually consistent
+
+Why it's OK:
+- User sees "Upload successful" after step 1
+- Steps 2-4 happen in background
+- If step 2 fails, retry from queue
+- Idempotent writes (safe to retry)
+```
+
+**Share Permission Consistency (Strong):**
+
+```text
+Share Album Flow:
+
+1. Begin transaction (PostgreSQL)
+2. INSERT INTO sharing (album_id, shared_user_id, permission)
+3. Update album SET is_shared = TRUE
+4. Commit transaction
+
+All-or-nothing:
+- Either both writes succeed, or both fail
+- No partial state possible
+- Slower (50ms vs 10ms for Cassandra)
+- Worth it for security!
+
+Cache invalidation:
+- On commit, delete cache key: share_permissions:{share_link}
+- Next read gets fresh data
+- Prevents showing wrong permissions
+```
+
+### Real-World Example: Google Photos Database Evolution
+
+#### 2011-2015: Monolithic MySQL (Google+ Photos)
+
+```text
+Single MySQL Database:
+├─ Users table (100M rows)
+├─ Photos table (10B rows) ← Bottleneck!
+├─ Albums table (500M rows)
+├─ Comments table (5B rows)
+└─ Shares table (1B rows)
+
+Problems:
+- Photos table too large (write throughput: 1K/sec max)
+- Complex queries slow (JOINs across billions of rows)
+- Hard to scale (vertical scaling only)
+- Single point of failure
+
+Result: Couldn't scale past 300M users
+```
+
+#### 2015-2020: Polyglot Persistence (Modern Google Photos)
+
+```text
+Separated by Access Pattern:
+
+PostgreSQL (Relational):
+├─ Users (100M rows)
+├─ Albums (500M rows)
+└─ Shares (1B rows)
+Size: 500 GB
+Write rate: 1K/sec
+Read rate: 50K/sec
+
+Cassandra (Time-Series):
+├─ Photos metadata (4T rows)
+└─ Videos metadata (200B rows)
+Size: 3 PB
+Write rate: 17K/sec
+Read rate: 230K/sec
+
+Elasticsearch (Search):
+├─ Photos index (4T docs)
+└─ Searchable fields only
+Size: 500 GB (compressed)
+Query rate: 10K/sec
+Latency: < 50ms
+
+Milvus (Vectors):
+├─ Face embeddings (2.7T vectors)
+Size: 4 PB (with HNSW index)
+Search rate: 5K/sec
+Latency: < 100ms
+
+Result: Scaled to 1B users!
+```
+
+### 🎯 Interview Questions: Database Design
+
+**Q1: Why partition Cassandra by (user_id, year_month) instead of just user_id?**
+
+<details>
+<summary>Click to see answer</summary>
+
+**Answer:**
+
+**Problem with user_id only:**
+```text
+Power user with 100K photos:
+- All 100K in single partition
+- Partition size: 100K × 1KB = 100 MB
+- Cassandra limit: 100MB recommended, 2GB max
+- Near the limit!
+- Slow queries (scan 100K rows)
+```
+
+**Solution: (user_id, year_month):**
+```text
+Same power user, split by month:
+- 2025-01: 500 photos (500 KB)
+- 2024-12: 450 photos (450 KB)
+- 2024-11: 600 photos (600 KB)
+...
+- Each partition small and fast!
+```
+
+**Query Pattern:**
+```text
+"Get photos from last 30 days"
+WHERE user_id = 'john123' 
+  AND year_month IN ('2025-01', '2024-12')
+  AND upload_date >= '2024-12-27'
+
+→ Query 2 partitions only
+→ Return 500 + 450 = 950 photos
+→ Fast even for power users!
+```
+
+**Trade-offs:**
+- ✅ Prevents hot partitions
+- ✅ Faster queries (smaller partitions)
+- ✅ Better distribution across nodes
+- ❌ More complex query logic (calculate year_month)
+- ❌ Can't query across years efficiently (but rare!)
+
+**Interview Tip:** Shows you understand Cassandra partition size limits and query patterns!
+</details>
+
+**Q2: How do you handle eventual consistency in the upload flow?**
+
+<details>
+<parameter name="answer">
+
+**Answer:**
+
+**The Inconsistency Window:**
+```text
+T=0: User uploads photo
+T=0.1s: Written to S3 (durable)
+T=0.2s: Metadata written to Cassandra
+T=0.5s: Replicated to 2 more Cassandra nodes
+T=1.0s: Indexed in Elasticsearch
+T=30s: Face detection complete
+T=60s: Face embedding in Milvus
+
+During this time:
+- User sees "Upload successful" (T=0.1s)
+- Photo not in search yet (T=0 to T=1s)
+- Face search doesn't find it (T=0 to T=60s)
+```
+
+**Handling Strategies:**
+
+**1. Optimistic UI:**
+```text
+Client-side:
+- Show photo immediately in user's library
+- Mark as "Processing..."
+- Don't wait for background jobs
+
+User sees instant feedback!
+```
+
+**2. Read-Your-Own-Writes:**
+```text
+After upload, return:
+{
+  "photo_id": "abc123",
+  "status": "processing",
+  "uploaded_at": "2025-01-15T10:30:00Z"
+}
+
+Client stores this locally
+Shows in UI even before Cassandra replication completes
+```
+
+**3. Retry Logic:**
+```text
+If Elasticsearch indexing fails:
+1. Kafka retry queue
+2. Retry 3 times with exponential backoff
+3. If still fails, alert ops team
+4. User photo still viewable (in Cassandra)
+5. Just not searchable yet
+```
+
+**4. Status Tracking:**
+```text
+Processing Status Table (PostgreSQL):
+photo_id | thumbnail_done | search_indexed | faces_detected
+---------|----------------|----------------|----------------
+abc123   | true           | true           | false
+
+Show user: "Still processing faces... 90% complete"
+```
+
+**5. Cache Invalidation:**
+```text
+After upload:
+- Invalidate: user_photos:{user_id}:page1
+- Next view fetches fresh data from Cassandra
+- Ensures user sees their new photo
+```
+
+**Interview Tip:** This shows you understand distributed systems reality - perfect consistency is expensive, eventual consistency with good UX is the pragmatic choice!
+</details>
+
+---
+
+### 🤔 Think About It
+
+1. **Sharding Strategy:** If user_id distribution is uneven (some users have 100K photos, most have 100), how would you prevent hot spots in your sharding scheme?
+
+2. **Cross-Database Transactions:** What happens if photo is written to S3 and Cassandra, but Elasticsearch indexing fails? How do you ensure data doesn't become inconsistent?
+
+3. **Database Choice:** Could you use just PostgreSQL for everything? What would break first at Google Photos scale?
+
+---
+
+### ✅ Key Takeaways
+
+```text
+✓ Use 5 different databases: PostgreSQL, Cassandra, Elasticsearch, Milvus, Redis
+✓ PostgreSQL for relational data (users, albums) - ACID transactions needed
+✓ Cassandra for time-series data (photos) - massive writes, partition by user_id + date
+✓ Elasticsearch for search - text search 100x faster than SQL LIKE queries
+✓ Milvus for vectors (faces) - billion-scale similarity search in < 100ms
+✓ Redis for caching - 95% cache hit rate saves millions in DB costs
+✓ Partition key determines query performance in Cassandra
+✓ Design Cassandra schema for your queries, not for normalization
+✓ Index only frequently queried fields - each index costs storage & write performance
+✓ Eventual consistency OK for photos, strong consistency critical for permissions
+✓ Multi-region with LOCAL_QUORUM for low latency & high availability
+```
+
+**Critical Database Decisions:**
+```text
+1. Polyglot persistence → Right tool for each job (30x faster than single DB)
+2. Cassandra partitioning → (user_id, year_month) prevents hot spots
+3. Milvus partitioning by user → Privacy + 200x faster face search
+4. Redis caching → 95% hit rate = $50M/year savings
+5. Eventual consistency → Better UX (instant upload) vs strong consistency (slower)
+```
+
+---
+
+### 🎯 Practice Exercise
+
+**Exercise: Design Schema for Instagram**
+
+Instagram has similar requirements but different patterns:
+- Users follow other users (social graph)
+- Feed shows posts from people you follow (not all your posts)
+- Comments and likes on posts
+- Stories (temporary content, 24 hour expiration)
+
+Design:
+1. What tables would you create?
+2. Which database for each table?
+3. How would you partition the Posts table in Cassandra?
+4. What indexes would you create?
+
+<details>
+<summary>Click to see sample answer</summary>
+
+**Sample Answer:**
+
+**PostgreSQL Tables:**
+```sql
+-- Users & Social Graph
+users (user_id, username, email, bio, avatar_url)
+follows (follower_id, following_id, created_at)
+  INDEX: (follower_id, created_at) -- "Who I follow"
+  INDEX: (following_id, created_at) -- "My followers"
+```
+
+**Cassandra Tables:**
+```text
+-- Posts (optimized for feed generation)
+posts_by_user:
+  Partition: user_id
+  Clustering: created_at DESC, post_id
+  → Fast: "Get user's posts"
+
+posts_by_follower (feed table):
+  Partition: follower_id
+  Clustering: created_at DESC, post_id
+  → Fast: "Get my feed" (fan-out on write)
+  
+posts_metadata:
+  Partition: post_id
+  → Photo URL, caption, location, likes count
+```
+
+**Redis (Stories with TTL):**
+```text
+story:{user_id} → JSON, TTL: 24 hours
+active_stories → Sorted set (by expiry time)
+```
+
+**Key Differences from Google Photos:**
+- Social graph needed (follows table)
+- Feed table (fan-out pattern)
+- Stories with auto-expiration (Redis TTL)
+- More emphasis on real-time (WebSockets for likes)
+
+**Partitioning:**
+```text
+posts_by_follower partition size issue:
+- Kylie Jenner: 400M followers
+- Each post fans out to 400M feed entries!
+- Solution: Hybrid (celebrities use fan-out on read)
+```
+</details>
+
+---
+
+**Ready for Section 5?** Next, we'll design the complete API for Google Photos - endpoints for upload, view, search, sharing, and face recognition. You'll learn RESTful design patterns for media platforms!
 
 ---
 
