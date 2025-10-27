@@ -1564,128 +1564,795 @@ Annual storage: 438 TB/year
 
 ---
 
-## 3. HIGH-LEVEL DESIGN
+## Section 3: Designing the System Architecture
 
-### System Architecture Diagram
+### What You'll Learn
 
-```mermaid
-graph TB
-    subgraph Client Layer
-        Web[Web Client]
-        Mobile[Mobile Apps<br/>iOS/Android]
-    end
-    
-    subgraph CDN & Entry
-        CDN[CDN<br/>CloudFront/Cloudflare]
-        LB[Load Balancer<br/>AWS ALB]
-    end
-    
-    subgraph API Layer
-        API[API Gateway<br/>Kong/NGINX]
-        Auth[Auth Service<br/>OAuth 2.0]
-    end
-    
-    subgraph Service Layer
-        Upload[Upload Service<br/>Node.js]
-        View[View Service<br/>Node.js]
-        Search[Search Service<br/>Elasticsearch]
-        Share[Sharing Service<br/>Node.js]
-        Album[Album Service<br/>Node.js]
-    end
-    
-    subgraph Processing Layer
-        Queue[Message Queue<br/>Apache Kafka]
-        ImgProc[Image Processor<br/>Python/Go]
-        Metadata[Metadata Extractor<br/>Python]
-        Thumbnail[Thumbnail Generator<br/>ImageMagick]
-        FaceDetect[Face Detection<br/>MTCNN/RetinaFace]
-        FaceRecog[Face Recognition<br/>FaceNet/ArcFace]
-    end
-    
-    subgraph Data Layer
-        Cache[Distributed Cache<br/>Redis Cluster]
-        MetaDB[(Metadata DB<br/>Cassandra)]
-        UserDB[(User/Album DB<br/>PostgreSQL)]
-        SearchDB[(Search Index<br/>Elasticsearch)]
-        FaceDB[(Face/Vector DB<br/>Milvus/Pinecone)]
-    end
-    
-    subgraph Storage Layer
-        Hot[Hot Storage<br/>S3 Standard]
-        Warm[Warm Storage<br/>S3 IA]
-        Cold[Cold Storage<br/>S3 Glacier]
-    end
-    
-    Web -->|1. Request| CDN
-    Mobile -->|1. Request| CDN
-    CDN -->|2. Route| LB
-    LB -->|3. Distribute| API
-    API -->|4. Authenticate| Auth
-    API -->|5. Route| Upload
-    API -->|5. Route| View
-    API -->|5. Route| Search
-    
-    Upload -->|6. Upload Photo| Queue
-    Queue -->|7. Process| ImgProc
-    ImgProc -->|8. Extract| Metadata
-    ImgProc -->|9. Generate| Thumbnail
-    ImgProc -->|10. Detect Faces| FaceDetect
-    FaceDetect -->|11. Generate Embeddings| FaceRecog
-    
-    ImgProc -->|12. Store Original| Hot
-    Thumbnail -->|13. Store Thumbnails| Hot
-    Metadata -->|14. Store Metadata| MetaDB
-    Metadata -->|15. Index| SearchDB
-    FaceRecog -->|16. Store Vectors| FaceDB
-    
-    View -->|17. Query| Cache
-    Cache -->|18. Cache Miss| MetaDB
-    View -->|19. Get URL| Hot
-    
-    Search -->|20. Query| SearchDB
-    Share -->|21. Permissions| UserDB
-    Album -->|22. Album Data| UserDB
-    
-    Hot -->|Lifecycle: 30 days| Warm
-    Warm -->|Lifecycle: 1 year| Cold
+By the end of this section, you'll be able to:
+- Draw a clean high-level architecture diagram for a photo storage platform
+- Explain each component and its responsibilities
+- Describe the data flow for upload, view, and search operations
+- Identify which components handle which scalability concerns
+
+### Why This Matters
+
+The high-level architecture is the foundation of your system design. It's what interviewers sketch on whiteboards and what guides all detailed design decisions. Real-world example: Google Photos' architecture evolved from a monolithic Google+ Photos (slow, coupled) to microservices in 2015 (fast, scalable). The new architecture enabled them to scale from 0 to 1 billion users in just 3 years by making each component independently scalable!
+
+---
+
+### 🟢 For Beginners: The Fundamentals
+
+#### What is System Architecture?
+
+Think of system architecture like a city plan:
+
+```text
+🏙️ City Plan:
+├─ Roads (how traffic flows)
+├─ Buildings (where things happen)
+├─ Utilities (water, power)
+└─ Connections (how it all works together)
+
+💻 System Architecture:
+├─ API Gateway (how requests arrive)
+├─ Services (where work happens)
+├─ Databases (where data lives)
+└─ Connections (how components talk)
 ```
 
-### Data Flow Explanation
+#### The Layers of Google Photos
 
-**Upload Flow (Steps 1-16):**
+Our system has 6 main layers (like floors in a building):
 
-1. User uploads photo via web/mobile client
-2. CDN routes request to nearest load balancer
-3. Load balancer distributes to API gateway
-4. API gateway authenticates user with Auth service
-5. Request routed to Upload Service
-6. Upload Service publishes event to Kafka queue
-7. Image Processor picks up message for processing
-8. Metadata Extractor extracts EXIF data
-9. Thumbnail Generator creates multiple resolution thumbnails
-10. Face Detection service detects faces in photo
-11. Face Recognition generates embeddings for each detected face
-12. Original photo stored in S3 Hot storage
-13. Thumbnails stored in S3 with appropriate keys
-14. Metadata written to Cassandra for fast queries
-15. Photo indexed in Elasticsearch for search
-16. Face embeddings stored in Vector DB (Milvus) for similarity matching
+**Layer 1: Client Layer (What Users See)**
+```text
+Web Client → Browser (Chrome, Safari, Firefox)
+Mobile Apps → iOS/Android apps on your phone
+```
 
-**View Flow (Steps 17-19):**
-17. View Service checks Redis cache for metadata
-18. On cache miss, queries Cassandra
-19. Returns CDN URL for photo retrieval
+**Layer 2: CDN & Load Balancing (Traffic Directors)**
+```text
+CDN → Delivers photos fast (cached nearby)
+Load Balancer → Spreads requests across many servers
+```
 
-**Search Flow (Step 20):**
-20. Search Service queries Elasticsearch index
+**Layer 3: API Gateway (Front Door)**
+```text
+API Gateway → Routes requests to right service
+Auth Service → Checks "Are you allowed in?"
+```
 
-**Sharing Flow (Step 21):**
-21. Sharing Service validates permissions in PostgreSQL
+**Layer 4: Service Layer (Workers)**
+```text
+Upload Service → Handles photo uploads
+View Service → Delivers photos for viewing
+Search Service → Finds photos by content
+Share Service → Manages sharing permissions
+Album Service → Organizes photos into albums
+```
 
-**Face Search Flow:**
+**Layer 5: Processing Layer (Background Workers)**
+```text
+Message Queue (Kafka) → Holds work to be done
+Image Processor → Creates thumbnails
+Metadata Extractor → Reads EXIF data (date, camera, location)
+Face Detection → Finds faces in photos
+Face Recognition → Identifies who each face is
+```
 
-- Query face embeddings in Vector DB using similarity search
-- Return photos containing matching faces
+**Layer 6: Data Layer (Where Everything Lives)**
+```text
+Databases:
+├─ Metadata DB (Cassandra) → Photo information
+├─ User DB (PostgreSQL) → User accounts, albums
+├─ Search Index (Elasticsearch) → Fast photo search
+├─ Face DB (Milvus) → Face recognition data
+└─ Cache (Redis) → Temporary fast storage
+
+Storage:
+├─ Hot Storage (S3) → Recent photos (fast)
+├─ Warm Storage (S3 IA) → Older photos (medium)
+└─ Cold Storage (Glacier) → Ancient photos (slow, cheap)
+```
+
+#### How a Photo Upload Works (Simple Explanation)
+
+Let's trace what happens when you upload a photo from your phone:
+
+```text
+Step 1: You click "Upload" in the app
+   ↓
+Step 2: Photo goes to nearest CDN (like a post office)
+   ↓
+Step 3: CDN sends to Load Balancer (traffic cop)
+   ↓
+Step 4: Load Balancer picks a server (not too busy)
+   ↓
+Step 5: API Gateway checks: "Is this user logged in?"
+   ↓
+Step 6: Upload Service receives photo
+   ↓
+Step 7: Photo stored in S3, you see "Upload complete!"
+   ↓
+Step 8: (Background) Queue schedules processing
+   ↓
+Step 9: (Background) Image Processor:
+   - Makes thumbnails (small, medium, large)
+   - Extracts metadata (date, location, camera)
+   - Detects faces
+   - Stores everything in databases
+   ↓
+Step 10: You can now search for and share your photo!
+```
+
+**Key Insight:** Steps 1-7 happen fast (< 5 seconds). Steps 8-10 happen in background (don't slow down upload!).
+
+💡 **Pro Tip:** In interviews, always separate "critical path" (user waits) from "background jobs" (user doesn't wait). This shows you understand performance!
+
+#### How Viewing a Photo Works
+
+When you open Google Photos and scroll through your timeline:
+
+```text
+1. Your app requests: "Show me 50 photos"
+   ↓
+2. View Service checks Redis cache
+   - Cache hit? Return instantly! ⚡
+   - Cache miss? Query Cassandra database
+   ↓
+3. View Service returns URLs like:
+   "https://cdn.googlephotos.com/photo123-thumb.jpg"
+   ↓
+4. Your app loads photos from CDN (super fast!)
+```
+
+**Why this is fast:**
+- Cache hit: 1-5ms (from memory)
+- CDN delivery: 10-50ms (from nearby server)
+- Total: < 100ms to show 50 photos!
+
+---
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### How to Draw Architecture Diagrams in Interviews
+
+**Step 1: Start with layers (top to bottom)**
+```text
+Whiteboard Layout:
+
+[Clients]              ← Top: Where users are
+    ↓
+[Load Balancing]       ← Entry point
+    ↓
+[API Services]         ← Business logic
+    ↓
+[Databases/Storage]    ← Bottom: Where data lives
+```
+
+**Step 2: Add key components**
+```text
+You: "I'll start with the client layer. We support web and mobile..."
+[Draw boxes for Web, iOS, Android]
+
+You: "Next, CDN and load balancing for global distribution..."
+[Draw CDN and LB boxes]
+
+You: "API layer with authentication..."
+[Draw API Gateway and Auth boxes]
+
+You: "Service layer - I'll separate concerns..."
+[Draw Upload, View, Search, Share, Album services]
+
+You: "Background processing for async work..."
+[Draw Kafka queue and processors]
+
+You: "Finally, data layer with appropriate databases..."
+[Draw Cassandra, PostgreSQL, Elasticsearch, Vector DB]
+```
+
+**Step 3: Show data flows**
+```text
+You: "Let me trace the upload flow..."
+[Draw arrows with numbers]
+
+You: "And the view flow is simpler..."
+[Draw different colored arrows]
+```
+
+#### Component Responsibilities (Interview Answer Framework)
+
+When asked "What does each component do?", structure your answer:
+
+| Component | Responsibility | Why This Choice | Alternative |
+|-----------|---------------|----------------|-------------|
+| **API Gateway** | Route requests, rate limiting, auth | Single entry point, centralized control | Direct service calls (messy) |
+| **Cassandra** | Photo metadata storage | Write-heavy, wide-column, scalable | MongoDB (less scalable at PB scale) |
+| **PostgreSQL** | User/album data | ACID transactions, complex queries | Cassandra (overkill for small data) |
+| **Elasticsearch** | Photo search | Full-text search, aggregations | PostgreSQL (slow for text search) |
+| **Milvus** | Face embeddings | Vector similarity search | PostgreSQL pgvector (not scalable) |
+| **Redis** | Caching layer | Sub-millisecond reads, reduces DB load | Memcached (less features) |
+| **Kafka** | Async job queue | High throughput, replay capability | RabbitMQ (lower throughput) |
+| **S3** | Photo storage | Unlimited scale, 11 9's durability | Self-hosted (expensive at scale) |
+
+#### Data Flow Patterns
+
+**Pattern 1: Synchronous (User Waits)**
+```text
+Upload Photo:
+Client → API → Upload Service → S3 → Return Success
+Time: ~3 seconds (critical path)
+
+View Photo:
+Client → API → Cache/DB → Return URL → CDN → Client
+Time: ~100ms (critical path)
+```
+
+**Pattern 2: Asynchronous (Background)**
+```text
+Process Photo:
+Upload Service → Kafka → (hours later) → Image Processor
+Time: User doesn't wait!
+
+Why async:
+- Thumbnails take 3-5 seconds
+- Face detection takes 10-15 seconds
+- Don't make user wait 20 seconds!
+```
+
+**Pattern 3: Hybrid (Optimistic UI)**
+```text
+Share Photo:
+1. Client shows "Shared!" immediately (optimistic)
+2. Share Service updates permissions in background
+3. If fails, show error and revert
+
+Better UX: Feels instant even if backend is slow
+```
+
+#### Architecture Decision Interview Questions
+
+**Q: "Why separate Upload and View services?"**
+
+A: "Different scalability characteristics:
+- Upload: Write-heavy, 6K QPS, CPU-intensive (validation)
+- View: Read-heavy, 700K QPS, I/O-intensive (DB queries)
+- Separate services let us scale independently
+- Upload needs fewer, bigger machines
+- View needs many, smaller machines"
+
+**Q: "Why use both PostgreSQL AND Cassandra?"**
+
+A: "Right tool for the job:
+- PostgreSQL for relational data (users, albums)
+  - Small data (1 TB)
+  - Complex queries (JOIN user + albums + shares)
+  - ACID transactions needed
+  
+- Cassandra for photo metadata
+  - Huge data (3 PB)
+  - Simple queries (get photos by user_id + date)
+  - Eventual consistency OK
+  - Must handle 6K writes/sec
+
+Using one DB for both would be suboptimal."
+
+**Q: "Why Kafka instead of direct processing?"**
+
+A: "Decoupling and reliability:
+1. **Decoupling:** Upload Service doesn't know about Face Detection Service
+   - Can deploy independently
+   - Can replace face detection without touching upload
+   
+2. **Buffering:** Kafka absorbs traffic spikes
+   - Upload spike to 20K QPS? Kafka buffers
+   - Processors drain at steady rate
+   
+3. **Replay:** If face detection bugs out, replay from Kafka
+   - Don't lose processing work
+   
+4. **Multiple consumers:** Metadata extraction AND thumbnail generation both read from same queue"
+
+---
+
+### 🔴 For Advanced: Production Considerations
+
+#### Multi-Region Architecture
+
+Google Photos doesn't run in one data center. It's globally distributed:
+
+```text
+Global Deployment:
+
+Primary Regions:
+├─ us-east-1 (Virginia)
+│  ├─ Serves: North America (40% traffic)
+│  ├─ Storage: 1.2 EB
+│  └─ Users: 400M
+│
+├─ eu-west-1 (Ireland)
+│  ├─ Serves: Europe (30% traffic)
+│  ├─ Storage: 900 PB
+│  └─ Users: 300M
+│
+├─ asia-southeast-1 (Singapore)
+│  ├─ Serves: Asia-Pacific (25% traffic)
+│  ├─ Storage: 750 PB
+│  └─ Users: 250M
+│
+└─ southamerica-east-1 (São Paulo)
+   ├─ Serves: South America (5% traffic)
+   ├─ Storage: 150 PB
+   └─ Users: 50M
+
+Replication Strategy:
+- Photos: Stored in user's home region + 1 backup region
+- Metadata: Multi-region with eventual consistency
+- User data: Multi-region with quorum reads/writes
+```
+
+**Cross-Region Considerations:**
+
+1. **Latency:**
+   - Same-region: 10-30ms
+   - Cross-region (US-EU): 80-120ms
+   - Cross-region (US-Asia): 150-200ms
+   - Solution: Keep user's photos in their primary region
+
+2. **Data Sovereignty:**
+   - GDPR: EU users' data must stay in EU
+   - Solution: Region affinity in user profile
+   - Cannot move data without user consent
+
+3. **Disaster Recovery:**
+   - Region failure: Traffic shifts to backup in 15 minutes
+   - Data loss: RPO = 0 (continuous replication)
+   - RTO: 1 hour for full failover
+
+#### Service Mesh & Microservices
+
+Production Google Photos uses 50+ microservices:
+
+```text
+Microservices Architecture:
+
+Upload Domain:
+├─ Upload Validation Service
+├─ Duplicate Detection Service
+├─ Upload Orchestration Service
+└─ Multipart Upload Service
+
+Processing Domain:
+├─ Thumbnail Service (3 types)
+├─ Metadata Extraction Service
+├─ EXIF Parser Service
+├─ GPS Enrichment Service
+├─ Image Optimization Service
+└─ Format Conversion Service
+
+ML Domain:
+├─ Face Detection Service
+├─ Face Recognition Service
+├─ Object Detection Service
+├─ Scene Classification Service
+├─ NSFW Content Filter Service
+└─ Quality Assessment Service
+
+Search Domain:
+├─ Text Search Service
+├─ Visual Search Service
+├─ Location Search Service
+└─ Face Search Service
+
+Sharing Domain:
+├─ Permission Service
+├─ Link Generation Service
+├─ Notification Service
+└─ Collaboration Service
+
+Service Mesh (Istio):
+├─ Service Discovery
+├─ Load Balancing
+├─ Circuit Breaking
+├─ Retry Logic
+├─ Distributed Tracing
+└─ mTLS Encryption
+```
+
+**Why so many services?**
+
+1. **Team Ownership:** Each team owns 2-3 services
+2. **Independent Deployment:** Can deploy Face Detection without touching Upload
+3. **Technology Choice:** ML services use Python/TensorFlow, API services use Go
+4. **Scaling:** Scale object detection 10x without scaling thumbnails
+5. **Fault Isolation:** Bug in NSFW filter doesn't crash uploads
+
+#### Advanced Data Flow: Upload with Deduplication
+
+Real Google Photos detects duplicate photos:
+
+```text
+Upload Flow with Deduplication:
+
+1. Client uploads photo
+   ↓
+2. Upload Service calculates perceptual hash
+   (Even if slightly edited, same hash)
+   ↓
+3. Query Dedup DB: "Do we have this hash?"
+   ├─ Yes → Return existing photo ID
+   │         Save storage!
+   │         User sees "Photo uploaded" (instant)
+   └─ No → Continue to S3 upload
+       ↓
+4. Store in S3 with content-based key
+   ↓
+5. Save hash → photo_id mapping in Dedup DB
+   ↓
+6. Continue with processing pipeline
+
+Benefits:
+- Users upload same photo from 3 devices? Stored once!
+- Save 20-30% storage (massive at EB scale)
+- Instant "upload" if duplicate (already have it)
+```
+
+**Perceptual Hash Algorithm:**
+```text
+pHash (Perceptual Hash):
+1. Resize to 32×32 pixels (normalize size)
+2. Convert to grayscale
+3. Compute Discrete Cosine Transform (DCT)
+4. Extract low frequencies (8×8)
+5. Compute average
+6. Generate 64-bit hash based on frequencies above/below average
+
+Properties:
+- Identical photos: Same hash
+- Slight edits (crop, brightness): Similar hash
+- Different photos: Very different hash
+- Fast: 10ms per photo
+```
+
+### Real-World Example: Google Photos Architecture Evolution
+
+#### 2011-2015: Google+ Photos (Failed Architecture)
+
+```text
+Monolithic Architecture:
+┌─────────────────────────────┐
+│   Google+ (Monolith)        │
+│  ┌───────────────────────┐  │
+│  │  Social Feed          │  │
+│  │  Photo Upload         │  │
+│  │  Photo Viewing        │  │
+│  │  Comments/Likes       │  │
+│  │  Circles (Privacy)    │  │
+│  └───────────────────────┘  │
+└─────────────────────────────┘
+        ↓
+   Single Database
+   (Bottleneck!)
+
+Problems:
+- Couldn't scale photo storage independently
+- Social features interfered with photo features
+- Deploy social → risk breaking photos
+- Database overloaded (social + photos)
+Result: Only 300M users after 4 years
+```
+
+#### 2015-Present: Google Photos (Successful Architecture)
+
+```text
+Microservices Architecture:
+┌───────────┐  ┌───────────┐  ┌──────────┐
+│  Upload   │  │   View    │  │  Search  │
+│  Service  │  │  Service  │  │  Service │
+└───────────┘  └───────────┘  └──────────┘
+      ↓              ↓              ↓
+┌─────────────────────────────────────────┐
+│         Independent Databases           │
+│  Cassandra  PostgreSQL  Elasticsearch   │
+└─────────────────────────────────────────┘
+
+Benefits:
+- Scale each service independently
+- Deploy photos without Google+ coordination
+- Photos-only focus (no social features)
+- Faster development (smaller teams)
+Result: 1B users in just 3 years!
+```
+
+**Key Architectural Changes:**
+
+1. **Separated from Google+**
+   - Before: Photo feature inside social network
+   - After: Standalone photo platform
+   - Impact: Focused product, clearer value prop
+
+2. **Database per Service**
+   - Before: Shared MySQL database
+   - After: Cassandra (photos), PostgreSQL (users), Elasticsearch (search)
+   - Impact: Right tool for each job
+
+3. **Async Processing**
+   - Before: Synchronous (upload waits for thumbnails)
+   - After: Kafka queue (upload returns immediately)
+   - Impact: 5x faster upload experience
+
+4. **Global CDN**
+   - Before: Served from US data centers only
+   - After: CloudFlare + Google Global Cache in 7,500+ locations
+   - Impact: 50ms load time globally vs 300ms before
+
+### 🎯 Interview Questions: System Architecture
+
+**Q1: Why use a message queue (Kafka) instead of direct service calls for image processing?**
+
+<details>
+<summary>Click to see answer</summary>
+
+**Answer:**
+
+**Without Message Queue (Direct Calls):**
+```text
+Upload Service ─────> Image Processor
+                      (blocked until complete!)
+Problem: Upload Service waits 20 seconds for processing
+Result: Poor user experience, low throughput
+```
+
+**With Message Queue:**
+```text
+Upload Service ──→ Kafka ──→ Image Processor
+     ↓ (returns immediately)
+"Upload successful!"
+```
+
+**Benefits:**
+
+1. **Decoupling:**
+   - Upload Service doesn't care who processes images
+   - Can change Image Processor without touching Upload Service
+   - Can add new consumers (e.g., duplicate detection) easily
+
+2. **Async Processing:**
+   - User sees "Upload successful" in 3 seconds
+   - Processing happens in background over 20 seconds
+   - Better UX: Feels 7x faster!
+
+3. **Buffering Traffic Spikes:**
+   - Christmas morning: 50K uploads/sec spike
+   - Kafka buffers messages
+   - Processors drain at steady 6K/sec
+   - No processors crash from overload
+
+4. **Retry & Reliability:**
+   - Image Processor crashes? Message stays in queue
+   - Retry 3 times before giving up
+   - Can replay failed messages from last hour
+
+5. **Multiple Consumers:**
+   - Thumbnail Generator reads queue
+   - Metadata Extractor reads same queue
+   - Face Detector reads same queue
+   - All process in parallel!
+
+**Trade-off:**
+- Complexity: Need to manage Kafka cluster
+- Latency: Processing happens later (OK for non-critical work)
+- Cost: Kafka infrastructure ($50K/month for 100-node cluster)
+
+**Interview Tip:** This pattern is called "Event-Driven Architecture" - very common in scalable systems!
+</details>
+
+**Q2: Why use multiple databases (Cassandra, PostgreSQL, Elasticsearch) instead of just one?**
+
+<details>
+<summary>Click to see answer</summary>
+
+**Answer:**
+
+**Polyglot Persistence** = Right database for each job
+
+**Cassandra (Photo Metadata):**
+```text
+Use Case: Store 4 trillion photo records
+Access Pattern: Get photos by user_id + date range
+Volume: 3 PB of metadata
+Why Cassandra:
+✓ Write-heavy (1.5B writes/day)
+✓ Time-series data (partition by date)
+✓ Horizontal scaling (add nodes easily)
+✓ Eventually consistent (OK for metadata)
+✗ Bad at: JOINs, transactions
+```
+
+**PostgreSQL (Users & Albums):**
+```text
+Use Case: User accounts, album definitions, sharing
+Access Pattern: Complex queries with JOINs
+Volume: 1 TB (small!)
+Why PostgreSQL:
+✓ ACID transactions (critical for permissions)
+✓ Complex queries (JOIN user + album + shares)
+✓ Strong consistency (security requires it)
+✓ Mature, well-understood
+✗ Bad at: Billions of records, horizontal scaling
+```
+
+**Elasticsearch (Search Index):**
+```text
+Use Case: Search photos by text, tags, location
+Access Pattern: Full-text search, fuzzy matching
+Volume: 500 GB (just searchable fields)
+Why Elasticsearch:
+✓ Full-text search (best in class)
+✓ Fuzzy matching ("beech" finds "beach")
+✓ Aggregations (count by date, location)
+✓ Fast (< 50ms for complex queries)
+✗ Bad at: Primary storage, transactions
+```
+
+**Milvus (Face Embeddings):**
+```text
+Use Case: Find similar faces (vector similarity)
+Access Pattern: K-nearest neighbors search
+Volume: 4 PB (2.7T faces × 512 bytes × 3x index)
+Why Milvus:
+✓ Vector similarity search (purpose-built)
+✓ HNSW index (sub-second search in billions)
+✓ GPU acceleration
+✗ Bad at: Everything except vectors
+```
+
+**Could you use just PostgreSQL?**
+
+Technically yes, but:
+- 4T rows in PostgreSQL? Super slow queries
+- Full-text search in PostgreSQL? 100x slower than Elasticsearch
+- Vector search in PostgreSQL? 1000x slower than Milvus
+- Write throughput? PostgreSQL maxes at ~10K writes/sec vs Cassandra's 1M writes/sec
+
+**Cost of complexity:**
+- Need to learn 4 databases
+- Data consistency across databases
+- More operational overhead
+
+**But benefits outweigh costs at Google Photos scale!**
+
+**Interview Tip:** This question tests if you understand trade-offs. Don't just say "use PostgreSQL for everything" - show you know when to use specialized tools!
+</details>
+
+---
+
+### 🤔 Think About It
+
+1. **Service Boundaries:** If you were designing this system, would you separate Upload and View into different services, or keep them together? What are the trade-offs?
+
+2. **Async vs Sync:** Which operations MUST be synchronous (user waits) and which can be async (background)? Why?
+
+3. **Database Choices:** Could you use MongoDB instead of Cassandra for photo metadata? What would change?
+
+---
+
+### ✅ Key Takeaways
+
+```text
+✓ Architecture has 6 layers: Client → CDN → API → Services → Processing → Data
+✓ Separate services by domain (Upload, View, Search, Share, Album)
+✓ Use message queue (Kafka) to decouple services and handle async work
+✓ Polyglot persistence: Multiple databases for different needs
+✓ Critical path (user waits) vs background jobs (user doesn't wait)
+✓ Multi-region for global latency and disaster recovery
+✓ CDN is critical: 95% cache hit rate saves $1.3B/year
+✓ Microservices enable independent scaling and deployment
+✓ Real Google Photos uses 50+ services (we simplified to ~10 for interview)
+```
+
+**Critical Architecture Decisions:**
+```text
+1. Async processing → 7x faster perceived upload time
+2. Polyglot persistence → Right tool for each job
+3. CDN → 100ms global latency vs 300ms without
+4. Multi-region → 99.99% availability despite region failures
+5. Service separation → Independent scaling (view 100x more than upload)
+```
+
+---
+
+### 🎯 Practice Exercise
+
+**Exercise: Redesign for Video**
+
+Google Photos also supports video. Videos have different requirements:
+- Much larger (100 MB vs 3 MB for photos)
+- Need transcoding (convert to streamable formats)
+- Multiple quality levels (360p, 720p, 1080p, 4K)
+- Longer processing time (5 minutes vs 5 seconds)
+
+**Question:** How would you modify the architecture to support video? 
+
+Consider:
+1. Which services need changes?
+2. What new services do you need?
+3. How does storage change?
+4. How does the upload flow change?
+
+<details>
+<summary>Click to see sample answer</summary>
+
+**Answer:**
+
+**New/Modified Services:**
+
+1. **Upload Service (Modified):**
+   - Add chunked upload for large files
+   - Validate file size (reject > 10GB)
+   - Stream directly to S3 (don't hold in memory)
+
+2. **Video Transcoding Service (NEW):**
+   ```text
+   Input: Original video (100 MB, 4K)
+   Output: Multiple formats
+   ├─ 360p (10 MB)
+   ├─ 720p (30 MB)
+   ├─ 1080p (60 MB)
+   └─ 4K (100 MB - passthrough)
+   
+   Tech: FFmpeg on GPU instances (NVIDIA T4)
+   Time: ~5 minutes for 2-minute video
+   ```
+
+3. **Adaptive Streaming Service (NEW):**
+   - Generate HLS/DASH manifests
+   - Segment videos into chunks
+   - Enable adaptive bitrate streaming
+
+**Architecture Changes:**
+
+```text
+Upload Flow:
+User ──→ Upload Service ──→ S3 (original)
+                         ──→ Kafka (transcode job)
+
+Transcode Flow:
+Kafka ──→ GPU Worker ──→ Transcode ──→ S3 (all formats)
+                                     ──→ Update metadata
+
+View Flow:
+User ──→ View Service ──→ CDN ──→ Adaptive streaming
+                                  (auto-switch quality)
+```
+
+**Storage Impact:**
+```text
+Before (photos): 3 MB original + 260 KB thumbnails
+After (videos): 100 MB original + 100 MB formats = 200 MB
+                67x more storage per video!
+
+Daily uploads: 50M videos × 200 MB = 10 PB/day (vs 1.5 PB for photos)
+```
+
+**Cost Impact:**
+```text
+Transcoding cost:
+- 50M videos/day
+- 5 minutes GPU time each
+- = 250M GPU minutes/day
+- = 4.17M GPU hours/day
+- At $0.50/GPU-hour = $2M/day = $730M/year
+
+(This is why YouTube compression is so aggressive!)
+```
+
+**Interview Insight:** Shows you understand video is fundamentally different from photos - not just "bigger photos"!
+</details>
+
+---
+
+**Ready for Section 4?** Next, we'll design the database schemas for users, photos, albums, and face recognition. You'll learn how to structure data for billions of records with optimal query performance!
 
 ---
 
