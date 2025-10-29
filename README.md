@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (23/52)
+## ✅ Completed Designs (25/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -303,9 +303,48 @@ Personalized newsfeed system for social media platforms with real-time updates a
 
 **Scale:** 300M DAU, 100M posts/day, <300ms feed load time, 99.9% uptime
 
+### 13. [File Storage Service System Design (Dropbox)](./file_storage_system_design.md)
+
+**Status:** ✅ Complete
+
+Cloud file storage and synchronization service with real-time sync, versioning, and conflict resolution.
+
+**Key Features:**
+
+- File chunking (4 MB) with deduplication for storage efficiency
+- Delta sync algorithm for bandwidth optimization (90% reduction)
+- Hybrid database architecture (PostgreSQL + Cassandra)
+- Version history (30 days) with efficient storage
+- Conflict detection and resolution strategies
+- Client-side encryption for end-to-end privacy
+- Real-time sync via WebSocket with <1 second latency
+- File sharing with granular permissions
+- S3 integration with multi-tier storage optimization
+
+**Scale:** 100M users, 100 PB data, <1s sync latency, 99.9% uptime
+
+### 14. [Google Photos System Design](./google_photos_system_design.md)
+
+**Status:** ✅ Complete
+
+Cloud-based photo storage and management platform with ML-powered features.
+
+**Key Features:**
+
+- ML-powered face recognition with FaceNet embeddings (99.6% accuracy)
+- Smart search with Elasticsearch + vector databases (Milvus for billion-scale similarity search)
+- Automatic photo organization and tagging with computer vision
+- Multi-tier storage architecture (hot/warm/cold) saving 67% on storage costs
+- Global CDN with 99% cache hit ratio for <100ms latency worldwide
+- Hybrid database architecture (Cassandra + PostgreSQL + Milvus)
+- GPU-accelerated image processing pipeline
+- Privacy-first design with GDPR/CCPA compliance
+
+**Scale:** 1B users, 4 trillion photos (4 exabytes), 1.5B uploads/day, 17K QPS average (52K peak)
+
 ---
 
-## 📋 Upcoming Designs (39)
+## 📋 Upcoming Designs (27)
 
 ### Core Infrastructure & Storage
 
@@ -571,7 +610,7 @@ High-availability payment processing system with fraud detection and PCI DSS com
 
 ---
 
-## 📋 Upcoming Designs (29)
+## 📋 Upcoming Designs (28)
 
 ### Core Infrastructure & Storage
 
@@ -818,9 +857,9 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 23/52 (44.2%)
+**Completion Status:** 25/52 (48.1%)
 
-**Last Design Completed:** Payment Gateway
+**Last Design Completed:** Google Photos System Design
 
 **Next Up:** Notification System, Web Crawler
 **Current Work:** Principal Engineer Level designs
