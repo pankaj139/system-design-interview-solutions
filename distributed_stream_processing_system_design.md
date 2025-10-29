@@ -1,5 +1,8 @@
 # Distributed Stream Processing System Design (Apache Flink/Storm-like)
 
+**Difficulty Level:** ⭐⭐⭐⭐⭐ Expert  
+**Tags:** `Stream Processing`, `Real-time Analytics`, `CEP`, `Stateful Processing`, `Windowing`, `Watermarks`, `Exactly-once Semantics`, `Fault Tolerance`, `Backpressure`, `Event-driven Architecture`
+
 **File Purpose:** Comprehensive system design document for a distributed stream processing platform supporting 1M events/sec for real-time fraud detection with exactly-once semantics and sub-second latency. The design covers complex event processing (CEP) with pattern matching, stateful operations with distributed state management, multiple windowing strategies (tumbling, sliding, session), watermark-based late event handling, fault tolerance with checkpointing and automatic recovery, dynamic scaling with backpressure handling, stream joins and aggregations, and deployment patterns for use cases including real-time analytics, event-driven microservices, IoT data processing, and financial transaction monitoring.
 
 Key Features:
@@ -11,6 +14,11 @@ Key Features:
 - Fault tolerance with checkpointing and automatic recovery
 - Dynamic scaling and backpressure handling
 - Stream joins and aggregations
+
+**Author:** System Design Documentation  
+**Created:** October 1, 2025  
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 Use Cases:
 - Real-time fraud detection

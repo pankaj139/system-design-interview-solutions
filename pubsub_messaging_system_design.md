@@ -1,11 +1,14 @@
 # Pub/Sub Messaging System Design (Apache Kafka-like)
 
+**Difficulty Level:** ⭐⭐⭐⭐ Very Hard  
+**Tags:** `Message Queue`, `Pub/Sub`, `Event Streaming`, `Partitioning`, `Replication`, `Exactly-once Semantics`, `Consumer Groups`, `Log-structured Storage`, `Distributed Systems`, `High Throughput`
+
 **File Purpose:** Comprehensive system design document for a distributed pub/sub messaging system supporting 1M messages per second with exactly-once delivery semantics and durable storage. The design covers topic partitioning for horizontal scaling, consumer groups with offset management, leader-based replication with ISR (In-Sync Replicas), log-structured storage with segment files and compaction, producer idempotency and transactional writes, consumer rebalancing protocols (eager, cooperative), message ordering guarantees within partitions, retention policies (time-based, size-based), backpressure handling, ZooKeeper/KRaft for cluster coordination, monitoring with JMX metrics, and achieving 99.99% availability with <10ms publish latency for high-throughput event streaming.
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** October 13, 2025  
-**Recent Updates:** Enhanced header format with comprehensive pub/sub architecture and Kafka-like features
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

@@ -1,5 +1,8 @@
 # Text Storage Service System Design (Pastebin-like)
 
+**Difficulty Level:** ⭐⭐ Medium  
+**Tags:** `Storage`, `API Design`, `Caching`, `ID Generation`, `TTL/Expiration`, `Rate Limiting`, `Global Distribution`, `Object Storage`, `Database Design`
+
 ## 📚 Welcome to This Educational System Design Guide
 
 ### What You'll Learn

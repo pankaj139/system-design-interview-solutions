@@ -1,12 +1,15 @@
 # File Storage Service System Design (Dropbox/Google Drive)
 
+**Difficulty Level:** ⭐⭐⭐⭐ Hard  
+**Tags:** `Cloud Storage`, `File Synchronization`, `Distributed Systems`, `Conflict Resolution`, `Chunking`, `Deduplication`, `WebSocket`, `Real-time Sync`, `Version Control`
+
 <!--
 **File Purpose:** Interactive, multi-level learning resource for designing a file storage and synchronization service. This instructional guide takes you from beginner concepts to advanced production considerations, teaching you how to build a system that handles 100M users with 100 PB storage, achieving <1 second sync latency, 99.9% availability, and supporting 5 GB files with intelligent chunking and conflict resolution.
 
 **Author:** System Design Documentation  
 **Created:** October 29, 2025  
 **Last Updated:** October 29, 2025  
-**Recent Updates:** Transformed into multi-level instructional format with learning objectives, real-world examples, and practice exercises for educational platform
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 -->
 
 ## 🎓 Welcome to File Storage Service System Design!

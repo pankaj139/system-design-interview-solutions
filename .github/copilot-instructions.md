@@ -24,6 +24,7 @@ Every system design document follows this **12-15 section template**:
 ### Documentation Standards
 
 All designs must include:
+- **Difficulty Level & Tags** (NEW - October 2025): Every document starts with difficulty rating (⭐⭐ to ⭐⭐⭐⭐⭐) and 6-10 relevant tags
 - Mermaid diagrams for architecture visualization
 - Back-of-envelope calculations with specific numbers (QPS, storage, bandwidth)
 - Database schemas with indexing strategies  
@@ -31,14 +32,35 @@ All designs must include:
 - Real-world company examples (Netflix, Google, Amazon practices)
 - Security considerations and monitoring strategies
 
+**Difficulty Levels Guide**:
+- **⭐⭐ Medium**: Basic CRUD, simple architecture (URL Shortener, Text Storage)
+- **⭐⭐⭐ Medium-Hard**: Multiple services, caching, basic distribution (CDN, Cache, Autocomplete)
+- **⭐⭐⭐⭐ Hard**: Complex distributed systems, replication (File Storage, KV Store, Web Crawler)
+- **⭐⭐⭐⭐ Very Hard**: Advanced concepts, ML integration, real-time (Video Streaming, Chat, Search)
+- **⭐⭐⭐⭐⭐ Expert**: Multiple advanced systems, AI/ML pipelines (Google Photos, E-commerce, Payments)
+
+**Tag Categories** (6-10 tags per design):
+- System Type: `Storage`, `Messaging`, `Media`, `Social Network`, `E-commerce`, `Search`, `Real-time`
+- Technologies: `Distributed Systems`, `Caching`, `ML/AI`, `WebSocket`, `Encryption`, `CDN`
+- Algorithms: `Consistent Hashing`, `Fan-out`, `Geospatial`, `Ranking`, `Vector Clocks`
+- Scale: `High Throughput`, `Low Latency`, `Global Scale`, `High Availability`
+- Features: `Privacy Engineering`, `Analytics`, `Recommendations`, `Fraud Detection`
+
+**Tag Examples by System**:
+- **URL Shortener (⭐⭐)**: `Distributed Systems`, `API Design`, `Caching`, `Database Design`, `Analytics`, `Load Balancing`, `ID Generation`
+- **Video Streaming (⭐⭐⭐⭐)**: `Media Streaming`, `CDN`, `Video Transcoding`, `Adaptive Bitrate`, `ML Recommendations`, `Distributed Systems`, `High Bandwidth`, `DRM`, `Real-time Processing`
+- **Google Photos (⭐⭐⭐⭐⭐)**: `Media Storage`, `ML/AI`, `Face Recognition`, `Computer Vision`, `Image Processing`, `Vector Databases`, `CDN`, `Multi-tier Storage`, `Smart Search`, `Recommendation Engine`
+- **Payment Gateway (⭐⭐⭐⭐⭐)**: `Payment Processing`, `PCI DSS Compliance`, `Security`, `Fraud Detection`, `Distributed Transactions`, `Idempotency`, `Tokenization`, `Multi-currency`, `Webhook`, `Settlement`
+
 ## Development Workflows
 
 ### Creating New System Designs
 
-1. **Follow the Template**: Use `EDUCATIONAL_TEMPLATE_GUIDE.md` (2,400+ lines) as the authoritative structure guide
-2. **Update Progress**: Mark design as 🚧 in-progress in `TODO.md`, update completion status when done
-3. **Target Metrics**: Aim for 12,000+ lines for comprehensive coverage
-4. **Multi-Level Content**: Every section needs Beginner/Intermediate/Advanced explanations
+1. **Start with Difficulty & Tags**: Determine appropriate difficulty level (⭐⭐ to ⭐⭐⭐⭐⭐) and select 6-10 relevant tags
+2. **Follow the Template**: Use `EDUCATIONAL_TEMPLATE_GUIDE.md` (2,400+ lines) as the authoritative structure guide
+3. **Update Progress**: Mark design as 🚧 in-progress in `TODO.md`, update completion status when done
+4. **Target Metrics**: Aim for 12,000+ lines for comprehensive coverage
+5. **Multi-Level Content**: Every section needs Beginner/Intermediate/Advanced explanations
 
 ### Key Writing Conventions
 

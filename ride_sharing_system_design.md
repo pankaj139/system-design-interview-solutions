@@ -1,11 +1,14 @@
 # Ride-Sharing Service System Design (Uber/Lyft-like)
 
+**Difficulty Level:** ⭐⭐⭐⭐⭐ Expert  
+**Tags:** `Geospatial`, `Real-time Matching`, `WebSocket`, `Dynamic Pricing`, `Route Optimization`, `ML/ETA Prediction`, `Distributed Transactions`, `Geohash`, `State Machine`, `High Availability`
+
 **File Purpose:** Comprehensive system design document for a ride-sharing platform supporting 100M daily active users with 10M rides per day across 500 cities globally. The design covers real-time geospatial matching algorithms (Geohash-based driver discovery), WebSocket connections for live location tracking (1-second updates), dynamic surge pricing based on supply-demand, efficient route optimization using Dijkstra/A* algorithms, distributed transaction management for payment processing, ETA prediction using historical traffic data and ML models, driver availability state management, trip state machine implementation, real-time notification system, fraud detection, and achieving 99.99% availability with <5 second driver-rider matching time.
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** October 13, 2025  
-**Recent Updates:** Added comprehensive header with real-time matching and dynamic pricing features
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

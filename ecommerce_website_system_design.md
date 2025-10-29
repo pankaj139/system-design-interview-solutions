@@ -1,11 +1,14 @@
 # E-commerce Website System Design (Amazon-like)
 
+**Difficulty Level:** ⭐⭐⭐⭐⭐ Expert  
+**Tags:** `E-commerce`, `Inventory Management`, `Payment Processing`, `Product Catalog`, `Shopping Cart`, `Recommendation Engine`, `Flash Sales`, `Fraud Detection`, `Distributed Transactions`, `Search`
+
 **File Purpose:** Comprehensive system design document for a large-scale e-commerce platform supporting 100M products, 500M users, and 1M orders per day with peak traffic handling (10x during sales). The design covers product catalog system with search and filtering, shopping cart service with session management, inventory management with real-time stock updates, order processing pipeline with saga pattern, payment integration with multiple gateways, recommendation engine using collaborative filtering, flash sale handling with queue-based architecture, fraud detection, user reviews and ratings system, and achieving 99.99% availability with strong consistency for orders and eventual consistency for product views.
 
 **Author:** System Design Documentation  
 **Created:** January 2, 2025  
-**Last Updated:** October 13, 2025  
-**Recent Updates:** Enhanced header format with comprehensive e-commerce features and architecture patterns
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

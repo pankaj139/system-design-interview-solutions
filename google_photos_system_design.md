@@ -1,11 +1,14 @@
 # Photo Storage and Management System Design (Google Photos-like)
 
+**Difficulty Level:** ⭐⭐⭐⭐⭐ Expert  
+**Tags:** `Media Storage`, `ML/AI`, `Face Recognition`, `Computer Vision`, `Image Processing`, `Vector Databases`, `CDN`, `Multi-tier Storage`, `Smart Search`, `Recommendation Engine`
+
 **File Purpose:** Interactive, multi-level learning resource for designing a cloud-based photo storage and management platform like Google Photos. This instructional guide takes you from beginner concepts to advanced production considerations, teaching you how to build a system that supports 1 billion users with 4 trillion photos, handles 1.5 billion uploads daily, processes images with ML-powered face recognition and auto-tagging, delivers photos globally with <100ms latency, and achieves 99.99% availability (52 minutes downtime/year).
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** January 2026  
-**Recent Updates:** Transformed into multi-level instructional format with learning objectives, real-world examples from Google Photos/iCloud/Amazon Photos, interview preparation, and practice exercises for educational platform
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

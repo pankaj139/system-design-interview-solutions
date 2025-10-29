@@ -1,11 +1,14 @@
 # Web Crawler System Design (Googlebot-like)
 
+**Difficulty Level:** ⭐⭐⭐⭐ Hard  
+**Tags:** `Web Crawling`, `Distributed Systems`, `URL Frontier`, `Politeness Policy`, `BFS/DFS`, `Deduplication`, `Robots.txt`, `Content Parsing`, `Scalability`
+
 **File Purpose:** Complete interactive learning resource for designing production-grade distributed web crawlers at internet scale. Master URL frontier management, politeness policies, distributed coordination, content parsing, and duplicate detection through multi-level educational content. This comprehensive guide takes you from basic BFS crawling to Google-scale web crawling with 1,000+ pages/second while respecting 1M+ domains' robots.txt policies.
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** October 14, 2025  
-**Recent Updates:** Transformed to comprehensive educational format with 3-level content (Beginner/Intermediate/Advanced), real-world examples from Google/Bing/Common Crawl, Python implementations, distributed architecture patterns, and practice exercises
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 **Learning Time Estimates:**
 

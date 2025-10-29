@@ -1,11 +1,14 @@
 # Chat Application System Design (WhatsApp/Signal-like)
 
+**Difficulty Level:** ⭐⭐⭐⭐ Very Hard  
+**Tags:** `Real-time Messaging`, `WebSocket`, `End-to-End Encryption`, `Message Queue`, `Distributed Systems`, `Group Chat`, `Presence Detection`, `Push Notifications`, `Media Sharing`
+
 **File Purpose:** Interactive, multi-level learning resource for designing a real-time messaging application. This instructional guide takes you from beginner concepts to advanced production considerations, teaching you how to build a system that handles 500M daily active users sending 50B messages per day with <100ms delivery latency, 99.9% delivery guarantee, end-to-end encryption, and 99.95% system availability.
 
 **Author:** System Design Documentation  
 **Created:** October 2, 2025  
-**Last Updated:** October 26, 2025  
-**Recent Updates:** Transformed into multi-level instructional format with learning objectives, real-world examples, and practice exercises for educational platform
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

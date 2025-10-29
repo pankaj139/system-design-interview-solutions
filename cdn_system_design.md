@@ -1,13 +1,16 @@
 # Content Delivery Network (CDN) System Design
 
+**Difficulty Level:** ⭐⭐⭐ Medium-Hard  
+**Tags:** `CDN`, `Edge Computing`, `Caching`, `GeoDNS`, `Anycast`, `Content Distribution`, `DDoS Protection`, `Low Latency`, `Global Scale`
+
 ## Master CDN Design: From Basics to Production-Ready Global Edge Network
 
 **File Purpose:** Interactive, multi-level learning resource for designing a global Content Delivery Network (CDN) like Cloudflare, Akamai, or Fastly. Learn to build a system that serves 1B requests/day across 100+ edge locations with <50ms global latency, >90% cache hit ratio, and 99.99% availability. Covers GeoDNS routing, multi-tier caching, adaptive bitrate streaming, DDoS protection, and real-time cache invalidation.
 
 **Author:** System Design Learning Framework  
 **Created:** October 1, 2025  
-**Last Updated:** October 14, 2025  
-**Version:** 2.0 Educational Edition
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 **Learning Time Estimates:**
 - 🟢 **Beginner Level:** 5-7 hours (core concepts and fundamentals)

@@ -1,11 +1,14 @@
 # Autocomplete/Typeahead System Design (Google Search-like)
 
+**Difficulty Level:** ⭐⭐⭐ Medium-Hard  
+**Tags:** `Search`, `Trie Data Structure`, `Caching`, `ML Personalization`, `Real-time`, `NLP`, `Ranking Algorithms`, `Multi-language`, `Low Latency`
+
 **File Purpose:** Interactive, multi-level learning resource for designing production-grade autocomplete/typeahead systems. This instructional guide takes you from beginner concepts to advanced production considerations, teaching you how to build a system that handles 100M+ users with <50ms latency, processes 100K+ QPS, stores 10M+ phrases, and achieves 99.99% availability across 50+ languages.
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** October 23, 2025  
-**Recent Updates:** Enhanced with Section 15 (Interview Preparation & Practice), added integrated interview questions throughout sections, added Advanced Deep-Dive on ML Personalization Pipeline, restructured to 15-section educational format with architecture evolution patterns
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 **Learning Time Estimates:**
 - 🟢 **Beginner Level:** 4-6 hours (fundamentals of autocomplete, Trie basics, simple caching)

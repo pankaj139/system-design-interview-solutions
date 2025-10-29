@@ -1,11 +1,14 @@
 # Newsfeed System Design (Facebook/LinkedIn Feed)
 
+**Difficulty Level:** ⭐⭐⭐⭐ Very Hard  
+**Tags:** `Social Media`, `Fan-out`, `Ranking Algorithms`, `ML Personalization`, `Real-time Updates`, `WebSocket`, `Caching`, `Graph Database`, `Recommendation Engine`
+
 **File Purpose:** Comprehensive system design document for a personalized newsfeed system supporting 300M daily active users with real-time updates, personalized ranking, and sub-300ms load times. The design covers fan-out strategies (fan-out-on-write, fan-out-on-read), hybrid approaches for celebrity users, ML-based personalization using collaborative filtering and deep learning, pagination service with cursor-based implementation, ad insertion engine with relevance scoring, analytics pipeline for engagement metrics, caching strategies with Redis, real-time update service using WebSockets, content filtering and privacy controls, and achieving 99.9% availability with horizontal scaling across multiple data centers.
 
 **Author:** System Design Documentation  
 **Created:** October 2, 2025  
-**Last Updated:** October 13, 2025  
-**Recent Updates:** Enhanced header format with detailed newsfeed architecture and 10 deep-dive components
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

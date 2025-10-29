@@ -1,11 +1,14 @@
 # Search Engine System Design (Google-like)
 
+**Difficulty Level:** ⭐⭐⭐⭐ Very Hard  
+**Tags:** `Search`, `Inverted Index`, `PageRank`, `ML Ranking`, `Distributed Systems`, `Crawling`, `Information Retrieval`, `NLP`, `TF-IDF`, `BM25`
+
 **File Purpose:** Complete interactive learning resource for designing production-grade search engines at internet scale. Master inverted indexes, ranking algorithms (TF-IDF, BM25, PageRank), distributed query processing, relevance tuning, and ML-based personalization through multi-level educational content. This comprehensive guide takes you from basic keyword matching to Google-scale search with <200ms latency serving 10B+ indexed pages to millions of concurrent users.
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** October 14, 2025  
-**Recent Updates:** Transformed to comprehensive educational format with 3-level content (Beginner/Intermediate/Advanced), real-world examples from Google/Bing/Elasticsearch, Python implementations, distributed architecture patterns, and practice exercises
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 **Learning Time Estimates:**
 - 🟢 **Beginner Level:** 5-7 hours (fundamentals of indexing, basic ranking, query processing)

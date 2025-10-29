@@ -1,11 +1,14 @@
 # URL Shortener System Design (TinyURL/Bitly-like)
 
+**Difficulty Level:** ⭐⭐ Medium  
+**Tags:** `Distributed Systems`, `API Design`, `Caching`, `Database Design`, `Analytics`, `Load Balancing`, `ID Generation`
+
 **File Purpose:** Interactive, multi-level learning resource for designing a URL shortening service. This instructional guide takes you from beginner concepts to advanced production considerations, teaching you how to build a system that handles 100M short URLs per month with 10B redirects, achieving 99.99% availability and <10ms redirect latency.
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** October 14, 2025  
-**Recent Updates:** Transformed into multi-level instructional format with learning objectives, real-world examples, and practice exercises for educational platform
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

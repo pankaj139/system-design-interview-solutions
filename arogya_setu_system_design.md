@@ -1,11 +1,14 @@
 # Contact Tracing & Health Monitoring App System Design (Arogya Setu/TraceTogether)
 
+**Difficulty Level:** ⭐⭐⭐⭐ Very Hard  
+**Tags:** `Mobile Application`, `Bluetooth LE`, `Privacy Engineering`, `Cryptography`, `Contact Tracing`, `Healthcare`, `GDPR/HIPAA Compliance`, `Geo-hashing`, `Push Notifications`
+
 **File Purpose:** Interactive, multi-level learning resource for designing a contact tracing and health monitoring application. This instructional guide takes you from beginner concepts to advanced production considerations, teaching you how to build a system that handles 100M+ active users with real-time contact tracing, privacy-preserving Bluetooth proximity detection, and 99.99% availability while maintaining strict data security and privacy compliance.
 
 **Author:** System Design Documentation  
 **Created:** October 26, 2025  
-**Last Updated:** October 26, 2025  
-**Recent Updates:** Created comprehensive educational format with multi-level content for contact tracing app design, including Bluetooth proximity detection, privacy-preserving architecture, and pandemic response features
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

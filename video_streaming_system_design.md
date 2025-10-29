@@ -1,11 +1,14 @@
 # Video Streaming Service System Design (Netflix/YouTube-like)
 
+**Difficulty Level:** ⭐⭐⭐⭐ Very Hard  
+**Tags:** `Media Streaming`, `CDN`, `Video Transcoding`, `Adaptive Bitrate`, `ML Recommendations`, `Distributed Systems`, `High Bandwidth`, `DRM`, `Real-time Processing`
+
 **File Purpose:** Interactive, multi-level learning resource for designing a video streaming platform. This instructional guide takes you from beginner concepts to advanced production considerations, teaching you how to build a system that handles 100M concurrent viewers with 1M hours of video content (100 PB storage), 50M uploads per day, video transcoding pipeline (H.264, H.265, VP9, AV1) with multiple bitrate variants (240p to 4K), adaptive bitrate streaming (HLS/DASH), CDN architecture for global content delivery with <2 second startup time, DRM and content protection, recommendation engine using collaborative filtering and deep learning, live streaming with low latency (<5 seconds), and achieving 99.99% uptime with intelligent caching strategies.
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** October 14, 2025  
-**Recent Updates:** Transformed into multi-level instructional format with learning objectives, real-world examples, and practice exercises for educational platform
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

@@ -1,11 +1,14 @@
 # Distributed Cache System Design (Redis/Memcached-like)
 
+**Difficulty Level:** ⭐⭐⭐ Medium-Hard  
+**Tags:** `Distributed Systems`, `Caching`, `Consistent Hashing`, `Replication`, `Eviction Policies`, `High Performance`, `In-Memory Storage`
+
 **File Purpose:** Complete interactive learning resource for designing production-grade distributed caching systems at internet scale. Master cache eviction policies (LRU, LFU), consistent hashing, replication strategies, and performance optimization through multi-level educational content. This comprehensive guide takes you from basic in-memory caching to Redis-scale distributed systems serving 10M+ requests/second with <1ms latency.
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** October 14, 2025  
-**Recent Updates:** Transformed to comprehensive educational format with 3-level content (Beginner/Intermediate/Advanced), real-world examples from Redis/Memcached/DynamoDB, implementation patterns, and practice exercises
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 **Learning Time Estimates:**
 - 🟢 **Beginner Level:** 4-6 hours (cache fundamentals, eviction policies, basic operations)

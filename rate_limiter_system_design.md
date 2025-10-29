@@ -1,11 +1,14 @@
 # Rate Limiter System Design (API Gateway)
 
+**Difficulty Level:** ⭐⭐ Medium  
+**Tags:** `API Design`, `Distributed Systems`, `Rate Limiting`, `Caching`, `Redis`, `Sliding Window`, `Token Bucket`, `Load Balancing`
+
 **File Purpose:** Interactive, multi-level learning resource for designing a distributed rate limiting system. This instructional guide takes you from beginner concepts to advanced production considerations, teaching you how to build a system that protects APIs handling 30M requests/day with 100K active API keys, achieving <5ms overhead and 99.99% availability across multiple regions.
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** October 14, 2025  
-**Recent Updates:** Transformed into multi-level instructional format with learning objectives, real-world examples, and practice exercises for educational platform
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

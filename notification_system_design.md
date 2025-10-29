@@ -1,11 +1,14 @@
 # Notification System Design (Multi-Channel Platform)
 
+**Difficulty Level:** ⭐⭐⭐ Medium-Hard  
+**Tags:** `Notifications`, `Message Queue`, `Push Notifications`, `Email/SMS`, `Rate Limiting`, `Priority Queue`, `Fan-out`, `Template Engine`, `Retry Mechanism`, `Analytics`
+
 **File Purpose:** Comprehensive system design document for a multi-channel notification system supporting 500M users with 10M notifications per minute across Push (FCM/APNs), SMS, Email, and In-app channels. The design covers fan-out service for broadcast notifications, priority-based delivery queues, user preference management (channel selection, quiet hours, frequency capping), rate limiting and throttling strategies, notification batching and aggregation, template management system, delivery tracking and analytics, retry mechanisms with exponential backoff, idempotency to prevent duplicates, A/B testing framework for notification optimization, and achieving 99.99% delivery success rate with <1 second delivery latency.
 
 **Author:** System Design Documentation  
 **Created:** October 2, 2025  
-**Last Updated:** October 13, 2025  
-**Recent Updates:** Enhanced header format with comprehensive multi-channel notification capabilities
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

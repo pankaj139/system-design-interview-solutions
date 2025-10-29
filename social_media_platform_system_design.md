@@ -1,11 +1,14 @@
 # Social Media Platform System Design (Instagram/Twitter-like)
 
+**Difficulty Level:** ⭐⭐⭐⭐⭐ Expert  
+**Tags:** `Social Network`, `Newsfeed`, `Fan-out`, `Media Processing`, `Graph Database`, `Real-time Updates`, `WebSocket`, `Recommendation Engine`, `Content Moderation`, `Distributed Systems`
+
 **File Purpose:** Comprehensive system design document for a large-scale social media platform supporting 500M daily active users with photo/video sharing, stories, live streaming, and social features. The design covers feed generation system with hybrid fan-out strategy, media processing pipeline with image compression and video transcoding, CDN-based content delivery, WebSocket server for real-time updates, notification service for social interactions, search and discovery with Elasticsearch, hashtag and mention indexing, direct messaging with end-to-end encryption, story feature with 24-hour expiration, recommendation engine using graph neural networks, content moderation with AI/ML, and achieving 99.99% availability with <100ms feed load time globally.
 
 **Author:** System Design Documentation  
 **Created:** October 2, 2025  
-**Last Updated:** October 13, 2025  
-**Recent Updates:** Enhanced header format with comprehensive social media features and real-time capabilities
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 

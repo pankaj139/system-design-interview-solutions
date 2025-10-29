@@ -31,6 +31,36 @@ Every transformed document follows this exact 6-part structure:
 
 ## Part 1: Header Section
 
+### Title and Difficulty/Tags Block (NEW - Added October 2025)
+
+**Every document must start with difficulty level and relevant tags:**
+
+```markdown
+# [System Name] System Design ([Example Company])
+
+**Difficulty Level:** ⭐⭐⭐⭐ Very Hard  
+**Tags:** `Tag1`, `Tag2`, `Tag3`, `Tag4`, `Tag5`, `Tag6`, `Tag7`, `Tag8`
+```
+
+**Difficulty Levels:**
+- **⭐⭐ Medium**: Basic CRUD, simple architecture (URL Shortener, Text Storage)
+- **⭐⭐⭐ Medium-Hard**: Multiple services, caching, basic distribution (CDN, Distributed Cache, Autocomplete)
+- **⭐⭐⭐⭐ Hard**: Complex distributed systems, replication, consistency (File Storage, Distributed KV Store, Web Crawler)
+- **⭐⭐⭐⭐ Very Hard**: Advanced distributed concepts, ML integration, real-time processing (Video Streaming, Chat, Pub/Sub)
+- **⭐⭐⭐⭐⭐ Expert**: Multiple advanced systems combined, AI/ML pipelines, extreme scale (Google Photos, E-commerce, Payment Gateway)
+
+**Tag Categories** (include 6-10 tags covering):
+1. **System Type**: `Storage`, `Messaging`, `Media`, `Social Network`, `E-commerce`, `Search`, `Real-time`, etc.
+2. **Key Technologies**: `Distributed Systems`, `Caching`, `ML/AI`, `WebSocket`, `Blockchain`, `Encryption`, etc.
+3. **Algorithms/Patterns**: `Consistent Hashing`, `Fan-out`, `Geospatial`, `Ranking Algorithms`, `Vector Clocks`, etc.
+4. **Scale Characteristics**: `High Throughput`, `Low Latency`, `Global Scale`, `High Availability`, etc.
+5. **Special Features**: `Privacy Engineering`, `Real-time Analytics`, `Recommendation Engine`, `Fraud Detection`, etc.
+
+**Examples:**
+- **URL Shortener**: `Distributed Systems`, `API Design`, `Caching`, `Database Design`, `Analytics`, `Load Balancing`, `ID Generation`
+- **Video Streaming**: `Media Streaming`, `CDN`, `Video Transcoding`, `Adaptive Bitrate`, `ML Recommendations`, `Distributed Systems`, `High Bandwidth`, `DRM`, `Real-time Processing`
+- **Payment Gateway**: `Payment Processing`, `PCI DSS Compliance`, `Security`, `Fraud Detection`, `Distributed Transactions`, `Idempotency`, `Tokenization`, `Multi-currency`, `Webhook`, `Settlement`
+
 ### File Purpose Statement
 
 ```markdown
@@ -56,8 +86,10 @@ Every transformed document follows this exact 6-part structure:
 **Author:** System Design Documentation  
 **Created:** [Month Day, Year]  
 **Last Updated:** [Month Day, Year]  
-**Recent Updates:** Transformed into multi-level instructional format with learning objectives, real-world examples, and practice exercises for educational platform
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 ```
+
+**Note**: Update "Last Updated" and "Recent Updates" whenever making significant changes to the document.
 
 ---
 

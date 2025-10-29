@@ -1,11 +1,14 @@
 # Online Coding Platform System Design (LeetCode-like)
 
+**Difficulty Level:** ⭐⭐⭐⭐ Very Hard  
+**Tags:** `Code Execution`, `Sandboxing`, `Docker/Containers`, `Judge System`, `Real-time Leaderboards`, `Multi-language Support`, `Contest Management`, `Code Security`, `WebSocket`
+
 **File Purpose:** Interactive, multi-level learning resource for designing an online coding platform. This instructional guide takes you from beginner concepts to advanced production considerations, teaching you how to build a system that handles 10M monthly active users with 5K problem submissions per second, supporting secure sandboxed code execution across multiple programming languages, achieving 99.9% uptime with <2 second submission evaluation time.
 
 **Author:** System Design Documentation  
 **Created:** October 1, 2025  
-**Last Updated:** October 26, 2025  
-**Recent Updates:** Transformed into multi-level instructional format with learning objectives, real-world examples, and practice exercises for educational platform
+**Last Updated:** October 29, 2025  
+**Recent Updates:** Added difficulty level and relevant tags for better categorization
 
 ---
 
