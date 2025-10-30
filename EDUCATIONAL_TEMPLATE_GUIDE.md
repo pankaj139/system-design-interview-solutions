@@ -43,6 +43,7 @@ Every transformed document follows this exact 6-part structure:
 ```
 
 **Difficulty Levels:**
+
 - **⭐⭐ Medium**: Basic CRUD, simple architecture (URL Shortener, Text Storage)
 - **⭐⭐⭐ Medium-Hard**: Multiple services, caching, basic distribution (CDN, Distributed Cache, Autocomplete)
 - **⭐⭐⭐⭐ Hard**: Complex distributed systems, replication, consistency (File Storage, Distributed KV Store, Web Crawler)
@@ -50,6 +51,7 @@ Every transformed document follows this exact 6-part structure:
 - **⭐⭐⭐⭐⭐ Expert**: Multiple advanced systems combined, AI/ML pipelines, extreme scale (Google Photos, E-commerce, Payment Gateway)
 
 **Tag Categories** (include 6-10 tags covering):
+
 1. **System Type**: `Storage`, `Messaging`, `Media`, `Social Network`, `E-commerce`, `Search`, `Real-time`, etc.
 2. **Key Technologies**: `Distributed Systems`, `Caching`, `ML/AI`, `WebSocket`, `Blockchain`, `Encryption`, etc.
 3. **Algorithms/Patterns**: `Consistent Hashing`, `Fan-out`, `Geospatial`, `Ranking Algorithms`, `Vector Clocks`, etc.
@@ -57,6 +59,7 @@ Every transformed document follows this exact 6-part structure:
 5. **Special Features**: `Privacy Engineering`, `Real-time Analytics`, `Recommendation Engine`, `Fraud Detection`, etc.
 
 **Examples:**
+
 - **URL Shortener**: `Distributed Systems`, `API Design`, `Caching`, `Database Design`, `Analytics`, `Load Balancing`, `ID Generation`
 - **Video Streaming**: `Media Streaming`, `CDN`, `Video Transcoding`, `Adaptive Bitrate`, `ML Recommendations`, `Distributed Systems`, `High Bandwidth`, `DRM`, `Real-time Processing`
 - **Payment Gateway**: `Payment Processing`, `PCI DSS Compliance`, `Security`, `Fraud Detection`, `Distributed Transactions`, `Idempotency`, `Tokenization`, `Multi-currency`, `Webhook`, `Settlement`
@@ -240,6 +243,7 @@ Each section follows a proven learning pattern:
 **Example Section Sequences by System Type:**
 
 **Video Streaming (15 sections):**
+
 1. Understanding What We're Building
 2. Video Processing & Transcoding
 3. Adaptive Bitrate Streaming
@@ -257,6 +261,7 @@ Each section follows a proven learning pattern:
 15. Interview Preparation & Practice
 
 **URL Shortener (12 sections):**
+
 1. Understanding What We're Building
 2. Planning for Scale
 3. Designing the System Architecture
@@ -307,6 +312,7 @@ Each section follows a proven learning pattern:
 ```
 
 **Note:** Sections now include:
+
 - **Interview Questions** integrated contextually (3-4 questions per section)
 - **Advanced Deep-Dive** subsections for complex technical topics (ML pipelines, edge computing, advanced caching)
 
@@ -744,6 +750,7 @@ Advanced: "How would your [approach] change if you were building [system] specif
 **When to Include:**
 
 Use Advanced Deep-Dive sections for complex technical topics that require extensive explanation:
+
 - Machine Learning pipelines (training, serving, monitoring)
 - Edge computing architectures
 - Advanced caching strategies (11+ patterns)
@@ -826,6 +833,7 @@ Grand Total: $XXX/month
 Revenue Impact: +$XXM/year from [improvement]
 ROI: XXx return on investment!
 ```
+
 ```
 
 **Writing Style:**
@@ -905,6 +913,7 @@ Integrate 3-4 contextually relevant interview questions immediately after learni
 ```
 
 #### Question 2-4: [Additional questions following same pattern]
+
 ```
 
 **Writing Style:**
@@ -964,6 +973,7 @@ Scaling Example:
 Step 1: Assess Impact
 [Detailed steps for troubleshooting]
 ```
+
 ```
 
 **Integration Strategy:**
@@ -1682,12 +1692,14 @@ A successful transformation:
 **Key Innovation:** Instead of dumping all questions at the end, integrate 3-4 relevant questions into each section immediately after the learning content.
 
 **Benefits:**
+
 - Better learning retention (practice while fresh)
 - Contextual relevance (questions match section content)
 - Progressive difficulty within each section
 - Immediate feedback on comprehension
 
 **Distribution:**
+
 - Section 2-14: 3-4 questions each = 40+ questions
 - Section 15: General interview strategy + 5 system variations
 - Total: 50+ questions throughout document
@@ -1697,6 +1709,7 @@ A successful transformation:
 **Key Innovation:** Add 400-800 line deep-dives for complex technical topics that deserve comprehensive treatment.
 
 **Recommended Topics:**
+
 1. **ML Pipelines** (Section 7 - Recommendations)
    - 7-phase pipeline: Data collection → Features → Training → Serving → A/B Testing → Monitoring → Retraining
    - Include Kafka, Spark, TensorFlow Serving, Feature Stores
@@ -1716,6 +1729,7 @@ A successful transformation:
    - Production best practices with code
 
 **Structure:**
+
 - Length: 400-800 lines
 - Depth: Production/principal engineer level
 - Code: Multiple language examples
@@ -1764,6 +1778,7 @@ Document Breakdown (12,000 lines):
 ### Integrating Interview Questions
 
 **DO:**
+
 - ✅ Place questions immediately after section content (contextual learning)
 - ✅ Include 3-4 questions per major section (Sections 2-14)
 - ✅ Provide "What interviewer wants to know" framing
@@ -1774,6 +1789,7 @@ Document Breakdown (12,000 lines):
 - ✅ Show step-by-step troubleshooting for scenarios
 
 **DON'T:**
+
 - ❌ Dump all questions at the end of document
 - ❌ Provide only answers without framework
 - ❌ Skip the "what they're testing" context
@@ -1782,6 +1798,7 @@ Document Breakdown (12,000 lines):
 - ❌ Use vague language without specific metrics
 
 **Example Distribution (Video Streaming):**
+
 - Section 2 (Transcoding): 3 questions (scaling, thumbnails, deduplication)
 - Section 3 (ABR): 4 questions (quality, startup time, bandwidth, QoE)
 - Section 4 (CDN): 4 questions (viral videos, cost spike, troubleshooting, preloading)
@@ -1793,6 +1810,7 @@ Document Breakdown (12,000 lines):
 **When to Add:**
 
 Add deep-dive sections when the topic:
+
 - Requires 400+ lines of detailed explanation
 - Involves multiple phases or complex pipelines
 - Benefits from code implementations
@@ -1809,21 +1827,25 @@ Add deep-dive sections when the topic:
 **Best Deep-Dive Topics by System:**
 
 **Video Streaming:**
+
 - ML Pipeline for Recommendations (7 phases, TensorFlow Serving, A/B testing)
 - Edge Computing Architecture (5 use cases, 3 technologies, ROI)
 - Advanced Caching Patterns (11 patterns, code implementations)
 
 **E-commerce:**
+
 - Payment Processing Pipeline (fraud detection, 3DS, reconciliation)
 - Inventory Management (real-time sync, distributed transactions)
 - Recommendation Engine (collaborative filtering, real-time personalization)
 
 **Social Media:**
+
 - Newsfeed Ranking Algorithm (ML-based, real-time updates)
 - Real-Time Messaging Architecture (WebSocket, presence, typing indicators)
 - Content Moderation Pipeline (ML models, human review, appeals)
 
 **Search Engine:**
+
 - Distributed Indexing Pipeline (crawling, processing, index building)
 - Ranking Algorithm (PageRank, ML-based, personalization)
 - Query Processing Optimization (caching, pre-computation, serving)
@@ -1833,6 +1855,7 @@ Add deep-dive sections when the topic:
 **When to Include Code:**
 
 **✅ INCLUDE Code For (HLD-Appropriate):**
+
 - Data structure schemas (JSON/dict structures showing fields)
 - API signatures and interfaces (method names, parameters, return types)
 - Configuration examples (cache keys, feature flags, system parameters)
@@ -1842,6 +1865,7 @@ Add deep-dive sections when the topic:
 - System behavior patterns (A/B test assignment, fallback logic)
 
 **❌ AVOID Detailed Implementation Code (Not HLD):**
+
 - Full class implementations with all methods
 - Complex algorithm implementations (Trie insert/search logic)
 - ML model training code (TensorFlow/PyTorch specifics)
@@ -1853,12 +1877,14 @@ Add deep-dive sections when the topic:
 **Reasoning:**
 High-Level Design interviews focus on ARCHITECTURE and SYSTEM DESIGN, not implementation.
 Interviewers want to see you can:
+
 - Design components and their interactions
 - Choose appropriate technologies
 - Explain trade-offs and alternatives
 - Calculate capacity and costs
 
 They DON'T want to see:
+
 - Line-by-line coding ability (that's for coding rounds)
 - Framework-specific implementations
 - Production-ready code with error handling
@@ -1997,6 +2023,7 @@ node = cache.get_node("user:123")  # Returns "node2"
 **Examples to Reference:**
 
 **Tier 1 (Always mention):**
+
 - Netflix: Video streaming, recommendations, Open Connect
 - Google/YouTube: Search, video processing, recommendations
 - Amazon: E-commerce, AWS services
@@ -2004,6 +2031,7 @@ node = cache.get_node("user:123")  # Returns "node2"
 - Twitter: Real-time feeds, Manhattan storage
 
 **Tier 2 (Industry-specific):**
+
 - Twitch: Live streaming
 - TikTok: Short-form video, edge processing
 - Spotify: Music streaming, recommendations
@@ -2011,6 +2039,7 @@ node = cache.get_node("user:123")  # Returns "node2"
 - Airbnb: Search, availability, booking
 
 **Tier 3 (Technical innovations):**
+
 - Cloudflare: Edge computing, DDoS protection
 - Fastly: Edge computing, real-time purging
 - Discord: Real-time messaging, voice/video
