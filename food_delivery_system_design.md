@@ -4051,88 +4051,187 @@ ORDER BY timestamp DESC;
 
 **Handling Unreliable GPS:**
 
-```python
-def validate_and_smooth_gps_location(driver_id, new_latitude, new_longitude, timestamp):
-    """
-    Validate GPS data and smooth out noise
-    GPS can be inaccurate in tunnels, tall buildings, etc.
-    """
-    # Get previous locations
+**Handling Unreliable GPS:**
+
+GPS signals can be inaccurate due to tall buildings (urban canyons), tunnels, bad weather, or device issues. We need to validate and smooth GPS data before using it.
+
+**GPS Validation Logic (Pseudocode):**
+
+```text
+FUNCTION validate_and_smooth_gps(driver_id, new_lat, new_lon, timestamp):
+    
+    // Step 1: Get recent location history (last 5 points, within 30 seconds)
     previous_locations = cassandra.query(
-        "SELECT * FROM driver_locations WHERE driver_id = %s AND timestamp > %s ORDER BY timestamp DESC LIMIT 5",
-        (driver_id, timestamp - timedelta(seconds=30))
+        "SELECT * FROM driver_locations 
+         WHERE driver_id = ? AND timestamp > ? 
+         ORDER BY timestamp DESC LIMIT 5",
+        params = [driver_id, timestamp - 30_seconds]
     )
     
-    if len(previous_locations) == 0:
-        # First location, accept it
-        return new_latitude, new_longitude
+    // Step 2: If first location, accept it
+    IF previous_locations.length == 0:
+        RETURN {latitude: new_lat, longitude: new_lon}
     
     last_location = previous_locations[0]
     
-    # Calculate distance from last location
+    // Step 3: Calculate distance moved since last update
     distance_km = haversine_distance(
         last_location.latitude,
         last_location.longitude,
-        new_latitude,
-        new_longitude
+        new_lat,
+        new_lon
     )
     
-    # Calculate time difference
+    // Step 4: Calculate time elapsed
     time_diff_seconds = (timestamp - last_location.timestamp).total_seconds()
     
-    # Calculate implied speed
-    speed_kmh = (distance_km / time_diff_seconds) * 3600
+    // Step 5: Calculate implied speed
+    implied_speed_kmh = (distance_km / time_diff_seconds) * 3600
     
-    # Sanity check: Speed should be < 120 km/h (driver not flying!)
-    if speed_kmh > 120:
-        logger.warning(f"Driver {driver_id}: Impossible speed {speed_kmh} km/h, ignoring GPS update")
-        # Use last known good location
-        return last_location.latitude, last_location.longitude
+    // Step 6: Sanity check - reject impossible speeds
+    IF implied_speed_kmh > 120:  // 120 km/h = 75 mph (highway speed limit)
+        log_warning("Driver " + driver_id + ": GPS anomaly detected - " +
+                   "speed " + implied_speed_kmh + " km/h is impossible")
+        
+        // Use last known good location instead
+        RETURN {
+            latitude: last_location.latitude,
+            longitude: last_location.longitude
+        }
     
-    # Smooth out jitter using exponential moving average
-    smoothing_factor = 0.7
-    smoothed_lat = (smoothing_factor * new_latitude + 
-                    (1 - smoothing_factor) * last_location.latitude)
-    smoothed_lon = (smoothing_factor * new_longitude + 
-                    (1 - smoothing_factor) * last_location.longitude)
+    // Step 7: Smooth out GPS jitter using Exponential Moving Average
+    smoothing_factor = 0.7  // Weight of new reading
     
-    return smoothed_lat, smoothed_lon
+    smoothed_lat = (smoothing_factor × new_lat) + 
+                   ((1 - smoothing_factor) × last_location.latitude)
+    
+    smoothed_lon = (smoothing_factor × new_lon) + 
+                   ((1 - smoothing_factor) × last_location.longitude)
+    
+    RETURN {latitude: smoothed_lat, longitude: smoothed_lon}
+```
+
+**Why Each Validation Step Matters:**
+
+```text
+VALIDATION                  PURPOSE                          EXAMPLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Speed check (<120 km/h)     Detect GPS glitches          Driver appears to teleport 5km
+                            or spoofing attempts          in 2 seconds → reject
+
+Exponential smoothing       Reduce GPS jitter            GPS bounces ±20m due to
+                            for smoother customer UX      building reflections → smooth
+
+Time-based filtering        Ignore stale data            GPS update delayed by 30 sec
+                                                          due to network → use last known
+
+Distance threshold          Debounce tiny movements      GPS drifts 2m while parked
+                            to reduce API calls           → don't update map
+```
+
+**Real-World GPS Issues:**
+
+```text
+ISSUE 1: Urban Canyon (Manhattan)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tall buildings reflect GPS signals → appears to jump between locations
+Solution: Use last 3 locations to detect pattern, smooth aggressively
+
+ISSUE 2: Tunnel (Lincoln Tunnel NYC)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+No GPS signal for 5 minutes while underground
+Solution: Extrapolate position based on last known speed and direction
+         Show customer "Driver is in tunnel, ETA unchanged"
+
+ISSUE 3: GPS Spoofing (Driver Fraud)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Driver uses fake GPS app to appear at delivery location without going there
+Detection: Check speed (>120 km/h impossible), compare with cellular triangulation,
+          verify with landmarks (driver marked "arrived" but cellular shows 2km away)
 ```
 
 **Privacy Considerations:**
 
-```python
-def anonymize_historical_locations(driver_id):
-    """
-    Anonymize location history after delivery
-    GDPR compliance: Don't store exact locations longer than necessary
-    """
-    # After delivery is complete, reduce location precision
-    completed_orders = db.get_completed_orders_for_driver(driver_id, days=30)
-    
-    for order in completed_orders:
-        delivery_time = order.delivered_at
-        
-        # For locations older than 30 days, reduce precision to 100m
-        # (Geohash with 6 characters = ~1.2km precision)
-        # (Geohash with 5 characters = ~5km precision)
-        
-        cassandra.execute("""
-            UPDATE driver_locations
-            SET latitude = %s, longitude = %s
-            WHERE driver_id = %s AND timestamp < %s
-        """, (
-            round_to_precision(latitude, precision=0.001),  # ~100m precision
-            round_to_precision(longitude, precision=0.001),
-            driver_id,
-            delivery_time - timedelta(days=30)
-        ))
-    
-    logger.info(f"Anonymized location history for driver {driver_id}")
+After delivery is complete, we need to comply with GDPR and data privacy laws by reducing location precision.
 
-def round_to_precision(value, precision):
-    """Round to nearest precision (e.g., 0.001 = round to 3 decimals)"""
-    return round(value / precision) * precision
+**Privacy-Preserving Location Anonymization:**
+
+```text
+BACKGROUND JOB run_daily():
+    // Run once per day to anonymize old location data
+    
+    FOR EACH driver IN all_drivers:
+        
+        // Get completed deliveries older than 30 days
+        old_deliveries = database.query(
+            "SELECT order_id, delivered_at FROM orders
+             WHERE driver_id = ? AND status = 'COMPLETED'
+             AND delivered_at < NOW() - INTERVAL '30 days'",
+            params = [driver.id]
+        )
+        
+        FOR EACH delivery IN old_deliveries:
+            
+            // Reduce GPS precision from 10m accuracy to 100m accuracy
+            // This protects driver privacy while maintaining analytics value
+            
+            cassandra.execute(
+                "UPDATE driver_locations
+                 SET latitude = ?, longitude = ?
+                 WHERE driver_id = ? AND timestamp BETWEEN ? AND ?",
+                params = [
+                    round_to_100m_precision(latitude),
+                    round_to_100m_precision(longitude),
+                    driver.id,
+                    delivery.delivered_at - 1_hour,
+                    delivery.delivered_at + 15_minutes
+                ]
+            )
+        
+        log_info("Anonymized location history for driver " + driver.id)
+
+FUNCTION round_to_100m_precision(coordinate):
+    // Round to 3 decimal places = ~100m precision
+    // Example: 40.7484123 → 40.748
+    //          -73.9857456 → -73.986
+    
+    RETURN round(coordinate * 1000) / 1000
+```
+
+**Precision Levels & Privacy:**
+
+```text
+DECIMAL PLACES    PRECISION     USE CASE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6 places          10 cm         Active delivery tracking (real-time)
+5 places          1 meter       Recent deliveries (<24 hours)
+4 places          10 meters     Recent deliveries (<7 days)
+3 places          100 meters    Old deliveries (>30 days) ← GDPR compliant
+2 places          1 km          Aggregated analytics only
+1 place           10 km         City-level statistics
+```
+
+**Why This Balance?**
+
+- **Real-time tracking (6 decimals):** Customers need accurate driver location to meet them at door
+- **Analytics (3 decimals):** Platform needs historical data for route optimization, but 100m precision is enough
+- **Privacy protection:** Driver's exact home address not stored (only approximate neighborhood)
+
+**GDPR Compliance:**
+
+European regulation requires:
+1. **Purpose limitation:** Only collect data needed for legitimate business purpose
+2. **Storage limitation:** Don't keep precise data longer than necessary
+3. **Right to erasure:** Driver can request complete deletion
+
+**Implementation:**
+
+```text
+Data Retention Policy:
+├─ 0-24 hours:    Full precision (6 decimals) - real-time tracking
+├─ 1-30 days:     Medium precision (4 decimals) - support/dispute resolution
+├─ 30+ days:      Low precision (3 decimals) - analytics only
+└─ 1+ year:       Delete or further anonymize (city-level only)
 ```
 
 ---
@@ -4153,102 +4252,206 @@ Pricing affects marketplace balance: too low → drivers don't accept orders, to
 
 ### 🟢 Beginner Level: Basic Delivery Fee Calculation
 
-**Fixed Cost Factors:**
+**Understanding Delivery Fee Components:**
 
-```python
-def calculate_delivery_fee(order):
-    """
-    Calculate delivery fee based on distance and order value
-    """
-    # Base delivery fee
-    base_fee = 2.99
-    
-    # Distance-based fee (per km)
-    distance_km = haversine_distance(
-        order.restaurant_latitude,
-        order.restaurant_longitude,
-        order.delivery_latitude,
-        order.delivery_longitude
-    )
-    distance_fee = distance_km * 0.50  # $0.50 per km
-    
-    # Small order fee (orders < $15 pay extra)
-    small_order_fee = 0.0
-    if order.subtotal < 15.00:
-        small_order_fee = 2.00
-    
-    # Total delivery fee
-    total_fee = base_fee + distance_fee + small_order_fee
-    
-    # Cap at reasonable maximum
-    total_fee = min(total_fee, 9.99)
-    
-    return round(total_fee, 2)
+Delivery fees must cover the driver's costs (gas, time, vehicle wear) while remaining affordable for customers. The fee structure balances several factors.
 
-# Example:
-# Order: $12 subtotal, 3 km distance
-# Base: $2.99 + Distance: $1.50 + Small order: $2.00 = $6.49
+**Fee Calculation Formula:**
+
+```text
+DELIVERY FEE COMPONENTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Base Fee          $2.99   Fixed cost to cover driver acceptance
+2. Distance Fee      $0.50/km Variable cost based on travel distance  
+3. Small Order Fee   $2.00   Only if order subtotal < $15
+4. Maximum Cap       $9.99   Never exceed (to keep competitive)
+
+TOTAL FEE = Base + (Distance × Rate) + Small Order Fee
+            BUT NOT EXCEEDING $9.99
 ```
+
+**Example Calculations:**
+
+```text
+EXAMPLE 1: Standard Order
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Order subtotal: $25
+Distance: 3 km
+
+Base fee:        $2.99
+Distance fee:    3 km × $0.50 = $1.50
+Small order fee: $0 (order >$15)
+TOTAL:           $4.49 ✓
+
+EXAMPLE 2: Small Order
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Order subtotal: $12
+Distance: 3 km
+
+Base fee:        $2.99
+Distance fee:    3 km × $0.50 = $1.50
+Small order fee: $2.00 (order <$15)
+TOTAL:           $6.49 ✓
+
+EXAMPLE 3: Far Distance
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Order subtotal: $30
+Distance: 15 km
+
+Base fee:        $2.99
+Distance fee:    15 km × $0.50 = $7.50
+Small order fee: $0
+SUB-TOTAL:       $10.49
+CAPPED:          $9.99 ✓ (hits maximum)
+```
+
+**Why Each Component?**
+
+1. **Base Fee ($2.99):**  Covers minimum driver compensation even for very short deliveries. Without this, a 1km delivery only pays $0.50 to driver - not worth their time.
+
+2. **Distance Fee ($0.50/km):** Compensates driver for longer trips (gas, time). Linear pricing is simple and fair - twice the distance = twice the fee.
+
+3. **Small Order Fee ($2.00):** Discourages very small orders ($5 coffee delivery). Platform still pays driver $5-7 total, so small orders aren't profitable without this surcharge.
+
+4. **Maximum Cap ($9.99):** Keeps competitive with other platforms. If fee goes to $15, customer will use competitor or just pick up food themselves.
+
+**Interview Point:**
+
+"These numbers are market-specific. NYC might have higher base fee ($4.99) due to higher driver costs, while small cities might have lower ($1.99). We'd A/B test different pricing to find optimal balance between order volume and driver satisfaction."
 
 ---
 
 ### 🟡 Intermediate Level: Dynamic Surge Pricing
 
-**Supply/Demand Calculation:**
+**Understanding Supply & Demand:**
 
-```python
-def calculate_surge_multiplier(zone_id, timestamp):
-    """
-    Calculate surge pricing multiplier based on supply/demand
-    Returns value between 1.0 (no surge) and 3.0 (3x surge)
-    """
-    # Count active orders in zone (demand)
-    active_orders = db.count_active_orders(zone_id, timestamp)
+When demand (orders) exceeds supply (drivers), delivery times increase and drivers cherry-pick orders. Surge pricing fixes this by:
+1. Increasing fees → incentivizes more drivers to go online
+2. Decreasing demand → price-sensitive customers wait or cancel
+3. Reaching equilibrium faster
+
+**Surge Multiplier Algorithm:**
+
+```text
+FUNCTION calculate_surge_multiplier(zone_id, current_time):
     
-    # Count available drivers in zone (supply)
-    available_drivers = db.count_available_drivers(zone_id, timestamp)
+    // Step 1: Count active demand and supply
+    active_orders = database.count(
+        WHERE zone = zone_id 
+        AND status IN ['CONFIRMED', 'PREPARING', 'READY']
+        AND created_at > current_time - 15_minutes
+    )
     
-    # Calculate demand/supply ratio
-    if available_drivers == 0:
-        ratio = 10.0  # High surge if no drivers
-    else:
-        ratio = active_orders / available_drivers
+    available_drivers = database.count(
+        WHERE zone = zone_id
+        AND is_online = true
+        AND current_order_id IS NULL
+    )
     
-    # Map ratio to surge multiplier
-    if ratio < 0.5:
-        # Excess supply (more drivers than orders)
-        multiplier = 1.0  # No surge
-    elif ratio < 1.0:
-        # Balanced
-        multiplier = 1.0
-    elif ratio < 2.0:
-        # Moderate demand
-        multiplier = 1.2
-    elif ratio < 3.0:
-        # High demand
-        multiplier = 1.5
-    elif ratio < 5.0:
-        # Very high demand
-        multiplier = 2.0
-    else:
-        # Extreme demand
-        multiplier = 3.0  # Cap at 3x
+    // Step 2: Calculate demand/supply ratio
+    IF available_drivers == 0:
+        demand_supply_ratio = 10.0  // No drivers = maximum surge
+    ELSE:
+        demand_supply_ratio = active_orders / available_drivers
     
-    # Consider time of day (higher surge during peak hours)
-    hour = timestamp.hour
-    if 11 <= hour <= 14 or 17 <= hour <= 21:
-        multiplier *= 1.1  # 10% extra during peak
+    // Step 3: Map ratio to surge multiplier
+    base_multiplier = CASE demand_supply_ratio:
+        WHEN < 0.5:  RETURN 1.0   // Excess supply (10 drivers, 3 orders)
+        WHEN < 1.0:  RETURN 1.0   // Balanced (10 drivers, 8 orders)
+        WHEN < 2.0:  RETURN 1.2   // Moderate demand (10 drivers, 15 orders)
+        WHEN < 3.0:  RETURN 1.5   // High demand (10 drivers, 25 orders)
+        WHEN < 5.0:  RETURN 2.0   // Very high (10 drivers, 40 orders)
+        ELSE:        RETURN 3.0   // Extreme (10 drivers, 60+ orders)
     
-    # Consider weather (rain increases demand)
+    // Step 4: Apply time-of-day modifier
+    hour = current_time.hour
+    IF (11 <= hour <= 14) OR (17 <= hour <= 21):
+        base_multiplier = base_multiplier × 1.1  // +10% during lunch/dinner
+    
+    // Step 5: Apply weather modifier
     weather = weather_api.get_current(zone_id)
-    if weather.is_raining:
-        multiplier *= 1.2  # 20% extra in rain
+    IF weather.is_raining:
+        base_multiplier = base_multiplier × 1.2  // +20% in rain
+    IF weather.is_snowing:
+        base_multiplier = base_multiplier × 1.5  // +50% in snow
     
-    return min(multiplier, 3.0)  # Never exceed 3x
+    // Step 6: Cap at maximum 3x
+    final_multiplier = min(base_multiplier, 3.0)
+    
+    RETURN final_multiplier
 
-# Example:
-surge = calculate_surge_multiplier(zone_id="nyc_midtown", timestamp=datetime.now())
-# Result: 1.8x (high demand during dinner rush)
+EXAMPLE CALCULATION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Zone: Manhattan Midtown
+Time: Tuesday 7:00 PM (dinner rush)
+Active orders: 150
+Available drivers: 40
+Weather: Raining
+
+Step 1: Count
+  active_orders = 150
+  available_drivers = 40
+
+Step 2: Calculate ratio
+  ratio = 150 / 40 = 3.75
+
+Step 3: Base multiplier
+  ratio 3.75 falls in "WHEN < 5.0" → base_multiplier = 2.0
+
+Step 4: Time modifier
+  7 PM is in peak hours (17-21) → 2.0 × 1.1 = 2.2
+
+Step 5: Weather modifier
+  Raining → 2.2 × 1.2 = 2.64
+
+Step 6: Cap check
+  2.64 < 3.0 → no capping needed
+
+RESULT: 2.64x surge multiplier
+
+Applied to order:
+  Normal delivery fee: $5.00
+  Surge delivery fee: $5.00 × 2.64 = $13.20
+```
+
+**Visual Representation of Surge Levels:**
+
+```text
+SURGE ZONES (Manhattan Example, 7 PM Friday)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Zone                    Drivers  Orders  Ratio  Surge   Fee
+────────────────────────────────────────────────────────────────
+Midtown (Times Square)     15      75    5.0    3.0x   $15.00 🔴
+Financial District         25      45    1.8    1.2x    $6.00 🟡
+Upper East Side            40      35    0.88   1.0x    $5.00 🟢
+Brooklyn Heights           50      30    0.60   1.0x    $5.00 🟢
+Queens (Astoria)           30      80    2.67   1.5x    $7.50 🟠
+
+🔴 = Extreme demand  🟠 = High demand  🟡 = Moderate  🟢 = Normal
+```
+
+**Why Cap at 3x?**
+
+- **Customer Psychology:** 4x or 5x surge feels like price gouging, damages brand
+- **Competitive Pressure:** DoorDash might not surge, customers switch platforms
+- **Regulatory Risk:** Some cities banned surge pricing during emergencies
+- **Empirical Data:** Uber found 3x brings enough drivers online without killing demand
+
+**Surge Update Frequency:**
+
+```text
+Update Every 5 Minutes:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7:00 PM - Calculate surge for all zones → publish to cache
+7:05 PM - Recalculate (demand changed) → update cache
+7:10 PM - Recalculate again...
+
+Why 5 minutes?
+✓ Frequent enough to respond to demand spikes
+✓ Infrequent enough to avoid confusing customers
+✗ 1-minute updates: too volatile, customers frustrated
+✗ 15-minute updates: too slow, miss demand spikes
+```
 
 # Apply surge to delivery fee
 base_fee = calculate_delivery_fee(order)  # $6.49
