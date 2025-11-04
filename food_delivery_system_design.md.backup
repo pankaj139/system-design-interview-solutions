@@ -2456,316 +2456,246 @@ READY → (30 min timeout) → ABANDONED
 
 ### 🟡 Intermediate Level: State Machine Implementation
 
-**Understanding State Transitions:**
+**State Transition Rules:**
 
-A state machine is a mathematical model that defines all possible states an order can be in and the valid transitions between those states. In food delivery, this is critical because we have three parties (customer, restaurant, driver) who can all trigger state changes, and we need to ensure orders never get into invalid states (like "DELIVERED" before "PICKED_UP").
+```python
+class OrderState(Enum):
+    PLACED = "placed"
+    PAYMENT_PROCESSING = "payment_processing"
+    CONFIRMED = "confirmed"
+    ACCEPTED = "accepted"
+    PREPARING = "preparing"
+    READY = "ready"
+    ASSIGNED = "assigned"
+    PICKED_UP = "picked_up"
+    EN_ROUTE = "en_route"
+    DELIVERED = "delivered"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    REJECTED = "rejected"
 
-**The 12 Core States:**
+# Valid state transitions (directed graph)
+STATE_TRANSITIONS = {
+    OrderState.PLACED: [
+        OrderState.PAYMENT_PROCESSING,
+        OrderState.CANCELLED  # Customer cancels before payment
+    ],
+    OrderState.PAYMENT_PROCESSING: [
+        OrderState.CONFIRMED,
+        OrderState.CANCELLED  # Payment failed
+    ],
+    OrderState.CONFIRMED: [
+        OrderState.ACCEPTED,
+        OrderState.REJECTED,  # Restaurant rejects
+        OrderState.CANCELLED  # Customer cancels quickly
+    ],
+    OrderState.ACCEPTED: [
+        OrderState.PREPARING,
+        OrderState.ASSIGNED,  # Driver assigned before prep starts
+        OrderState.CANCELLED
+    ],
+    OrderState.PREPARING: [
+        OrderState.READY,
+        OrderState.ASSIGNED,  # Driver assigned during prep
+        OrderState.CANCELLED  # Customer cancels (partial refund)
+    ],
+    OrderState.READY: [
+        OrderState.ASSIGNED,  # Driver assigned after food ready
+        OrderState.PICKED_UP,  # Driver was already assigned
+        OrderState.CANCELLED
+    ],
+    OrderState.ASSIGNED: [
+        OrderState.PICKED_UP,
+        OrderState.ACCEPTED,  # Driver cancels, go back to find new driver
+        OrderState.CANCELLED
+    ],
+    OrderState.PICKED_UP: [
+        OrderState.EN_ROUTE,
+        OrderState.DELIVERED  # Skip if customer nearby
+    ],
+    OrderState.EN_ROUTE: [
+        OrderState.DELIVERED,
+        OrderState.CANCELLED  # Rare: customer not reachable
+    ],
+    OrderState.DELIVERED: [
+        OrderState.COMPLETED
+    ],
+    OrderState.COMPLETED: [],  # Terminal state
+    OrderState.CANCELLED: [],  # Terminal state
+    OrderState.REJECTED: []    # Terminal state
+}
 
-1. **PLACED** - Customer submitted order, not yet paid
-2. **PAYMENT_PROCESSING** - Payment gateway is charging card
-3. **CONFIRMED** - Payment successful, waiting for restaurant
-4. **ACCEPTED** - Restaurant accepted order
-5. **PREPARING** - Kitchen is cooking food
-6. **READY** - Food is ready for pickup
-7. **ASSIGNED** - Driver assigned to order
-8. **PICKED_UP** - Driver has the food
-9. **EN_ROUTE** - Driver is delivering
-10. **DELIVERED** - Food handed to customer
-11. **COMPLETED** - Transaction finished (terminal state)
-12. **CANCELLED/REJECTED** - Order cancelled (terminal states)
+def can_transition(current_state, new_state):
+    """Check if state transition is valid"""
+    return new_state in STATE_TRANSITIONS[current_state]
 
-**State Transition Matrix:**
-
-This diagram shows which state transitions are valid. An order can only move from its current state to one of the allowed next states:
-
-```text
-FROM STATE          →  ALLOWED NEXT STATES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PLACED              →  PAYMENT_PROCESSING, CANCELLED
-PAYMENT_PROCESSING  →  CONFIRMED, CANCELLED
-CONFIRMED           →  ACCEPTED, REJECTED, CANCELLED
-ACCEPTED            →  PREPARING, ASSIGNED, CANCELLED
-PREPARING           →  READY, ASSIGNED, CANCELLED
-READY               →  ASSIGNED, PICKED_UP, CANCELLED
-ASSIGNED            →  PICKED_UP, ACCEPTED*, CANCELLED
-PICKED_UP           →  EN_ROUTE, DELIVERED, CANCELLED
-EN_ROUTE            →  DELIVERED, CANCELLED
-DELIVERED           →  COMPLETED
-COMPLETED           →  (terminal - no transitions)
-CANCELLED           →  (terminal - no transitions)
-REJECTED            →  (terminal - no transitions)
-
-*ASSIGNED → ACCEPTED happens when driver cancels, need to reassign
-```
-
-**Why This Structure Matters:**
-
-1. **Prevents Invalid Operations:** Can't mark order as delivered before it's picked up
-2. **Enables Rollback:** If driver cancels, we can go back to ACCEPTED state
-3. **Tracks Progress:** Each state has specific meaning and side effects
-4. **Supports Auditing:** Every transition is logged with actor (who made change)
-5. **Handles Failures:** Timeouts can trigger automatic state changes
-
-**State Transition Logic (Pseudocode):**
-
-```text
-FUNCTION transition_order_state(order_id, new_state, actor, reason):
-    // Step 1: Load current order from database
-    current_order = database.get_order(order_id)
-    current_state = current_order.status
+def transition_order_state(order_id, new_state, actor, reason=None):
+    """
+    Transition order to new state
     
-    // Step 2: Validate this transition is allowed
-    IF new_state NOT IN allowed_transitions[current_state]:
-        THROW InvalidTransitionError
-        RETURN error response to caller
+    Args:
+        order_id: ID of the order
+        new_state: Target state
+        actor: Who initiated transition (customer, restaurant, driver, system)
+        reason: Optional reason for transition
+    """
+    # 1. Load current order state
+    order = db.get_order(order_id)
+    current_state = order.status
     
-    // Step 3: Execute transition within database transaction
-    START database transaction:
-        // Update order status
-        database.update_order(
-            order_id = order_id,
-            status = new_state,
-            updated_at = current_timestamp
+    # 2. Validate transition
+    if not can_transition(current_state, new_state):
+        raise InvalidTransitionError(
+            f"Cannot transition from {current_state} to {new_state}"
+        )
+    
+    # 3. Execute transition within database transaction
+    with db.transaction():
+        # Update order status
+        db.update_order(
+            order_id=order_id,
+            status=new_state,
+            updated_at=datetime.utcnow()
         )
         
-        // Create audit trail record
-        database.insert_order_history(
-            order_id = order_id,
-            from_state = current_state,
-            to_state = new_state,
-            actor = actor,  // "customer", "restaurant", "driver", "system"
-            reason = reason,
-            timestamp = current_timestamp
+        # Record state history (audit trail)
+        db.insert_order_status_history(
+            order_id=order_id,
+            from_state=current_state,
+            to_state=new_state,
+            actor=actor,
+            reason=reason,
+            timestamp=datetime.utcnow()
         )
         
-        // Trigger side effects (notifications, etc.)
-        execute_side_effects(order_id, current_state, new_state)
-    END transaction
+        # Trigger side effects
+        handle_state_change(order_id, current_state, new_state)
     
-    // Step 4: Publish event to message queue for async processing
-    kafka.publish(topic="order_state_changed", message={
-        order_id: order_id,
-        old_state: current_state,
-        new_state: new_state,
-        actor: actor,
-        timestamp: current_timestamp
+    # 4. Publish state change event to Kafka
+    kafka.publish('order_state_changed', {
+        'order_id': order_id,
+        'old_state': current_state,
+        'new_state': new_state,
+        'actor': actor,
+        'timestamp': datetime.utcnow().isoformat()
     })
     
-    RETURN success response
+    return order
+
+def handle_state_change(order_id, old_state, new_state):
+    """Execute side effects for state changes"""
+    
+    if new_state == OrderState.CONFIRMED:
+        # Notify restaurant of new order
+        notify_restaurant(order_id)
+        # Start matching drivers
+        initiate_driver_matching(order_id)
+    
+    elif new_state == OrderState.ASSIGNED:
+        # Notify driver of new assignment
+        notify_driver(order_id)
+        # Notify customer that driver is assigned
+        notify_customer(order_id, "Driver assigned!")
+    
+    elif new_state == OrderState.READY:
+        # Notify driver to pick up
+        notify_driver(order_id, "Food is ready for pickup")
+    
+    elif new_state == OrderState.PICKED_UP:
+        # Start location tracking
+        start_location_tracking(order_id)
+        # Notify customer
+        notify_customer(order_id, "Driver picked up your order!")
+    
+    elif new_state == OrderState.DELIVERED:
+        # Stop location tracking
+        stop_location_tracking(order_id)
+        # Process payment settlement
+        process_settlement(order_id)
+        # Request rating
+        request_ratings(order_id)
+    
+    elif new_state == OrderState.CANCELLED:
+        # Process refund
+        process_refund(order_id)
+        # Release driver if assigned
+        release_driver(order_id)
+        # Notify all parties
+        notify_all_parties_of_cancellation(order_id)
 ```
-
-**Side Effects for Each State Transition:**
-
-When an order changes state, specific actions must happen automatically:
-
-```text
-CONFIRMED → (Restaurant notified, driver matching initiated)
-├─ Send push notification to restaurant tablet
-├─ Start background job to find nearby drivers
-└─ Update customer: "Restaurant is reviewing your order"
-
-ASSIGNED → (Driver and customer notified)
-├─ Send push notification to driver app with order details
-├─ Update customer: "Driver John is heading to restaurant"
-└─ Start tracking driver acceptance timeout (30 seconds)
-
-READY → (Driver notified to pick up)
-├─ Send urgent notification to driver: "Food is ready!"
-├─ Update customer: "Your food is ready for pickup"
-└─ Start tracking pickup timeout (30 minutes)
-
-PICKED_UP → (Location tracking begins)
-├─ Enable real-time GPS tracking (1-second intervals)
-├─ Update customer: "Driver picked up your order"
-├─ Send WebSocket updates with driver location
-└─ Calculate initial ETA based on distance
-
-DELIVERED → (Payment settlement triggered)
-├─ Stop GPS tracking
-├─ Process payment settlement (charge customer, pay restaurant/driver)
-├─ Request ratings from customer and driver
-└─ Update customer: "Enjoy your meal!"
-
-CANCELLED → (Refunds and notifications)
-├─ Process refund to customer (full or partial based on state)
-├─ Release assigned driver (if any)
-├─ Compensate restaurant if food was prepared
-└─ Notify all parties of cancellation
-```
-
-**Interview Talking Points:**
-
-When discussing this in an interview, emphasize:
-
-1. **Why we need state machine:** "Without explicit state management, orders could end up in invalid states like DELIVERED before PICKED_UP. The state machine acts as a contract that enforces valid transitions."
-
-2. **How we handle concurrency:** "We use database transactions to ensure state changes are atomic. If two services try to change state simultaneously, one will succeed and one will fail with a conflict error."
-
-3. **Audit trail importance:** "Every state change is logged with timestamp and actor. This is critical for customer support (why was my order cancelled?) and analytics (what % of orders get cancelled during PREPARING?)"
-
-4. **Terminal states:** "COMPLETED, CANCELLED, and REJECTED are terminal states - once reached, the order cannot transition further. This prevents accidentally 'uncancelling' an order."
 
 **Timeout Handling:**
 
-When orders get "stuck" in certain states (restaurant doesn't accept, driver doesn't pick up), we need automatic recovery mechanisms. This prevents orders from being forgotten and ensures good customer experience.
+```python
+# Timeouts for each state (if stuck, auto-transition)
+STATE_TIMEOUTS = {
+    OrderState.CONFIRMED: timedelta(minutes=5),      # Restaurant must accept within 5 min
+    OrderState.READY: timedelta(minutes=30),         # Driver must pick up within 30 min
+    OrderState.PICKED_UP: timedelta(hours=1),        # Delivery must complete within 1 hour
+}
 
-**Timeout Configuration by State:**
-
-```text
-STATE                TIME LIMIT    ACTION IF EXCEEDED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CONFIRMED            5 minutes     Auto-reject order, refund customer
-READY                30 minutes    Reassign to different driver
-PICKED_UP            1 hour        Alert customer support, contact driver
-```
-
-**Why These Timeouts?**
-
-1. **CONFIRMED (5 min):** Restaurant should respond quickly. If they're too busy or tablet is off, customer shouldn't wait indefinitely. After 5 minutes, we auto-reject and suggest alternative restaurants.
-
-2. **READY (30 min):** Food quality degrades. If driver doesn't show up within 30 minutes, food gets cold. We reassign to another driver or cancel if no drivers available.
-
-3. **PICKED_UP (1 hour):** Normal deliveries take 15-30 minutes. If it's taking >1 hour, something is wrong (driver lost, accident, wrong address). Alert human support team to investigate.
-
-**Timeout Monitor Logic (Pseudocode):**
-
-```text
-// Background job runs every 1 minute
-SCHEDULED_JOB check_order_timeouts() EVERY 1 minute:
-    
-    current_time = now()
-    
-    // Check each timeout-sensitive state
-    FOR EACH (state, timeout_duration) IN timeout_config:
+@scheduled_task(interval=timedelta(minutes=1))
+def check_order_timeouts():
+    """
+    Background job to find orders stuck in states beyond timeout
+    Run every minute
+    """
+    for state, timeout in STATE_TIMEOUTS.items():
+        cutoff_time = datetime.utcnow() - timeout
         
-        cutoff_time = current_time - timeout_duration
-        
-        // Find orders stuck in this state beyond timeout
-        stuck_orders = database.query(
-            SELECT * FROM orders 
-            WHERE status = state 
-            AND updated_at < cutoff_time
+        # Find orders in this state longer than timeout
+        stuck_orders = db.query_orders(
+            status=state,
+            updated_at_before=cutoff_time
         )
         
-        // Handle each stuck order
-        FOR EACH order IN stuck_orders:
+        for order in stuck_orders:
             handle_timeout(order, state)
 
-FUNCTION handle_timeout(order, state):
+def handle_timeout(order, state):
+    """Handle order timeout based on state"""
     
-    CASE state:
+    if state == OrderState.CONFIRMED:
+        # Restaurant didn't accept within 5 minutes
+        logger.warning(f"Order {order.id} timeout: restaurant didn't accept")
         
-        WHEN CONFIRMED:
-            // Restaurant didn't accept within 5 minutes
-            log_warning("Order " + order.id + " timeout: restaurant unresponsive")
-            
-            // Auto-reject the order
+        # Auto-reject order
+        transition_order_state(
+            order_id=order.id,
+            new_state=OrderState.REJECTED,
+            actor="system",
+            reason="Restaurant timeout"
+        )
+        
+        # Notify customer and suggest alternatives
+        notify_customer_of_rejection(order.id)
+    
+    elif state == OrderState.READY:
+        # Driver didn't pick up within 30 minutes
+        logger.error(f"Order {order.id} timeout: driver no-show")
+        
+        # Reassign to different driver
+        reassign_driver(order.id)
+        
+        # If reassignment fails 3 times, cancel order
+        if order.reassignment_count >= 3:
             transition_order_state(
-                order_id = order.id,
-                new_state = REJECTED,
-                actor = "system",
-                reason = "Restaurant timeout - no response within 5 minutes"
+                order_id=order.id,
+                new_state=OrderState.CANCELLED,
+                actor="system",
+                reason="Multiple driver no-shows"
             )
-            
-            // Notify customer with alternative suggestions
-            notification_service.send(
-                user_id = order.customer_id,
-                message = "Sorry, restaurant couldn't accept your order. Here are similar options nearby.",
-                alternative_restaurants = find_similar_restaurants(order.restaurant_id)
-            )
-            
-            // Update metrics
-            metrics.increment("order.timeout.restaurant_unresponsive")
+    
+    elif state == OrderState.PICKED_UP:
+        # Delivery taking too long (>1 hour)
+        logger.error(f"Order {order.id} timeout: delivery taking too long")
         
-        WHEN READY:
-            // Driver didn't pick up within 30 minutes
-            log_error("Order " + order.id + " timeout: driver no-show")
-            
-            // Increment reassignment counter
-            order.reassignment_count += 1
-            
-            IF order.reassignment_count < 3:
-                // Try reassigning to different driver
-                matching_service.reassign_driver(order.id)
-                
-                // Extend ETA for customer
-                notification_service.send(
-                    user_id = order.customer_id,
-                    message = "We're finding a new driver for your order. Sorry for the delay!"
-                )
-            ELSE:
-                // Already tried 3 times, give up
-                transition_order_state(
-                    order_id = order.id,
-                    new_state = CANCELLED,
-                    actor = "system",
-                    reason = "Multiple driver no-shows - unable to find delivery driver"
-                )
-                
-                // Full refund to customer
-                payment_service.refund(order.id, amount = order.total)
-                
-                // Compensate restaurant for prepared food
-                payment_service.compensate_restaurant(order.restaurant_id, amount = order.subtotal * 0.5)
-            
-            // Update metrics
-            metrics.increment("order.timeout.driver_no_show")
+        # Alert customer support
+        create_support_ticket(order.id, priority="high")
         
-        WHEN PICKED_UP:
-            // Delivery taking too long (>1 hour)
-            log_error("Order " + order.id + " timeout: delivery delayed")
-            
-            // Create high-priority support ticket
-            support_service.create_ticket(
-                order_id = order.id,
-                priority = "HIGH",
-                issue = "Delivery taking longer than expected (>1 hour)",
-                assigned_to = "on_call_support_team"
-            )
-            
-            // Send urgent notification to driver
-            notification_service.send_urgent(
-                user_id = order.driver_id,
-                message = "Are you okay? This delivery is taking longer than expected. Please contact support if you need help.",
-                requires_acknowledgment = true
-            )
-            
-            // Keep customer informed
-            notification_service.send(
-                user_id = order.customer_id,
-                message = "Your order is delayed. We've contacted the driver and are working to resolve this. You may be eligible for a refund or credit."
-            )
-            
-            // Update metrics
-            metrics.increment("order.timeout.delivery_delayed")
+        # Contact driver
+        send_urgent_notification_to_driver(order.id)
 ```
-
-**Real-World Example (Uber Eats):**
-
-Uber Eats uses similar timeout mechanisms:
-
-- **Restaurant Response:** If restaurant doesn't respond in 3-5 minutes, order is auto-cancelled with full refund
-- **Driver Assignment:** If no driver accepts within 10 minutes, customer is notified and can cancel for full refund
-- **Pickup Delay:** If driver doesn't pick up within reasonable time (varies by restaurant prep time), order is reassigned
-- **Delivery Delay:** If delivery takes >2x the estimated time, customer gets automatic credit/refund
-
-**Timeout Metrics to Monitor:**
-
-```text
-METRIC                                  TARGET        ALERT IF
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Restaurant timeout rate                 <2%           >5%
-Driver no-show rate                     <1%           >3%
-Delivery delay rate (>1 hour)           <0.5%         >1%
-Average restaurant response time        <30 seconds   >2 minutes
-Average driver pickup time              <5 minutes    >10 minutes
-```
-
-If timeout rates exceed thresholds, it indicates systemic issues:
-- High restaurant timeouts → Need to onboard more restaurants or improve tablet software
-- High driver no-shows → Need better driver incentives or improve matching algorithm
-- High delivery delays → Need more drivers in area or better route optimization
 
 ---
 
@@ -3042,45 +2972,38 @@ RESULT: Assign to Driver A (0.8 km away)
 
 **Geospatial Distance Calculation (Haversine Formula):**
 
-To find nearby drivers, we need to calculate the distance between two GPS coordinates (latitude/longitude). The Haversine formula calculates the great-circle distance between two points on a sphere.
+```python
+import math
 
-**Haversine Formula:**
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate distance between two points on Earth
+    Returns distance in kilometers
+    """
+    # Earth's radius in km
+    R = 6371
+    
+    # Convert degrees to radians
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lon = math.radians(lon2 - lon1)
+    
+    # Haversine formula
+    a = (math.sin(delta_lat / 2) ** 2 + 
+         math.cos(lat1_rad) * math.cos(lat2_rad) * 
+         math.sin(delta_lon / 2) ** 2)
+    c = 2 * math.asin(math.sqrt(a))
+    
+    distance = R * c
+    return distance
 
-```text
-Distance Formula for Earth's Surface:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Given: Point A (lat₁, lon₁) and Point B (lat₂, lon₂)
-Earth radius: R = 6,371 km
-
-Step 1: Convert degrees to radians
-    φ₁ = lat₁ × π/180
-    φ₂ = lat₂ × π/180
-    Δφ = (lat₂ - lat₁) × π/180
-    Δλ = (lon₂ - lon₁) × π/180
-
-Step 2: Apply Haversine formula
-    a = sin²(Δφ/2) + cos(φ₁) × cos(φ₂) × sin²(Δλ/2)
-    c = 2 × arcsin(√a)
-    distance = R × c
-
-Example Calculation:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Restaurant: (40.7500°N, -73.9900°W)
-Driver:     (40.7484°N, -73.9857°W)
-
-Δlat = 0.0016°, Δlon = 0.0043°
-Result: distance = 0.472 km (472 meters)
+# Example:
+restaurant_lat, restaurant_lon = 40.7500, -73.9900
+driver_lat, driver_lon = 40.7484, -73.9857
+distance = haversine_distance(restaurant_lat, restaurant_lon, driver_lat, driver_lon)
+# Result: 0.472 km
 ```
-
-**Why Haversine, Not Pythagorean Distance?**
-
-You can't use simple Pythagorean theorem (√(Δx² + Δy²)) because:
-1. Earth is a sphere, not flat
-2. Longitude lines converge at poles (1° longitude at equator ≠ 1° longitude at North Pole)
-3. At New York latitude, Pythagorean would be off by 20-30%
-
-**Optimization:** For very small distances (<10 km), you can use faster approximations, but Haversine is standard.
 
 ---
 
@@ -3088,418 +3011,188 @@ You can't use simple Pythagorean theorem (√(Δx² + Δy²)) because:
 
 **Multi-Factor Scoring:**
 
-Simply choosing the closest driver isn't optimal. We need to balance multiple factors to ensure good outcomes for customers, drivers, and the platform.
+Instead of just distance, score drivers based on multiple factors:
 
-**The Six Scoring Factors:**
-
-```text
-FACTOR              WEIGHT   FORMULA                                      RATIONALE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. Distance         40%      score = 1 / (1 + distance_km)               Faster delivery = happier customers
-2. Driver Rating    20%      score = rating / 5.0                        High-rated drivers give better service
-3. Acceptance Rate  15%      score = acceptance_rate                      Reliable drivers who don't reject orders
-4. Vehicle Type     10%      score = 1.0 if match, 0.7 if mismatch      Bike for small, car for large orders
-5. Earnings Fairness 10%     score = 1.0 if below avg, 0.5 if above     Spread orders fairly among drivers
-6. Idle Time        5%       score = min(1.0, idle_minutes / 30)        Reward drivers who've been waiting
-
-TOTAL SCORE = Σ (factor_score × weight)
-```
-
-**Detailed Scoring Examples:**
-
-```text
-Example 1: Driver A vs Driver B
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-DRIVER A:
-├─ Distance: 0.8 km       → score = 1/(1+0.8) = 0.556 → weighted = 0.556 × 0.40 = 0.222
-├─ Rating: 4.8/5.0        → score = 0.960           → weighted = 0.960 × 0.20 = 0.192
-├─ Acceptance: 95%        → score = 0.950           → weighted = 0.950 × 0.15 = 0.143
-├─ Vehicle: bike (match)  → score = 1.000           → weighted = 1.000 × 0.10 = 0.100
-├─ Earnings: $80 today    → score = 1.000           → weighted = 1.000 × 0.10 = 0.100
-└─ Idle: 45 min           → score = 1.000           → weighted = 1.000 × 0.05 = 0.050
-TOTAL SCORE = 0.807
-
-DRIVER B:
-├─ Distance: 1.5 km       → score = 1/(1+1.5) = 0.400 → weighted = 0.400 × 0.40 = 0.160
-├─ Rating: 4.9/5.0        → score = 0.980           → weighted = 0.980 × 0.20 = 0.196
-├─ Acceptance: 92%        → score = 0.920           → weighted = 0.920 × 0.15 = 0.138
-├─ Vehicle: car (mismatch)→ score = 0.700           → weighted = 0.700 × 0.10 = 0.070
-├─ Earnings: $180 today   → score = 0.500           → weighted = 0.500 × 0.10 = 0.050
-└─ Idle: 10 min           → score = 0.333           → weighted = 0.333 × 0.05 = 0.017
-TOTAL SCORE = 0.631
-
-RESULT: Assign to Driver A (0.807 > 0.631)
-```
-
-**Why These Specific Weights?**
-
-1. **Distance (40%):** Most important because it directly affects delivery time. Customer ordered food because they're hungry NOW.
-
-2. **Rating (20%):** High-rated drivers provide better customer experience (polite, handle food carefully, navigate efficiently).
-
-3. **Acceptance Rate (15%):** Drivers who frequently reject cause delays. If we assign to driver with 50% acceptance rate, we'll likely need to reassign.
-
-4. **Vehicle Type (10%):** Bikes are faster in traffic for small orders. Cars needed for large catering orders.
-
-5. **Earnings Fairness (10%):** Prevent situation where one driver gets all orders while others sit idle. Improves driver retention.
-
-6. **Idle Time (5%):** Small factor to prevent starvation (driver waiting 2 hours should get next order).
-
-**Interview Discussion Point:**
-
-"These weights are tunable via A/B testing. Uber Eats might test 35% distance vs 45% distance and measure impact on customer satisfaction, delivery time, and driver retention. The optimal weights vary by city (NYC traffic favors bikes more than rural areas)."
-
-**Geospatial Indexing with Redis:**
-
-Finding drivers within a radius needs to be FAST (<100ms). Scanning entire driver database (1M drivers) is too slow. We use Redis geospatial indexing.
-
-**Redis GEORADIUS Command:**
-
-```text
-DATA STRUCTURE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Redis Sorted Set: "driver_locations"
-Key Format: "driver:{driver_id}"
-Geohash Encoding: Automatically calculated by Redis
-
-Example Data:
-  driver:12345 → (lat: 40.7500, lon: -73.9900, geohash: dr5regw)
-  driver:67890 → (lat: 40.7484, lon: -73.9857, geohash: dr5regu)
-  driver:11111 → (lat: 40.7600, lon: -74.0000, geohash: dr5ru3w)
-
-QUERY PSEUDOCODE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FUNCTION find_nearby_drivers(restaurant_lat, restaurant_lon, radius_km):
+```python
+def score_driver(driver, order, restaurant):
+    """
+    Calculate driver score for order assignment
+    Higher score = better match
+    """
+    # Factor 1: Distance (closer is better)
+    distance_km = haversine_distance(
+        driver.latitude, driver.longitude,
+        restaurant.latitude, restaurant.longitude
+    )
+    distance_score = 1.0 / (1.0 + distance_km)  # 1.0 at 0km, 0.5 at 1km, 0.33 at 2km
     
-    // Redis command: GEORADIUS key longitude latitude radius unit [options]
-    // Note: Redis expects LONGITUDE first, then LATITUDE!
-    results = redis.execute(
-        command = "GEORADIUS",
-        key = "driver_locations",
-        longitude = restaurant_lon,
-        latitude = restaurant_lat,
-        radius = radius_km,
-        unit = "km",
-        options = ["WITHDIST", "WITHCOORD", "ASC"]
-        // WITHDIST: include distance
-        // WITHCOORD: include coordinates
-        // ASC: sort by distance (closest first)
+    # Factor 2: Driver rating (higher is better)
+    rating_score = driver.rating / 5.0  # Normalize to 0-1 (4.5/5.0 = 0.9)
+    
+    # Factor 3: Acceptance rate (prefer drivers who rarely reject)
+    acceptance_score = driver.acceptance_rate  # Already 0-1 (90% = 0.9)
+    
+    # Factor 4: Vehicle suitability (bike for small orders, car for large)
+    if order.item_count <= 3 and driver.vehicle_type == 'bike':
+        vehicle_score = 1.0
+    elif order.item_count > 3 and driver.vehicle_type == 'car':
+        vehicle_score = 1.0
+    else:
+        vehicle_score = 0.7
+    
+    # Factor 5: Earnings today (prefer drivers who've earned less, for fairness)
+    avg_earnings = 150.0  # Average driver earns $150/day
+    if driver.earnings_today < avg_earnings:
+        earnings_score = 1.0
+    else:
+        earnings_score = 0.5  # Deprioritize drivers who've earned a lot today
+    
+    # Factor 6: Time since last order (prefer drivers who've been waiting)
+    minutes_idle = (datetime.utcnow() - driver.last_delivery_time).total_seconds() / 60
+    idle_score = min(1.0, minutes_idle / 30.0)  # Max score after 30 min idle
+    
+    # Weighted combination
+    total_score = (
+        distance_score * 0.40 +      # Distance is most important (40%)
+        rating_score * 0.20 +         # Customer satisfaction (20%)
+        acceptance_score * 0.15 +     # Reliability (15%)
+        vehicle_score * 0.10 +        # Suitability (10%)
+        earnings_score * 0.10 +       # Fairness (10%)
+        idle_score * 0.05             # Wait time (5%)
     )
     
-    available_drivers = []
+    return total_score
+
+# Example:
+driver_A_score = score_driver(driver_A, order, restaurant)  # 0.82
+driver_B_score = score_driver(driver_B, order, restaurant)  # 0.75
+# Assign to Driver A (higher score)
+```
+
+**Geospatial Indexing (Redis GEORADIUS):**
+
+```python
+import redis
+
+redis_client = redis.Redis(host='localhost', port=6379)
+
+def update_driver_location(driver_id, latitude, longitude):
+    """Update driver's current location in Redis"""
+    redis_client.geoadd('driver_locations', longitude, latitude, f'driver:{driver_id}')
+    # Note: Redis uses (longitude, latitude) order!
+
+def find_nearby_drivers(restaurant_lat, restaurant_lon, radius_km=5):
+    """
+    Find all drivers within radius of restaurant
+    Using Redis geospatial commands for fast lookup
+    """
+    results = redis_client.georadius(
+        'driver_locations',
+        restaurant_lon,  # longitude first!
+        restaurant_lat,
+        radius_km,
+        unit='km',
+        withdist=True,   # Include distance
+        withcoord=True,  # Include coordinates
+        sort='ASC'       # Sort by distance (closest first)
+    )
     
-    FOR EACH result IN results:
-        driver_key = result.key           // "driver:12345"
-        distance_km = result.distance     // 0.8
-        coordinates = result.coords       // [lon, lat]
+    drivers = []
+    for result in results:
+        driver_key, distance, coordinates = result
+        driver_id = int(driver_key.decode('utf-8').replace('driver:', ''))
         
-        // Extract driver ID from key
-        driver_id = extract_id(driver_key)  // 12345
+        # Load driver details from database
+        driver = db.get_driver(driver_id)
         
-        // Load full driver details from PostgreSQL
-        driver = database.get_driver(driver_id)
-        
-        // Filter: only include online drivers without current order
-        IF driver.is_online AND driver.current_order_id IS NULL:
-            available_drivers.append({
-                driver_id: driver_id,
-                distance_km: distance_km,
-                driver_info: driver
+        # Check if driver is available
+        if driver.is_online and not driver.current_order_id:
+            drivers.append({
+                'driver_id': driver_id,
+                'distance_km': float(distance),
+                'latitude': coordinates[1],
+                'longitude': coordinates[0],
+                'driver': driver
             })
     
-    RETURN available_drivers
+    return drivers
 
-PERFORMANCE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Query Time: O(N + log(M)) where N = results returned, M = total drivers
-Typical: <10ms to find drivers within 5km radius (even with 1M drivers)
-Why Fast: Redis uses geohash for spatial indexing (similar to QuadTree)
-```
-
-**How Geohash Works:**
-
-```text
-Geohash divides the world into a grid and assigns each cell a hash string.
-Nearby locations have similar hash prefixes.
-
-Example:
-  Location A: dr5regw3p6h9  (Manhattan, NY)
-  Location B: dr5regu3nxyz  (close to A, shares prefix "dr5reg")
-  Location C: ezs42vhm8dn7  (London, UK - totally different prefix)
-
-To find nearby drivers:
-1. Calculate geohash for restaurant location
-2. Query drivers with similar geohash prefixes
-3. Much faster than checking distance to every driver
-```
-
-**Update Driver Location (Pseudocode):**
-
-```text
-FUNCTION update_driver_location(driver_id, latitude, longitude):
-    // Called every 1 second while driver is online
-    
-    // Update Redis geospatial index
-    redis.execute(
-        command = "GEOADD",
-        key = "driver_locations",
-        longitude = longitude,  // longitude first!
-        latitude = latitude,
-        member = "driver:" + driver_id
-    )
-    
-    // Also update PostgreSQL for persistence
-    database.update(
-        table = "drivers",
-        where = {id: driver_id},
-        set = {
-            current_latitude: latitude,
-            current_longitude: longitude,
-            location_updated_at: current_timestamp
-        }
-    )
-    
-    // Set TTL to auto-remove offline drivers after 60 seconds
-    redis.execute(
-        command = "EXPIRE",
-        key = "driver:" + driver_id,
-        seconds = 60
-    )
-```
-
-**Real-World Usage (Uber):**
-
-Uber's driver matching runs at ~100 QPS during peak hours in NYC:
-- GEORADIUS query: 5-10ms
-- Score 20 candidates: 5ms
-- Total matching time: <20ms (well under 30-second requirement)
+# Usage:
+restaurant = db.get_restaurant(12345)
+nearby_drivers = find_nearby_drivers(restaurant.latitude, restaurant.longitude, radius_km=5)
+# Result: [{driver_id: 54321, distance_km: 0.8, ...}, {...}]
 ```
 
 **Assignment Algorithm:**
 
-Once we have scored drivers, we need to actually assign the order. This involves offering the order to drivers in score order and handling rejections.
-
-**Assignment Flow (Pseudocode):**
-
-```text
-FUNCTION assign_driver_to_order(order_id, max_attempts=3):
+```python
+def assign_driver_to_order(order_id, max_attempts=3):
+    """
+    Assign best driver to order
+    If driver rejects, try next best driver (up to max_attempts)
+    """
+    order = db.get_order(order_id)
+    restaurant = db.get_restaurant(order.restaurant_id)
     
-    // Step 1: Load order and restaurant details
-    order = database.get_order(order_id)
-    restaurant = database.get_restaurant(order.restaurant_id)
-    
-    // Step 2: Find nearby drivers (start with 5km radius)
+    # Find drivers within 5 km
     nearby_drivers = find_nearby_drivers(
-        lat = restaurant.latitude,
-        lon = restaurant.longitude,
-        radius_km = 5
+        restaurant.latitude,
+        restaurant.longitude,
+        radius_km=5
     )
     
-    // Step 3: Handle no drivers found
-    IF nearby_drivers.length == 0:
-        // Expand search radius to 10km
+    if not nearby_drivers:
+        # No drivers available, expand radius to 10 km
         nearby_drivers = find_nearby_drivers(
-            lat = restaurant.latitude,
-            lon = restaurant.longitude,
-            radius_km = 10
+            restaurant.latitude,
+            restaurant.longitude,
+            radius_km=10
         )
         
-        IF nearby_drivers.length == 0:
-            // Still no drivers - notify customer and retry
-            notification_service.send(
-                user_id = order.customer_id,
-                message = "Finding a driver for you... This may take a few minutes."
-            )
-            
-            // Schedule retry in 60 seconds
-            job_queue.schedule(
-                function = assign_driver_to_order,
-                params = {order_id: order_id},
-                delay_seconds = 60
-            )
-            
-            RETURN null  // No driver assigned yet
+        if not nearby_drivers:
+            # Still no drivers, notify customer and retry later
+            notify_customer(order_id, "Finding driver... This may take a few minutes")
+            schedule_retry(order_id, delay_seconds=60)
+            return None
     
-    // Step 4: Score all available drivers
+    # Score all drivers
     scored_drivers = []
-    FOR EACH driver IN nearby_drivers:
-        score = calculate_driver_score(driver, order, restaurant)
+    for driver_data in nearby_drivers:
+        score = score_driver(driver_data['driver'], order, restaurant)
         scored_drivers.append({
-            driver_id: driver.id,
-            score: score,
-            distance_km: driver.distance_km
+            'driver_id': driver_data['driver_id'],
+            'score': score,
+            'distance_km': driver_data['distance_km']
         })
     
-    // Step 5: Sort by score (highest first)
-    scored_drivers.sort_descending_by(score)
+    # Sort by score (highest first)
+    scored_drivers.sort(key=lambda x: x['score'], reverse=True)
     
-    // Step 6: Offer order to top-ranked drivers
-    FOR attempt = 1 TO min(max_attempts, scored_drivers.length):
+    # Try assigning to top drivers
+    for attempt in range(min(max_attempts, len(scored_drivers))):
+        driver_id = scored_drivers[attempt]['driver_id']
         
-        current_driver = scored_drivers[attempt]
-        driver_id = current_driver.driver_id
+        # Send offer to driver
+        accepted = offer_order_to_driver(order_id, driver_id, timeout_seconds=30)
         
-        // Send offer to driver (30-second timeout)
-        offer_response = offer_order_to_driver(
-            order_id = order_id,
-            driver_id = driver_id,
-            timeout_seconds = 30
-        )
-        
-        IF offer_response == ACCEPTED:
-            // SUCCESS! Driver accepted the order
+        if accepted:
+            # Success! Update order
+            db.update_order(order_id, driver_id=driver_id, status='ASSIGNED')
             
-            // Update order status in database
-            database.update_order(
-                order_id = order_id,
-                driver_id = driver_id,
-                status = "ASSIGNED",
-                assigned_at = current_timestamp
-            )
+            # Publish event
+            kafka.publish('order_assigned', {
+                'order_id': order_id,
+                'driver_id': driver_id,
+                'assignment_score': scored_drivers[attempt]['score']
+            })
             
-            // Publish event for other services
-            kafka.publish(
-                topic = "order_assigned",
-                message = {
-                    order_id: order_id,
-                    driver_id: driver_id,
-                    assignment_score: current_driver.score,
-                    assignment_attempt: attempt,
-                    timestamp: current_timestamp
-                }
-            )
-            
-            // Notify customer
-            notification_service.send(
-                user_id = order.customer_id,
-                message = "Driver found! John is heading to the restaurant."
-            )
-            
-            RETURN driver_id
-        
-        ELSE IF offer_response == REJECTED:
-            // Driver manually rejected, try next driver
-            log_info("Driver " + driver_id + " rejected order " + order_id)
-            metrics.increment("driver.rejection.manual")
-            CONTINUE to next driver
-        
-        ELSE IF offer_response == TIMEOUT:
-            // Driver didn't respond in 30 seconds, try next driver  
-            log_warning("Driver " + driver_id + " timed out on order " + order_id)
-            metrics.increment("driver.rejection.timeout")
-            CONTINUE to next driver
+            return driver_id
     
-    // Step 7: All attempts failed - retry with larger radius
-    log_warning("Order " + order_id + ": All " + max_attempts + " drivers rejected")
-    
-    // Schedule retry with expanded radius (15km) after 2 minutes
-    job_queue.schedule(
-        function = assign_driver_to_order,
-        params = {order_id: order_id, radius_km: 15},
-        delay_seconds = 120
-    )
-    
-    // Notify customer of delay
-    notification_service.send(
-        user_id = order.customer_id,
-        message = "We're still finding the best driver for you. Thanks for your patience!"
-    )
-    
-    RETURN null  // Assignment failed, will retry
-
-FUNCTION offer_order_to_driver(order_id, driver_id, timeout_seconds):
-    
-    // Send push notification to driver app
-    notification_service.send_to_driver(
-        driver_id = driver_id,
-        notification_type = "NEW_ORDER_OFFER",
-        order_details = {
-            order_id: order_id,
-            restaurant_name: "Joe's Pizza",
-            pickup_address: "123 Main St",
-            delivery_address: "456 Oak Ave",
-            estimated_payout: "$8.50",
-            estimated_distance: "3.2 km",
-            estimated_time: "25 minutes"
-        },
-        action_buttons = ["ACCEPT", "REJECT"]
-    )
-    
-    // Wait for driver response (with timeout)
-    response = wait_for_driver_response(
-        driver_id = driver_id,
-        order_id = order_id,
-        timeout_seconds = timeout_seconds
-    )
-    
-    RETURN response  // ACCEPTED, REJECTED, or TIMEOUT
+    # All drivers rejected, retry with expanded radius or later time
+    logger.warning(f"Order {order_id}: All drivers rejected")
+    schedule_retry(order_id, delay_seconds=120, radius_km=15)
+    return None
 ```
-
-**Assignment Strategy Decision Tree:**
-
-```text
-START: New order needs driver
-    ↓
-Find drivers within 5km radius
-    ↓
-┌──────────────────────┐
-│ Drivers found?       │
-└──────────────────────┘
-    ↓ NO                      ↓ YES
-Expand to 10km radius      Score all drivers
-    ↓                         ↓
-┌──────────────────────┐  Sort by score (best first)
-│ Drivers found?       │     ↓
-└──────────────────────┘  Offer to #1 driver (30 sec timeout)
-    ↓ NO                      ↓
-Notify customer          ┌──────────────────────┐
-"Finding driver..."      │ Driver response?     │
-Retry in 60 sec          └──────────────────────┘
-    ↓                      ↓ ACCEPT   ↓ REJECT/TIMEOUT
-Return NULL             SUCCESS!     Offer to #2 driver (30 sec)
-                           ↓             ↓
-                     Update order    ┌──────────────────────┐
-                     Notify all      │ Driver response?     │
-                     Publish event   └──────────────────────┘
-                                       ↓ ACCEPT   ↓ REJECT/TIMEOUT
-                                     SUCCESS!     Offer to #3 driver
-                                                     ↓
-                                                  (if still rejected)
-                                                     ↓
-                                                  Expand to 15km
-                                                  Retry in 2 minutes
-```
-
-**Metrics to Track:**
-
-```text
-METRIC                              TARGET      ALERT IF
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Average time to assign driver       <15 seconds  >30 seconds
-Driver rejection rate (manual)      <10%         >20%
-Driver timeout rate (no response)   <5%          >15%
-Orders needing radius expansion     <3%          >10%
-Orders failing assignment (3 tries) <1%          >3%
-Average driver score at assignment  >0.75        <0.60
-```
-
-**Real-World Examples:**
-
-**Uber Eats:**
-- Tries top 3 drivers sequentially (not parallel to avoid double-assignment)
-- 15-second timeout per driver (shorter than our 30-second)
-- Shows driver estimate earnings prominently ($6-$9 for this trip)
-- Dynamic radius: starts at 3km in dense cities, 10km in suburbs
-
-**DoorDash:**
-- Uses "batch matching" - sometimes offers 2-3 orders to one driver
-- Willing to wait up to 5 minutes before expanding radius
-- Prioritizes "Dashers" (their brand for drivers) who are closer to customer's area for faster delivery
-
-**Interview Discussion:**
-
-"Why sequential offers instead of parallel? If we offer to 3 drivers simultaneously and all accept, we have a conflict. Sequential is safer but slower. Some platforms use a hybrid: offer to top driver, wait 15 seconds, then simultaneously offer to #2 and #3 if #1 times out."
 
 ---
 
@@ -3848,174 +3541,54 @@ asyncio.run(main())
 
 **Traffic-Aware ETA:**
 
-**Traffic-Aware ETA Calculation:**
+```python
+import googlemaps
 
-Simple distance-based ETA doesn't account for real-world factors like traffic, road closures, or construction. Uber Eats integrates with mapping services (Google Maps, Mapbox) to get accurate travel times.
-
-**ETA Calculation Approach:**
-
-```text
-FUNCTION calculate_traffic_aware_eta(order_id):
-    
-    // Step 1: Get current positions
-    order = database.get_order(order_id)
+def calculate_traffic_aware_eta(order_id):
+    """
+    Calculate ETA using Google Maps Directions API
+    Considers real-time traffic, road closures, etc.
+    """
+    order = db.get_order(order_id)
     driver_id = order.driver_id
     
-    // Get driver's latest GPS location from Redis cache
-    driver_location = redis.get("driver_location:" + driver_id)
-    // Returns: {latitude: 40.7500, longitude: -73.9900, timestamp: "..."}
+    # Get current driver location from Redis
+    driver_location = redis_client.hgetall(f'driver_location:{driver_id}')
     
-    // Get customer's delivery address from order
-    customer_location = {
-        latitude: order.delivery_latitude,
-        longitude: order.delivery_longitude
-    }
+    # Get customer location from order
+    customer_location = (order.delivery_latitude, order.delivery_longitude)
     
-    // Step 2: Call Google Maps Directions API
-    api_request = {
-        origin: driver_location,
-        destination: customer_location,
-        mode: "driving",
-        departure_time: "now",  // Use current traffic conditions
-        traffic_model: "best_guess",  // Consider typical traffic patterns
-        alternatives: false  // Just need one route
-    }
+    # Call Google Maps API
+    gmaps = googlemaps.Client(key=GOOGLE_MAPS_API_KEY)
     
-    directions_response = google_maps_api.directions(api_request)
-    
-    // Step 3: Parse response
-    IF directions_response.status == "OK":
-        // Extract duration accounting for current traffic
-        route = directions_response.routes[0]
-        leg = route.legs[0]
-        
-        duration_in_traffic_seconds = leg.duration_in_traffic.value
-        eta_minutes = duration_in_traffic_seconds / 60
-        
-        // Step 4: Cache result (valid for 1 minute)
-        redis.setex(
-            key = "eta:" + order_id,
-            value = eta_minutes,
-            ttl_seconds = 60  // Cache expires after 1 minute
-        )
-        
-        // Step 5: Return ETA
-        RETURN eta_minutes
-    
-    ELSE:
-        // Fallback if API fails
-        RETURN calculate_simple_eta(driver_location, customer_location)
-
-FUNCTION calculate_simple_eta(driver_location, customer_location):
-    // Fallback calculation using average speed
-    
-    distance_km = haversine_distance(
-        driver_location.latitude,
-        driver_location.longitude,
-        customer_location.latitude,
-        customer_location.longitude
+    directions = gmaps.directions(
+        origin=(float(driver_location['latitude']), float(driver_location['longitude'])),
+        destination=customer_location,
+        mode="driving",
+        departure_time="now",  # Use current traffic conditions
+        traffic_model="best_guess"
     )
     
-    average_speed_kmh = 30  // Assume 30 km/h in city
-    time_hours = distance_km / average_speed_kmh
-    eta_minutes = time_hours * 60
-    
-    RETURN eta_minutes
-```
+    if directions:
+        # Extract duration in traffic
+        duration_seconds = directions[0]['legs'][0]['duration_in_traffic']['value']
+        eta_minutes = duration_seconds / 60
+        
+        # Cache result (invalidate after 1 minute)
+        redis_client.setex(
+            f'eta:{order_id}',
+            60,  # TTL: 60 seconds
+            int(eta_minutes)
+        )
+        
+        return int(eta_minutes)
+    else:
+        # Fallback to simple calculation
+        return calculate_simple_eta(driver_location, customer_location)
 
-**Google Maps API Response Structure:**
-
-```json
-{
-  "status": "OK",
-  "routes": [{
-    "legs": [{
-      "distance": {
-        "value": 5200,  // meters
-        "text": "5.2 km"
-      },
-      "duration": {
-        "value": 600,  // seconds (10 min without traffic)
-        "text": "10 mins"
-      },
-      "duration_in_traffic": {
-        "value": 720,  // seconds (12 min with current traffic)
-        "text": "12 mins"
-      },
-      "start_address": "123 Main St, New York, NY",
-      "end_address": "456 Oak Ave, New York, NY"
-    }],
-    "overview_polyline": {
-      "points": "encoded_polyline_string_here"
-    }
-  }]
-}
-```
-
-**Why Traffic-Aware ETA is Critical:**
-
-```text
-SCENARIO: Rush Hour Delivery
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Simple ETA (distance/speed):
-  Distance: 5 km
-  Average speed: 30 km/h
-  Calculated ETA: 10 minutes
-
-Traffic-Aware ETA (Google Maps):
-  Distance: 5 km (same)
-  Current traffic: heavy congestion
-  Actual travel time: 18 minutes
-  
-IMPACT:
-  ❌ Simple ETA: Customer expects food in 10 min, gets it in 18 min → unhappy
-  ✅ Traffic ETA: Customer expects food in 18 min, gets it in 18 min → satisfied
-```
-
-**ETA Update Frequency:**
-
-- **Recalculate every 30 seconds** while driver is en route
-- **Why not more frequent?** Google Maps API costs $5 per 1000 requests
-  - 200K concurrent deliveries × 120 requests per delivery (30-min delivery ÷ 30-sec interval) = 24M API calls/hour
-  - Cost: 24M / 1000 × $5 = $120,000/hour = $2.9M/day (!!)
-  
-**Cost Optimization:**
-
-```text
-STRATEGY 1: Reduce API call frequency
-- Recalculate every 2 minutes instead of 30 seconds → 96% cost reduction
-- Only update when driver's location changes significantly (>200 meters)
-
-STRATEGY 2: Use self-hosted routing engine
-- OpenStreetMap + OSRM (Open Source Routing Machine) 
-- $0 per request (just infrastructure cost)
-- Trade-off: Less accurate traffic data than Google
-
-STRATEGY 3: Hybrid approach (Uber's strategy)
-- Use Google Maps for initial route calculation
-- Use simple dead reckoning for updates (driver is traveling at X speed toward destination)
-- Recalculate with Google Maps every 5 minutes or if driver deviates from route
-- Cost: 90% reduction while maintaining accuracy
-```
-
-**Real Example (Uber Eats in NYC):**
-
-```text
-Order placed: 7:00 PM (peak dinner hour)
-Initial ETA: 35 minutes
-
-7:05 PM - Driver picks up food
-  → Google Maps ETA: 12 minutes (accounting for Times Square traffic)
-  → Customer sees: "Arriving at 7:17 PM"
-
-7:10 PM - Traffic accident on route
-  → Driver automatically rerouted by Google Maps
-  → New ETA: 15 minutes
-  → Customer sees: "Arriving at 7:25 PM (delayed due to traffic)"
-
-7:23 PM - Driver arrives
-  → Actual time: 18 minutes from pickup
-  → Close enough to ETA that customer is satisfied
+# Example:
+eta = calculate_traffic_aware_eta(order_id=98765)
+# Result: 8 minutes (accounting for traffic jam on route)
 ```
 
 ---
