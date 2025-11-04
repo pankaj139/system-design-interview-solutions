@@ -399,11 +399,297 @@ Pay for food    ←──────→  Payment service  ←──────
 
 ---
 
-**Think About It:**
-- How would you handle a flash sale at a popular restaurant (100 orders in 1 minute)?
-- What happens if a driver's phone dies mid-delivery?
-- How do you prevent restaurants from accepting more orders than they can handle?
-- Should order assignment prioritize driver proximity or customer wait time?
+### 🎯 Interview Questions - Requirements & Planning
+
+#### Beginner Level
+
+**Q1:** What are the core functional requirements for a food delivery system like Uber Eats?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+Start with the three main user types and their needs:
+
+**Customer Requirements:**
+- Browse restaurants by location (within 5 km delivery radius)
+- Search menu items (by name, cuisine, dietary preferences)
+- Place orders (select items, customize, add to cart, checkout)
+- Track order status in real-time (confirmed → preparing → picked up → delivered)
+- Rate and review orders (restaurant quality, delivery speed)
+
+**Restaurant Requirements:**
+- Receive incoming orders via tablet/app
+- Accept or reject orders (based on capacity, inventory)
+- Update menu items (add/remove items, mark as sold out)
+- Manage operating hours (breakfast/lunch/dinner schedules)
+- View earnings and analytics
+
+**Driver Requirements:**
+- Go online/offline (mark availability)
+- Receive order assignment notifications
+- Accept or reject deliveries
+- Navigate to pickup and delivery locations
+- Mark order stages (picked up, delivered)
+- Track earnings
+
+**Platform Requirements:**
+- Match available drivers to orders (<30 sec)
+- Calculate delivery fees dynamically
+- Process payments (customer → platform → restaurant + driver)
+- Handle disputes and refunds
+- Monitor system health
+
+**Interview Tip:** Always mention all three user types - showing you understand the marketplace complexity.
+
+</details>
+
+**Q2:** How would you distinguish functional vs non-functional requirements for this system?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Functional Requirements (WHAT the system does):**
+- Customer can place an order
+- Driver can accept/reject assignments
+- Restaurant can update menu availability
+- System calculates delivery fee based on distance
+- Platform processes three-way payment splits
+
+**Non-Functional Requirements (HOW WELL the system performs):**
+
+**Performance:**
+- Order placement: <200ms response time
+- Driver matching: <30 seconds
+- Location updates: 1-second intervals
+- Menu search: <500ms
+
+**Scalability:**
+- Handle 10M orders/day
+- Support 500K concurrent users
+- Scale 10x during peak hours
+
+**Availability:**
+- 99.9% uptime (43 min downtime/month)
+- Multi-region deployment for disaster recovery
+
+**Consistency:**
+- Strong consistency for orders and payments (no double-charging)
+- Eventual consistency for driver locations (1-sec lag acceptable)
+
+**Security:**
+- PCI DSS Level 1 compliance for payments
+- Encrypted data at rest (AES-256)
+- Encrypted data in transit (TLS 1.3)
+
+**Interview Tip:** Use the "-ilities" framework: scalability, availability, reliability, maintainability, security.
+
+</details>
+
+**Q3:** What clarifying questions would you ask the interviewer about scale?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Geographic Scale:**
+- "How many cities/countries do we serve?" (1 city vs global)
+- "What's our geographic distribution?" (concentrated vs spread out)
+- "Do we need multi-region deployment?" (latency requirements)
+
+**User Scale:**
+- "How many daily active users?" (defines infrastructure size)
+- "How many restaurants on the platform?" (catalog size)
+- "How many active drivers?" (matching pool size)
+- "What's the ratio of users to restaurants to drivers?" (10,000:1:100?)
+
+**Order Scale:**
+- "How many orders per day?" (throughput requirements)
+- "What's the average order value?" (payment processing volume)
+- "Peak vs average traffic?" (capacity planning)
+- "Order distribution (breakfast/lunch/dinner)?" (auto-scaling needs)
+
+**Growth Scale:**
+- "What's the expected growth rate?" (6 months, 1 year, 5 years)
+- "Are we starting from scratch or have existing users?" (migration strategy)
+
+**Sample Interview Exchange:**
+```
+You: "How many orders per day should the system handle?"
+Interviewer: "Let's assume 10 million daily orders"
+You: "And what's the peak to average ratio during dinner rush?"
+Interviewer: "Good question - assume 10x spike, so 1,150 orders/second at peak"
+You: "Got it. I'll design for that peak load with auto-scaling..."
+```
+
+</details>
+
+#### Intermediate Level
+
+**Q4:** How would you handle the chicken-and-egg problem of launching in a new city?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+The problem: Need restaurants to attract customers, need customers to attract restaurants, need both to attract drivers.
+
+**Phased Launch Strategy:**
+
+**Phase 1: Restaurant Partnerships (Month 1)**
+- Partner with 20-30 popular restaurants
+- Offer zero commission for first 3 months
+- Provide free tablet hardware and setup
+- Focus on diverse cuisines (Italian, Chinese, Mexican, etc.)
+
+**Phase 2: Driver Recruitment (Month 2)**
+- Guarantee minimum earnings ($15/hour even if no orders)
+- Offer sign-up bonuses ($500 for first 50 deliveries)
+- Start with part-time drivers (lower commitment)
+- Target existing delivery drivers from competitors
+
+**Phase 3: Soft Launch (Month 3)**
+- Limited area (5 km radius around downtown)
+- Invite-only customers (beta testers)
+- Heavy promotion ($20 off first 3 orders)
+- Monitor metrics: order fulfillment rate, delivery time, customer satisfaction
+
+**Phase 4: Public Launch (Month 4+)**
+- Expand to full city
+- Reduce promotions gradually
+- Add more restaurants as demand grows
+- Remove driver earning guarantees
+
+**Key Metrics to Track:**
+- Supply/Demand ratio (orders per available driver)
+- Restaurant acceptance rate (>80% goal)
+- Driver utilization (>60% goal)
+- Customer retention (>50% order again within 30 days)
+
+**Interview Tip:** Show understanding of marketplace dynamics and cold-start problem.
+
+</details>
+
+**Q5:** What trade-offs would you make between consistency and availability for different data types?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+Use CAP theorem to make informed decisions:
+
+**Strong Consistency (CP - Prioritize Consistency over Availability):**
+
+**Orders & Payments:**
+- Must be strongly consistent
+- Can't have duplicate charges or lost orders
+- Acceptable to fail order if database unavailable (better than double-charging)
+- Use: PostgreSQL with ACID transactions
+
+**Menu Prices:**
+- Must be consistent
+- Customer must pay the price they saw
+- Use menu versioning (snapshot price at order time)
+
+**Restaurant Inventory:**
+- Should be consistent
+- Prevent overselling (accepting order for sold-out item)
+- Brief unavailability acceptable (restaurant waits 10 sec to accept order)
+
+**Eventual Consistency (AP - Prioritize Availability over Consistency):**
+
+**Driver Locations:**
+- Can tolerate 1-2 second lag
+- Showing driver 100m away when actually 150m away is acceptable
+- Never want location tracking to fail (availability critical)
+- Use: Cassandra for location time-series
+
+**Restaurant Ratings:**
+- 4.7★ vs 4.8★ doesn't matter in real-time
+- Can update ratings every 5 minutes
+- Availability more important than exact precision
+
+**Search Results:**
+- Showing slightly stale menu (item added 30 sec ago not yet indexed) is acceptable
+- Better than search being unavailable
+- Use: Elasticsearch with CDC sync
+
+**Decision Matrix:**
+```
+Data Type         Consistency  Why?
+────────────────────────────────────────────────────────
+Orders            Strong       Money involved
+Payments          Strong       Money involved  
+Inventory         Strong       Customer trust
+Driver Locations  Eventual     Real-time UX
+Ratings/Reviews   Eventual     Not time-critical
+Search Index      Eventual     Performance > freshness
+```
+
+**Interview Tip:** Always explain the "why" behind consistency choices, not just the "what".
+
+</details>
+
+#### Advanced Level
+
+**Q6:** How would you design the system to handle a Super Bowl delivery surge (3x normal dinner rush)?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Predictive Scaling (1 Week Before):**
+- Analyze historical data from previous events
+- Notify restaurants to pre-stock inventory
+- Recruit temporary drivers (gig workers for 1-day contract)
+- Pre-scale infrastructure 2x (add servers, database replicas)
+
+**Day-Of Preparation:**
+- **Morning (8 AM):** Scale to 3x capacity
+- **Pre-event (2 PM):** All systems on high alert, engineers on-call
+- **Surge pricing enabled:** 1.5x-2x multiplier to balance supply/demand
+- **Restaurant grouping:** Batch orders to nearby restaurants (reduce driver travel)
+
+**Real-Time Adjustments:**
+- **Auto-scaling triggers:** 
+  - CPU > 60% → add 20% more servers
+  - Orders/driver > 0.5 → surge pricing +10%
+- **Circuit breakers:** 
+  - If payment gateway >2% error rate → switch to backup
+  - If database shard >80% full → reject new orders in that zone (graceful degradation)
+
+**Capacity Buffers:**
+```
+Normal dinner rush:  1,150 orders/sec → 120 servers
+Super Bowl surge:    3,450 orders/sec → 360 servers (3x)
+Safety buffer:       +20% → 430 servers total
+
+Cost: 430 servers × $2/hour × 6 hours = $5,160
+Revenue: 3.45M orders × $3 avg commission = $10.35M
+ROI: 1,987x (easily justified)
+```
+
+**Post-Event:**
+- **Immediate:** Scale down to 2x (gradual decrease over 2 hours)
+- **Next day:** Return to normal capacity
+- **Post-mortem:** Analyze what worked, what failed, how to improve
+
+**Monitoring Alerts:**
+- Error rate >1% → Page on-call engineer
+- Response time >500ms → Trigger auto-scaling
+- Database CPU >80% → Add read replicas
+- Order failure rate >0.1% → Activate backup systems
+
+**Interview Tip:** Show you can think about both technical solutions (auto-scaling) and business solutions (surge pricing, temporary drivers).
+
+</details>
 
 ---
 
@@ -769,11 +1055,519 @@ Cost: 6 × $0.504/hr × 730 hrs = $2,207/month
 
 ---
 
-**Think About It:**
-- If we grow 10x in 2 years, will our database sharding strategy still work?
-- How much would it cost to store location data forever (instead of 30 days)?
-- What if we offered free delivery (reducing revenue but increasing orders 3x)?
-- Could we reduce infrastructure cost by serving menus from static files instead of database?
+### 🎯 Interview Questions - Capacity Planning
+
+#### Beginner Level
+
+**Q1:** How would you estimate the daily orders for a food delivery system?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+Use population-based approach:
+
+**Step 1: Define geography**
+- Let's assume United States (330M people)
+
+**Step 2: Calculate addressable market**
+- Urban/suburban population: 80% × 330M = 264M
+- Age 18-65 (ordering demographic): 60% × 264M = 158M
+- Smartphone users: 85% × 158M = 134M addressable users
+
+**Step 3: Estimate penetration and frequency**
+- Food delivery app users: 30% × 134M = 40M users
+- Active users (order monthly): 50% × 40M = 20M monthly active users
+- Order frequency: 15 orders/month on average
+- Daily orders: (20M × 15) / 30 days = **10M orders/day**
+
+**Sanity Check:**
+- DoorDash actual: ~4M orders/day (2023)
+- Uber Eats actual: ~6M orders/day (2023)
+- Combined market: ~10M orders/day ✓
+
+**Interview Tip:** Always do a sanity check with known data points. Shows you can validate assumptions.
+
+</details>
+
+**Q2:** Calculate the storage needed for 1 year of order data.
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Order Record Size:**
+```
+Order table:
+  - order_id: 8 bytes (BIGINT)
+  - customer_id, restaurant_id, driver_id: 8 bytes each = 24 bytes
+  - timestamps (placed, confirmed, delivered): 8 bytes each = 24 bytes
+  - amounts (subtotal, fees, tax, tip): 8 bytes each = 32 bytes
+  - status, notes: 200 bytes
+  Total per order: ~300 bytes
+
+Order Items (avg 3 items per order):
+  - item_id, quantity, price: 24 bytes each
+  - customizations: 100 bytes
+  Total per item: 124 bytes
+  Total for 3 items: 372 bytes
+
+Total per order: 300 + 372 = 672 bytes ≈ 700 bytes (round up for indexes)
+```
+
+**Annual Calculation:**
+```
+Orders per day: 10M
+Orders per year: 10M × 365 = 3.65 billion orders
+Storage: 3.65B × 700 bytes = 2.56 TB
+
+Add 30% for database indexes and overhead:
+Total: 2.56 TB × 1.3 = 3.3 TB for orders
+```
+
+**Plus Other Data:**
+- Location data (30-day retention): ~47 TB
+- User data (40M users × 5 KB): 200 GB
+- Restaurant data (500K × 100 KB): 50 GB
+- Photos/images: 100 TB
+
+**Total Year 1: ~150 TB**
+
+**Interview Tip:** Always add overhead for indexes (20-30%) and round up for safety.
+
+</details>
+
+**Q3:** How many servers would you need to handle 1,200 orders/second at peak?
+
+<details>
+<parameter name="new_str">### Key Takeaways
+
+✅ **Design for peak load, not average:** 10x traffic difference between off-peak and peak hours
+
+✅ **Caching is critical:** 99% cache hit rate reduces database load from 2.6M to 26K reads/second
+
+✅ **Storage grows predictably:** ~80 TB first year, ~210 TB after 5 years (mostly location data)
+
+✅ **Bandwidth is expensive:** $160K/month, but CDN reduces server bandwidth by 90%
+
+✅ **Infrastructure cost is tiny vs revenue:** 0.02% of revenue ($410K vs $1.875B monthly)
+
+✅ **Multi-region deployment is necessary:** For low latency globally and disaster recovery
+
+✅ **Auto-scaling saves money:** Scale up during peak hours, scale down during off-peak (saves $439K/month)
+
+---
+
+### 🎯 Interview Questions - Capacity Planning
+
+#### Beginner Level
+
+**Q1:** How would you estimate the daily orders for a food delivery system?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+Use population-based approach:
+
+**Step 1: Define geography**
+- Let's assume United States (330M people)
+
+**Step 2: Calculate addressable market**
+- Urban/suburban population: 80% × 330M = 264M
+- Age 18-65 (ordering demographic): 60% × 264M = 158M
+- Smartphone users: 85% × 158M = 134M addressable users
+
+**Step 3: Estimate penetration and frequency**
+- Food delivery app users: 30% × 134M = 40M users
+- Active users (order monthly): 50% × 40M = 20M monthly active users
+- Order frequency: 15 orders/month on average
+- Daily orders: (20M × 15) / 30 days = **10M orders/day**
+
+**Sanity Check:**
+- DoorDash actual: ~4M orders/day (2023)
+- Uber Eats actual: ~6M orders/day (2023)
+- Combined market: ~10M orders/day ✓
+
+**Interview Tip:** Always do a sanity check with known data points. Shows you can validate assumptions.
+
+</details>
+
+**Q2:** Calculate the storage needed for 1 year of order data.
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Order Record Size:**
+```
+Order table:
+  - order_id: 8 bytes (BIGINT)
+  - customer_id, restaurant_id, driver_id: 8 bytes each = 24 bytes
+  - timestamps (placed, confirmed, delivered): 8 bytes each = 24 bytes
+  - amounts (subtotal, fees, tax, tip): 8 bytes each = 32 bytes
+  - status, notes: 200 bytes
+  Total per order: ~300 bytes
+
+Order Items (avg 3 items per order):
+  - item_id, quantity, price: 24 bytes each
+  - customizations: 100 bytes
+  Total per item: 124 bytes
+  Total for 3 items: 372 bytes
+
+Total per order: 300 + 372 = 672 bytes ≈ 700 bytes (round up for indexes)
+```
+
+**Annual Calculation:**
+```
+Orders per day: 10M
+Orders per year: 10M × 365 = 3.65 billion orders
+Storage: 3.65B × 700 bytes = 2.56 TB
+
+Add 30% for database indexes and overhead:
+Total: 2.56 TB × 1.3 = 3.3 TB for orders
+```
+
+**Plus Other Data:**
+- Location data (30-day retention): ~47 TB
+- User data (40M users × 5 KB): 200 GB
+- Restaurant data (500K × 100 KB): 50 GB
+- Photos/images: 100 TB
+
+**Total Year 1: ~150 TB**
+
+**Interview Tip:** Always add overhead for indexes (20-30%) and round up for safety.
+
+</details>
+
+**Q3:** How many servers would you need to handle 1,200 orders/second at peak?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Step 1: Determine server capacity**
+- Assume 1 application server handles 10 requests/second (conservative)
+- With optimizations (caching, connection pooling): 20 requests/second
+
+**Step 2: Calculate API calls per order**
+```
+1 order requires:
+  - 1 POST /orders (create order)
+  - 2 GET /restaurants (browse, verify)
+  - 1 GET /menu (fetch items)
+  - 1 POST /payments (process)
+  - 3 WebSocket updates (status notifications)
+  Total: ~8 API calls per order
+```
+
+**Step 3: Calculate total requests**
+```
+Peak orders: 1,200/second
+Requests: 1,200 × 8 = 9,600 requests/second
+
+Add background tasks (location updates, analytics):
+Total: 9,600 × 1.3 = 12,480 requests/second
+```
+
+**Step 4: Calculate server count**
+```
+Servers needed: 12,480 / 20 = 624 servers
+
+Add 20% buffer for failures: 624 × 1.2 = 749 servers
+Round up: 750 servers at peak
+```
+
+**Cost Analysis:**
+```
+Peak hours: 4 hours/day (lunch + dinner)
+Normal hours: 20 hours/day
+
+Peak: 750 servers × 4 hours = 3,000 server-hours
+Normal: 75 servers × 20 hours = 1,500 server-hours
+Daily: 4,500 server-hours
+
+Monthly: 4,500 × 30 = 135,000 server-hours
+Cost: 135,000 × $0.10/hour = $13,500/month (just compute)
+```
+
+**Interview Tip:** Always show buffer capacity (10-20%) for unexpected spikes and failures.
+
+</details>
+
+#### Intermediate Level
+
+**Q4:** How would you calculate bandwidth requirements for real-time driver location tracking?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Assumptions:**
+- 200K drivers online concurrently (during peak)
+- Location update every 1 second
+- Each location: lat/lon (16 bytes) + timestamp (8 bytes) + metadata (26 bytes) = 50 bytes
+
+**Upload Bandwidth (Drivers → Platform):**
+```
+Updates per second: 200,000
+Bytes per second: 200,000 × 50 bytes = 10 MB/sec
+Bandwidth: 10 MB/sec × 8 bits/byte = 80 Mbps
+
+Daily volume:
+  10 MB/sec × 86,400 seconds = 864 GB/day
+  Per month: 864 GB × 30 = 25.9 TB/month
+```
+
+**Download Bandwidth (Platform → Customers):**
+```
+Customers tracking orders: 200K (1 customer per active delivery)
+Updates per customer: 1 per second
+Bytes per update: 50 bytes (location) + 200 bytes (ETA, map data) = 250 bytes
+
+Bandwidth: 200,000 × 250 bytes = 50 MB/sec = 400 Mbps
+Daily: 50 MB/sec × 86,400 = 4.3 TB/day
+Monthly: 130 TB/month
+```
+
+**Total Bandwidth:**
+```
+Upload: 26 TB/month
+Download: 130 TB/month
+Total: 156 TB/month
+
+Cost (AWS data transfer):
+  156 TB × $0.05/GB = $7,800/month
+```
+
+**Optimization - WebSocket vs Polling:**
+```
+WebSocket (bidirectional connection):
+  - Overhead: 2 bytes per message
+  - Efficient for real-time
+
+HTTP Polling (customer requests every second):
+  - Overhead: 500 bytes (HTTP headers)
+  - Inefficient: 250× more bandwidth
+
+Savings: Use WebSocket, save ~$1.9M/month on bandwidth!
+```
+
+**Interview Tip:** Compare alternatives (WebSocket vs polling) to show you understand optimization trade-offs.
+
+</details>
+
+**Q5:** How would you size your Redis cache cluster?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Data to Cache:**
+
+**1. Driver Locations (Hot Data):**
+```
+Active drivers: 200,000
+Data per driver: 100 bytes (location, status, current_order)
+Size: 200,000 × 100 bytes = 20 MB
+```
+
+**2. Menu Data:**
+```
+Popular restaurants: 50,000 (10% of 500K)
+Menu per restaurant: 50 items × 500 bytes = 25 KB
+Size: 50,000 × 25 KB = 1.25 GB
+```
+
+**3. Session Tokens:**
+```
+Active users: 500,000 concurrent
+Token size: 500 bytes (JWT + metadata)
+Size: 500,000 × 500 bytes = 250 MB
+```
+
+**4. Order Status (Recent):**
+```
+Active orders: 200,000 (in-flight)
+Data per order: 2 KB (status, ETA, driver info)
+Size: 200,000 × 2 KB = 400 MB
+```
+
+**Total Cache Data: ~2 GB**
+
+**Sizing Calculation:**
+```
+Active data: 2 GB
+Add 50% for overhead (connection objects, temp data): 3 GB
+Add 2x for growth: 6 GB
+Add buffer for peak (3x normal): 18 GB
+
+Recommendation: 20 GB Redis cluster
+```
+
+**Cluster Configuration:**
+```
+Option 1: Single large instance
+  - 1× cache.r6g.xlarge (26 GB RAM)
+  - Cost: $0.252/hour = $184/month
+  - Risk: Single point of failure
+
+Option 2: Clustered (recommended)
+  - 3× cache.r6g.large (13 GB RAM each)
+  - Total: 39 GB RAM (replication factor 2)
+  - Cost: 3 × $0.126/hour = $276/month
+  - Benefit: High availability, automatic failover
+```
+
+**Cache Eviction Policy:**
+```
+LRU (Least Recently Used) with TTL:
+  - Driver locations: 30 seconds TTL
+  - Menu data: 5 minutes TTL
+  - Session tokens: 1 hour TTL
+  - Order status: 2 hours TTL
+
+When cache full:
+  - Remove least recently accessed items
+  - Prefer evicting menu data over session tokens
+```
+
+**Interview Tip:** Always plan for 2-3x headroom in cache size for growth and peak load.
+
+</details>
+
+#### Advanced Level
+
+**Q6:** Design a cost optimization strategy for a food delivery platform spending $5M/year on infrastructure.
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:**
+
+**Current Cost Breakdown ($410K/month = $4.9M/year):**
+```
+Compute: $218K (53%)
+Storage: $22K (5%)
+Bandwidth: $160K (39%)
+Other: $10K (2%)
+```
+
+**Optimization Strategies:**
+
+**1. Compute Optimization (Save $87K/month):**
+
+**Spot Instances (40% savings):**
+```
+Current: 100% On-Demand instances
+Optimized: 70% Spot + 30% On-Demand
+
+Stateless services (order placement, search): Spot instances
+Stateful services (databases): On-Demand
+
+Savings: $218K × 0.70 × 0.40 = $61K/month
+```
+
+**Right-Sizing (20% savings):**
+```
+Analysis: 30% of servers running at <20% CPU
+Action: Downgrade from c5.2xlarge → c5.xlarge
+
+Savings: $218K × 0.30 × 0.20 = $13K/month
+```
+
+**Reserved Instances for baseline (30% savings):**
+```
+Buy 1-year RIs for minimum capacity (50 servers always needed)
+Savings: 50 servers × $0.10/hr × 730 hrs × 0.30 = $1,095/month
+```
+
+**Total Compute Savings: $75K/month**
+
+**2. Storage Optimization (Save $8K/month):**
+
+**Tiered Storage:**
+```
+Hot data (0-30 days): S3 Standard ($0.023/GB)
+Warm data (31-90 days): S3 Infrequent Access ($0.0125/GB)
+Cold data (90+ days): S3 Glacier ($0.004/GB)
+
+Current: 500 TB × $0.023 = $11,500
+Optimized:
+  - 100 TB hot × $0.023 = $2,300
+  - 200 TB warm × $0.0125 = $2,500
+  - 200 TB cold × $0.004 = $800
+Total: $5,600
+
+Savings: $11,500 - $5,600 = $5,900/month
+```
+
+**Data Compression:**
+```
+Location data compresses 80% (lat/lon are repetitive)
+500 TB × 0.80 reduction = save 400 TB
+
+Savings: 400 TB × $0.023 = $9,200/month
+```
+
+**Total Storage Savings: $15K/month**
+
+**3. Bandwidth Optimization (Save $80K/month):**
+
+**Image Optimization:**
+```
+Restaurant photos: 200 KB → 50 KB (WebP format, lazy loading)
+Bandwidth reduction: 75%
+
+Savings: $160K × 0.50 × 0.75 = $60K/month
+```
+
+**CDN Edge Caching:**
+```
+Increase cache hit rate: 85% → 95%
+Reduce origin requests by 67%
+
+Savings: $160K × 0.10 = $16K/month
+```
+
+**Geographic Costing:**
+```
+Most traffic from US, but some from Asia/Europe
+Move static assets to regional CDN POPs
+
+Savings: $4K/month
+```
+
+**Total Bandwidth Savings: $80K/month**
+
+**TOTAL SAVINGS: $170K/month = $2.04M/year (42% reduction)**
+
+**Final Cost: $410K - $170K = $240K/month = $2.88M/year**
+
+**ROI Table:**
+```
+Optimization          Investment  Monthly Savings  Payback Period
+────────────────────────────────────────────────────────────────
+Spot Instances        $0          $61K            Immediate
+Right-Sizing          $10K        $13K            0.8 months
+Reserved Instances    $0          $1K             Immediate
+Tiered Storage        $5K         $15K            0.3 months
+Image Optimization    $20K        $60K            0.3 months
+CDN Improvements      $15K        $20K            0.75 months
+
+Total                 $50K        $170K           0.3 months
+```
+
+**Interview Tip:** Always quantify savings and show ROI. Cloud optimization is 20-40% savings with minimal effort.
+
+</details>
 
 ---
 
