@@ -5501,16 +5501,447 @@ IMPROVEMENT: 6.7x faster, saves bandwidth
 
 ## 13. Security & Fraud Prevention
 
-**Authentication:**
-- JWT tokens (1-hour expiry)
-- OAuth 2.0 for third-party integrations
-- Multi-factor authentication for restaurants
+### What You'll Learn
+- Authentication and authorization mechanisms
+- Data encryption (in-transit and at-rest)
+- PCI DSS compliance requirements
+- Fraud detection patterns and ML models
+- DDoS protection strategies
+- Privacy compliance (GDPR, CCPA)
 
-**Fraud Detection:**
-- Fake orders (bots placing orders)
-- Stolen credit cards
-- Promo code abuse
-- Driver location spoofing (GPS manipulation)
+### Why This Matters
+Food delivery platforms are prime targets for fraud: stolen credit cards ($5M annual losses), promo code abuse ($2M), fake driver accounts, GPS spoofing, and data breaches. A single security breach can cost $50M+ in fines, lawsuits, and lost trust. Uber Eats must balance security (protect user data) with usability (don't make login too difficult) while processing $1.5B monthly transactions under PCI DSS Level 1 compliance.
+
+---
+
+### 🟢 Beginner Level: Authentication & Authorization
+
+#### Understanding the Difference
+
+```text
+AUTHENTICATION: Who are you?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"Prove you're John Smith"
+Methods:
+  ├─ Password (something you know)
+  ├─ SMS code (something you have - phone)
+  ├─ Fingerprint (something you are - biometric)
+  └─ Social login (Google/Facebook OAuth)
+
+AUTHORIZATION: What can you do?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"You're John Smith, but are you allowed to cancel THIS order?"
+Rules:
+  ├─ Customer can cancel THEIR OWN orders
+  ├─ Driver can view ASSIGNED orders only
+  ├─ Restaurant can update THEIR OWN menu
+  └─ Admin can view ALL data
+```
+
+#### JWT (JSON Web Token) Authentication
+
+**How It Works:**
+
+```text
+LOGIN FLOW:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Step 1: Customer logs in
+  POST /api/auth/login
+  {
+    "email": "john@example.com",
+    "password": "SecurePass123!"
+  }
+
+Step 2: Server validates credentials
+  IF password matches database:
+    Generate JWT token
+    
+Step 3: Return JWT to customer
+  {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expires_in": 3600  // 1 hour
+  }
+
+Step 4: Customer stores token (local storage/cookie)
+
+Step 5: All future requests include token
+  GET /api/orders
+  Header: Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Step 6: Server validates token
+  IF token valid AND not expired:
+    Process request
+  ELSE:
+    Return 401 Unauthorized
+```
+
+**JWT Token Structure:**
+
+```json
+// Decoded JWT
+{
+  "header": {
+    "alg": "HS256",  // Encryption algorithm
+    "typ": "JWT"
+  },
+  "payload": {
+    "user_id": 12345,
+    "email": "john@example.com",
+    "role": "customer",
+    "exp": 1730668800  // Expiration timestamp
+  },
+  "signature": "encrypted_hash_here"
+}
+```
+
+**Why JWT?**
+- **Stateless:** Server doesn't need to store sessions (scales better)
+- **Self-contained:** Token has all info (user_id, role) - no database lookup needed
+- **Secure:** Cryptographically signed (can't be tampered with)
+
+#### Role-Based Access Control (RBAC)
+
+```text
+USER ROLES & PERMISSIONS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CUSTOMER:
+  ✓ Place orders
+  ✓ View own order history
+  ✓ Update own profile
+  ✗ View other customers' orders
+  ✗ Modify menu prices
+
+DRIVER:
+  ✓ Accept/reject order assignments
+  ✓ Update location
+  ✓ Mark orders as delivered
+  ✗ See customer payment info
+  ✗ Cancel completed orders
+
+RESTAURANT:
+  ✓ Update own menu
+  ✓ Accept/reject orders
+  ✓ Mark items as sold out
+  ✗ See driver earnings
+  ✗ Access other restaurants' data
+
+ADMIN:
+  ✓ View all data (for support)
+  ✓ Issue refunds
+  ✓ Suspend accounts
+  ✓ View analytics dashboards
+```
+
+**Authorization Check Logic:**
+
+```text
+FUNCTION authorize_action(user, action, resource):
+  
+  // Extract user role from JWT
+  role = user.role  // "customer", "driver", "restaurant", "admin"
+  
+  CASE action:
+    
+    WHEN "view_order":
+      IF role == "customer":
+        RETURN resource.customer_id == user.id
+      ELSE IF role == "driver":
+        RETURN resource.driver_id == user.id
+      ELSE IF role == "restaurant":
+        RETURN resource.restaurant_id == user.id
+      ELSE IF role == "admin":
+        RETURN true
+      ELSE:
+        RETURN false
+    
+    WHEN "cancel_order":
+      IF role == "customer" AND resource.status == "PLACED":
+        RETURN resource.customer_id == user.id
+      ELSE IF role == "admin":
+        RETURN true
+      ELSE:
+        RETURN false
+    
+    // More cases...
+```
+
+---
+
+### 🟡 Intermediate Level: Data Encryption & Compliance
+
+#### Encryption at Rest
+
+**What Gets Encrypted:**
+
+```text
+SENSITIVE DATA REQUIRING ENCRYPTION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ Credit card numbers (PCI DSS requirement)
+✓ Social security numbers (for driver background checks)
+✓ Bank account numbers (for settlements)
+✓ Passwords (hashed, not encrypted - different)
+✓ Driver's license photos
+
+✗ Order history (not sensitive enough)
+✗ Restaurant names (public data)
+✗ Delivery addresses (needed for queries)
+```
+
+**Encryption Method (AES-256):**
+
+```text
+ENCRYPTION PROCESS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Plain text: "4111-1111-1111-1111" (credit card)
+     ↓
+Encryption key: 256-bit random key (stored in AWS KMS)
+     ↓
+AES-256 algorithm
+     ↓
+Cipher text: "U2FsdGVkX1+vupppZksvRf5pq5g5XjFRIipRkwB0K1Y="
+     ↓
+Store in database: Only encrypted version saved
+
+DECRYPTION (when needed):
+Retrieve cipher text from database
+     ↓
+Fetch encryption key from AWS KMS (requires permission)
+     ↓
+Decrypt with AES-256
+     ↓
+Plain text: "4111-1111-1111-1111"
+     ↓
+Process payment
+     ↓
+Discard plain text from memory
+```
+
+#### Encryption in Transit (TLS/SSL)
+
+**All API calls use HTTPS:**
+
+```text
+WITHOUT HTTPS (HTTP):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Customer App  →  Internet  →  Server
+    ↓                             
+Sends: {"email": "john@example.com", "password": "SecurePass123!"}
+    ↓
+ANYONE on same WiFi can read this! (Man-in-the-middle attack)
+
+WITH HTTPS (TLS 1.3):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Customer App  →  Internet  →  Server
+    ↓                             
+Sends: "8f32j4k23h4k2j3h4k23j4h23k4j" (encrypted gibberish)
+    ↓
+Only server can decrypt (has private key)
+```
+
+#### PCI DSS Compliance
+
+**Payment Card Industry Data Security Standard:**
+
+```text
+12 REQUIREMENTS (Simplified):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Install firewalls
+2. Don't use default passwords
+3. Encrypt stored card data (AES-256)
+4. Encrypt transmitted card data (TLS 1.2+)
+5. Use anti-virus software
+6. Develop secure systems
+7. Restrict data access (need-to-know basis)
+8. Assign unique ID to each person with access
+9. Restrict physical access to card data
+10. Track all access to card data
+11. Test security systems regularly
+12. Maintain security policy
+
+AUDIT: Annual audit by Qualified Security Assessor (QSA)
+COST: $50K-$500K annually
+PENALTY: $5K-$100K per month for non-compliance
+```
+
+**Tokenization (Reduce PCI Scope):**
+
+```text
+INSTEAD OF STORING CARDS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Customer enters: 4111-1111-1111-1111
+      ↓
+Send to Stripe API (they store it)
+      ↓
+Stripe returns: "tok_1234abcd"
+      ↓
+WE store: "tok_1234abcd" (not the actual card!)
+      ↓
+For future charges: Send token to Stripe
+      ↓
+Stripe charges the real card
+
+BENEFIT: 
+✓ We never store real card numbers
+✓ Reduces PCI DSS compliance scope
+✓ If our database is hacked, tokens are useless
+```
+
+---
+
+### 🔴 Advanced Level: Fraud Detection & DDoS Protection
+
+#### Machine Learning Fraud Detection
+
+**Training Data (Historical Labels):**
+
+```text
+LABELED FRAUD EXAMPLES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Order ID   Features                              Fraud?
+──────────────────────────────────────────────────────────────
+001        New user, $300 order, VPN, 3 AM       YES
+002        Regular user, $25 order, normal       NO
+003        10 orders/hour, same card             YES
+004        First order, $15, verified phone      NO
+```
+
+**ML Model (Random Forest):**
+
+```text
+INPUT FEATURES (40+):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+User History:
+  ├─ Account age (new account = higher risk)
+  ├─ Previous order count
+  ├─ Previous fraud/dispute rate
+  └─ Email domain (gmail.com vs random-site.xyz)
+
+Order Characteristics:
+  ├─ Order value ($500 = suspicious for first order)
+  ├─ Number of items (100 items = suspicious)
+  ├─ Delivery address (hotel/airport = higher risk)
+  └─ Time of order (3 AM = higher risk)
+
+Payment Info:
+  ├─ Card BIN (first 6 digits reveal bank)
+  ├─ Card country vs delivery country mismatch
+  ├─ Multiple payment methods tried
+  └─ Payment method age
+
+Device/Network:
+  ├─ Device fingerprint (known device vs new)
+  ├─ IP address (VPN/proxy detection)
+  ├─ User agent (mobile app vs desktop browser)
+  └─ GPS location vs delivery address mismatch
+
+OUTPUT:
+Fraud probability: 0.0-1.0
+
+ACTIONS:
+  IF prob > 0.8: Auto-decline + block card
+  IF prob > 0.5: Require 3D Secure verification
+  IF prob > 0.3: Flag for manual review
+  IF prob < 0.3: Auto-approve
+```
+
+**Model Performance:**
+
+```text
+CONFUSION MATRIX:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                  Predicted Fraud    Predicted Legit
+Actual Fraud           980              20 (False Negative)
+Actual Legit            80            9,920 (True Negative)
+
+Accuracy: 99.1%
+Precision: 92.5% (of flagged orders, 92.5% were actually fraud)
+Recall: 98.0% (caught 98% of actual fraud)
+False Positive Rate: 0.8% (80 legit orders declined - bad UX)
+
+COST-BENEFIT:
+  Caught fraud: 980 orders × $45 avg = $44,100 saved
+  Lost legit orders: 80 × $30 avg = $2,400 lost
+  NET BENEFIT: $41,700/day = $15M/year
+```
+
+#### DDoS Protection
+
+**Attack Scenario:**
+
+```text
+DISTRIBUTED DENIAL OF SERVICE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Normal traffic: 1,000 requests/second
+     ↓
+Attacker botnet: 100,000 requests/second
+     ↓
+Server overwhelmed → Crashes → Legitimate users can't access site
+     ↓
+Revenue loss: $50K/hour during dinner rush
+```
+
+**Defense Layers:**
+
+```text
+LAYER 1: CloudFlare/Akamai (Edge Protection)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Filters:
+  ├─ Block known bad IPs (botnet databases)
+  ├─ Rate limiting (max 10 req/sec per IP)
+  ├─ Challenge suspicious traffic (CAPTCHA)
+  └─ GeoIP filtering (block countries not in service area)
+
+Result: 99% of DDoS traffic blocked before reaching servers
+
+LAYER 2: API Gateway (Application-Level)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Throttling:
+  ├─ 100 req/min per user (authenticated)
+  ├─ 10 req/min per IP (unauthenticated)
+  ├─ 1,000 req/min per API key (restaurants/drivers)
+  └─ Exponential backoff for violators
+
+LAYER 3: Auto-Scaling
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IF traffic spike detected:
+  Add 100 servers within 2 minutes
+  Absorb attack while filtering continues
+  Cost: $500/hour (cheaper than downtime)
+```
+
+### Real-World Examples
+
+**Uber Breach (2016):**
+- 57M user records stolen (names, emails, phone numbers)
+- Hackers accessed AWS S3 bucket with hardcoded credentials
+- Uber paid hackers $100K ransom to delete data (later fined $148M)
+- Lesson: Never hardcode credentials, use AWS IAM roles
+
+**DoorDash Promo Code Abuse (2019):**
+- Users discovered glitch: unlimited $10 promo codes
+- Lost $2M in 48 hours before fix
+- Solution: Rate limit promo code usage (1 per user per day)
+
+### 🤔 Think About It
+
+- Should we store delivery addresses encrypted? (Impacts search performance)
+- What if ML model flags a VIP customer as fraud? (Manual override process)
+- How do we balance security vs convenience? (2FA annoys users but prevents account takeover)
+- What about insider threats? (Employee stealing customer data)
+
+### ✅ Key Takeaways
+
+✅ **JWT authentication** for stateless, scalable auth (1-hour expiration)
+
+✅ **RBAC** ensures users only access their own data (customer/driver/restaurant/admin roles)
+
+✅ **AES-256 encryption** for sensitive data at rest, **TLS 1.3** for data in transit
+
+✅ **PCI DSS compliance** via tokenization (store tokens, not real cards)
+
+✅ **ML fraud detection** catches 98% of fraud with 0.8% false positive rate ($15M saved annually)
+
+✅ **Multi-layer DDoS protection** blocks 99%+ of attack traffic (CloudFlare + API throttling + auto-scaling)
 
 ---
 
