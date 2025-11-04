@@ -2,7 +2,7 @@
 
 **Repository Purpose:** This repository contains comprehensive, production-ready system design solutions for the most commonly asked interview questions at top tech companies. Each design follows a structured framework covering requirements, calculations, architecture, APIs, databases, trade-offs, and scalability considerations.
 
-**Last Updated:** October 2, 2025
+**Last Updated:** November 4, 2025
 
 ---
 
@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (25/52)
+## ✅ Completed Designs (26/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -610,7 +610,33 @@ High-availability payment processing system with fraud detection and PCI DSS com
 
 ---
 
-## 📋 Upcoming Designs (28)
+### 24. [Food Delivery System (Uber Eats/DoorDash)](./food_delivery_system_design.md)
+
+**Status:** ✅ Complete
+
+Three-sided marketplace platform for food delivery with real-time order tracking and driver coordination.
+
+**Key Features:**
+
+- Event-driven microservices architecture with Kafka for order orchestration
+- Multi-database strategy (PostgreSQL for transactions, Cassandra for time-series, Redis for caching, Elasticsearch for search)
+- Real-time geospatial driver matching with Redis GEORADIUS and multi-factor scoring algorithm
+- WebSocket location tracking (200K concurrent connections, 1-second GPS updates)
+- Complex order state machine (12+ states: PLACED → PREPARING → PICKED_UP → DELIVERED) with timeout handling
+- Saga pattern for distributed transactions (order → payment → driver assignment)
+- Dynamic surge pricing (supply/demand balancing, max 3x multiplier)
+- ML-powered demand prediction and proactive driver repositioning
+- Batch delivery optimization using Traveling Salesman Problem (TSP) approximation
+- Traffic-aware ETA calculation with Google Maps API integration
+- Multi-party payment settlement (customer charges, restaurant/driver payouts with commission splits)
+- Comprehensive API design (30+ RESTful endpoints + WebSocket real-time updates)
+- Multi-region active-active deployment for global low latency
+
+**Scale:** 10M orders/day, 500K restaurants, 1M drivers, 100+ cities, <30 sec driver matching, 99.9% uptime
+
+---
+
+## 📋 Upcoming Designs (27)
 
 ### Core Infrastructure & Storage
 
@@ -660,7 +686,7 @@ High-availability payment processing system with fraud detection and PCI DSS com
 
 ### On-Demand Services
 
-- [ ] **Design a food delivery system** (like Swiggy/Zomato)
+- [x] **Design a food delivery system** (like Uber Eats/DoorDash) — ✅ Complete ([Food Delivery System](./food_delivery_system_design.md))
 - [ ] **Design a registration system for a restaurant**
 - [ ] **Design a system for finding shortest delivery routes**
 
@@ -857,11 +883,11 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 25/52 (48.1%)
+**Completion Status:** 26/52 (50.0%)
 
-**Last Design Completed:** Google Photos System Design
+**Last Design Completed:** Food Delivery System Design (Uber Eats/DoorDash)
 
-**Next Up:** Notification System, Web Crawler
+**Next Up:** Notification System, Distributed Stream Processing
 **Current Work:** Principal Engineer Level designs
 
 ---
