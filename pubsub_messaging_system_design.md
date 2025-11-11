@@ -1034,7 +1034,594 @@ When given a system design problem, don't start coding or drawing immediately! A
 
 ### 🟡 For Intermediate: Interview Patterns
 
-*This section is continued in the next message to keep content organized...*
+#### The Requirements Gathering Framework
+
+As an intermediate candidate, you're expected to demonstrate a structured approach to gathering requirements. Here's the framework I recommend for interviews:
+
+**The 3-Phase Requirements Framework:**
+
+**Phase 1: Understand the Business Context (2 minutes)**
+- What problem are we solving?
+- Who are the users?
+- What's the business impact?
+
+*Example dialogue:*
+```
+Interviewer: "Design a pub/sub messaging system."
+
+You: "Great! Before we dive in, let me understand the context. Are we building 
+this for internal microservices communication, or is it a platform product like
+AWS SQS that external customers will use? This affects our API design and 
+multi-tenancy requirements."
+
+Interviewer: "Internal use—for a company with 100 microservices."
+
+You: "Perfect. And what's driving this need? Are we replacing an existing system
+that's hitting limits, or is this for a new event-driven architecture initiative?"
+```
+
+**Phase 2: Define Scale and Constraints (3 minutes)**
+- Traffic: messages/second, DAU, QPS
+- Data: message size, retention period
+- Performance: latency, availability requirements
+- Geography: single region or global
+
+*Example dialogue:*
+```
+You: "Let's talk scale. What message throughput are we targeting—thousands, 
+millions, or billions per second?"
+
+Interviewer: "Start with 100K messages/second, but design to scale to 10M."
+
+You: "Got it. And for retention—are we talking hours, days, or weeks?"
+
+Interviewer: "7 days for most topics, 30 days for audit logs."
+
+You: [Takes notes, calculates] "So at 10M msg/sec with 1KB messages, that's 
+10GB/sec or 864TB/day. With 7-day retention and 3x replication, we need about 
+18PB storage. I'll design with this in mind."
+```
+
+**Phase 3: Prioritize Features (2 minutes)**
+- Must-have for MVP
+- Nice-to-have for later
+- Out of scope
+
+*Example dialogue:*
+```
+You: "For delivery guarantees, do we need exactly-once semantics from day one,
+or can we start with at-least-once and add exactly-once later? Exactly-once 
+significantly increases complexity."
+
+Interviewer: "At-least-once is fine for MVP. Most consumers can handle duplicates."
+
+You: "Perfect. I'll design with at-least-once as the default, but architect 
+the system so we can add exactly-once without major refactoring."
+```
+
+#### Requirements Analysis: What Interviewers Look For
+
+Strong candidates demonstrate these skills:
+
+**1. Connecting Requirements to Technical Decisions**
+
+Don't just list requirements—explain WHY they matter:
+
+❌ **Weak:** "We need high availability."
+
+✅ **Strong:** "We need 99.99% availability because this system is in the critical 
+path for order processing. If the messaging system is down, customers can't place 
+orders, costing the business approximately $10,000 per minute. This drives our 
+decision to use 3x replication and automatic failover with <5 second recovery time."
+
+**2. Identifying Trade-offs Early**
+
+Show you understand there are no perfect solutions:
+
+```
+"For ordering guarantees, we have two approaches:
+
+Option A - Single partition per topic:
+✅ Pros: Perfect global ordering, simple consumer logic
+❌ Cons: Can't scale beyond one consumer, single point of bottleneck
+Use when: Strict global ordering required (e.g., financial ledger)
+
+Option B - Multiple partitions with key-based routing:
+✅ Pros: Horizontal scalability, parallel processing
+❌ Cons: Only per-partition ordering, more complex consumer coordination
+Use when: High throughput needed and per-entity ordering is sufficient (e.g., user events)
+
+I recommend Option B because we prioritize scale (10M msg/sec target) over global 
+ordering. We can use user_id as the partition key to maintain per-user ordering."
+```
+
+**3. Considering Non-Functional Requirements Holistically**
+
+Don't treat NFRs as a checklist—show how they interact:
+
+```
+"Our non-functional requirements have interesting interactions:
+
+High throughput (10M msg/sec) + Low latency (<10ms) suggests:
+→ In-memory buffering before disk writes
+→ Batch processing to amortize overhead
+→ But: This conflicts with durability if we crash before flush
+
+99.99% availability + No data loss suggests:
+→ 3x replication across brokers
+→ But: This conflicts with low latency (network overhead)
+
+The solution is configurable acknowledgment levels:
+- acks=1 for low-latency, less critical data (logs, metrics)
+- acks=all for critical data with acceptable latency (financial transactions)
+
+This gives us flexibility to optimize per use case."
+```
+
+**4. Real-World Validation**
+
+Reference actual systems to validate your requirements:
+
+```
+"Let me validate these requirements against real-world systems:
+
+LinkedIn Kafka (where it was invented):
+- 7 trillion messages/day = 81M messages/second ✓ Our 10M target is reasonable
+- 1.4 petabytes per day ✓ Our 864TB/day is in the right ballpark  
+- 7-day retention ✓ Matches our requirement
+
+Uber's Kafka deployment:
+- 1 trillion messages/day = 11M messages/second
+- Processing ride events, payment events, location updates
+- Similar use case to our microservices communication
+
+This gives me confidence our requirements are realistic and battle-tested."
+```
+
+#### Interview Script: Requirements Phase
+
+Here's a word-for-word script you can adapt:
+
+**Opening (30 seconds):**
+```
+"I'd like to spend 5-7 minutes gathering requirements before jumping into design. 
+I'll ask about the business context, scale, and feature priorities. Does that 
+timeline work for you?"
+```
+
+**Scale Questions (2 minutes):**
+```
+1. "What's the expected message throughput—both average and peak?"
+2. "How many topics and partitions are we planning for?"
+3. "What's the average and maximum message size?"
+4. "How long do messages need to be retained?"
+5. "How many producers and consumers do we expect?"
+```
+
+**Functional Questions (2 minutes):**
+```
+1. "What delivery guarantees do we need—at-most-once, at-least-once, or exactly-once?"
+2. "Is message ordering important? Global ordering or per-key ordering?"
+3. "Do consumers need to replay historical messages?"
+4. "Should the system support multiple consumer groups per topic?"
+```
+
+**Non-Functional Questions (2 minutes):**
+```
+1. "What's the target availability—99.9%, 99.99%, or higher?"
+2. "What's the acceptable publish latency?"
+3. "How quickly should consumers see new messages (consumer lag)?"
+4. "Is this single-region or multi-region?"
+5. "What's the budget for infrastructure?" [Shows business awareness]
+```
+
+**Clarification Summary (1 minute):**
+```
+"Let me summarize what I've heard:
+- 10M msg/sec throughput, 1KB avg message size
+- At-least-once delivery with per-key ordering
+- 30-day retention, 99.99% availability
+- Single region for MVP
+- Horizontal scaling capability
+
+Does this match your expectations? Anything I'm missing?"
+```
+
+---
+
+### 🔴 For Advanced: Production Considerations
+
+#### Requirements Beyond the Basics
+
+At the advanced level, you're expected to think about requirements that beginners and intermediates often miss. These separate senior engineers from junior ones.
+
+**1. Cost Optimization Requirements**
+
+Don't just design for unlimited budget—real systems have cost constraints.
+
+**Storage Tiering Strategy:**
+```
+Current Approach (naive):
+- Store all 30 days on expensive SSD
+- Cost: 77.7 PB × $200/TB/month = $15.5M/month ❌ Too expensive!
+
+Optimized Approach (tiered):
+- Last 24 hours: NVMe SSD ($1000/TB/month)
+  864 TB × 3 replicas × $1000 = $2.6M/month
+  
+- Days 2-7: SATA SSD ($200/TB/month)
+  6 × 864 TB × 3 × $200 = $3.1M/month
+  
+- Days 8-30: HDD + compression ($30/TB/month)
+  23 × 864 TB × 3 × $30 × 0.3 (compression) = $1.7M/month
+  
+Total: $7.4M/month (52% savings!) ✓
+
+Trade-off: Older messages have higher latency (acceptable for replay use cases)
+```
+
+**Compression Analysis:**
+```
+Without compression:
+- 10M msg/sec × 1KB = 10 GB/sec
+- Network bandwidth: 80 Gbps ingress
+- Storage: 864 TB/day
+
+With snappy compression (3:1 ratio typical for text):
+- 10M msg/sec × 333 bytes = 3.3 GB/sec
+- Network bandwidth: 26 Gbps ingress (67% reduction!)
+- Storage: 288 TB/day (67% reduction!)
+
+Cost savings:
+- Network: $0.02/GB → $259K/month → $86K/month (savings: $173K/month)
+- Storage: $15.5M/month → $5.2M/month (savings: $10.3M/month)
+- Total annual savings: $124M/year
+
+Trade-off: CPU cost for compression/decompression ~$50K/month
+Net savings: $124M - $600K = $123.4M/year ✓ Absolutely worth it!
+```
+
+**2. Compliance and Regulatory Requirements**
+
+Production systems must handle legal requirements.
+
+**GDPR Right to Deletion:**
+```
+Problem: Pub/sub uses immutable append-only logs. How do you "delete" a message 
+to comply with GDPR's "right to be forgotten"?
+
+Solution approaches:
+
+Approach A - Tombstone Records:
+- Write a "deletion marker" (tombstone) for the user
+- Consumers skip any message matching deleted user_id
+- Pros: Works with immutable logs, no physical deletion needed
+- Cons: Deleted data still on disk (compliance risk)
+
+Approach B - Offline Compaction:
+- During log compaction, rewrite segments excluding deleted user data
+- Pros: Actually removes data from disk
+- Cons: Expensive, requires rewriting entire segments
+
+Approach C - Encryption with Key Deletion:
+- Encrypt messages with per-user keys stored separately
+- To "delete", destroy the encryption key
+- Pros: Fast, cryptographically secure, data is unrecoverable
+- Cons: Requires key management system, adds complexity
+
+Recommended: Hybrid approach
+- Approach C for immediate compliance (destroy key within 30 days)
+- Approach B for periodic cleanup (quarterly compaction jobs)
+```
+
+**SOC 2 Audit Logging:**
+```
+Requirements for SOC 2 compliance:
+1. Log all access to sensitive topics (who, when, what)
+2. Immutable audit trail (cannot be tampered with)
+3. Retention: 7 years minimum
+4. Access control changes must be logged
+
+Implementation:
+- Separate "audit-trail" topic with infinite retention
+- All producer/consumer access logs written here
+- Write-once, no deletions allowed
+- Stored in append-only S3 with versioning
+- Costs: ~$1M/year for 7-year retention (required, not optional)
+```
+
+**3. Disaster Recovery Requirements**
+
+Advanced systems plan for catastrophic failures.
+
+**RTO and RPO Targets:**
+```
+RTO (Recovery Time Objective): How long can the system be down?
+RPO (Recovery Point Objective): How much data loss is acceptable?
+
+For a pub/sub messaging system:
+
+Scenario: Entire datacenter failure (earthquake, fire, flooding)
+
+Approach A - Async Multi-Region Replication:
+- RTO: 5 minutes (time to failover to backup region)
+- RPO: 10 seconds (replication lag)
+- Cost: 2x infrastructure (active-passive)
+- Use when: 5-minute downtime acceptable, 10 seconds data loss acceptable
+
+Approach B - Sync Multi-Region Replication:
+- RTO: 0 seconds (active-active, automatic routing)
+- RPO: 0 seconds (wait for both regions before ack)
+- Cost: 2x infrastructure + increased latency
+- Use when: Zero data loss required (financial systems)
+
+Approach C - Backup and Restore:
+- RTO: 4 hours (restore from S3 backups)
+- RPO: 1 hour (backup frequency)
+- Cost: 0.1x (just backup storage, no standby compute)
+- Use when: System not business-critical
+
+For our requirements (99.99% availability), Approach A is appropriate.
+```
+
+**Multi-Region Failover Procedure:**
+```
+Preparation (done once):
+1. Deploy identical cluster in us-west (backup for us-east primary)
+2. Configure async replication: us-east → us-west (10-second lag)
+3. Test failover quarterly
+
+Disaster Strikes - Primary Region (us-east) Down:
+T+0 minutes: Monitoring detects us-east cluster unreachable
+T+1 minute: Automated health checks fail, trigger failover runbook
+T+2 minutes: DNS updated to point to us-west
+T+3 minutes: Producers/consumers reconnect to us-west
+T+5 minutes: System fully operational in us-west
+
+Post-Failover:
+- Operate from us-west as new primary
+- When us-east recovers, replicate from us-west → us-east
+- Once caught up, optionally fail back to us-east
+```
+
+**4. Security Requirements for Enterprise**
+
+Production systems require defense-in-depth security.
+
+**Multi-Tenancy Isolation:**
+```
+Scenario: Multiple business units sharing the same Kafka cluster
+
+Security Requirements:
+1. Team A cannot read Team B's messages
+2. Team A cannot write to Team B's topics
+3. Compromised producer from Team A cannot DOS Team B
+
+Implementation:
+
+Layer 1 - Authentication (WHO):
+- mTLS (mutual TLS) for all clients
+- Each client has a certificate signed by internal CA
+- Certificate includes team/service identity
+
+Layer 2 - Authorization (WHAT):
+- ACLs (Access Control Lists) per topic
+  * Topic "team-a-orders": Allow team-a-* producers, Deny team-b-*
+  * Topic "team-b-analytics": Allow team-b-* consumers, Deny team-a-*
+- Deny by default, explicit allow required
+
+Layer 3 - Resource Quotas (HOW MUCH):
+- Producer quotas: Max 1000 msg/sec per client
+- Consumer quotas: Max 100 MB/sec per client
+- Prevents noisy neighbor problem
+
+Layer 4 - Audit Logging:
+- Log all denied access attempts
+- Alert on suspicious patterns (many denies from one client)
+```
+
+**Encryption Strategy:**
+```
+Three layers of encryption:
+
+1. In-Transit Encryption (TLS 1.3):
+   - Producer → Broker: TLS
+   - Broker → Consumer: TLS
+   - Broker → Broker (replication): TLS
+   - Prevents network sniffing
+
+2. At-Rest Encryption (AES-256):
+   - Disk encryption for all broker storage
+   - Protects if disks are physically stolen
+   - Minimal performance impact (<5%)
+
+3. End-to-End Encryption (Application Layer):
+   - Producer encrypts message before sending
+   - Broker stores encrypted data (can't read it)
+   - Consumer decrypts after receiving
+   - Protects against compromised broker
+   - Use for: PII, financial data, health records
+   - Cost: Key management complexity, no broker-side processing
+
+Typical configuration:
+- Layers 1+2 for all data (default)
+- Layer 3 for sensitive topics only (compliance-driven)
+```
+
+#### Advanced Requirements Analysis Framework
+
+**Capacity Planning with Growth Projections:**
+```
+Don't just design for today—project 3 years out:
+
+Year 1 (MVP):
+- 100K msg/sec (1% of target)
+- 10 topics, 100 partitions
+- 5 brokers
+- Cost: $50K/month
+
+Year 2 (Growth):
+- 1M msg/sec (10% of target)
+- 50 topics, 500 partitions
+- 15 brokers (linear scaling)
+- Cost: $150K/month
+
+Year 3 (Scale):
+- 10M msg/sec (full target)
+- 100 topics, 1000 partitions
+- 30 brokers (linear scaling)
+- Cost: $500K/month
+
+Design Implications:
+- Need to support adding brokers without downtime ✓
+- Need partition rebalancing automation ✓
+- Need monitoring to predict capacity needs ✓
+- Budget planning: $500K/month = $6M/year by Year 3
+```
+
+**SLA Requirements and Monitoring:**
+```
+Translate "99.99% availability" into measurable SLOs:
+
+SLO 1 - Publish Latency:
+- Target: p99 < 10ms
+- Measurement: Track end-to-end from producer.send() to ack
+- Alert: If p99 > 15ms for 5 consecutive minutes
+
+SLO 2 - Consumer Lag:
+- Target: p95 < 1 second (time between produce and consume)
+- Measurement: current_offset - consumer_offset per partition
+- Alert: If lag > 10,000 messages for 5 minutes
+
+SLO 3 - Availability:
+- Target: 99.99% (52 minutes/year downtime)
+- Measurement: Successful publish rate / Total attempts
+- Alert: If success rate < 99.9% for 1 minute
+
+SLO 4 - Data Durability:
+- Target: 0 messages lost per month
+- Measurement: Compare producer ack count vs consumer read count
+- Alert: If any discrepancy detected
+
+Error Budget:
+- 99.99% = 0.01% errors allowed
+- 10M msg/sec × 0.0001 = 1,000 failed messages/second acceptable
+- If we exceed this, freeze feature development, focus on reliability
+```
+
+---
+
+### Real-World Example: How LinkedIn Designed Kafka
+
+Let's examine how LinkedIn actually approached the requirements for Kafka (the original pub/sub system):
+
+**Their Context (2010):**
+```
+Problem: LinkedIn's activity data pipeline was broken
+- 100+ data sources (web servers, databases, apps)
+- 100+ consumers (analytics, search, recommendations)
+- 10,000 TCP connections (full mesh nightmare)
+- Deploy a new consumer = update 100 producers
+- Couldn't scale, couldn't add features
+```
+
+**Their Requirements Process:**
+```
+1. Identified the core problem: Point-to-point integration doesn't scale
+
+2. Studied existing solutions:
+   - Traditional message queues (RabbitMQ, ActiveMQ):
+     ❌ Delete-after-read model doesn't allow replay
+     ❌ Low throughput (<10K msg/sec)
+     ❌ Not designed for horizontal scaling
+   
+   - Log aggregation (Scribe, Flume):
+     ❌ Push model doesn't let consumers control pace
+     ❌ No message ordering guarantees
+     ❌ Limited durability
+
+3. Defined their requirements:
+   ✅ High throughput (millions of messages/second)
+   ✅ Low latency (<10ms)
+   ✅ Horizontal scalability
+   ✅ Replay capability
+   ✅ Message durability
+   ✅ Simple consumer API
+
+4. Made key design decisions:
+   - Pull model instead of push (consumers control pace)
+   - Log-structured storage (append-only, sequential writes)
+   - Partitioning for parallelism
+   - Replication for durability
+   - Zero-copy transfers for performance
+
+5. Result:
+   - Released Kafka in 2011
+   - Now processes 7 trillion messages/day at LinkedIn
+   - Used by 80% of Fortune 100 companies
+   - Became the industry standard for event streaming
+```
+
+**Lessons from LinkedIn's Approach:**
+```
+1. Understand existing solutions' limitations before designing new ones
+2. Prioritize requirements ruthlessly (they chose throughput over fancy routing)
+3. Simple, composable primitives (topics, partitions) scale better than complex features
+4. Operational simplicity matters (easy to deploy, monitor, debug)
+5. Open source creates network effects (community improvements)
+```
+
+---
+
+### 🤔 Think About It
+
+1. **Ordering Trade-offs**: We guarantee ordering within a partition but not across partitions. Can you think of a scenario where this isn't sufficient? How would you handle a requirement for global ordering across all messages?
+
+2. **Cost vs Performance**: We discussed using SSD for recent data and HDD for older data. What problems might arise when a consumer wants to read a large batch of messages spanning both storage tiers?
+
+3. **Multi-Region Complexity**: With async multi-region replication, two clients in different regions might see events in different orders. How would this affect a global leader board system? What strategies could mitigate this?
+
+4. **Exactly-Once Semantics**: We mentioned exactly-once delivery is complex. Research how Kafka implements it (hint: idempotent producers + transactional writes). What are the performance implications?
+
+---
+
+### ✅ Key Takeaways
+
+1. **Requirements drive design**: Every technical decision should trace back to a specific requirement. "We use 3x replication" → "Because we need 99.99% availability"
+
+2. **No perfect solutions**: Everything is a trade-off. Strong ordering = lower throughput. Low latency = potentially weaker durability. Understand the trade-offs and choose consciously.
+
+3. **Think in layers**: Functional requirements (what), non-functional requirements (how well), operational requirements (how to run), cost requirements (how much)
+
+4. **Validate with real systems**: Reference actual deployments (LinkedIn, Uber, Netflix) to validate your assumptions. If your numbers are 10x off from production systems, investigate why.
+
+5. **Ask clarifying questions**: In interviews, asking insightful questions is more valuable than jumping to solutions. Shows structured thinking.
+
+6. **Consider the full lifecycle**: Requirements don't end at launch. Plan for growth, disaster recovery, compliance, cost optimization, and operational maintainability.
+
+---
+
+### 🎯 Practice Exercise
+
+**Exercise: Requirements for a Different Use Case**
+
+Imagine you're designing a pub/sub system for a different scenario:
+
+**Scenario:** IoT sensor network for smart city infrastructure
+- 100,000 sensors (traffic lights, air quality monitors, parking sensors)
+- Each sensor sends data every 10 seconds
+- Data must be processed for real-time dashboards AND stored for 5-year trend analysis
+- Government regulations require 99.999% data integrity (no losses)
+- Budget constraint: $100,000/year total
+
+**Your task:**
+1. Calculate throughput (msgs/sec, data volume)
+2. Identify key functional requirements (different from microservices use case?)
+3. Define non-functional requirements (how does 99.999% differ from 99.99%?)
+4. What unique challenges does IoT present? (hint: network reliability, device failures)
+5. How would you stay within the $100K budget? (storage tiering? retention strategy?)
+
+Spend 20 minutes on this. Compare your requirements to the ones we defined for the microservices case. What's different and why?
 
 ---
 
