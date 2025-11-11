@@ -224,204 +224,817 @@ Before diving in, here are key technical terms you'll encounter (with everyday a
 
 ## TABLE OF CONTENTS
 
-- [REQUIREMENTS & CLARIFICATION](#requirements--clarification)
-  - [User Stories](#user-stories)
-  - [Functional Requirements (MVP)](#functional-requirements-mvp)
-  - [Non-Functional Requirements](#non-functional-requirements)
-  - [Clarifying Questions & Assumptions](#clarifying-questions--assumptions)
-- [BACK-OF-THE-ENVELOPE CALCULATIONS](#back-of-the-envelope-calculations)
-  - [Traffic Estimates](#traffic-estimates)
-  - [Storage Estimates](#storage-estimates)
-  - [Bandwidth Estimates](#bandwidth-estimates)
-  - [Resource Estimates](#resource-estimates)
-- [HIGH-LEVEL DESIGN](#high-level-design)
-  - [Core Components](#core-components)
-  - [Architecture Diagram](#architecture-diagram)
-  - [Data Flow Explanation](#data-flow-explanation)
-- [API DESIGN](#api-design)
-  - [Producer API](#producer-api)
-  - [Consumer API](#consumer-api)
-  - [Admin API](#admin-api)
-- [DATA MODELS](#data-models)
-  - [Message Structure](#message-structure)
-  - [Topic Metadata](#topic-metadata)
-  - [Consumer Group State](#consumer-group-state)
-- [DEEP DIVE: TOPIC PARTITIONING STRATEGY](#deep-dive-topic-partitioning-strategy)
-  - [Partitioning Methods](#partitioning-methods)
-  - [Partition Assignment](#partition-assignment)
-  - [Rebalancing Protocol](#rebalancing-protocol)
-- [DEEP DIVE: CONSUMER GROUPS & REBALANCING](#deep-dive-consumer-groups--rebalancing)
-  - [Consumer Group Coordinator](#consumer-group-coordinator)
-  - [Rebalancing Strategies](#rebalancing-strategies)
-  - [Rebalancing Protocol Flow](#rebalancing-protocol-flow)
-- [DEEP DIVE: OFFSET MANAGEMENT](#deep-dive-offset-management)
-  - [Offset Storage](#offset-storage)
-  - [Commit Strategies](#commit-strategies)
-  - [Exactly-Once Semantics](#exactly-once-semantics)
-- [DEEP DIVE: LOG-STRUCTURED STORAGE](#deep-dive-log-structured-storage)
-  - [Segment Management](#segment-management)
-  - [Index Structures](#index-structures)
-  - [Retention and Cleanup](#retention-and-cleanup)
-- [DEEP DIVE: REPLICATION PROTOCOL](#deep-dive-replication-protocol)
-  - [Leader-Follower Architecture](#leader-follower-architecture)
-  - [In-Sync Replicas (ISR)](#in-sync-replicas-isr)
-  - [Failure Scenarios](#failure-scenarios)
-- [DEEP DIVE: PRODUCER OPTIMIZATIONS](#deep-dive-producer-optimizations)
-  - [Batching Strategy](#batching-strategy)
-  - [Compression](#compression)
-  - [Partitioner](#partitioner)
-- [DEEP DIVE: BACK-PRESSURE & FLOW CONTROL](#deep-dive-back-pressure--flow-control)
-  - [Producer Flow Control](#producer-flow-control)
-  - [Consumer Flow Control](#consumer-flow-control)
-- [DEEP DIVE: COMPACTED TOPICS](#deep-dive-compacted-topics)
-  - [Log Compaction Process](#log-compaction-process)
-  - [Use Cases](#use-cases)
-- [DATABASE SCHEMA](#database-schema)
-  - [Metadata Storage](#metadata-storage)
-- [KEY ALGORITHMS](#key-algorithms)
-  - [Consistent Hashing for Partition Assignment](#consistent-hashing-for-partition-assignment)
-  - [High Water Mark Algorithm](#high-water-mark-algorithm)
-- [SCALABILITY & PERFORMANCE](#scalability--performance)
-  - [Horizontal Scaling](#horizontal-scaling)
-  - [Performance Optimizations](#performance-optimizations)
-- [RELIABILITY & FAULT TOLERANCE](#reliability--fault-tolerance)
-  - [Failure Detection](#failure-detection)
-  - [Recovery Mechanisms](#recovery-mechanisms)
-- [MONITORING & OBSERVABILITY](#monitoring--observability)
-  - [Key Metrics](#key-metrics)
-  - [Alerting Rules](#alerting-rules)
-- [SECURITY CONSIDERATIONS](#security-considerations)
-  - [Authentication](#authentication)
-  - [Authorization (ACLs)](#authorization-acls)
-  - [Encryption](#encryption)
-  - [Audit Logging](#audit-logging)
-- [TRADE-OFFS & DESIGN DECISIONS](#trade-offs--design-decisions)
-  - [Decision: Replication Factor](#decision-replication-factor)
-  - [Decision: Acknowledgment Level](#decision-acknowledgment-level)
-  - [Decision: Pull vs Push Model](#decision-pull-vs-push-model)
-  - [Alternatives to Kafka](#alternatives-to-kafka)
-- [FUTURE ENHANCEMENTS](#future-enhancements)
-  - [Tiered Storage](#tiered-storage)
-  - [Multi-Region Replication](#multi-region-replication)
-  - [Schema Registry Integration](#schema-registry-integration)
-  - [Stream Processing Integration](#stream-processing-integration)
-- [SUMMARY](#summary)
+- [Section 1: Understanding What We're Building](#section-1-understanding-what-were-building)
+- [Section 2: Planning for Scale (Capacity Estimation)](#section-2-planning-for-scale-capacity-estimation)
+- [Section 3: Designing the System Architecture](#section-3-designing-the-system-architecture)
+- [Section 4: Topic Partitioning Strategy](#section-4-topic-partitioning-strategy)
+- [Section 5: Consumer Groups & Rebalancing](#section-5-consumer-groups--rebalancing)
+- [Section 6: Offset Management & Delivery Guarantees](#section-6-offset-management--delivery-guarantees)
+- [Section 7: Log-Structured Storage](#section-7-log-structured-storage)
+- [Section 8: Replication Protocol & High Availability](#section-8-replication-protocol--high-availability)
+- [Section 9: Producer Optimizations](#section-9-producer-optimizations)
+- [Section 10: Message Delivery Patterns & Flow Control](#section-10-message-delivery-patterns--flow-control)
+- [Section 11: Growing the System (Scalability)](#section-11-growing-the-system-scalability)
+- [Section 12: Protecting the System (Security)](#section-12-protecting-the-system-security)
+- [Section 13: Keeping It Healthy (Monitoring)](#section-13-keeping-it-healthy-monitoring)
+- [Section 14: Making Design Decisions](#section-14-making-design-decisions)
+- [Section 15: Interview Preparation & Practice](#section-15-interview-preparation--practice)
+- [Putting It All Together](#putting-it-all-together)
+- [Resources for Further Learning](#resources-for-further-learning)
+- [Congratulations!](#congratulations)
 
 ---
 
-## REQUIREMENTS & CLARIFICATION
+## Section 1: Understanding What We're Building
 
-### User Stories
+### What You'll Learn
 
-**As a microservice developer**, I want to publish events to topics so that other services can asynchronously consume and react to those events.
+By the end of this section, you'll be able to:
+- Explain what a pub/sub messaging system is and why companies like LinkedIn, Uber, and Netflix need it
+- Identify the key functional and non-functional requirements for a large-scale messaging system
+- Understand the difference between different delivery guarantees (at-most-once, at-least-once, exactly-once)
+- Ask the right clarifying questions during a system design interview
 
-**As an application architect**, I want consumer groups to process messages in parallel so that I can scale message processing across multiple consumers.
+### Why This Matters
 
-**As a data engineer**, I want to replay historical messages so that I can reprocess data for analytics or recover from processing errors.
-
-**As a platform engineer**, I want automatic partition rebalancing so that new consumers can join without manual intervention.
-
-**As a system operator**, I want message durability with replication so that no data is lost even when brokers fail.
-
-**As a stream processing developer**, I want exactly-once delivery guarantees so that my processing results are accurate without duplicates.
+Before writing a single line of code or drawing any diagrams, you need to understand WHAT you're building and WHY. This is often where interviews are won or lost. Real-world example: LinkedIn built Apache Kafka because traditional messaging systems couldn't handle their exponentially growing data pipeline needs—understanding these "why" questions shaped the entire design and made Kafka the industry standard for event streaming!
 
 ---
 
-### Functional Requirements (MVP)
+### 🟢 For Beginners: The Fundamentals
 
-1. **Message Publishing**: Producers can publish messages to topics
-2. **Message Consumption**: Consumers can subscribe to topics and read messages
-3. **Topic Management**: Create, delete, and configure topics with partitions
-4. **Consumer Groups**: Multiple consumers coordinate to consume partitions
-5. **Offset Management**: Track consumption progress per partition
-6. **Message Retention**: Store messages for configurable time period
-7. **Replication**: Replicate data across multiple brokers for durability
-8. **Ordering Guarantee**: Maintain message order within partitions
+#### What is a Pub/Sub Messaging System?
 
-**Out of Scope for MVP:**
+Imagine you're running a large restaurant chain with hundreds of locations. When a customer places an order at one location, multiple departments need to know about it:
+- The kitchen needs to prepare the food
+- The billing system needs to charge the customer
+- The inventory system needs to update stock levels
+- The analytics team needs to track sales trends
 
-- Message filtering/routing within broker
-- Complex transactions across topics
-- Message transformation in broker
-- Built-in schema registry
+**The old way (direct communication)**: The order system would call each department one by one. If the billing system is slow or down, the entire order gets delayed. If you add a new department (like a loyalty rewards system), you have to modify the order system.
+
+**The pub/sub way**: The order system publishes the order event to a central message bus (topic). Each department subscribes to order events and processes them independently. If billing is slow, it doesn't affect the kitchen. If you add rewards, it just subscribes to the same topic—no changes needed to the order system!
+
+**Key Components Explained:**
+
+1. **Publishers (Producers)**:
+   - These are applications that create and send messages
+   - Example: Your order entry system, user registration system, payment processor
+   - Think of them like newspaper journalists writing articles
+
+2. **Topics**:
+   - Categories or channels where messages are published
+   - Example: "orders" topic, "user-registrations" topic, "payments" topic
+   - Think of them like TV channels or newspaper sections (Sports, News, Business)
+
+3. **Partitions**:
+   - Subdivisions of a topic for parallel processing
+   - Each partition is like a separate lane on a highway—traffic moves independently
+   - Messages with the same key (like user_id) always go to the same partition (maintains order)
+
+4. **Subscribers (Consumers)**:
+   - Applications that read and process messages
+   - Example: Kitchen display system, billing processor, inventory manager
+   - Think of them like newspaper readers or TV viewers
+
+5. **Message Broker**:
+   - The central system that stores and delivers messages
+   - Example: Apache Kafka, RabbitMQ, Amazon SQS
+   - Think of it like the post office or newspaper delivery service
+
+**Why Companies Need This:**
+
+- **Decoupling**: Services don't depend on each other directly. If one service is down, others keep working
+- **Scalability**: Add more consumers to process messages faster without changing producers
+- **Durability**: Messages are stored, so you can replay them if something goes wrong
+- **Asynchronous Processing**: Producers don't wait for consumers—they publish and continue
+
+#### User Stories: Who Uses This System?
+
+Let's understand different perspectives through real-world scenarios:
+
+**Story 1: The Microservice Developer**
+
+*"I'm building the checkout service for an e-commerce site. When a customer completes a purchase, I need to notify the inventory service, shipping service, email service, and analytics service. If I call each service directly, my checkout becomes slow and can fail if any service is down. With pub/sub, I publish one 'order-completed' event, and each service processes it independently. My checkout completes in milliseconds!"*
+
+**What they need:**
+- Publish messages to topics without worrying about who consumes them
+- Get acknowledgment that messages are safely stored
+- Simple API to integrate with their application
+
+**Story 2: The Application Architect**
+
+*"Our recommendation engine processes 50 million user behavior events per day (page views, clicks, purchases). One consumer can't handle that volume. With consumer groups, I can run 100 consumers in parallel, each processing 1% of the events. When traffic spikes during Black Friday, I just add more consumers—the system automatically distributes the load!"*
+
+**What they need:**
+- Consumer groups to distribute processing across multiple instances
+- Automatic partition assignment when consumers join/leave
+- Load balancing without manual configuration
+
+**Story 3: The Data Engineer**
+
+*"Last week, our analytics pipeline had a bug that processed user events incorrectly for 2 hours. In traditional systems, that data would be lost forever. With pub/sub's message retention, I can 'rewind' to 2 hours ago and reprocess all events with the fixed code. It's like having a time machine for your data!"*
+
+**What they need:**
+- Ability to replay historical messages (seek to any offset)
+- Configurable retention period (days, weeks, or forever)
+- Multiple consumer groups reading the same data independently
+
+**Story 4: The Platform Engineer**
+
+*"We have 20 microservices, each running 10 instances. That's 200 consumers! When we deploy a new version, consumers restart. Without automatic rebalancing, we'd need manual configuration. With pub/sub, when a consumer dies, its partitions are automatically reassigned to healthy consumers within seconds. Zero manual intervention!"*
+
+**What they need:**
+- Automatic partition rebalancing when consumers join/leave/crash
+- Health checking and failure detection
+- Seamless deployment without downtime
+
+**Story 5: The System Operator**
+
+*"Disk failures happen. Network issues happen. In our previous system, if a server crashed, messages were lost forever—we once lost $50,000 worth of orders! Now with replication, every message is copied to 3 different servers. Even if 2 servers explode simultaneously, the third has all the data. We sleep better at night!"*
+
+**What they need:**
+- Replication across multiple servers (brokers)
+- Automatic failover when a broker crashes
+- No data loss guarantee for critical messages
+
+**Story 6: The Stream Processing Developer**
+
+*"I'm building a fraud detection system that monitors financial transactions. If I process the same transaction twice, I might block a legitimate customer. If I miss a transaction, fraud goes undetected. I need exactly-once semantics—process each transaction exactly one time, guaranteed. Lives and money depend on it!"*
+
+**What they need:**
+- Exactly-once delivery guarantee (no duplicates, no data loss)
+- Transactional writes across multiple topics
+- Idempotent consumers
 
 ---
 
-### Non-Functional Requirements
+#### Functional Requirements: What Must the System Do?
 
-**Performance:**
+Let's break down what our pub/sub system must accomplish, with detailed explanations for each requirement:
 
-- Throughput: Support 10M messages/second
-- Publish Latency: <10ms p99
-- Consumer Lag: <50ms under normal load
-- Batch processing for efficiency
+**1. Message Publishing**
 
-**Availability:**
+*What it means:* Producers must be able to send messages to topics reliably and efficiently.
 
-- 99.99% uptime (52 minutes downtime/year)
-- Automatic failover for broker failures
-- No single point of failure
-- Partition leader election < 5 seconds
+*Detailed explanation:*
+- **API simplicity**: Developer calls `send(topic, key, value)` and gets back an acknowledgment
+- **Batching**: Instead of sending one message at a time (slow), group 100 messages into one network request (fast)
+- **Compression**: Compress messages to save bandwidth (like zipping a file)
+- **Partition selection**: System decides which partition receives the message based on the key
+  - If key = "user_123", all user_123 messages go to the same partition (maintains order)
+  - If no key provided, round-robin across partitions (load balancing)
 
-**Scalability:**
+*Example:* When a user posts a photo on Instagram, the producer sends:
+```
+topic: "user-posts"
+key: "user_123"  (ensures all user_123's posts stay ordered)
+value: {"user_id": 123, "photo_url": "...", "caption": "Sunset!", "timestamp": 1699734000}
+```
 
-- 100+ topics with 1000+ partitions
-- 10K+ producers and consumers
-- Horizontal scaling by adding brokers
-- Dynamic partition assignment
+**2. Message Consumption**
 
-**Durability:**
+*What it means:* Consumers must be able to read messages from topics in a controlled, scalable way.
 
-- Replication factor of 3 (configurable)
-- No data loss with proper acknowledgment
-- At-least-once delivery guarantee (default)
-- Exactly-once delivery option available
+*Detailed explanation:*
+- **Pull model**: Consumers request messages (don't push to them). This way consumers control the pace.
+  - Like going to a buffet (you take food at your pace) vs waiter service (they control the pace)
+  - Consumer says "give me next 100 messages from partition 5" repeatedly
+- **Offset tracking**: Consumer remembers where it left off (like a bookmark)
+  - Read message 0, 1, 2, 3... commit offset=4 (meaning "I've processed up to 3")
+  - If consumer crashes and restarts, it resumes from offset 4
+- **Replay capability**: Consumer can "rewind" to any previous offset
+  - Example: "I want to reprocess last week's data" → seek to offset from 7 days ago
 
-**Storage:**
+*Example:* Analytics service reads user posts:
+```
+1. Subscribe to "user-posts" topic with consumer group "analytics-processors"
+2. Get assigned partitions 0, 1, 2 (out of 10 total)
+3. Fetch 100 messages from partition 0, starting at offset 1000
+4. Process messages (count likes, track trends)
+5. Commit offset 1100 (successfully processed)
+6. Repeat for partitions 1 and 2
+```
 
-- 30 days message retention (configurable)
-- 10 PB total storage capacity
-- Log-structured storage for sequential writes
-- Support for compacted topics
+**3. Topic Management**
+
+*What it means:* Administrators can create, configure, and manage topics.
+
+*Detailed explanation:*
+- **Create topic**: Define name, number of partitions, replication factor
+  - Example: Create "user-events" with 100 partitions (for high parallelism) and replication=3 (for durability)
+- **Configure retention**: How long to keep messages
+  - Time-based: "Keep messages for 7 days, then delete"
+  - Size-based: "Keep up to 100GB, delete oldest when full"
+  - Forever: "Keep all messages indefinitely" (useful for audit logs)
+- **Partition scaling**: Increase partitions as traffic grows
+  - Start with 10 partitions, grow to 100 as user base expands
+  - Cannot decrease partitions (would break ordering guarantees)
+
+*Real-world example:* LinkedIn's "user-activity" topic
+- 500 partitions for parallel processing
+- 7-day retention (older data moved to data warehouse)
+- Replication factor 3 (tolerates 2 broker failures)
+
+**4. Consumer Groups**
+
+*What it means:* Multiple consumers work together as a team to share the processing load.
+
+*Detailed explanation:*
+
+Let's use a restaurant analogy. You have a kitchen with 10 orders to prepare:
+
+**Without consumer groups (everyone cooks everything):**
+- 5 chefs each try to cook all 10 orders
+- Massive duplication of work
+- Chaos and inefficiency
+
+**With consumer groups (team coordination):**
+- 5 chefs form a group called "dinner-shift-team"
+- Orders are distributed: Chef A handles orders 1-2, Chef B handles 3-4, etc.
+- Each order is cooked exactly once
+- If Chef C goes home sick, the manager (coordinator) reassigns orders 5-6 to other chefs
+
+**In pub/sub terms:**
+- Topic has 10 partitions (like 10 order queues)
+- Consumer group "analytics-team" has 5 consumers
+- Partition assignment: Consumer 1 → partitions 0,1; Consumer 2 → partitions 2,3; etc.
+- Each partition has exactly one consumer per group
+- If Consumer 3 crashes, its partitions (4,5) are reassigned to other consumers
+
+**Multiple groups reading the same topic:**
+- "analytics-team" group reads "orders" topic for trends
+- "billing-team" group reads "orders" topic for invoicing
+- "inventory-team" group reads "orders" topic for stock updates
+- Each group tracks its own offsets independently (no interference)
+
+**5. Offset Management**
+
+*What it means:* The system tracks which messages each consumer group has processed.
+
+*Detailed explanation:*
+
+Think of offsets like page numbers in a book. Each partition is a separate book.
+
+**The process:**
+1. Consumer reads messages from partition 0, offsets 100-199 (like reading pages 100-199)
+2. Consumer processes them (validates data, writes to database, etc.)
+3. Consumer commits offset 200 (telling the system "I've successfully processed up to offset 199")
+4. System stores: "consumer_group=analytics-team, topic=orders, partition=0, offset=200"
+
+**If consumer crashes:**
+1. New consumer starts and asks "where did we leave off?"
+2. System responds: "offset 200"
+3. Consumer resumes from offset 200 (no messages lost or reprocessed)
+
+**Commit strategies:**
+- **Auto-commit**: Automatically commit every 5 seconds (simple but risky—might lose 5 seconds of data if crash)
+- **Manual commit**: Commit after successfully processing each batch (safer but requires careful coding)
+- **Commit after database write**: Only commit offset after writing to database (ensures at-least-once processing)
+
+**6. Message Retention**
+
+*What it means:* Messages are stored for a configurable period, not deleted immediately after consumption.
+
+*Detailed explanation:*
+
+Traditional message queues (like RabbitMQ) work like regular mail:
+- Message arrives → you read it → it's deleted
+- If you want to read it again, tough luck!
+
+Pub/sub messaging (like Kafka) works like a library:
+- Message arrives → stored on disk for 7 days (or whatever you configure)
+- You can read it once, 10 times, or 1000 times in those 7 days
+- After 7 days, it's automatically deleted to save space
+
+**Retention policies:**
+
+*Time-based retention:*
+```
+retention.ms = 604800000  (7 days in milliseconds)
+```
+- Messages older than 7 days are deleted
+- Regardless of whether anyone read them
+- Use case: Recent activity feeds, temporary logs
+
+*Size-based retention:*
+```
+retention.bytes = 107374182400  (100 GB)
+```
+- Keep up to 100GB per partition
+- When limit reached, delete oldest messages (FIFO)
+- Use case: Limited disk space, predictable storage costs
+
+*Infinite retention:*
+```
+retention.ms = -1  (keep forever)
+```
+- Never delete messages
+- Use case: Audit logs, regulatory compliance, complete event sourcing
+
+**Why this matters:**
+- **Replay**: Reprocess messages after fixing a bug
+- **New consumers**: New service can read historical data
+- **Debugging**: Investigate issues by replaying events
+- **Disaster recovery**: Rebuild state from scratch using message history
+
+**7. Replication**
+
+*What it means:* Each message is copied to multiple brokers for durability.
+
+*Detailed explanation:*
+
+Imagine you write an important document. How do you prevent losing it?
+- One copy on your laptop: Laptop crashes → document lost!
+- Two copies (laptop + USB drive): Both fail → still lost!
+- Three copies (laptop + USB drive + cloud): Extremely unlikely to lose all three
+
+Pub/sub replication works the same way:
+
+**Replication factor = 3 (industry standard):**
+- Every partition has 3 copies on 3 different brokers
+- One broker is the "leader" (handles all reads/writes)
+- Two brokers are "followers" (keep identical copies)
+
+**Example: Partition 0 with replication factor 3:**
+```
+Broker 1 (Leader): Partition 0 - handles all writes
+Broker 2 (Follower): Partition 0 - copy 1
+Broker 3 (Follower): Partition 0 - copy 2
+```
+
+**When a producer writes a message:**
+1. Producer sends message to Broker 1 (leader)
+2. Broker 1 writes to its disk
+3. Broker 1 sends message to Broker 2 and Broker 3
+4. Brokers 2 and 3 write to their disks
+5. Brokers 2 and 3 acknowledge to Broker 1
+6. Broker 1 acknowledges to producer: "Message safely replicated!"
+
+**If Broker 1 crashes:**
+- System elects Broker 2 as the new leader (takes <5 seconds)
+- Broker 2 handles all reads/writes now
+- No messages are lost (they're on Broker 2 and Broker 3)
+- When Broker 1 recovers, it becomes a follower and catches up
+
+**Trade-offs:**
+- More replicas = better durability but more storage and network bandwidth
+- Typical configurations:
+  - Replication = 2: Development environments
+  - Replication = 3: Production (tolerates 1 broker failure)
+  - Replication = 5: Critical systems (tolerates 2 broker failures)
+
+**8. Ordering Guarantee**
+
+*What it means:* Messages within the same partition are delivered in the exact order they were published.
+
+*Detailed explanation:*
+
+**Why ordering matters:**
+
+Consider a bank account with $1000:
+1. Deposit $500 → Balance = $1500
+2. Withdraw $200 → Balance = $1300
+
+If these events are processed out of order:
+1. Withdraw $200 → FAIL! (insufficient funds, only $1000 available)
+2. Deposit $500 → Balance = $1500
+
+Same events, wrong order = wrong result!
+
+**How pub/sub maintains order:**
+
+**Within a partition (GUARANTEED):**
+- Messages with the same key go to the same partition
+- Partition is an append-only log (like a line of people—first in, first out)
+- Messages are numbered sequentially: offset 0, 1, 2, 3...
+- Consumers read in order: 0 → 1 → 2 → 3 (never 2 → 0 → 3 → 1)
+
+**Example: User account events**
+```
+Key = "account_123"  (ensures all account_123 events → same partition)
+
+Partition 5 contents:
+Offset 0: {"account": 123, "action": "deposit", "amount": 500, "timestamp": 10:00:00}
+Offset 1: {"account": 123, "action": "withdraw", "amount": 200, "timestamp": 10:05:00}
+Offset 2: {"account": 123, "action": "deposit", "amount": 300, "timestamp": 10:10:00}
+
+Consumer reads in order: 0 → 1 → 2
+Final balance: $1000 + $500 - $200 + $300 = $1600 ✓ Correct!
+```
+
+**Across partitions (NOT GUARANTEED):**
+- Different partitions are processed independently and in parallel
+- No ordering guarantee between partitions
+
+**Example with 2 partitions:**
+```
+Partition 0: User A's events (ordered)
+Partition 1: User B's events (ordered)
+
+But you can't guarantee "all User A events happened before all User B events"
+That's okay because different users' events are independent!
+```
+
+**Best practices:**
+- Use meaningful keys (user_id, order_id, session_id) to group related messages
+- All events for the same entity go to the same partition
+- Don't mix unrelated entities in the same topic
 
 ---
 
-### Clarifying Questions & Assumptions
+#### Non-Functional Requirements: How Should the System Perform?
 
-**Scale Questions:**
+These are the "quality attributes"—not about what the system does, but how well it does it.
 
-- **Q:** What's the expected message throughput?
-  - **A:** 10M messages/second, scalable to 100M+ with cluster expansion
-- **Q:** How many topics and partitions?
-  - **A:** 100+ topics, 1000+ partitions total
-- **Q:** How long should messages be retained?
-  - **A:** 30 days by default, configurable per topic
+**1. Performance**
+
+**Throughput: Support 10M messages/second**
+
+*What this means:*
+- The system must handle 10 million messages every second
+- That's 600 million messages per minute
+- 36 billion messages per hour
+- 864 billion messages per day!
+
+*How to achieve it:*
+- **Batching**: Group 100-1000 messages per network request (reduces overhead)
+- **Partitioning**: 1000 partitions × 10,000 msg/sec/partition = 10M total
+- **Zero-copy transfers**: Move data from disk to network without CPU involvement
+- **Sequential disk I/O**: Writing sequentially is 100x faster than random writes
+
+*Real-world comparison:*
+- LinkedIn Kafka: 7 trillion messages/day (81 million/second average)
+- Uber: 1 trillion messages/day (11 million/second average)
+
+**Publish Latency: <10ms p99**
+
+*What this means:*
+- 99% of message publishes complete in under 10 milliseconds
+- From when producer calls send() to when acknowledgment is received
+- p99 = 99th percentile (only 1% of requests are slower)
+
+*Why it matters:*
+- Fast publish means applications don't slow down when logging events
+- User actions don't block waiting for message delivery
+
+*How to achieve it:*
+- In-memory buffering before disk write
+- Batch writes to disk (reduces seek time)
+- Fast network (10+ Gbps)
+- SSD storage (1000x faster than HDD for writes)
+
+**Consumer Lag: <50ms under normal load**
+
+*What this means:*
+- Time difference between when message is published and when consumer reads it
+- "Lag" = how far behind consumers are from the latest message
+
+*Example:*
+- Producer writes message at offset 1000 at time 10:00:00.000
+- Consumer is currently reading offset 950 at time 10:00:00.045
+- Lag = 50 messages or 45 milliseconds
+
+*Why it matters:*
+- Low lag means near-real-time processing
+- High lag means consumers can't keep up (need more consumers or optimization)
+
+*How to achieve it:*
+- Sufficient consumer instances (1 per partition for max parallelism)
+- Fast consumer processing (efficient code, database optimization)
+- Load balancing across consumers
+
+**2. Availability**
+
+**99.99% uptime (52 minutes downtime/year)**
+
+*What this means:*
+- System must be available 99.99% of the time
+- Only 52.56 minutes of downtime allowed per year
+- That's less than 1 hour out of 8,760 hours!
+
+*Comparison:*
+- 99% (two nines) = 3.65 days downtime/year (unacceptable for critical systems)
+- 99.9% (three nines) = 8.76 hours downtime/year (acceptable for many systems)
+- 99.99% (four nines) = 52 minutes downtime/year (industry standard for databases)
+- 99.999% (five nines) = 5 minutes downtime/year (very expensive to achieve)
+
+*How to achieve it:*
+- Replication (3 copies of every partition)
+- No single point of failure (multiple brokers, redundant networks)
+- Automatic failover when brokers crash
+- Health checks every 3 seconds
+
+**Automatic failover for broker failures**
+
+*What happens when a broker crashes:*
+```
+Time T=0: Broker 1 is the leader for Partition 0
+Time T=1: Broker 1 crashes (hardware failure, network issue, etc.)
+Time T=2: ZooKeeper detects Broker 1 is unresponsive (heartbeat timeout)
+Time T=3: ZooKeeper triggers leader election
+Time T=4: Broker 2 (a follower) is elected as the new leader
+Time T=5: Producers and consumers are notified to use Broker 2
+Time T=6: System is fully operational again (total downtime: 5 seconds)
+```
+
+**Partition leader election < 5 seconds**
+
+*What this means:*
+- When a leader fails, a new leader must be elected within 5 seconds
+- During these 5 seconds, the partition is unavailable for writes (but reads can still happen from replicas)
+
+*Election process:*
+1. ZooKeeper detects leader failure (heartbeat missed)
+2. Controller broker selects a new leader from In-Sync Replicas (ISRs)
+3. New leader is announced to all brokers
+4. Producers/consumers update their routing tables
+5. Total time: 3-5 seconds
+
+**3. Scalability**
+
+**100+ topics with 1000+ partitions**
+
+*What this means:*
+- System must support at least 100 different topics
+- Total of 1000+ partitions across all topics
+
+*Example configuration:*
+```
+Topic: user-events (100 partitions)
+Topic: order-events (200 partitions)
+Topic: payment-events (50 partitions)
+Topic: clickstream (300 partitions)
+Topic: system-logs (100 partitions)
+... (95 more topics with 250 partitions)
+Total: 100 topics, 1000 partitions
+```
+
+*Why partitions matter:*
+- Each partition can be consumed by one consumer
+- More partitions = more parallelism = higher throughput
+- Limit: Each broker should handle at most 100-200 partitions
+
+**10K+ producers and consumers**
+
+*What this means:*
+- System must handle 10,000+ simultaneous client connections
+- Producers: Microservices, web servers, mobile apps, IoT devices
+- Consumers: Analytics services, databases, monitoring tools
+
+*Network considerations:*
+- 10,000 clients × 1 connection each = 10,000 TCP connections
+- Load balancers distribute clients across brokers
+- Each broker handles 500-1000 connections typically
+
+**Horizontal scaling by adding brokers**
+
+*What this means:*
+- When you need more capacity, add more brokers (servers)
+- System automatically redistributes partitions across new brokers
+
+*Scaling example:*
+```
+Initial: 5 brokers, 100 partitions
+- Each broker handles 20 partitions
+- Throughput: 500K messages/second
+
+After scaling: 10 brokers, 100 partitions
+- Each broker handles 10 partitions
+- Throughput: 1M messages/second (2x improvement)
+- Storage: 2x more disk space
+- Network: 2x more bandwidth
+```
+
+*Process:*
+1. Add new broker to cluster
+2. New broker joins automatically (registers with ZooKeeper)
+3. Controller assigns partitions to new broker
+4. Data is copied to new broker (background process)
+5. Client routing tables are updated
+6. New broker starts handling traffic
+
+**4. Durability**
+
+**No data loss with proper acknowledgment**
+
+*What this means:*
+- With correct configuration, messages are guaranteed to never be lost
+- "Proper acknowledgment" means waiting for replication before confirming to producer
+
+*Three acknowledgment levels:*
+
+**acks=0 (fire and forget):**
+- Producer sends message and immediately considers it sent
+- No acknowledgment from broker
+- Fastest but unsafe (message might be lost if broker crashes)
+- Use case: Metrics, logs where occasional loss is acceptable
+
+**acks=1 (leader acknowledgment):**
+- Producer waits for leader broker to write to disk
+- Leader sends acknowledgment
+- Faster than acks=all but risky (if leader crashes before replication, message lost)
+- Use case: Most applications with at-least-once is acceptable
+
+**acks=all (full replication):**
+- Producer waits for leader AND all In-Sync Replicas (ISRs) to write message
+- All replicas acknowledge
+- Slowest but safest (message survives multiple broker failures)
+- Use case: Financial transactions, critical data
+
+*Example with acks=all:*
+```
+1. Producer sends message to Broker 1 (leader)
+2. Broker 1 writes to its disk (offset 100)
+3. Broker 1 forwards message to Broker 2 and Broker 3 (followers)
+4. Broker 2 writes to its disk (offset 100)
+5. Broker 3 writes to its disk (offset 100)
+6. Broker 2 and Broker 3 send "ACK" to Broker 1
+7. Broker 1 sends "ACK" to Producer: "Message safely stored on 3 brokers!"
+8. Producer receives confirmation, can safely proceed
+```
+
+If Broker 1 crashes before step 3, the message is lost with acks=1, but would be retried with acks=all.
+
+**At-least-once delivery guarantee (default)**
+
+*What this means:*
+- Every message is delivered to consumers at least one time
+- But might be delivered multiple times (duplicates possible)
+
+*Why duplicates happen:*
+```
+1. Consumer reads message (offset 100)
+2. Consumer processes message successfully
+3. Consumer crashes BEFORE committing offset 101
+4. Consumer restarts, offset is still 100
+5. Consumer reads message (offset 100) AGAIN
+6. Duplicate processing!
+```
+
+*How to handle duplicates:*
+- Make consumers idempotent (processing twice = same result as once)
+- Example: "Set user email to bob@example.com" (idempotent - doing it twice is fine)
+- Example: "Add $50 to account" (NOT idempotent - need deduplication logic)
+
+**Exactly-once delivery option available**
+
+*What this means:*
+- Messages are delivered and processed exactly one time
+- No duplicates, no data loss
+- Harder to achieve but necessary for critical systems
+
+*How it works:*
+- Transactional writes with unique message IDs
+- Consumer tracks processed message IDs
+- If duplicate arrives, consumer checks ID and skips it
+
+*Use cases:*
+- Financial transactions (can't charge twice!)
+- Inventory management (can't decrement stock twice!)
+- Billing systems
+
+**5. Storage**
+
+**30 days message retention (configurable)**
+
+*What this means:*
+- Messages are stored for 30 days by default
+- After 30 days, automatically deleted to free space
+
+*Storage calculation for 30 days:*
+```
+Messages per day: 10M/sec × 86,400 seconds = 864 billion messages/day
+Average message size: 1 KB
+Daily storage: 864 billion × 1 KB = 864 TB/day
+30-day storage: 864 TB × 30 = 25.9 PB (without replication)
+With replication factor 3: 25.9 PB × 3 = 77.7 PB
+```
+
+That's 77.7 petabytes! Enough to store:
+- 77.7 million hours of HD video
+- The entire Library of Congress 1,000 times over
+
+**10 PB total storage capacity**
+
+*What this means:*
+- System must support at least 10 petabytes of storage
+- Distributed across all brokers
+
+*Broker storage:*
+```
+Total: 10 PB
+Number of brokers: 20
+Storage per broker: 10 PB / 20 = 500 TB per broker
+Actual disk per broker: 600 TB (some overhead for OS, metadata)
+```
+
+**Log-structured storage for sequential writes**
+
+*What this means:*
+- Messages are written to disk sequentially (like writing in a journal)
+- Not randomly scattered across disk (like updating a text document)
+
+*Why this matters:*
+- Sequential writes: ~600 MB/sec on modern SSDs
+- Random writes: ~6 MB/sec on same SSDs
+- 100x faster with sequential writes!
+
+*How it works:*
+- Each partition is a directory on disk
+- Messages are appended to the end of the current log file
+- When file reaches 1 GB, start a new file (segment)
+- Never modify old files (immutable)
+
+**Support for compacted topics**
+
+*What this means:*
+- For some topics, only keep the latest value for each key
+- Older values are automatically deleted
+
+*Use case example: User profile updates*
+```
+Regular topic (keeps everything):
+Offset 0: {"user_id": 123, "email": "alice@example.com"}
+Offset 1: {"user_id": 123, "email": "alice@newcompany.com"}
+Offset 2: {"user_id": 123, "email": "alice@gmail.com"}
+Total storage: 3 messages
+
+Compacted topic (keeps only latest):
+Offset 2: {"user_id": 123, "email": "alice@gmail.com"}
+Total storage: 1 message (saves 67% space!)
+```
+
+*Perfect for:*
+- Configuration data (only need current config)
+- User profiles (only need current state)
+- Database change logs (only need latest row values)
+
+---
+
+#### Clarifying Questions: What to Ask in an Interview
+
+When given a system design problem, don't start coding or drawing immediately! Ask clarifying questions to understand requirements deeply.
+
+**Scale Questions (always ask first):**
+
+**Q:** "What's the expected message throughput?"
+- **Why ask:** Determines cluster size, number of partitions, hardware specs
+- **Good answers:** "1M messages/second" or "100K messages/second during normal hours, 1M during peak"
+- **What to do with answer:** Calculate bandwidth, storage, number of brokers needed
+
+**Q:** "How many topics and partitions are we expecting?"
+- **Why ask:** Too many topics can overwhelm metadata management; too many partitions per broker causes performance issues
+- **Good answers:** "50-100 topics with 10-50 partitions each" or "5 topics with 1000 partitions total"
+- **Rule of thumb:** Each broker should handle 100-200 partitions maximum
+
+**Q:** "How long should messages be retained?"
+- **Why ask:** Directly impacts storage requirements (7 days vs 30 days = 4x storage difference)
+- **Good answers:** "7 days for logs, 30 days for events, infinite for audit trails"
+- **Trade-off:** Longer retention = more storage cost but better replay capability
 
 **Usage Pattern Questions:**
 
-- **Q:** What's the typical message size?
-  - **A:** Average 1KB, maximum 1MB per message
-- **Q:** What delivery guarantees are needed?
-  - **A:** At-least-once by default, exactly-once for critical workflows
-- **Q:** Are there ordering requirements?
-  - **A:** Yes, within partition ordering is mandatory
+**Q:** "What's the typical message size?"
+- **Why ask:** Impacts throughput calculations and network bandwidth
+- **Average:** 1-10 KB for most applications
+- **Small:** <1 KB for logs, metrics, simple events
+- **Large:** 100 KB - 1 MB for file uploads, images (consider object storage instead)
+
+**Q:** "What delivery guarantees are needed?"
+- **Why ask:** Affects performance (exactly-once is slower) and complexity
+- **At-most-once:** Metrics, logs where loss is acceptable (fastest)
+- **At-least-once:** Most applications (good balance)
+- **Exactly-once:** Financial, billing, inventory (slowest but safest)
+
+**Q:** "Are there ordering requirements?"
+- **Why ask:** Determines partitioning strategy
+- **If yes:** Use keys to route related messages to same partition
+- **If no:** Can use round-robin partitioning for better load distribution
 
 **Architecture Questions:**
 
-- **Q:** How many datacenters/regions?
-  - **A:** Single region for MVP, multi-region in future
-- **Q:** What replication factor?
-  - **A:** 3 replicas for production workloads
-- **Q:** Should consumers read from replicas?
-  - **A:** Primarily from leader, replica reads for optimization
+**Q:** "How many datacenters/regions?"
+- **Why ask:** Single vs multi-region changes architecture significantly
+- **Single region:** Simpler, lower latency, cheaper
+- **Multi-region:** Complex replication, higher latency, disaster recovery
 
-**Assumptions:**
+**Q:** "What replication factor should we use?"
+- **Why ask:** Balances durability vs storage cost
+- **Development:** 1-2 replicas
+- **Production:** 3 replicas (industry standard)
+- **Critical systems:** 5 replicas (tolerates 2 failures)
 
-- Network bandwidth is sufficient (10Gbps+ per broker)
-- Producers can buffer messages during brief outages
-- Consumers handle idempotent processing for at-least-once
-- Most messages are < 10KB in size
-- Sequential disk I/O is the bottleneck, not CPU
+**Q:** "Should consumers read from replicas or only from leaders?"
+- **Why ask:** Affects load distribution and complexity
+- **Leader-only:** Simpler, consistent reads (default)
+- **Replica reads:** Distributes load, might read slightly stale data
+
+---
+
+### 🟡 For Intermediate: Interview Patterns
+
+*This section is continued in the next message to keep content organized...*
 
 ---
 
