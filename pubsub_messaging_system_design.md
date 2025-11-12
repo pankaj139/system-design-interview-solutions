@@ -5544,6 +5544,695 @@ rebalance.timeout.ms
 
 ---
 
+## Section 4: Topic Partitioning Strategy
+
+Partitioning is the secret to Kafka's scalability. Understanding how to partition data is critical for building high-throughput, ordered systems.
+
+### What You'll Learn
+
+- How partitioning enables horizontal scaling
+- 3 partition routing strategies and when to use each
+- Dealing with hot partitions
+- Partition count planning
+- Rebalancing partitions safely
+
+### Why This Matters
+
+**In Interviews:**
+Interviewers love asking about partitioning because it tests your understanding of distributed systems fundamentals. Questions like "How do you ensure related messages stay ordered?" or "What causes hot partitions?" are common.
+
+**In Production:**
+Poor partitioning decisions are expensive to fix (can't reduce partition count!) and directly impact:
+- **Throughput**: Under-partitioned topics become bottlenecks
+- **Ordering**: Wrong partition key breaks order guarantees
+- **Scalability**: Can't add consumers beyond partition count
+
+**Real Impact:**
+LinkedIn increased from 10 to 50 partitions for their "user-events" topic and saw 5x throughput improvement. Uber discovered a hot partition caused by using user_id as key when 1 user (a bot) generated 40% of all events!
+
+---
+
+### 🟢 Beginner Level: Partitioning Fundamentals
+
+Think of a topic as a multi-lane highway. Each partition is a lane. Messages flow through lanes independently but in order within each lane.
+
+#### What is a Partition?
+
+**Definition:** A partition is an **ordered, immutable sequence of messages** stored on disk. Each partition is **independent** from other partitions.
+
+**Analogy:** Imagine a restaurant kitchen with multiple cooking stations:
+
+```
+Topic: "Orders" (3 partitions)
+
+Partition 0 (Pizza Station):
+├─ Order 1: Margherita Pizza
+├─ Order 2: Pepperoni Pizza
+├─ Order 3: Hawaiian Pizza
+└─ Processed in order: 1 → 2 → 3
+
+Partition 1 (Pasta Station):
+├─ Order 4: Spaghetti
+├─ Order 5: Lasagna
+└─ Processed in order: 4 → 5
+
+Partition 2 (Salad Station):
+├─ Order 6: Caesar Salad
+└─ Processed in order: 6
+
+Each station (partition) processes orders sequentially.
+Stations work in parallel (3x faster than 1 station!).
+```
+
+#### Why Do We Need Partitions?
+
+**Reason 1: Horizontal Scalability**
+
+Single partition limits:
+```
+1 partition = 1 leader broker
+1 broker = ~100 MB/s throughput max
+
+Need 1 GB/s throughput?
+1 GB/s / 100 MB/s = 10 partitions minimum!
+```
+
+**Reason 2: Parallel Processing**
+
+```
+Without partitions (1 partition):
+1 consumer reads all messages sequentially
+Throughput: Limited by 1 consumer's speed
+
+With partitions (10 partitions):
+10 consumers, each reads 1 partition
+Throughput: 10x faster!
+```
+
+**Reason 3: Fault Isolation**
+
+```
+1 partition fails (disk error on broker):
+- Only 1/10 of data affected
+- Other 9 partitions continue processing
+- Minimal impact
+
+If all data in 1 partition:
+- Complete outage
+- All consumers blocked
+```
+
+#### How Are Messages Assigned to Partitions?
+
+**3 Routing Strategies:**
+
+**Strategy 1: Key-Based Partitioning (Most Common)**
+
+Messages with the same key always go to the same partition:
+
+```
+Producer sends:
+Message 1: key="user-123", value="login"     → Partition = hash(user-123) % 3 = 0
+Message 2: key="user-123", value="click"     → Partition = hash(user-123) % 3 = 0
+Message 3: key="user-456", value="login"     → Partition = hash(user-456) % 3 = 1
+Message 4: key="user-789", value="purchase"  → Partition = hash(user-789) % 3 = 2
+
+Result:
+- All events for user-123 in Partition 0 (ordered!)
+- All events for user-456 in Partition 1 (ordered!)
+- All events for user-789 in Partition 2 (ordered!)
+```
+
+**When to use:**
+- Need ordering per entity (user, device, account)
+- Processing requires related messages together
+- Example: User session events, bank account transactions
+
+**Formula:** `partition = hash(key) % num_partitions`
+
+**Strategy 2: Round-Robin (No Key)**
+
+Messages distributed evenly across all partitions:
+
+```
+Producer sends (no key):
+Message 1: → Partition 0
+Message 2: → Partition 1
+Message 3: → Partition 2
+Message 4: → Partition 0 (back to start)
+Message 5: → Partition 1
+Message 6: → Partition 2
+
+Result:
+- Even distribution (load balanced)
+- NO ordering guarantee across all messages
+- Maximizes throughput
+```
+
+**When to use:**
+- Ordering not important
+- Just need high throughput
+- Example: Application logs, metrics, independent events
+
+**Strategy 3: Custom Partitioner**
+
+You write code to choose partition:
+
+```
+Custom partitioner example (geographic routing):
+
+if (message.country == "US") {
+    return partition 0;  // US data
+} else if (message.country == "EU") {
+    return partition 1;  // EU data
+} else {
+    return partition 2;  // Rest of world
+}
+
+Result:
+- Partition 0: All US traffic (data locality!)
+- Partition 1: All EU traffic (GDPR compliance!)
+- Partition 2: Other regions
+```
+
+**When to use:**
+- Special business logic for partitioning
+- Geographic data isolation
+- Compliance requirements (GDPR, data residency)
+
+#### Hot Partition Problem
+
+**What is a hot partition?**
+
+One partition receives much more traffic than others:
+
+```
+Normal distribution:
+Partition 0: 10,000 messages/sec
+Partition 1: 10,000 messages/sec
+Partition 2: 10,000 messages/sec
+Balanced!
+
+Hot partition:
+Partition 0: 50,000 messages/sec (HOT! 🔥)
+Partition 1: 5,000 messages/sec
+Partition 2: 5,000 messages/sec
+Unbalanced! Partition 0 is bottleneck.
+```
+
+**Common causes:**
+
+**1. Popular Key (Celebrity Problem):**
+```
+Using user_id as partition key:
+- Regular user generates 10 events/day
+- Celebrity generates 10,000,000 events/day (tweets, likes, etc.)
+- All celebrity events go to same partition → HOT!
+```
+
+**2. Poor Key Choice:**
+```
+Using hour-of-day as partition key (24 partitions):
+- Partition 0 = 12am-1am: Low traffic (100 msg/sec)
+- Partition 14 = 2pm-3pm: Peak traffic (10,000 msg/sec) → HOT!
+- Should use minute-of-day (1440 partitions) for better distribution
+```
+
+**3. Skewed Data:**
+```
+E-commerce orders by country:
+- Partition "US": 70% of orders → HOT!
+- Partition "EU": 20% of orders
+- Partition "Asia": 10% of orders
+
+Better: Use state/province for finer granularity
+```
+
+**How to detect hot partitions:**
+
+```
+Monitor metrics:
+- Messages per partition: Should be within 20% of average
+- Bytes per partition: Should be balanced
+- Consumer lag per partition: Hot partition will have higher lag
+
+Example:
+Partition 0: 1M messages, 0 lag ✓
+Partition 1: 5M messages, 50K lag ← HOT! 🔥
+Partition 2: 1M messages, 0 lag ✓
+```
+
+**How to fix hot partitions:**
+
+**Fix 1: Add Salt to Key**
+```
+Original key: "celebrity-user-123"
+Salted key: "celebrity-user-123-{random 0-9}"
+
+Result:
+- 10 sub-keys instead of 1
+- Spreads load across 10 partitions
+- Downside: Messages no longer ordered (acceptable for some use cases)
+```
+
+**Fix 2: Increase Partition Count**
+```
+Before: 10 partitions, hash(celebrity) → Partition 5 (hot)
+After: 100 partitions, hash(celebrity) → Partition 47 (less hot)
+
+More partitions = better distribution (but still hot if celebrity dominates)
+```
+
+**Fix 3: Dedicated Topic for Popular Keys**
+```
+Topic "regular-users": 10 partitions (normal traffic)
+Topic "celebrity-users": 50 partitions (high traffic, better distribution)
+
+Router logic:
+if (user.followers > 1,000,000) {
+    send to "celebrity-users" topic
+} else {
+    send to "regular-users" topic
+}
+```
+
+---
+
+### 🟡 Intermediate Level: Partition Design Patterns
+
+At this level, you should design partition strategies for complex use cases and handle production scenarios.
+
+#### Partition Count Planning
+
+**Formula-based approach:**
+
+```
+Target: 1 GB/s throughput, 30-day retention
+
+Step 1: Calculate partitions for throughput
+Single partition max: 50 MB/s (conservative estimate)
+Partitions needed: 1,000 MB/s / 50 MB/s = 20 partitions
+
+Step 2: Calculate partitions for consumer parallelism
+Expected consumers: 15
+Rule: Partitions ≥ consumers for full parallelism
+Minimum: 15 partitions
+
+Step 3: Calculate partitions for future growth
+Current need: 20 partitions
+Growth buffer: 50% (for 2x growth)
+Planned partitions: 20 × 1.5 = 30 partitions
+
+Recommendation: Start with 30 partitions
+```
+
+**Considerations:**
+
+**1. Memory Overhead:**
+```
+Each partition consumes memory:
+- Producer: ~16 KB per partition (buffer)
+- Broker: ~1 MB per partition (index, cache)
+- Consumer: ~32 KB per partition (fetch buffer)
+
+Example:
+1,000 partitions × 3 replicas = 3,000 partition replicas
+Broker memory: 3,000 × 1 MB = 3 GB RAM
+```
+
+**2. File Descriptors:**
+```
+Each partition uses file descriptors:
+- 2 FDs per segment (data file + index file)
+- Active segments: 1 per partition
+- Total FDs: partitions × replicas × 2
+
+Example:
+500 partitions × 3 replicas × 2 = 3,000 file descriptors
+OS limit: 65,536 (default) ← Check ulimit -n
+```
+
+**3. Leader Election Time:**
+```
+When broker fails:
+- Controller elects new leader for each partition
+- Time: ~1-5ms per partition
+
+100 partitions: ~0.5 seconds
+1,000 partitions: ~5 seconds (user-visible delay!)
+10,000 partitions: ~50 seconds (too slow!)
+
+Recommendation: Keep under 2,000 partitions per broker
+```
+
+#### Co-Partitioning Pattern
+
+**Problem:** Need to join data from two topics
+
+```
+Topic A: "user-profiles" (user_id → profile data)
+Topic B: "user-clicks" (user_id → click events)
+
+Requirement: Join clicks with user profiles (same user_id)
+```
+
+**Solution:** Co-partition both topics
+
+```
+Topic A: "user-profiles"
+├─ Partition by user_id
+└─ 30 partitions
+
+Topic B: "user-clicks"
+├─ Partition by user_id (SAME key!)
+└─ 30 partitions (SAME count!)
+
+Result:
+- user-123 profile in Topic A, Partition 5
+- user-123 clicks in Topic B, Partition 5
+- Single consumer reads both Partition 5s → Can join locally!
+```
+
+**Key requirements:**
+1. Same partition key (user_id)
+2. Same partition count (30 = 30)
+3. Same partitioner logic (default hash)
+
+**Benefits:**
+- No external database needed for join
+- Process locally in memory (fast!)
+- Linear scalability (30 consumers, each handles 1 partition pair)
+
+**Real example (Kafka Streams):**
+```
+Stream 1: Orders (partition by order_id, 50 partitions)
+Stream 2: Payments (partition by order_id, 50 partitions)
+
+Co-located processing:
+Consumer 1 reads Orders-P0 + Payments-P0 → Joins locally
+Consumer 2 reads Orders-P1 + Payments-P1 → Joins locally
+...
+Consumer 50 reads Orders-P49 + Payments-P49 → Joins locally
+
+Throughput: 50x parallelism, zero network calls for join!
+```
+
+#### Partition Reassignment (Advanced)
+
+**When to reassign:**
+- Broker added (rebalance load)
+- Broker removed (migrate partitions)
+- Hot partition (move to less-loaded broker)
+
+**Process:**
+
+**Step 1: Generate reassignment plan**
+```
+kafka-reassign-partitions --generate
+  --topics-to-move-json-file topics.json
+  --broker-list "1,2,3,4,5"
+
+Output:
+Partition 0: [Broker 1, Broker 2, Broker 3] → [Broker 4, Broker 5, Broker 1]
+Partition 1: [Broker 1, Broker 2, Broker 3] → [Broker 5, Broker 1, Broker 2]
+```
+
+**Step 2: Execute reassignment**
+```
+Kafka begins copying data:
+- New replicas sync from current leaders
+- Once caught up, leader switches
+- Old replicas are deleted
+
+Timeline:
+- 1 TB partition: ~30 minutes to copy
+- Bandwidth: Uses replication bandwidth (can throttle)
+```
+
+**Step 3: Monitor progress**
+```
+kafka-reassign-partitions --verify
+
+Status:
+Partition 0: In progress (60% complete)
+Partition 1: Complete
+```
+
+**Throttling reassignment:**
+```
+Set bandwidth limit to avoid overwhelming network:
+--throttle 50000000 (50 MB/s)
+
+Why throttle:
+- Reassignment competes with production traffic
+- Can cause latency spikes
+- Better to take longer but maintain SLA
+```
+
+**Danger:** Never decrease partition count! Kafka doesn't support this. Only option is to create new topic and migrate.
+
+---
+
+### 🔴 Advanced Level: Production Partitioning at Scale
+
+#### Consistent Hashing for Partitioning
+
+**Problem with modulo hashing:**
+```
+Original: 10 partitions
+partition = hash(key) % 10
+
+Add partitions → 15 partitions
+partition = hash(key) % 15
+
+Issue:
+- hash("user-123") % 10 = 7 (old)
+- hash("user-123") % 15 = 3 (new)
+- Same user now goes to different partition!
+- Breaks ordering and co-partitioning!
+```
+
+**Consistent hashing solution:**
+
+Uses a hash ring where partitions are placed at fixed points:
+
+```
+Hash Ring (0 to 2^32):
+- Partition 0 at position: hash("partition-0") = 500M
+- Partition 1 at position: hash("partition-1") = 1.5B
+- Partition 2 at position: hash("partition-2") = 2.5B
+
+Message routing:
+hash("user-123") = 800M → Goes to Partition 1 (next partition clockwise)
+
+Add Partition 3 at position 1B:
+hash("user-123") = 800M → Still goes to Partition 1!
+Only keys between 500M-1B affected by new partition.
+
+Result: Minimal disruption when adding partitions
+```
+
+**Implementation:**
+```
+Custom partitioner with consistent hashing:
+1. Create virtual nodes for each partition (100 virtual nodes per partition)
+2. Place on hash ring
+3. For each message, hash key and find nearest partition clockwise
+4. When adding partition, only ~1/N keys move (vs all keys with modulo)
+
+LinkedIn uses this for critical topics where ordering must be preserved.
+```
+
+#### Partition Compaction Strategy
+
+**Log compaction:** Keeps only latest value per key
+
+```
+Before compaction (partition log):
+Offset 0: key=user-123, value={name: "Alice", age: 25}
+Offset 1: key=user-456, value={name: "Bob", age: 30}
+Offset 2: key=user-123, value={name: "Alice", age: 26}  ← Updated age
+Offset 3: key=user-789, value={name: "Charlie", age: 35}
+Offset 4: key=user-123, value={name: "Alice", age: 27}  ← Updated again
+
+After compaction:
+Offset 1: key=user-456, value={name: "Bob", age: 30}
+Offset 3: key=user-789, value={name: "Charlie", age: 35}
+Offset 4: key=user-123, value={name: "Alice", age: 27}  ← Only latest kept
+
+Offsets 0 and 2 deleted (superseded by offset 4)
+```
+
+**Use cases:**
+1. **Database changelog:** Each key = row ID, value = latest row state
+2. **Configuration management:** Each key = config parameter, value = latest value
+3. **User profiles:** Each key = user ID, value = latest profile
+
+**Configuration:**
+```
+Topic config:
+cleanup.policy = compact
+min.cleanable.dirty.ratio = 0.5  (compact when 50% of log is "dirty")
+segment.ms = 604800000  (7 days before segment is eligible)
+
+Result:
+- Partition retains all latest values forever
+- Consumers can rebuild full state from topic
+- Great for event sourcing
+```
+
+**Compaction gotchas:**
+- Tombstone messages (null value) delete keys after grace period
+- Compaction is lazy (not immediate)
+- Can't compact across partitions (only within)
+
+#### Partitioning at LinkedIn Scale
+
+**Real production numbers:**
+
+```
+LinkedIn's largest topics:
+- Topic: "tracking-events" (user interactions)
+- Partitions: 256
+- Throughput: 10 million messages/sec
+- Data: 7 TB/day (compressed)
+- Retention: 7 days
+
+Partition strategy:
+- Key: member_id (user ID)
+- Partitioner: Murmur3 hash % 256
+- Hot partition handling: Salt for VIP members (>10M followers)
+```
+
+**Partition distribution:**
+```
+Brokers: 1,000
+Partitions per broker: 2,000
+Total partitions: ~2M partitions across all topics!
+
+Why so many:
+- 10,000+ topics
+- Average 100 partitions per topic
+- 3x replication factor
+```
+
+**Challenges at scale:**
+1. **Controller pressure:** 2M partitions = slow leader elections
+   - Solution: Incremental cooperative rebalancing (only affected partitions)
+
+2. **Metadata size:** 2M partitions × 2 KB metadata = 4 GB metadata!
+   - Solution: KRaft mode (removes ZooKeeper bottleneck)
+
+3. **File descriptor limits:** 2M partitions × 2 FDs = 4M file descriptors
+   - Solution: Increase OS limits (ulimit -n 1000000)
+
+4. **Network overhead:** Inter-broker replication for 2M partitions
+   - Solution: Rack-aware placement, dedicated replication network
+
+**Cost optimization:**
+```
+Problem: 256 partitions × 3 replicas = 768 partition replicas
+If all on SSD: 768 × 30 GB = 23 TB × $0.25/GB = $5,750/month
+
+Solution: Tiered storage
+- Days 1-3 on SSD: 7 TB × $0.25 = $1,750/month
+- Days 4-7 on HDD: 16 TB × $0.10 = $1,600/month
+Total: $3,350/month (42% savings!)
+```
+
+---
+
+### 🎯 Interview Questions
+
+#### 🟢 Beginner Level
+
+<details>
+<summary><strong>Q: How do you ensure all events for a specific user stay in order?</strong></summary>
+
+**Answer:**
+
+Use **key-based partitioning** with user_id as the partition key.
+
+**How it works:**
+```
+Topic: "user-events" (10 partitions)
+
+Messages:
+1. key="user-123", value="login"      → hash(user-123) % 10 = 3 → Partition 3
+2. key="user-123", value="click"      → hash(user-123) % 10 = 3 → Partition 3
+3. key="user-123", value="purchase"   → hash(user-123) % 10 = 3 → Partition 3
+
+All events for user-123 go to Partition 3 (always the same partition!)
+Partition 3 stores messages in order: login → click → purchase ✓
+```
+
+**Key principle:** Messages with the same key always go to the same partition, and partitions maintain insertion order.
+
+**Consumer reads:** Consumer assigned to Partition 3 sees events in correct order.
+
+**What happens without a key?**
+```
+Messages sent without key:
+1. "login" → Partition 0 (round-robin)
+2. "click" → Partition 1
+3. "purchase" → Partition 2
+
+Consumer 1 reads Partition 0: sees "login"
+Consumer 2 reads Partition 1: sees "click"  
+Consumer 3 reads Partition 2: sees "purchase"
+
+No guarantee of order across consumers! ✗
+```
+
+**Interview tip:** Emphasize that ordering is only guaranteed **within a partition**, not across partitions. If global ordering is needed, use a single partition (but sacrifices throughput).
+
+</details>
+
+<details>
+<summary><strong>Q: What determines which partition a message goes to?</strong></summary>
+
+**Answer:**
+
+Three factors determine partition assignment:
+
+**1. If message has a key:**
+```
+partition = hash(key) % number_of_partitions
+
+Example:
+key="user-456", 10 partitions
+hash("user-456") = 1,234,567,890
+1,234,567,890 % 10 = 0
+→ Partition 0
+```
+
+**2. If message has NO key:**
+```
+Round-robin distribution across partitions:
+Message 1 → Partition 0
+Message 2 → Partition 1
+Message 3 → Partition 2
+Message 4 → Partition 0 (cycles back)
+```
+
+**3. Custom partitioner:**
+```
+You write code to choose partition based on business logic:
+
+Example (geographic partitioner):
+if (message.country == "US") return 0;
+else if (message.country == "EU") return 1;
+else return 2;
+```
+
+**Default behavior:** Kafka uses **Murmur2 hash** for key-based partitioning, round-robin for keyless messages.
+
+**Interview tip:** Mention that once a message is assigned to a partition, it stays there forever (partitions are immutable). The assignment logic runs at the producer, not the broker.
+
+</details>
+
+---
+
 ## Putting It All Together
 
 ### The Complete System: End-to-End View
