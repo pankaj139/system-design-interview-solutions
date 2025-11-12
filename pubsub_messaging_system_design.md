@@ -9074,6 +9074,1220 @@ S3 reads (Tier 2):
 
 ---
 
+## Section 7: Replication Protocol & High Availability
+
+### What You'll Learn
+
+In this section, you'll understand:
+- Leader-follower replication mechanics and ISR (In-Sync Replicas)
+- Leader election algorithms and failure recovery
+- Unclean leader election trade-offs
+- Multi-datacenter replication strategies
+- Rack awareness and failure domain isolation
+- Split-brain prevention and exactly-once guarantees
+
+### Why This Matters
+
+**Interview relevance:** Replication is a core distributed systems concept frequently tested:
+- How to achieve high availability without data loss
+- Trade-offs between consistency and availability (CAP theorem)
+- Failure recovery procedures and their impact on latency
+- Production incidents and how to prevent them
+
+**Real-world impact:**
+- **LinkedIn**: Zero data loss during broker failures with min.insync.replicas=2
+- **Uber**: 99.99% availability across 3 datacenters with rack-aware replication
+- **Netflix**: Automatic failover in <10 seconds during broker failures
+
+---
+
+### 🟢 Beginner Level: Understanding Replication
+
+Let's understand replication using everyday analogies.
+
+#### What is Replication?
+
+**Simple analogy:** Think of a important document that needs backups.
+
+**Without replication (single copy):**
+```
+Original document in filing cabinet
+│
+└─> Fire destroys cabinet
+    Result: Document lost forever!
+```
+
+**With replication (3 copies):**
+```
+Original: Main office filing cabinet
+Copy 1: Backup office across town
+Copy 2: Offsite storage facility
+│
+└─> Fire destroys main office
+    Result: Retrieve copy from backup office (no data loss!)
+```
+
+**Key insight:** Kafka replicates every partition across multiple brokers. If one broker fails, another broker has the data.
+
+---
+
+#### Leader-Follower Replication
+
+**Restaurant analogy:** Head chef and assistant chefs.
+
+**Roles:**
+- **Leader (Head Chef):** Takes orders from customers (producers), serves food (consumers)
+- **Followers (Assistant Chefs):** Watch head chef, copy exactly what they do
+
+**Why this pattern?**
+- **Simplicity:** Only one chef (leader) coordinates with customers
+- **Consistency:** Assistants copy head chef's work exactly (no conflicting orders)
+- **Availability:** If head chef is sick, promote an assistant to head chef
+
+---
+
+#### Partition Replication Example
+
+**Setup:** Topic "user-events" with 3 partitions, replication factor = 3
+
+```
+Partition 0 (3 replicas):
+├── Leader: Broker 1 (handles reads & writes)
+├── Follower: Broker 2 (replicates from Broker 1)
+└── Follower: Broker 3 (replicates from Broker 1)
+
+Partition 1 (3 replicas):
+├── Leader: Broker 2 (handles reads & writes)
+├── Follower: Broker 3 (replicates from Broker 2)
+└── Follower: Broker 1 (replicates from Broker 2)
+
+Partition 2 (3 replicas):
+├── Leader: Broker 3 (handles reads & writes)
+├── Follower: Broker 1 (replicates from Broker 3)
+└── Follower: Broker 2 (replicates from Broker 3)
+```
+
+**Load balancing:** Each broker is a leader for some partitions, follower for others. No single point of failure!
+
+---
+
+#### How Replication Works (Step-by-Step)
+
+**Scenario:** Producer writes message "Hello" to Partition 0
+
+**Step 1: Producer writes to leader**
+```
+Producer ─["Hello"]──> Broker 1 (Leader for Partition 0)
+                        │
+                        └─> Append "Hello" to partition log
+                            Offset: 1000
+```
+
+**Step 2: Leader acknowledges (acks=1)**
+```
+Broker 1 ─["ACK: offset 1000"]──> Producer
+(Leader saved message, but followers haven't yet)
+```
+
+**Step 3: Followers fetch from leader**
+```
+Broker 2 (Follower) ─["Fetch from offset 999"]──> Broker 1
+                                                    │
+Broker 1 ─["Here's message at offset 1000"]────────┘
+│
+Broker 2 appends "Hello" at offset 1000
+```
+
+**Step 4: Follower acknowledges to leader**
+```
+Broker 2 ─["I'm caught up to offset 1000"]──> Broker 1
+Broker 3 ─["I'm caught up to offset 1000"]──> Broker 1
+
+Broker 1: "Both followers have the message now!"
+```
+
+**Timeline:**
+```
+0ms: Producer sends message
+2ms: Leader writes to disk
+3ms: Leader sends ACK (if acks=1)
+5ms: Followers fetch message
+7ms: Followers write to disk
+8ms: Followers ACK to leader
+10ms: Leader sends final ACK (if acks=all)
+```
+
+---
+
+#### ISR (In-Sync Replicas)
+
+**What is ISR?**
+ISR = set of replicas that are "caught up" with the leader.
+
+**Caught up means:**
+- Follower has fetched all messages up to leader's latest offset
+- Follower is within `replica.lag.time.max.ms` (default 30 seconds) of leader
+
+**Example:**
+```
+Partition 0 at time T:
+Leader (Broker 1):  Offset 1000 (latest)
+Follower (Broker 2): Offset 1000 (caught up!) ✓
+Follower (Broker 3): Offset 950 (lagging by 50 messages) ✗
+
+ISR = {Broker 1, Broker 2}
+Not in ISR = {Broker 3}
+
+Why Broker 3 is lagging:
+- Network issue (slow connection)
+- Disk slow (high I/O wait)
+- CPU overloaded (can't keep up)
+```
+
+**Why ISR matters:**
+- **Safety:** Only elect new leaders from ISR (guarantee no data loss)
+- **Availability:** If ISR has 2+ members, system can tolerate 1 failure
+- **Observability:** Shrinking ISR = warning sign of problems
+
+---
+
+#### Acknowledgment Levels (acks)
+
+**acks = 0 (Fire and forget):**
+```
+Producer ─["Message"]──> Leader
+Producer doesn't wait for ACK
+Producer immediately sends next message
+
+Latency: ~1ms (fastest!)
+Durability: No guarantee (message might be lost)
+Use case: Logs, metrics (some loss acceptable)
+```
+
+**acks = 1 (Leader only):**
+```
+Producer ─["Message"]──> Leader
+                         Leader writes to disk
+Producer <─["ACK"]─────── Leader
+
+Latency: ~5ms (fast)
+Durability: Survives leader disk failure, but not leader broker failure
+Use case: Most applications (default)
+```
+
+**acks = all (Leader + ISR):**
+```
+Producer ─["Message"]──> Leader
+                         Leader writes to disk
+                         Followers fetch & write
+Producer <─["ACK"]─────── Leader (after followers ACK)
+
+Latency: ~10ms (slowest)
+Durability: Survives failures as long as 1 replica alive
+Use case: Financial transactions, critical data
+```
+
+**Choosing acks:**
+```
+Scenario 1: Click tracking (billions of events)
+- Choice: acks=0
+- Reason: Speed matters, few lost clicks acceptable
+- Throughput: 500,000 msg/sec
+
+Scenario 2: Order processing (money involved)
+- Choice: acks=all with min.insync.replicas=2
+- Reason: Cannot lose orders (customer paid!)
+- Throughput: 100,000 msg/sec (slower but safe)
+```
+
+---
+
+#### Leader Election (When Leader Fails)
+
+**Scenario:** Broker 1 (leader for Partition 0) crashes.
+
+**Election process:**
+
+**Step 1: Detect failure (3-10 seconds)**
+```
+Controller: "No heartbeat from Broker 1 for 10 seconds"
+Controller: "Broker 1 is DOWN"
+```
+
+**Step 2: Choose new leader from ISR**
+```
+ISR before failure: {Broker 1, Broker 2, Broker 3}
+ISR after failure: {Broker 2, Broker 3} (remove Broker 1)
+
+Controller: "Elect Broker 2 as new leader"
+(Broker 2 was in ISR, has all messages)
+```
+
+**Step 3: Notify clients**
+```
+Controller ─["Broker 2 is new leader for Partition 0"]──> All clients
+
+Producers: Update metadata, send to Broker 2 now
+Consumers: Update metadata, fetch from Broker 2 now
+```
+
+**Step 4: Broker 3 starts replicating from new leader**
+```
+Broker 3 ─["Fetch from offset 1001"]──> Broker 2 (new leader)
+```
+
+**Total downtime:** 3-10 seconds (time to detect + elect + notify)
+
+**No data loss!** (because new leader was in ISR, had all messages)
+
+---
+
+### 🟡 Intermediate Level: Advanced Replication Patterns
+
+#### min.insync.replicas (Safety Guarantee)
+
+**Configuration:**
+```
+replication.factor = 3 (3 copies total)
+min.insync.replicas = 2 (must write to at least 2 before ACK)
+acks = all (wait for min.insync.replicas)
+```
+
+**How it works:**
+
+**Normal operation (all 3 replicas available):**
+```
+Producer ─["Message"]──> Leader (Broker 1)
+                         │
+                         ├──> Broker 1 writes ✓
+                         ├──> Broker 2 writes ✓ (ISR)
+                         └──> Broker 3 writes ✓ (ISR)
+
+Leader waits for 2 writes (min.insync.replicas=2)
+Broker 1 + Broker 2 done → Send ACK ✓
+
+Latency: 5-10ms
+```
+
+**One replica down (2 replicas available):**
+```
+Producer ─["Message"]──> Leader (Broker 1)
+                         │
+                         ├──> Broker 1 writes ✓
+                         ├──> Broker 2 writes ✓ (ISR)
+                         └──> Broker 3 DOWN ✗
+
+Leader waits for 2 writes (min.insync.replicas=2)
+Broker 1 + Broker 2 done → Send ACK ✓
+
+Latency: 5-10ms (same as normal!)
+Still safe: 2 copies exist
+```
+
+**Two replicas down (only leader left):**
+```
+Producer ─["Message"]──> Leader (Broker 1)
+                         │
+                         ├──> Broker 1 writes ✓
+                         ├──> Broker 2 DOWN ✗
+                         └──> Broker 3 DOWN ✗
+
+Leader waits for 2 writes (min.insync.replicas=2)
+Only 1 write (Broker 1) → Can't reach min.insync.replicas!
+
+Producer <─["NOT_ENOUGH_REPLICAS error"]─── Leader
+
+Message REJECTED (better than accepting and losing data!)
+```
+
+**Trade-off:**
+- **Pro:** Guaranteed durability (at least 2 copies before ACK)
+- **Con:** Reduced availability (rejects writes if ISR drops below 2)
+
+**LinkedIn production setting:**
+```
+replication.factor = 3
+min.insync.replicas = 2
+acks = all
+
+Result:
+- Can tolerate 1 broker failure (2 replicas still available)
+- Writes fail if 2+ brokers down (prefer unavailability over data loss)
+```
+
+---
+
+#### Unclean Leader Election
+
+**The dilemma:** What if all ISR members are dead?
+
+**Scenario:**
+```
+Partition 0:
+Leader (Broker 1):  Offset 1000, DOWN ✗
+Follower (Broker 2): Offset 1000 (was in ISR), DOWN ✗
+Follower (Broker 3): Offset 950 (not in ISR), UP ✓
+
+Problem: Only Broker 3 is available, but it's missing offsets 951-1000!
+```
+
+**Option 1: Wait for ISR member to return (unclean.leader.election.enable=false)**
+```
+Controller: "Wait for Broker 1 or 2 to come back online"
+Controller: "Do NOT elect Broker 3 (not in ISR)"
+
+Result:
+- No data loss (when Broker 1/2 return, they have all messages)
+- BUT: Partition UNAVAILABLE until ISR member returns!
+- Downtime could be minutes, hours, or days!
+
+Use case: Financial transactions (cannot lose any data)
+```
+
+**Option 2: Allow unclean election (unclean.leader.election.enable=true)**
+```
+Controller: "Elect Broker 3 as leader (only choice)"
+Controller: "Warning: Broker 3 missing offsets 951-1000"
+
+Broker 3 becomes leader at offset 950
+Offsets 951-1000 are LOST FOREVER! (data loss!)
+
+Result:
+- Partition available immediately ✓
+- BUT: Lost 50 messages! (offsets 951-1000)
+
+Use case: Logs, metrics (availability > data loss)
+```
+
+**Comparison:**
+```
+                      Clean Election    Unclean Election
+                      (wait for ISR)    (allow out-of-ISR)
+---------------------------------------------------------------
+Data loss             Never             Possible
+Availability          Lower (wait)      Higher (immediate)
+Use case              Money, orders     Logs, metrics
+Config                false (strict)    true (permissive)
+```
+
+**Uber production:**
+- Critical topics (payments): unclean.leader.election.enable=false
+- Log topics (debugging): unclean.leader.election.enable=true
+- Different reliability levels for different use cases!
+
+---
+
+#### Rack Awareness (Failure Domain Isolation)
+
+**Problem:** All replicas on same rack, power failure takes them all down.
+
+**Without rack awareness:**
+```
+Data Center:
+Rack 1:
+  Broker 1 (Leader, Partition 0)
+  Broker 2 (Follower, Partition 0)
+  Broker 3 (Follower, Partition 0)
+
+Power failure in Rack 1:
+All 3 replicas DOWN → Partition 0 UNAVAILABLE!
+```
+
+**With rack awareness:**
+```
+Data Center:
+Rack 1:
+  Broker 1 (Leader, Partition 0)
+Rack 2:
+  Broker 2 (Follower, Partition 0)
+Rack 3:
+  Broker 3 (Follower, Partition 0)
+
+Power failure in Rack 1:
+Broker 1 DOWN, but Brokers 2 & 3 still UP
+Elect Broker 2 as leader → Partition 0 AVAILABLE!
+```
+
+**Configuration:**
+```
+Broker 1 config:
+broker.rack = rack1
+
+Broker 2 config:
+broker.rack = rack2
+
+Broker 3 config:
+broker.rack = rack3
+
+Kafka automatically spreads replicas across racks!
+```
+
+**Netflix production:**
+- 3 availability zones (AZs) in AWS
+- Each broker assigned to an AZ (broker.rack=us-east-1a/1b/1c)
+- Replicas spread across AZs
+- Survives entire AZ failure (rare but happens!)
+
+---
+
+### 🔴 Advanced Level: Multi-DC & Production Patterns
+
+#### Multi-Datacenter Replication (3 Patterns)
+
+**Pattern 1: Active-Passive (Disaster Recovery)**
+
+```
+Setup:
+Primary DC (US-East):
+  - Kafka cluster (3 brokers)
+  - Handles all production traffic
+
+Secondary DC (US-West):
+  - Kafka cluster (3 brokers)
+  - MirrorMaker replicates US-East → US-West
+  - NO production traffic (standby only)
+
+Replication lag: 1-5 seconds (cross-region network)
+```
+
+**Failover process:**
+```
+Normal operation:
+Producers → US-East cluster
+Consumers → US-East cluster
+
+US-East datacenter failure:
+1. Detect failure (30 seconds)
+2. DNS failover to US-West (60 seconds)
+3. Producers → US-West cluster
+4. Consumers → US-West cluster
+
+Recovery time: 90 seconds (RPO: 1-5 sec lag)
+```
+
+**Pros:**
+- Simple to operate (one active cluster)
+- No write conflicts (single source of truth)
+
+**Cons:**
+- Wasted capacity (secondary cluster idle)
+- Manual failover (or automated with DNS)
+- Data loss = replication lag (1-5 seconds)
+
+**Cost:**
+- Primary: $10,000/month
+- Secondary: $10,000/month (idle!)
+- Total: $20,000/month (50% waste)
+
+---
+
+**Pattern 2: Active-Active (Multi-Region Writes)**
+
+```
+Setup:
+US-East Kafka cluster ←─── Bidirectional ───→ EU-West Kafka cluster
+                          MirrorMaker
+
+Both clusters accept writes
+Both clusters replicate to each other
+```
+
+**Write flow:**
+```
+US producer ─["Order-123"]──> US-East cluster
+                              │
+                              └──[MirrorMaker]──> EU-West cluster
+                                                   (1-3 sec later)
+
+EU producer ─["Order-456"]──> EU-West cluster
+                              │
+                              └──[MirrorMaker]──> US-East cluster
+                                                   (1-3 sec later)
+```
+
+**Conflict resolution:**
+```
+Problem: Same key written in both regions
+
+US writes: key="user-123", value="theme:dark" @ 14:00:00.000
+EU writes: key="user-123", value="theme:light" @ 14:00:00.100
+
+Both reach other region:
+US sees: dark (local) then light (replicated from EU)
+EU sees: light (local) then dark (replicated from US)
+
+Conflict! Which value wins?
+
+Resolution strategies:
+1. Last-Write-Wins (LWW) by timestamp
+   - Winner: light (100ms later)
+   - Risk: Clock skew issues
+
+2. Region priority (US wins, EU loses)
+   - Always keep US write
+   - Discard EU write for conflicts
+
+3. Merge (application logic)
+   - Combine both values
+   - Example: merge shopping carts
+```
+
+**Pros:**
+- Low latency (users write to local region)
+- High availability (both regions always active)
+- Better resource utilization (no idle cluster)
+
+**Cons:**
+- Complex conflict resolution
+- Eventual consistency (not immediate)
+- Higher operational complexity
+
+**Uber production:**
+- US + EU active-active
+- Region-priority conflict resolution (home region wins)
+- Handles 1 trillion messages/day across regions
+
+---
+
+**Pattern 3: Stretch Cluster (Single Cluster Across Regions)**
+
+```
+Setup:
+Single Kafka cluster spans 3 AZs (availability zones):
+
+Broker 1: us-east-1a
+Broker 2: us-east-1b
+Broker 3: us-east-1c
+
+Partition 0 replicas:
+Leader: Broker 1 (AZ-a)
+Follower: Broker 2 (AZ-b)
+Follower: Broker 3 (AZ-c)
+```
+
+**Characteristics:**
+- **Latency:** 1-2ms cross-AZ (same region)
+- **Consistency:** Strong (single cluster, single source of truth)
+- **Availability:** Survives single AZ failure
+- **Cost:** Lowest (no duplicate clusters)
+
+**Failure handling:**
+```
+AZ-a fails (Broker 1 down):
+1. Controller detects failure (3 sec)
+2. Elect Broker 2 as leader (AZ-b)
+3. Clients connect to Broker 2
+4. Downtime: <10 seconds
+
+All data preserved (Brokers 2 & 3 have copies)
+```
+
+**Pros:**
+- No replication lag (single cluster)
+- No conflict resolution needed
+- Fastest failover (<10 sec)
+- Lowest cost (single cluster)
+
+**Cons:**
+- Only works within single region (low cross-AZ latency)
+- Can't survive full region failure
+
+**LinkedIn production:**
+- Stretch cluster across 3 AZs
+- 99.99% availability (4 AZ failures in 5 years)
+- Preferred pattern for single-region deployments
+
+---
+
+#### Replication Throughput Optimization
+
+**Problem:** Replication consumes network bandwidth.
+
+**Calculation:**
+```
+Scenario: 10 GB/s write throughput, replication factor = 3
+
+Network traffic:
+- Producer → Leader: 10 GB/s (ingress)
+- Leader → Follower 1: 10 GB/s (replication)
+- Leader → Follower 2: 10 GB/s (replication)
+- Total: 30 GB/s (3x write rate!)
+
+Network requirement: 40 Gbps NICs (10 GB/s = 80 Gbps, need headroom)
+```
+
+**Optimization 1: Compression**
+```
+Enable producer-side compression:
+compression.type = lz4 (or snappy)
+
+Compression ratio: 3:1 (typical for logs/JSON)
+
+After compression:
+- Producer → Leader: 3.3 GB/s (67% reduction!)
+- Leader → Follower 1: 3.3 GB/s (leader sends compressed)
+- Leader → Follower 2: 3.3 GB/s
+- Total: 10 GB/s (vs 30 GB/s uncompressed)
+
+Network requirement: 10-15 Gbps NICs (sufficient!)
+```
+
+**Optimization 2: Batch replication**
+```
+Follower fetch behavior:
+- Fetch every 500ms (replica.fetch.max.wait.ms)
+- Fetch 1 MB minimum (replica.fetch.min.bytes)
+
+Effect:
+- Leader batches 500ms of writes into one response
+- 1 network packet instead of 1000 packets
+- Reduces network overhead (headers, ACKs)
+
+Throughput improvement: 20-30%
+```
+
+**LinkedIn production:**
+- lz4 compression (70% reduction)
+- 1 MB replica fetch batches
+- Network utilization: 20 Gbps (vs 80 Gbps without optimization)
+
+---
+
+#### Split-Brain Prevention
+
+**Problem:** Network partition creates two clusters, both think they're active.
+
+**Scenario:**
+```
+Initial setup: 5 brokers (Quorum = 3)
+
+Network partition:
+Partition A: Brokers 1, 2 (minority)
+Partition B: Brokers 3, 4, 5 (majority)
+
+Without split-brain prevention:
+- Partition A elects leaders
+- Partition B elects leaders
+- Two clusters both accepting writes!
+- Data divergence! (can't merge later)
+```
+
+**Kafka's solution: Controller quorum**
+```
+Controller election requires MAJORITY (3 out of 5)
+
+After partition:
+Partition A: 2 brokers (can't reach majority) → NO controller
+Partition B: 3 brokers (majority) → Elect controller ✓
+
+Only Partition B can elect leaders (has controller)
+Partition A rejects writes (no controller, can't elect leaders)
+
+When partition heals:
+- Partition A rejoins
+- Resync from Partition B (authoritative)
+- No data loss or divergence!
+```
+
+**ZooKeeper's role (before KRaft):**
+- Controller election stored in ZooKeeper
+- ZooKeeper quorum ensures single controller
+- Prevents split-brain automatically
+
+**KRaft (Kafka Raft, new):**
+- Kafka's own consensus (no ZooKeeper)
+- Raft quorum protocol
+- Same split-brain prevention, simpler architecture
+
+---
+
+### 🎯 Interview Questions
+
+<details>
+<summary><strong>🟢 Beginner Q1:</strong> If a Kafka topic has replication factor 3 with acks=all and min.insync.replicas=2, how many broker failures can it tolerate before writes fail? Explain the failure scenarios.</summary>
+
+**Answer:**
+
+**Configuration:**
+```
+replication.factor = 3 (3 copies of each partition)
+min.insync.replicas = 2 (need 2 replicas to ACK)
+acks = all (wait for min.insync.replicas)
+```
+
+**Answer: Can tolerate 1 broker failure, writes fail with 2+ failures**
+
+---
+
+**Scenario 1: All brokers healthy (0 failures)**
+```
+Partition 0 replicas:
+Leader: Broker 1 ✓
+Follower: Broker 2 ✓
+Follower: Broker 3 ✓
+
+ISR = {Broker 1, Broker 2, Broker 3} (all 3 in sync)
+
+Producer write flow:
+1. Producer sends message to Broker 1 (leader)
+2. Broker 1 writes locally ✓
+3. Broker 2 fetches and writes ✓
+4. Broker 3 fetches and writes ✓
+5. Leader has 3 writes (exceeds min.insync.replicas=2)
+6. Leader sends ACK to producer ✓
+
+Result: Write succeeds, 3 copies exist
+```
+
+---
+
+**Scenario 2: 1 broker failure**
+```
+Partition 0 replicas:
+Leader: Broker 1 ✓
+Follower: Broker 2 DOWN ✗
+Follower: Broker 3 ✓
+
+ISR = {Broker 1, Broker 3} (2 members)
+
+Producer write flow:
+1. Producer sends message to Broker 1
+2. Broker 1 writes locally ✓
+3. Broker 3 fetches and writes ✓
+4. Leader has 2 writes (meets min.insync.replicas=2)
+5. Leader sends ACK to producer ✓
+
+Result: Write succeeds, 2 copies exist (still safe!)
+Latency: Same as normal (5-10ms)
+```
+
+---
+
+**Scenario 3: 2 broker failures**
+```
+Partition 0 replicas:
+Leader: Broker 1 ✓
+Follower: Broker 2 DOWN ✗
+Follower: Broker 3 DOWN ✗
+
+ISR = {Broker 1} (only 1 member)
+
+Producer write flow:
+1. Producer sends message to Broker 1
+2. Broker 1 writes locally ✓
+3. No followers available
+4. Leader has only 1 write (< min.insync.replicas=2) ✗
+5. Leader sends ERROR to producer
+
+Error: "NOT_ENOUGH_REPLICAS_AFTER_APPEND"
+
+Result: Write REJECTED
+Producer must retry later (when brokers recover)
+```
+
+---
+
+**Scenario 4: Leader failure (Broker 1 fails)**
+```
+Before failure:
+Leader: Broker 1
+Followers: Broker 2, Broker 3
+
+After failure:
+Leader: Broker 1 DOWN ✗
+Followers: Broker 2 ✓, Broker 3 ✓
+
+ISR = {Broker 2, Broker 3} (2 members, both were in ISR)
+
+Controller actions:
+1. Detect Broker 1 failure (3-10 sec)
+2. Elect new leader from ISR (choose Broker 2)
+3. Notify clients: "Broker 2 is new leader"
+
+New state:
+Leader: Broker 2 ✓
+Follower: Broker 3 ✓
+
+ISR = {Broker 2, Broker 3} (2 members, meets min.insync.replicas)
+
+Producer write flow:
+1. Producer sends message to Broker 2 (new leader)
+2. Broker 2 writes locally ✓
+3. Broker 3 fetches and writes ✓
+4. Leader has 2 writes (meets min.insync.replicas=2)
+5. Leader sends ACK ✓
+
+Result: Write succeeds after 3-10 sec election
+Downtime: Brief (3-10 sec), then fully functional
+```
+
+---
+
+**Summary table:**
+
+| Failures | ISR Members | Writes | Explanation |
+|----------|-------------|--------|-------------|
+| 0 | 3 | ✓ Success | All replicas available |
+| 1 | 2 | ✓ Success | Meets min.insync.replicas=2 |
+| 2 | 1 | ✗ Fail | Below min.insync.replicas=2 |
+| Leader | 2 | ✓ After election | Elect new leader from followers |
+
+**Key insight:** With RF=3 and min.insync.replicas=2, you get:
+- **Durability:** Always 2+ copies before ACK (no data loss)
+- **Availability:** Tolerates 1 failure (2 replicas still meet minimum)
+- **Safety:** Rejects writes if 2+ failures (better than data loss)
+
+**Interview tip:** Emphasize the trade-off: min.insync.replicas=2 reduces availability (rejects writes if ISR drops to 1) but guarantees durability (always 2+ copies). Compare to min.insync.replicas=1 which has higher availability (accepts writes with just leader) but risks data loss if leader fails before replication.
+
+</details>
+
+<details>
+<summary><strong>🟡 Intermediate Q1:</strong> Design a replication strategy for a payment processing system that requires zero data loss and must handle broker failures gracefully. The system processes 100,000 transactions/sec. What configs would you choose and why?</summary>
+
+**Answer:**
+
+For a payment processing system, **zero data loss** is non-negotiable. Here's a comprehensive strategy:
+
+---
+
+**Core Configuration:**
+
+```
+Topic config:
+replication.factor = 3
+min.insync.replicas = 2
+unclean.leader.election.enable = false
+
+Producer config:
+acks = all
+retries = Integer.MAX_VALUE (infinite retries)
+max.in.flight.requests.per.connection = 1 (strict ordering)
+enable.idempotence = true (prevent duplicates on retry)
+delivery.timeout.ms = 120000 (2 minutes to complete)
+```
+
+**Rationale for each setting:**
+
+---
+
+**1. replication.factor = 3**
+```
+Why 3?
+- Survives 2 simultaneous broker failures
+- Industry standard for critical data
+- Acceptable cost (3x storage, tolerable for payments)
+
+Why not 2?
+- Only survives 1 failure (risky for critical data)
+- If 1 fails and you're repairing, another failure = data loss
+
+Why not 5?
+- Survives 4 failures (overkill for payments)
+- 67% higher cost (5x vs 3x storage)
+- Higher replication lag (more replicas = slower ACKs)
+```
+
+---
+
+**2. min.insync.replicas = 2**
+```
+Why 2?
+- Guarantees 2 copies before ACK (1 leader + 1 follower)
+- If leader fails, follower has transaction (zero data loss)
+- Balances durability and availability
+
+Why not 1?
+- Only leader has transaction
+- Leader failure = data loss! (unacceptable for payments)
+
+Why not 3?
+- Requires all 3 replicas to be in sync
+- Any single failure causes writes to fail (too strict)
+- Payments unavailable during broker maintenance (bad UX)
+
+Trade-off accepted:
+- Availability: Tolerates 1 broker failure, rejects writes on 2+ failures
+- Decision: Better to reject payment temporarily than lose transaction
+```
+
+---
+
+**3. unclean.leader.election.enable = false**
+```
+Why false (strict)?
+- Never elect leader from outside ISR
+- Prevents data loss even if all ISR members fail
+- Payments: Wait hours for broker recovery rather than lose transactions
+
+Scenario it prevents:
+Broker 1 (Leader, offset 1000) DOWN
+Broker 2 (Follower, offset 1000) DOWN
+Broker 3 (Follower, offset 950, NOT in ISR) UP
+
+With false: Wait for Broker 1 or 2 to return (may take hours)
+With true: Elect Broker 3, LOSE offsets 951-1000 (unacceptable!)
+
+Consequence: System unavailable until ISR member returns
+Decision: Better unavailable than lose customer payments
+```
+
+---
+
+**4. acks = all**
+```
+Why all?
+- Producer waits for min.insync.replicas to acknowledge
+- Ensures 2 replicas have transaction before success response
+
+vs acks = 1 (leader only):
+- Leader ACKs immediately (faster)
+- Leader crashes before replication → payment lost!
+
+Latency impact:
+- acks=1: ~5ms
+- acks=all: ~10ms (wait for 1 follower)
+- +5ms acceptable for payment safety
+```
+
+---
+
+**5. enable.idempotence = true**
+```
+Why idempotent?
+- Producer retries on failure (network timeout, etc.)
+- Without idempotence: Retry creates duplicate payment!
+- With idempotence: Kafka deduplicates retries automatically
+
+Example scenario:
+1. Producer sends "Charge user-123 $100"
+2. Broker receives, writes, sends ACK
+3. Network drops ACK packet
+4. Producer thinks it failed, retries
+5. Without idempotence: User charged $200! (duplicate)
+6. With idempotence: Kafka detects duplicate, ignores retry ✓
+
+Mechanism: Kafka assigns unique ID to each message batch
+```
+
+---
+
+**6. max.in.flight.requests.per.connection = 1**
+```
+Why 1?
+- Ensures strict ordering even with retries
+- Critical for payment sequences
+
+Scenario it prevents:
+Batch 1: Payment-A ($100)
+Batch 2: Payment-B ($50)
+
+Without ordering guarantee:
+- Batch 1 fails (network timeout)
+- Batch 2 succeeds
+- Batch 1 retries, succeeds
+- Final order: B, A (wrong!)
+
+With max.in.flight = 1:
+- Send Batch 1, wait for ACK
+- Only then send Batch 2
+- Guaranteed order: A, B
+
+Trade-off:
+- Throughput: 100,000 tx/sec (still high for payments)
+- vs max.in.flight = 5: 500,000 tx/sec (not needed)
+```
+
+---
+
+**Performance Analysis:**
+
+**Throughput:**
+```
+Config impact:
+- acks=all: ~10ms per batch (vs 5ms for acks=1)
+- Batching: 100 payments per batch (batch.size=100KB)
+
+Calculation:
+- 10ms per batch
+- 100 payments per batch
+- Throughput: 100 / 0.01sec = 10,000 batches/sec
+- Total: 10,000 batches × 100 payments = 1,000,000 payments/sec
+
+Requirement: 100,000 payments/sec
+Headroom: 10x (excellent!)
+```
+
+**Latency:**
+```
+End-to-end payment latency:
+- Producer batching: 10ms (linger.ms=10)
+- Network to leader: 1ms
+- Leader write: 2ms
+- Replication to follower: 5ms (cross-AZ)
+- ACK back to producer: 1ms
+- Total: ~19ms p99 latency
+
+Acceptable for payments (users don't notice <50ms)
+```
+
+---
+
+**Failure Scenarios:**
+
+**Scenario 1: Single broker failure**
+```
+Before:
+Leader: Broker 1, Followers: Broker 2, Broker 3
+ISR: {1, 2, 3}
+
+Broker 2 fails:
+ISR: {1, 3}
+min.insync.replicas: 2 (met by Broker 1 + Broker 3)
+
+Result: System continues normally, zero downtime
+```
+
+**Scenario 2: Two broker failures**
+```
+Broker 2 fails, then Broker 3 fails:
+ISR: {1} (only leader remains)
+min.insync.replicas: 2 (NOT met)
+
+Producer attempts write:
+Error: "NOT_ENOUGH_REPLICAS"
+
+Result: Payments rejected (better than data loss)
+Customer sees: "Payment service temporarily unavailable, please try again"
+Business impact: Small percentage of retries (rare event)
+```
+
+**Scenario 3: Leader failure**
+```
+Leader (Broker 1) fails:
+ISR: {2, 3} (both followers were in sync)
+
+Controller elects new leader:
+1. Detect failure: 3 seconds
+2. Elect Broker 2 as leader: 2 seconds
+3. Notify producers: 1 second
+4. Total downtime: 6 seconds
+
+Payments during 6 seconds:
+- Producers retry (delivery.timeout.ms = 2 minutes)
+- Once new leader elected, retries succeed
+- Zero payment loss (all retried)
+```
+
+---
+
+**Monitoring & Alerting:**
+
+```
+Critical metrics:
+
+1. ISR size
+   - Alert: ISR < 2 (below min.insync.replicas)
+   - Action: Page on-call engineer immediately
+
+2. Replica lag
+   - Alert: Lag > 1000 messages
+   - Action: Investigate slow follower (disk/network issue)
+
+3. Failed write requests
+   - Alert: Error rate > 0.1%
+   - Action: Check broker health, ISR membership
+
+4. Leader elections
+   - Alert: > 1 election per hour
+   - Action: Investigate instability (flapping brokers)
+```
+
+---
+
+**Cost Analysis:**
+
+```
+Infrastructure:
+- 3 brokers (replication.factor=3)
+- r5d.4xlarge: $1.152/hour × 3 = $3.456/hour
+- Monthly: $2,488
+- Storage: 10 TB SSD × 3 = 30 TB = $3,000/month
+- Total: $5,488/month
+
+For 100,000 payments/sec × 86,400 sec/day = 8.6 billion payments/day
+
+Cost per payment: $5,488 / (8.6B × 30 days) = $0.000000021
+Cost per million payments: $0.021 (2 cents!)
+
+Acceptable for payment processing (vs transaction fees of $0.30+)
+```
+
+---
+
+**Interview tip:** Emphasize the zero-data-loss guarantee through multiple layers: replication (min.insync.replicas=2), strict leader election (unclean=false), idempotence (no duplicates), and retries (delivery.timeout.ms). Contrast with less critical systems (logs, clicks) which might use acks=1 or unclean=true for higher availability. Mention that these configs are standard for financial services (banks, payment processors) and have been battle-tested at scale (Square, PayPal, Stripe).
+
+</details>
+
+---
+
+### 🤔 Think About It
+
+1. **CAP theorem trade-off:** In a network partition between two datacenters, which would you choose: accept writes in both (availability) or reject writes in minority partition (consistency)? How does Kafka handle this?
+
+2. **Replication lag monitoring:** If a follower is consistently 5 seconds behind the leader, what could be the root causes? How would you diagnose and fix each?
+
+3. **Multi-datacenter failover:** In an active-passive setup, how would you test failover without impacting production? What are the risks of failover drills?
+
+4. **Rack awareness cost:** Does rack-aware replica placement increase latency? Calculate the latency difference between same-rack vs cross-rack replication.
+
+---
+
+### ✅ Key Takeaways
+
+1. **Leader-follower replication enables high availability** - Survives broker failures with automatic leader election in 3-10 seconds
+
+2. **ISR is the safety guarantee** - Only ISR members can become leaders, preventing data loss
+
+3. **min.insync.replicas balances durability and availability** - RF=3, min.insync=2 tolerates 1 failure, rejects writes on 2+ failures
+
+4. **Unclean leader election trades availability for consistency** - false=no data loss but downtime, true=availability but potential data loss
+
+5. **Rack awareness prevents correlated failures** - Spread replicas across failure domains (racks, AZs, regions)
+
+6. **Replication has bandwidth cost** - 3x storage, 3x network traffic (optimize with compression)
+
+---
+
+### 🎯 Practice Exercise
+
+**Scenario:** Design replication for a global e-commerce platform.
+
+**Requirements:**
+- US and EU customers (latency sensitive)
+- 1 million orders/day
+- Payment data (zero loss acceptable)
+- Product catalog (eventual consistency OK)
+- Must handle datacenter failure
+
+**Design challenges:**
+
+1. **Topic strategy:** Which topics need replication factor 3? Which can use 2?
+
+2. **Multi-region:** Active-active or active-passive? Justify for each data type (orders, catalog, user sessions).
+
+3. **Failover:** Design failover procedure for US datacenter failure. Calculate RTO and RPO.
+
+4. **Cost optimization:** Calculate monthly costs for RF=3 vs RF=2 for different topics.
+
+5. **Conflict resolution:** If same user adds to cart in both regions, how do you merge?
+
+**Hints:**
+- Payment orders: Zero loss (RF=3, min.insync=2)
+- Product catalog: Can rebuild (RF=2, eventual consistency)
+- User sessions: Stateless, can recreate (RF=1 or external cache)
+
+---
+
 ## Putting It All Together
 
 ### The Complete System: End-to-End View
