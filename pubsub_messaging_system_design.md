@@ -1625,6 +1625,424 @@ Spend 20 minutes on this. Compare your requirements to the ones we defined for t
 
 ---
 
+### 🎯 Interview Questions - Requirements & Planning
+
+#### Beginner Level
+
+**Q1:** What are the key differences between a message queue and a pub/sub messaging system?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:** Compare the two patterns:
+
+**Message Queue (Point-to-Point):**
+- One producer → One consumer (1:1 relationship)
+- Message consumed only once
+- Consumer acknowledges, message deleted
+- Example: RabbitMQ, Amazon SQS
+- Use case: Task processing (each task processed once)
+
+**Pub/Sub Messaging:**
+- One producer → Many consumers (1:N relationship)
+- Message consumed by all subscribers
+- Message persists for retention period
+- Example: Kafka, Google Pub/Sub
+- Use case: Event broadcasting (order placed event goes to inventory, billing, analytics)
+
+**Key Difference:**
+```
+Message Queue:
+Producer → Queue → Consumer 1 (deletes message)
+                  Consumer 2 can't see it
+
+Pub/Sub:
+Producer → Topic → Consumer 1 (reads copy)
+                → Consumer 2 (reads copy)
+                → Consumer 3 (reads copy)
+```
+
+**Interview Tip:** Explain with a real-world example: "Message queue is like a to-do list where each task gets crossed off after completion. Pub/Sub is like a newspaper—everyone gets their own copy."
+
+</details>
+
+**Q2:** Walk through the functional requirements for a pub/sub messaging system.
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:** Break down into core capabilities:
+
+**1. Message Publishing:**
+- Producers send messages to topics
+- Messages have key (optional) and value (payload)
+- Support batching (send 100 messages at once)
+- Support compression (reduce network bandwidth)
+- Acknowledgment levels (fire-and-forget, leader-ack, all-ack)
+
+**2. Message Consumption:**
+- Consumers subscribe to topics
+- Pull model (consumers request messages)
+- Offset tracking (bookmark current position)
+- Consumer groups (multiple consumers work together)
+- Rebalancing (redistribute partitions when consumers join/leave)
+
+**3. Topic Management:**
+- Create topics with configurable partitions
+- Set retention policies (time-based: 7 days, size-based: 100 GB)
+- Configure replication factor (usually 3 copies)
+- Topic deletion and compaction
+
+**4. Ordering Guarantees:**
+- Per-partition ordering (messages in same partition stay ordered)
+- No cross-partition ordering
+- Key-based routing (same key → same partition)
+
+**5. Durability:**
+- Messages replicated across multiple brokers
+- Survives single broker failure
+- Configurable acknowledgment (trade latency for durability)
+
+**6. Scalability:**
+- Horizontal scaling (add more brokers)
+- Partition-based parallelism (more partitions = more consumers)
+- Handle millions of messages per second
+
+**Interview Tip:** Structure answer as "Core Operations" → "Reliability Features" → "Performance Features". Show you understand the layers of functionality.
+
+</details>
+
+**Q3:** How would you explain message retention to a non-technical stakeholder?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:** Use simple analogies:
+
+**Retention Policy Analogy:**
+"Think of our messaging system like a DVR that records TV shows:
+
+**Time-Based Retention (7 days):**
+- We keep all messages for 7 days, like how a DVR keeps recordings for a week
+- After 7 days, old messages are automatically deleted
+- If you don't watch (consume) within 7 days, you miss it
+- Use case: Real-time analytics (only need recent data)
+
+**Size-Based Retention (100 GB):**
+- We keep messages until they reach 100 GB total
+- Like a DVR with 100 hours of storage
+- Oldest messages deleted when storage full
+- Use case: Cost management (don't let storage grow infinitely)
+
+**Infinite Retention (Compacted Topics):**
+- We keep only the latest value for each key, forever
+- Like a phonebook that only shows current phone numbers
+- Old phone numbers are discarded
+- Use case: Database changelog (current state of each record)"
+
+**Business Impact:**
+- Longer retention = Higher storage costs ($0.10/GB/month)
+- 7-day retention for 100 TB = $70,000/month
+- 30-day retention for 100 TB = $300,000/month
+- Choose based on replay requirements
+
+**Interview Tip:** Always connect technical concepts to business impact. "Retention isn't just a technical setting—it's a cost/functionality trade-off."
+
+</details>
+
+#### Intermediate Level
+
+**Q1:** How would you design requirements gathering for a pub/sub system in an interview setting?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:** Use the 3-phase framework:
+
+**Phase 1: Understand the Use Case (2 minutes)**
+```
+Questions to ask:
+1. What type of data are we messaging? (events, logs, transactional data)
+2. Who are the producers? (microservices, IoT devices, user apps)
+3. Who are the consumers? (analytics, billing, notifications)
+4. What's the read-to-write ratio? (10:1 is common for pub/sub)
+
+Example dialogue:
+You: "What kind of events will flow through this system?"
+Interviewer: "Order events from our e-commerce platform."
+You: "Great! So we have order-created, order-paid, order-shipped events?"
+Interviewer: "Exactly."
+```
+
+**Phase 2: Scale & Performance (3 minutes)**
+```
+Questions to ask:
+1. How many messages per second? (DAU × events per user / 86400)
+2. What's the message size? (1 KB average for events, 100 KB for logs)
+3. How many topics and partitions?
+4. What retention period? (7 days for analytics, 30 days for audit)
+5. What latency requirements? (<10ms for real-time, <1s for batch)
+
+Example dialogue:
+You: "How many daily active users?"
+Interviewer: "100 million."
+You: "And how many events does each user generate daily?"
+Interviewer: "About 100 events—browsing, clicks, purchases."
+You: "So 10 billion events per day, which is 115,740 events/second average.
+     We should design for 3x peak = 350K events/second."
+```
+
+**Phase 3: Reliability & Trade-offs (2 minutes)**
+```
+Questions to ask:
+1. What's acceptable downtime? (99.9% = 8.7 hours/year, 99.99% = 52 min/year)
+2. Can we lose messages? (financial = no, logs = maybe)
+3. Do we need exactly-once delivery? (payments = yes, analytics = no)
+4. Is message ordering critical? (bank transactions = yes, logs = no)
+
+Example dialogue:
+You: "If we lose an order-created event, what happens?"
+Interviewer: "That's unacceptable—we'd lose revenue."
+You: "Got it. So we need replication factor of 3 and acks=all for durability."
+```
+
+**Interview Framework:**
+```
+7-minute structure:
+- Minutes 0-2: Use case clarification
+- Minutes 2-5: Scale calculations
+- Minutes 5-7: Reliability requirements
+- Always confirm assumptions!
+```
+
+**Interview Tip:** After each phase, summarize: "Just to confirm, we're building a system for 350K events/sec with 7-day retention and zero data loss tolerance. Does that sound right?"
+
+</details>
+
+**Q2:** Design trade-off analysis: ordering vs throughput in a pub/sub system.
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:** Analyze the fundamental trade-off:
+
+**Scenario:** Social media platform with user activity events
+
+**Option A: Strict Ordering (Single Partition)**
+```
+Design:
+- All events for user-123 → Partition 7
+- hash(user_id) % num_partitions determines partition
+- Single consumer reads Partition 7 sequentially
+
+Throughput:
+- Single partition: ~10,000 msg/sec max (limited by single consumer)
+- For 100M users: bottleneck at 10K msg/sec total
+
+Benefits:
+✓ Perfect ordering per user
+✓ Simple to reason about
+✓ Exactly-once processing easier
+
+Drawbacks:
+✗ Can't scale beyond single partition throughput
+✗ Hot users (celebrities) create hot partitions
+✗ Single point of failure (partition leader down = no processing)
+```
+
+**Option B: High Throughput (Multiple Partitions)**
+```
+Design:
+- Events distributed across 1000 partitions
+- Random partitioning or round-robin
+- 1000 consumers read in parallel
+
+Throughput:
+- 1000 partitions × 10K msg/sec = 10M msg/sec total
+- Linear scaling with partition count
+
+Benefits:
+✓ Massive throughput (1000x improvement)
+✓ No hot partitions
+✓ Fault tolerant (losing one partition = 0.1% capacity)
+
+Drawbacks:
+✗ No ordering guarantees
+✗ User's events might be processed out of order
+✗ Exactly-once processing complex (need distributed transaction)
+```
+
+**Hybrid Solution: Ordered Within Groups**
+```
+Design:
+- Partition by entity_type + entity_id
+- user-123 events → Partition 7 (ordered)
+- user-456 events → Partition 12 (ordered)
+- No ordering across different users (OK!)
+
+Result:
+- Per-user ordering maintained
+- 1000 partitions for high throughput
+- 100M users distributed across 1000 partitions = 100K users/partition
+
+Throughput:
+- 1000 partitions × 10K msg/sec = 10M msg/sec
+- Best of both worlds!
+
+Trade-off accepted:
+- Ordering within entity (user), not across entities
+- This is acceptable for 99% of use cases
+```
+
+**When to Choose What:**
+
+**Single Partition (Ordering Critical):**
+- Bank account transactions (balance must be correct)
+- Inventory updates (stock count must be accurate)
+- State machines (order of state transitions matters)
+
+**Multiple Partitions (Throughput Critical):**
+- Application logs (order doesn't matter)
+- Metrics/telemetry (aggregate stats, not individual events)
+- Click streams (analytics on batches, not real-time processing)
+
+**Hybrid (Most Common):**
+- E-commerce orders (order per customer, not across customers)
+- Social media feeds (order per user, not global timeline)
+- IoT sensor data (order per device, not across devices)
+
+**Interview Tip:** Always present the trade-off matrix and recommend the hybrid approach: "We can have both ordering and throughput by partitioning on the entity we care about. This gives us 1000x throughput while maintaining per-entity ordering."
+
+</details>
+
+#### Advanced Level
+
+**Q1:** How would you design a pub/sub system that needs to comply with GDPR's "right to be forgotten"?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:** GDPR compliance in immutable log systems is challenging:
+
+**The Problem:**
+- Pub/sub systems are append-only (messages never modified)
+- Retention period might be 30 days
+- User requests deletion immediately
+- GDPR requires deletion within 30 days
+- But messages already replicated across brokers!
+
+**Solution 1: Tombstone Messages (Immediate Marking)**
+```
+Process:
+1. User requests deletion (DELETE user-123)
+2. Producer writes tombstone message:
+   {
+     key: "user-123",
+     value: null,
+     timestamp: "2025-01-15T10:00:00Z"
+   }
+3. Consumers see tombstone, delete user-123 from downstream systems
+4. Log compaction removes all user-123 messages except tombstone
+
+Timeline:
+T+0: User requests deletion
+T+1 min: Tombstone written to Kafka
+T+2 min: Consumers process tombstone, delete from databases
+T+24 hours: Log compaction runs, removes old user-123 messages
+Result: GDPR compliant (user data removed within 24 hours)
+
+Implementation:
+- Enable log compaction: cleanup.policy=compact
+- Set min.compaction.lag.ms=86400000 (24 hours)
+- Consumers must handle null values as deletions
+
+Limitations:
+- Messages still on disk for up to 24 hours
+- Backup/snapshots might contain old data
+```
+
+**Solution 2: Encryption with Key Deletion (Crypto-Shredding)**
+```
+Process:
+1. Each user has unique encryption key stored separately
+2. Messages encrypted with user-specific key:
+   {
+     key: "user-123",
+     value: encrypt("order data", user_123_key)
+   }
+3. User requests deletion
+4. Delete user_123_key from key store
+5. Messages become permanently unreadable (crypto-shredded)
+
+Timeline:
+T+0: User requests deletion
+T+1 min: user_123_key deleted from key store
+Result: Immediate compliance (data cannot be decrypted)
+
+Benefits:
+✓ Immediate deletion (key removal = data inaccessible)
+✓ No need to rewrite messages
+✓ Works with existing backups
+
+Trade-offs:
+✗ Encryption/decryption overhead (adds 5-10ms latency)
+✗ Key management complexity (separate key store required)
+✗ Can't use message compression (encrypted data doesn't compress)
+
+Cost:
+- Encryption CPU: +20% broker CPU usage
+- Key store: ~$500/month for 100M users
+```
+
+**Solution 3: Topic-Per-User (Granular Deletion)**
+```
+Design:
+- Create separate topic for each high-value user
+- Topic name: user-123-events
+- Retention: 30 days
+- When user requests deletion: Delete entire topic
+
+Benefits:
+✓ Complete deletion (topic removal = all data gone)
+✓ No encryption overhead
+✓ Clean separation of user data
+
+Drawbacks:
+✗ Scales only to ~10,000 users (ZooKeeper topic limit)
+✗ Not feasible for 100M user consumer apps
+✗ Use only for B2B (few high-value enterprise customers)
+
+When to use:
+- B2B SaaS with <1000 customers
+- Each customer generates high volume
+- Strong data isolation required
+```
+
+**Recommended Approach: Hybrid**
+```
+Architecture:
+1. Encrypt all PII fields with user-specific keys
+2. Write tombstone on deletion
+3. Crypto-shred by deleting keys
+4. Log compaction removes tombstones after 30 days
+
+Result:
+- PII immediately inaccessible (key deletion)
+- Non-PII removed within 24 hours (compaction)
+- GDPR compliant
+- Manageable complexity
+
+Cost breakdown:
+- Encryption CPU: $10,000/month (20% overhead on 50 brokers)
+- Key management: $500/month (AWS KMS)
+- Log compaction: No extra cost (built-in)
+Total: $10,500/month for GDPR compliance
+```
+
+**Interview Tip:** Start with "GDPR and immutable logs conflict fundamentally." Then present 3 solutions with trade-offs, and recommend the hybrid approach. Mention real-world example: "LinkedIn uses crypto-shredding for GDPR compliance in Kafka."
+
+</details>
+
 ## Section 2: Planning for Scale (Capacity Estimation)
 
 ### What You'll Learn
