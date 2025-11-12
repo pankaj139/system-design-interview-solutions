@@ -11992,6 +11992,854 @@ Always start with requirements, do capacity math, then optimize costs. Most cand
 
 ---
 
+## 9. Message Delivery Guarantees
+
+### What You'll Learn
+
+In this section, you'll master:
+- Three delivery semantics: at-most-once, at-least-once, exactly-once
+- When to use each semantic (and why it matters)
+- How to implement exactly-once with idempotency and transactions
+- Performance trade-offs of each guarantee
+- Real-world patterns from payment processing, analytics, and streaming
+
+**Why This Matters:**
+
+Choosing the wrong delivery guarantee can cost millions. At-most-once loses data (imagine losing payment records). At-least-once duplicates data (imagine charging customers twice). Exactly-once is expensive but necessary for critical systems. Stripe processes billions in payments using exactly-once semantics—worth the 30% performance cost to avoid chargebacks.
+
+---
+
+### 🟢 Beginner: Three Delivery Semantics Explained
+
+**Understanding the Guarantees**
+
+Think of message delivery like package delivery:
+- **At-most-once**: Leave package at door, don't check if received (fire-and-forget)
+- **At-least-once**: Keep delivering until signature received (may deliver duplicate)
+- **Exactly-once**: Deliver once AND track with unique ID (no duplicates, no loss)
+
+---
+
+**1. At-Most-Once (Fire-and-Forget)**
+
+*How it works:*
+
+```
+Producer:
+1. Send message
+2. Don't wait for ACK
+3. Never retry
+
+Result: Message sent at most once (maybe 0 times if lost)
+```
+
+*Configuration:*
+
+```
+acks = 0
+retries = 0
+```
+
+*When message is lost:*
+
+```
+Producer sends message M1
+Network failure before reaching broker
+Producer doesn't know, doesn't retry
+Message M1 lost forever
+```
+
+*Performance:*
+
+- Throughput: **Highest** (no waiting, no retries)
+- Latency: **Lowest** (1-2ms, fire-and-forget)
+- Reliability: **Lowest** (data loss possible)
+
+*Use cases:*
+
+- Metrics (losing 1% of metrics is acceptable)
+- Server logs (can lose some logs)
+- Temperature readings (next reading comes in 1 second anyway)
+- Anything where loss is acceptable
+
+*Real example: IoT sensors*
+
+```
+Temperature sensor sends reading every second
+- At 10,000 sensors = 10K messages/sec
+- If 1% lost (100 messages/sec), no big deal
+- Next reading arrives in 1 second anyway
+- Ultra-low latency (1ms) more valuable than 100% reliability
+```
+
+---
+
+**2. At-Least-Once (Retry Until ACK)**
+
+*How it works:*
+
+```
+Producer:
+1. Send message
+2. Wait for ACK from broker
+3. If no ACK (timeout), retry
+4. Keep retrying until ACK received
+
+Result: Message delivered at least once (maybe 2+ times)
+```
+
+*Configuration:*
+
+```
+acks = all
+retries = 2147483647 (essentially infinite)
+```
+
+*When duplicates occur:*
+
+```
+Producer sends message M1
+Broker receives M1, writes to disk
+Broker sends ACK to producer
+Network failure, ACK lost
+Producer times out, retries M1
+Broker receives M1 again (duplicate!)
+```
+
+*Performance:*
+
+- Throughput: **Medium** (waits for ACK, retries add overhead)
+- Latency: **Medium** (10-20ms with acks=all)
+- Reliability: **High** (no data loss, but duplicates possible)
+
+*Use cases (most common):*
+
+- User activity tracking (dedup in analytics)
+- Server logs (duplicates filtered)
+- Clickstream (dedup by event ID)
+- **Default for most applications**
+
+*Real example: User activity tracking*
+
+```
+User clicks "Add to Cart"
+- Sends event to Kafka with event ID
+- If retry occurs, 2 events with same event ID
+- Analytics deduplicates by event ID
+- Result: Accurate count (1 add-to-cart, not 2)
+
+Deduplication logic:
+SELECT user_id, action, COUNT(DISTINCT event_id)
+FROM events
+GROUP BY user_id, action
+
+Effect: Duplicates collapsed by DISTINCT event_id
+```
+
+---
+
+**3. Exactly-Once (Idempotency + Transactions)**
+
+*How it works:*
+
+```
+Producer:
+1. Send message with sequence number
+2. Broker checks: Have I seen this sequence number?
+3. If yes: Discard (duplicate), send ACK anyway
+4. If no: Write message, send ACK
+
+Result: Message delivered exactly once (no loss, no duplicates)
+```
+
+*Configuration:*
+
+```
+Producer:
+enable.idempotence = true
+acks = all
+retries = 2147483647
+
+Consumer (for transactions):
+isolation.level = read_committed
+```
+
+*How idempotency prevents duplicates:*
+
+```
+Producer session ID: P1
+Message sequence: (P1, seq=1), (P1, seq=2), (P1, seq=3)
+
+Broker tracks: Last seen sequence per producer
+
+Send message (P1, seq=2):
+- Broker checks: Last seen (P1, seq=1)
+- seq=2 is next in sequence → Accept, write to disk
+
+Network failure, retry message (P1, seq=2):
+- Broker checks: Last seen (P1, seq=2)
+- seq=2 already seen → Discard, send ACK anyway
+
+Result: Only 1 copy written to disk
+```
+
+*Performance:*
+
+- Throughput: **Lower** (20-30% reduction vs at-least-once)
+- Latency: **Higher** (30-50ms with transactions)
+- Reliability: **Highest** (no loss, no duplicates)
+
+*Use cases (critical data):*
+
+- Payment processing (can't charge twice!)
+- Inventory updates (can't double-decrement stock)
+- Financial transactions (regulatory requirement)
+- Exactly-once ETL pipelines
+
+*Real example: Payment processing*
+
+```
+User submits payment for $100
+Producer sends payment event with sequence number
+
+Scenario: Network failure after broker write, before ACK
+- Broker wrote payment event
+- Producer didn't get ACK
+- Producer retries with same sequence number
+- Broker sees duplicate sequence, discards
+- Result: Only 1 payment recorded ✅
+
+Without idempotency:
+- Retry creates duplicate payment event
+- User charged $200 instead of $100
+- Customer service nightmare, refund processing
+- Potential chargeback ($15 fee per chargeback)
+```
+
+---
+
+**Comparison Table:**
+
+|Guarantee|Acks|Retries|Duplicates|Data Loss|Throughput|Latency|Use Case|
+|---------|-----|-------|----------|---------|----------|-------|--------|
+|At-most-once|0|0|No|Yes|Highest|1ms|Metrics, logs|
+|At-least-once|all|∞|Yes|No|Medium|10ms|Analytics, tracking|
+|Exactly-once|all|∞|No|No|Lower|30ms|Payments, inventory|
+
+---
+
+### 🟡 Intermediate: Implementation Patterns
+
+**Implementing At-Least-Once with Application-Level Deduplication**
+
+Pattern used by: Most event streaming applications (LinkedIn, Uber, Netflix)
+
+*Architecture:*
+
+```
+Producer:
+- Include unique event ID in message payload
+- Use at-least-once delivery (acks=all, retries=∞)
+
+Message format:
+{
+  "event_id": "evt_20240115_123456_abc123",
+  "user_id": "user_42",
+  "action": "add_to_cart",
+  "product_id": "prod_999",
+  "timestamp": "2024-01-15T12:34:56Z"
+}
+
+Consumer:
+- Store processed event IDs in database (or cache)
+- Before processing, check: Have we seen this event_id?
+- If yes: Skip (already processed)
+- If no: Process AND store event_id atomically
+
+Deduplication logic:
+BEGIN TRANSACTION
+  - Check: SELECT 1 FROM processed_events WHERE event_id = ?
+  - If exists: ROLLBACK (skip)
+  - If not exists:
+    - INSERT INTO processed_events (event_id, processed_at)
+    - Process event (update cart table)
+  - COMMIT
+END TRANSACTION
+```
+
+*Deduplication window:*
+
+- Store event IDs for how long?
+- Rule of thumb: 2x max retry window (usually 7-30 days)
+- LinkedIn: Stores 30 days of event IDs (billions of rows)
+- After 30 days, IDs can be purged (past max retry window)
+
+*Performance:*
+
+- Extra database check per message (adds 2-5ms)
+- But: Avoids duplicate processing (worth it for accuracy)
+- Cache optimization: Keep last 1M event IDs in Redis (50ms → 1ms lookup)
+
+---
+
+**Implementing Exactly-Once with Transactions**
+
+Pattern used by: Kafka Streams, payment processing, inventory systems
+
+*How it works:*
+
+```
+Producer: Transactional writes
+
+1. Begin transaction
+2. Write messages to topic A
+3. Write offset commit to __consumer_offsets topic
+4. Commit transaction atomically
+
+Consumer: Read committed
+
+1. Set isolation.level = read_committed
+2. Only see messages from committed transactions
+3. Result: If transaction aborted, messages never visible
+```
+
+*Example: Payment processing*
+
+```
+Process payment:
+
+BEGIN TRANSACTION (transactional.id = "payment-processor-1")
+  1. Read payment request from requests_topic
+  2. Process payment (call payment gateway)
+  3. Write success to payments_topic
+  4. Write audit log to audit_topic
+  5. Commit consumer offset
+COMMIT TRANSACTION
+
+If any step fails (e.g., network to payment gateway):
+  - Transaction aborted
+  - Messages not visible to consumers
+  - Offset not committed
+  - Next consumer poll reads same payment request
+  - Idempotent retry (payment gateway returns cached result)
+```
+
+*Configuration:*
+
+```
+Producer:
+enable.idempotence = true
+transactional.id = "payment-processor-1"
+
+Code:
+producer.initTransactions()
+producer.beginTransaction()
+producer.send(record1, topic1)
+producer.send(record2, topic2)
+producer.sendOffsetsToTransaction(offsets, groupId)
+producer.commitTransaction()  // or abortTransaction()
+
+Consumer:
+isolation.level = read_committed
+```
+
+*Performance cost:*
+
+- Throughput: 500K msg/sec → 350K msg/sec (30% reduction)
+- Latency: 10ms → 50ms p99 (5x increase)
+- Why: Extra broker coordination for transaction commit
+
+*When worth it:*
+
+- Financial data (payments, transfers)
+- Inventory (can't double-decrement stock)
+- Billing (can't bill twice)
+- Anywhere data accuracy >> performance
+
+---
+
+**Idempotency vs Transactions**
+
+|Feature|Idempotency|Transactions|
+|-------|-----------|------------|
+|Scope|Single producer session|Multiple topics, offsets|
+|Duplicates|Prevented|Prevented|
+|Atomicity|No (1 topic only)|Yes (across topics)|
+|Throughput cost|5-10%|20-30%|
+|Latency cost|+2ms|+40ms|
+|Use when|Most cases|Multi-topic atomic writes needed|
+
+*Decision tree:*
+
+```
+Need exactly-once?
+├─ YES
+│  ├─ Single topic writes?
+│  │  └─ Use idempotency (enable.idempotence=true)
+│  ├─ Multi-topic atomic writes?
+│  │  └─ Use transactions (transactional.id + read_committed)
+│  └─ Need offset commits atomic with writes?
+│     └─ Use transactions (sendOffsetsToTransaction)
+└─ NO
+   ├─ Can tolerate data loss?
+   │  └─ Use at-most-once (acks=0)
+   └─ Can tolerate duplicates?
+      └─ Use at-least-once (acks=all, retries=∞)
+```
+
+---
+
+### 🔴 Advanced: Production Patterns and Performance
+
+**Stripe's Payment Processing Pattern**
+
+*Requirements:*
+
+- Process 1 billion API requests/day
+- Zero duplicate charges (exactly-once requirement)
+- Sub-100ms API latency (real-time)
+
+*Architecture:*
+
+```
+1. API Gateway receives payment request
+   - Generates idempotency key (client-provided or generated)
+   - Stores in cache: idempotency_key → request_id
+
+2. Check idempotency cache:
+   - If key exists: Return cached response (duplicate request)
+   - If key new: Continue processing
+
+3. Write to Kafka with idempotency:
+   - enable.idempotence = true
+   - Message includes idempotency_key in payload
+
+4. Payment processor consumes:
+   - Checks database: Has this idempotency_key been processed?
+   - If yes: Skip (return success, already processed)
+   - If no: Process payment
+   - Store: idempotency_key + payment_result in database
+   - Commit offset
+
+5. Store result in cache for 24 hours
+   - Key: idempotency_key
+   - Value: payment result + timestamp
+   - TTL: 24 hours (after that, key can be reused)
+```
+
+*Deduplication layers:*
+
+```
+Layer 1: API Gateway (cache, <1ms)
+├─ Catches duplicate API requests from client
+├─ 99% of duplicates caught here
+└─ Returns cached response
+
+Layer 2: Kafka Producer (idempotency, +2ms)
+├─ Prevents duplicate writes to Kafka
+├─ Handles network retries
+└─ 0.9% of duplicates caught here
+
+Layer 3: Payment Processor (database, +5ms)
+├─ Prevents duplicate payment processing
+├─ Handles consumer rebalancing, restarts
+└─ 0.1% of duplicates caught here
+
+Result: Zero duplicate charges (3-layer defense)
+```
+
+*Performance:*
+
+- API latency: 50ms p99 (well under 100ms SLA)
+- Idempotency overhead: 8ms total (cache 1ms + Kafka 2ms + DB 5ms)
+- Throughput: 12K payments/sec per processor instance
+- Duplicate rate: 0% (perfect deduplication)
+
+---
+
+**LinkedIn's Analytics Pipeline Pattern**
+
+*Scenario:*
+
+- 7 trillion events/day (81M events/sec)
+- Analytics queries (not transactions)
+- Duplicates filtered in analytics (DISTINCT)
+
+*Architecture:*
+
+```
+Producers: At-least-once
+- acks = all
+- retries = 2147483647
+- No idempotency (too expensive at 81M/sec)
+
+Events include:
+- event_id (UUID)
+- user_id
+- timestamp
+- event_type
+
+Consumers: Batch writes to data warehouse
+- Batch 10,000 events
+- Write to Parquet file
+- Duplicates exist in raw data
+
+Analytics queries:
+SELECT user_id, event_type, COUNT(DISTINCT event_id)
+FROM events
+WHERE date = '2024-01-15'
+GROUP BY user_id, event_type
+
+Result: Duplicates collapsed by DISTINCT
+```
+
+*Why not exactly-once?*
+
+- Cost: 30% throughput reduction on 81M events/sec = massive infrastructure increase
+- Benefit: Minimal (analytics already uses DISTINCT)
+- Decision: Save $20M/year in infrastructure, use DISTINCT in queries
+
+*Duplicate rate:*
+
+- Normal operation: <0.01% duplicates
+- During failures: <0.1% duplicates
+- Impact on analytics: Negligible (DISTINCT handles it)
+
+---
+
+**Performance Comparison: Real Numbers**
+
+Test scenario: 1M messages/sec, 1 KB message size
+
+|Configuration|Throughput|Latency p99|CPU|Memory|Cost/month|
+|-------------|----------|-----------|---|------|----------|
+|At-most-once (acks=0)|1.2M msg/sec|2ms|20%|2 GB|$500|
+|At-least-once (acks=all)|1M msg/sec|10ms|25%|4 GB|$650|
+|Exactly-once (idempotency)|900K msg/sec|15ms|30%|6 GB|$800|
+|Exactly-once (transactions)|700K msg/sec|50ms|40%|10 GB|$1,200|
+
+*Cost breakdown:*
+
+```
+At-most-once: $500/month (baseline)
+At-least-once: +$150/month (+30% for reliability)
+Idempotency: +$300/month (+60% for no duplicates)
+Transactions: +$700/month (+140% for multi-topic atomicity)
+
+Business value:
+- At-most-once: Data loss → lost revenue (potentially millions)
+- At-least-once: Duplicates → inaccurate analytics (manageable)
+- Exactly-once (idempotency): No duplicates → accurate billing
+- Transactions: Atomic writes → regulatory compliance
+
+ROI calculation:
+If duplicate charges cost $100K/month in refunds:
+  - Exactly-once idempotency: $300/month cost, $100K/month savings
+  - ROI: 333:1 (incredible value)
+```
+
+---
+
+### 🎯 Interview Questions
+
+<details>
+<summary><b>🟢 Beginner Q1:</b> Compare at-most-once, at-least-once, exactly-once for different scenarios</summary>
+
+**Question:**
+
+You're designing message delivery for three different use cases. For each, choose at-most-once, at-least-once, or exactly-once and justify your choice:
+
+1. Temperature sensors (1M sensors, 1 reading/second each, analytics use case)
+2. User activity tracking (100M events/day, powers recommendation engine)
+3. Payment processing (1M payments/day, average $50 each)
+
+For each choice, calculate the impact of the wrong guarantee.
+
+---
+
+**Answer:**
+
+**Use Case 1: Temperature Sensors**
+
+*Scenario:*
+- 1M sensors sending temperature every second
+- Throughput: 1M messages/sec
+- Use: Real-time dashboard + historical analytics
+- Data: {sensor_id, temperature, timestamp}
+
+*Recommendation: **At-most-once** (acks=0, retries=0)*
+
+*Reasoning:*
+
+1. **Data loss acceptable:** Next reading comes in 1 second
+   - If lose 1% of readings = 10K messages/sec lost
+   - But next reading arrives in 1 second anyway
+   - No permanent data loss (just 1-second gap)
+
+2. **Performance critical:**
+   - Real-time dashboard needs <100ms update
+   - At-most-once: 1-2ms latency
+   - At-least-once: 10-20ms latency (10x slower)
+
+3. **Volume justification:**
+   - 1M msg/sec × 86,400 sec/day = 86 billion messages/day
+   - At-least-once costs 30% more infrastructure
+   - Savings: $100K/month vs $130K/month = $360K/year
+   - Not worth it for non-critical temperature data
+
+*Impact of wrong choice:*
+
+```
+If chose At-least-once:
+- Cost: +$30K/month
+- Latency: 10ms vs 2ms (5x worse)
+- Benefit: No data loss (but unnecessary—next reading in 1 sec)
+- Verdict: Wasteful
+
+If chose Exactly-once:
+- Cost: +$60K/month
+- Latency: 30ms vs 2ms (15x worse)
+- Benefit: No duplicates (but sensors don't retry anyway)
+- Verdict: Massively wasteful
+```
+
+---
+
+**Use Case 2: User Activity Tracking**
+
+*Scenario:*
+- 100M events/day (clickstream, page views, clicks)
+- Throughput: 1,157 messages/sec average (10K/sec peak)
+- Use: Recommendation engine, user analytics
+- Data: {event_id, user_id, action, product_id, timestamp}
+
+*Recommendation: **At-least-once** (acks=all, retries=∞, with application deduplication)*
+
+*Reasoning:*
+
+1. **Can't lose data:**
+   - Recommendation engine needs complete activity history
+   - Missing events → bad recommendations → lost revenue
+   - At-most-once: Lose 1% = 1M events/day lost
+   - Impact: Recommendation quality degrades
+
+2. **Duplicates manageable:**
+   - Events include event_id (UUID)
+   - Analytics uses: `COUNT(DISTINCT event_id)`
+   - Duplicate filtering at query time (cheap)
+   - Better than paying 30% more for exactly-once
+
+3. **Cost justification:**
+   - At-least-once: $5K/month
+   - Exactly-once: $8K/month
+   - Savings: $36K/year
+   - Use savings for bigger Spark cluster (better recommendations)
+
+*Implementation:*
+
+```
+Producer:
+acks = all
+retries = 2147483647
+
+Event payload:
+{
+  "event_id": "evt_abc123",  // UUID for deduplication
+  "user_id": "user_42",
+  "action": "add_to_cart",
+  "product_id": "prod_999",
+  "timestamp": "2024-01-15T12:34:56Z"
+}
+
+Analytics query (deduplication):
+SELECT user_id, COUNT(DISTINCT event_id) as total_events
+FROM user_events
+WHERE date = '2024-01-15'
+GROUP BY user_id
+
+Result: Duplicates collapsed, accurate counts
+```
+
+*Impact of wrong choice:*
+
+```
+If chose At-most-once:
+- Data loss: 1% = 1M events/day
+- Impact: Recommendation engine sees 1% less user activity
+- Business impact: 5% worse recommendation quality
+- Revenue impact: -$100K/month in lost purchases
+- Verdict: Unacceptable
+
+If chose Exactly-once:
+- Cost: +$3K/month = $36K/year
+- Benefit: No duplicates (but DISTINCT already handles it)
+- Verdict: Wasteful (paying for unnecessary guarantee)
+```
+
+---
+
+**Use Case 3: Payment Processing**
+
+*Scenario:*
+- 1M payments/day (12 payments/sec average, 100/sec peak)
+- Average payment: $50
+- Total daily volume: $50M
+- Regulatory requirement: No duplicate charges
+
+*Recommendation: **Exactly-once** (idempotency + transactions)*
+
+*Reasoning:*
+
+1. **Cannot tolerate duplicates:**
+   - Duplicate charge = customer service call + refund
+   - Cost per duplicate: $15 (support) + $50 (refund processing)
+   - At-least-once: 0.1% duplicates = 1,000/day × $65 = $65K/day lost
+   - Annual impact: $23.7M/year in duplicate processing costs!
+
+2. **Cannot tolerate data loss:**
+   - Lost payment = lost revenue + angry customer
+   - At-most-once: 1% loss = 10,000 payments/day × $50 = $500K/day
+   - Annual impact: $182.5M/year in lost revenue!
+
+3. **Performance cost acceptable:**
+   - Exactly-once: 30-50ms latency (vs 10ms at-least-once)
+   - But payment API already takes 200ms (payment gateway call)
+   - Extra 40ms = 20% overhead (acceptable for 100% accuracy)
+
+*Implementation:*
+
+```
+Producer:
+enable.idempotence = true
+transactional.id = "payment-processor-1"
+acks = all
+
+Payment event:
+{
+  "payment_id": "pay_xyz789",
+  "idempotency_key": "idem_client_abc123",
+  "amount": 5000,  // cents
+  "user_id": "user_42",
+  "timestamp": "2024-01-15T12:34:56Z"
+}
+
+Consumer (transactional processing):
+BEGIN TRANSACTION
+  1. Read payment from Kafka
+  2. Check: SELECT 1 FROM processed_payments 
+     WHERE idempotency_key = 'idem_client_abc123'
+  3. If exists: Skip (already processed)
+  4. If new:
+     a. Call payment gateway (idempotent API call)
+     b. INSERT INTO processed_payments (...)
+     c. Send to Kafka (success topic)
+     d. Commit offset
+COMMIT TRANSACTION
+
+Result: Zero duplicates, zero data loss
+```
+
+*Cost justification:*
+
+```
+At-least-once cost: $5K/month
+Exactly-once cost: $8K/month
+Difference: $3K/month = $36K/year
+
+Duplicate cost (at-least-once):
+- 0.1% duplicates = 1,000/day
+- Cost per duplicate: $65
+- Total: $65K/day × 365 = $23.7M/year
+
+ROI: $23.7M savings / $36K cost = 658:1 (incredible!)
+
+Verdict: Exactly-once is not optional, it's mandatory
+```
+
+*Impact of wrong choice:*
+
+```
+If chose At-most-once:
+- Revenue loss: $182.5M/year (1% payment loss)
+- Verdict: Company bankrupt
+
+If chose At-least-once:
+- Duplicate costs: $23.7M/year
+- Customer churn from duplicate charges
+- Regulatory fines (PCI-DSS violations)
+- Verdict: Unacceptable
+```
+
+---
+
+**Summary Table:**
+
+|Use Case|Guarantee|Why|Cost|Impact of Wrong Choice|
+|--------|---------|---|----|-----------------------|
+|Temperature sensors|At-most-once|Next reading in 1 sec, loss OK|$100K/month|Wasteful: +$30K/month for unnecessary reliability|
+|User activity|At-least-once|Need complete history, DISTINCT handles dupes|$5K/month|Loss: -$100K/month revenue. Exactly-once: Wasteful +$36K/year|
+|Payments|Exactly-once|Can't duplicate charge, can't lose payment|$8K/month|At-least-once: -$23.7M/year. At-most-once: Company bankrupt|
+
+**Interview tips:**
+
+1. **Always ask about data criticality first:** Payment vs metrics require different guarantees
+2. **Calculate business impact:** Lost revenue vs duplicate costs vs infrastructure costs
+3. **Consider deduplication:** Application-level can be cheaper than Kafka exactly-once
+4. **Check existing infrastructure:** If already using DISTINCT, at-least-once might be fine
+
+**Key insight:** The right delivery guarantee is a business decision, not just a technical one. Always calculate ROI!
+
+</details>
+
+---
+
+### 🤔 Think About It
+
+1. **Idempotency limits:** enable.idempotence=true only prevents duplicates within a single producer session. What happens if the producer crashes and restarts with a new session? How would you achieve true end-to-end exactly-once?
+
+2. **Transaction coordination cost:** Why does transactional delivery cost 30% throughput? What extra work does the broker have to do? (Hint: Think about coordinating across multiple topics and partition leaders.)
+
+3. **Deduplication window:** If you store processed event IDs for deduplication, how long should you keep them? What's the trade-off between storage cost and deduplication accuracy?
+
+---
+
+### ✅ Key Takeaways
+
+1. **At-most-once = fast but lossy:** Use only for metrics, logs, or data that regenerates quickly
+2. **At-least-once = reliable but duplicates:** Use for 80% of use cases, deduplicate in application layer
+3. **Exactly-once (idempotency) = no duplicates:** 10% cost, use when duplicates matter (billing, inventory)
+4. **Exactly-once (transactions) = atomic multi-topic:** 30% cost, use when must coordinate across topics
+5. **Business value drives choice:** Calculate cost of loss vs duplicates vs infrastructure
+6. **Deduplication layers:** API gateway (cache) + Kafka (idempotency) + Application (database) = 3-layer defense
+
+---
+
+### 🎯 Practice Exercise
+
+**Scenario:** Design message delivery for an e-commerce order system:
+
+Components:
+1. Order placement (high volume, 10K orders/sec)
+2. Inventory decrement (critical, can't double-decrement)
+3. Order confirmation email (can tolerate duplicates)
+4. Analytics pipeline (powers dashboard)
+
+**Your task:**
+
+1. Choose delivery guarantee for each component
+2. Justify based on business impact
+3. Calculate infrastructure costs for each choice
+4. Design deduplication strategy if using at-least-once
+5. What happens if inventory service is down when order arrives?
+
+**Hints:**
+- Order placement: Can't lose, can't duplicate
+- Inventory: Double-decrement = oversold, angry customers
+- Email: Duplicate email annoying but not catastrophic
+- Analytics: Use DISTINCT in queries
+
+---
+
 ## Putting It All Together
 
 ### The Complete System: End-to-End View
