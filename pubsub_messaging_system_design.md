@@ -2253,40 +2253,661 @@ Spend 30 minutes on this. Check your math carefully—errors compound!
 
 ---
 
-## HIGH-LEVEL DESIGN
+## Section 3: Designing the System Architecture
 
-### Core Components
+### What You'll Learn
 
-#### Broker Cluster
+By the end of this section, you'll be able to:
+- Identify the 5 core components of a pub/sub system and explain their roles
+- Understand how messages flow from producers through brokers to consumers
+- Explain the relationship between topics, partitions, and replicas
+- Describe the role of ZooKeeper/KRaft in cluster coordination
 
-- Distributed servers that store and serve messages
-- Each broker handles multiple topic partitions
-- Horizontally scalable by adding more brokers
+### Why This Matters
 
-#### ZooKeeper/KRaft (Metadata Store)
+Architecture is the blueprint of your system—get it wrong and you'll hit scaling limits fast. Real-world example: An early version of LinkedIn's messaging system had producers pushing messages directly to consumers. When they scaled to 1000 consumers, producers couldn't handle the connections. Redesigning with a broker-based architecture (Kafka) solved this—producers connect to brokers (not consumers), enabling unlimited consumer scaling!
 
-- Stores cluster metadata (topics, partitions, brokers)
-- Manages leader election for partitions
-- Tracks broker liveness
-- Stores consumer group state
+---
 
-#### Producer
+### 🟢 For Beginners: The Building Blocks
 
-- Publishes messages to topics
-- Determines target partition
-- Handles batching and compression
+#### The Big Picture: How Everything Connects
 
-#### Consumer
+Imagine building a city's transportation system:
+- **Producers** = People who want to send packages (your microservices creating events)
+- **Brokers** = Post offices that store and organize packages (servers storing messages)
+- **Topics** = Different mail categories (first-class, parcel, international)
+- **Partitions** = Different sorting bins within each category (for parallel processing)
+- **Consumers** = People who receive packages (services that process events)
+- **ZooKeeper** = City planning office (tracks which post office handles which routes)
 
-- Subscribes to topics and pulls messages
-- Part of consumer groups for parallel processing
-- Manages offset commits
+**The key insight:** Producers and consumers never talk directly! They only talk to brokers (post offices). This decoupling allows infinite scaling on both sides.
 
-#### Controller
+---
 
-- Special broker that manages cluster operations
-- Handles partition leader election
-- Coordinates broker joins/leaves
+#### Component 1: Broker Cluster (The Post Offices)
+
+**What it is:**
+A broker is a server that stores messages and serves them to consumers. Multiple brokers form a cluster.
+
+**Detailed explanation:**
+
+Think of a broker like a post office branch:
+- **Stores messages**: Like a post office storing mail in sorting bins
+- **Handles requests**: Producers drop off messages, consumers pick them up
+- **Manages partitions**: Each broker is responsible for certain partitions (like certain ZIP codes)
+- **Replicates data**: Brokers copy messages between each other for backup
+
+**How brokers are organized:**
+
+```
+Cluster of 3 Brokers:
+├─ Broker 1 (ID: 1, Host: kafka-1.company.com:9092)
+│  ├─ Partition: orders-0 (Leader)
+│  ├─ Partition: orders-1 (Follower)
+│  └─ Partition: payments-0 (Follower)
+│
+├─ Broker 2 (ID: 2, Host: kafka-2.company.com:9092)
+│  ├─ Partition: orders-1 (Leader)
+│  ├─ Partition: orders-2 (Follower)
+│  └─ Partition: payments-0 (Leader)
+│
+└─ Broker 3 (ID: 3, Host: kafka-3.company.com:9092)
+   ├─ Partition: orders-0 (Follower)
+   ├─ Partition: orders-2 (Leader)
+   └─ Partition: payments-0 (Follower)
+```
+
+**Key responsibilities:**
+1. **Accept messages from producers** (like accepting mail at the counter)
+2. **Store messages durably** (write to disk, not just RAM)
+3. **Serve messages to consumers** (hand out mail when requested)
+4. **Replicate messages** (make copies on other brokers for safety)
+5. **Manage disk space** (delete old messages after retention period expires)
+
+**Broker resources (what's inside each broker server):**
+```
+Typical Broker Hardware:
+- CPU: 16-32 cores (handles network I/O, compression, replication)
+- RAM: 64-128 GB (caches hot data for fast reads)
+- Disk: 10-20 TB NVMe SSD (stores message logs)
+- Network: 25-40 Gbps (handles high throughput)
+- OS: Linux (for best performance with sequential I/O)
+```
+
+**Why multiple brokers?**
+1. **Storage capacity**: One broker can't hold 78 PB (from Section 2)
+2. **Throughput**: One broker can't handle 10M messages/second
+3. **Fault tolerance**: If one broker crashes, others take over
+4. **Load distribution**: Spread partitions across brokers evenly
+
+---
+
+#### Component 2: ZooKeeper/KRaft (The Coordination Manager)
+
+**What it is:**
+A separate system that stores metadata and coordinates the broker cluster.
+
+**Detailed explanation:**
+
+Think of ZooKeeper like the city planning office:
+- **Keeps track of who's who**: Which brokers are alive? Which partitions exist?
+- **Assigns responsibilities**: Which broker should be leader for partition 5?
+- **Handles elections**: When a broker dies, elect a new leader
+- **Stores configurations**: Topic settings, consumer group memberships
+
+**What metadata does ZooKeeper store?**
+
+```
+ZooKeeper Data Structure:
+├─ /brokers
+│  ├─ ids
+│  │  ├─ 1 → {"host": "kafka-1.company.com", "port": 9092}
+│  │  ├─ 2 → {"host": "kafka-2.company.com", "port": 9092}
+│  │  └─ 3 → {"host": "kafka-3.company.com", "port": 9092}
+│  └─ topics
+│     └─ orders
+│        ├─ partition-0 → {"leader": 1, "replicas": [1,2,3], "isr": [1,2,3]}
+│        ├─ partition-1 → {"leader": 2, "replicas": [2,3,1], "isr": [2,3,1]}
+│        └─ partition-2 → {"leader": 3, "replicas": [3,1,2], "isr": [3,1,2]}
+│
+├─ /consumers
+│  └─ order-processing-group
+│     ├─ ids
+│     │  ├─ consumer-1 → {"partition": [0,1]}
+│     │  └─ consumer-2 → {"partition": [2]}
+│     └─ offsets
+│        ├─ partition-0 → 15000
+│        ├─ partition-1 → 23000
+│        └─ partition-2 → 18000
+│
+└─ /controller
+   └─ {"brokerid": 1, "timestamp": 1699734000}
+```
+
+**Key responsibilities:**
+1. **Broker registration**: Brokers announce "I'm alive!" on startup
+2. **Leader election**: Elect leader when current leader fails
+3. **Topic management**: Store topic configurations and partition mappings
+4. **Consumer group coordination**: Track which consumer owns which partitions
+5. **Controller election**: One broker becomes the "controller" (master coordinator)
+
+**ZooKeeper vs KRaft (the newer alternative):**
+
+**ZooKeeper** (traditional approach - before 2023):
+- Separate system (3-5 ZooKeeper nodes)
+- Proven and battle-tested
+- Adds operational complexity (another system to manage)
+- External dependency
+
+**KRaft** (new approach - after 2023):
+- Built into Kafka itself (no external dependency!)
+- Uses Raft consensus algorithm
+- Simpler to operate (one less system)
+- Faster leader elections (<1 second vs 3-5 seconds)
+- Recommended for new deployments
+
+**How it works (leader election example):**
+```
+Scenario: Broker 1 (leader for partition-0) crashes
+
+Step 1: ZooKeeper detects missing heartbeat (broker 1 didn't check in)
+Step 2: ZooKeeper removes broker 1 from live brokers list
+Step 3: Controller broker notices broker 1 is gone
+Step 4: Controller looks at partition-0 replicas: [1, 2, 3]
+Step 5: Controller picks broker 2 (first alive replica) as new leader
+Step 6: Controller writes to ZooKeeper: partition-0 leader = broker 2
+Step 7: All brokers and clients read new leader info
+Step 8: Producers/consumers reconnect to broker 2
+Total time: 3-5 seconds ✓
+```
+
+---
+
+#### Component 3: Producers (The Senders)
+
+**What they are:**
+Client applications that publish messages to topics.
+
+**Detailed explanation:**
+
+Producers are like people dropping off packages at the post office. They decide:
+1. **Which topic?** (e.g., "orders" topic)
+2. **Which partition?** (based on message key or round-robin)
+3. **How to batch?** (send 1 message or wait to batch 100?)
+4. **How to acknowledge?** (wait for confirmation or fire-and-forget?)
+
+**Producer responsibilities:**
+
+**1. Partition Selection (How producers choose which partition)**
+
+```
+Three strategies:
+
+Strategy A - Key-based partitioning:
+Message key: "user-123"
+Partition = hash(key) % number_of_partitions
+Example: hash("user-123") % 10 = 7 → Partition 7
+Use when: You need ordering per key (all user-123's messages in order)
+
+Strategy B - Round-robin partitioning:
+Messages distributed evenly: P0, P1, P2, P0, P1, P2...
+Use when: No ordering needed, maximum throughput desired
+
+Strategy C - Custom partitioner:
+Implement your own logic (e.g., geo-based routing)
+Example: US users → Partition 0-4, EU users → Partition 5-9
+Use when: Special routing logic needed
+```
+
+**2. Batching (Grouping messages for efficiency)**
+
+Instead of sending messages one-by-one (expensive!), producers batch them:
+
+```
+Without batching:
+- Send 1 message → network round trip (10ms)
+- Send another message → network round trip (10ms)
+- 100 messages = 1000ms total (slow!)
+
+With batching:
+- Buffer messages in memory
+- Wait until batch size (e.g., 100 messages) OR timeout (e.g., 10ms)
+- Send all 100 in one request → one network round trip
+- 100 messages = 10ms total (100x faster!)
+
+Configuration:
+batch.size = 16384 bytes (16 KB)
+linger.ms = 10 milliseconds
+```
+
+**3. Compression (Reducing network traffic)**
+
+Before sending batches, compress them:
+
+```
+Uncompressed batch: 100 messages × 1 KB = 100 KB
+With snappy compression (3:1 ratio): 33 KB
+Network savings: 67% less bandwidth!
+
+Compression options:
+- none: No compression (fastest but wasteful)
+- gzip: Best compression (10:1) but slowest
+- snappy: Good compression (3:1) and fast (recommended!)
+- lz4: Very fast, decent compression (4:1)
+- zstd: Best of both worlds (5:1, fast)
+```
+
+**4. Acknowledgment Levels (How producers know messages are safe)**
+
+```
+acks=0 (fire-and-forget):
+Producer sends → doesn't wait → proceeds immediately
+Risk: Message might be lost if broker crashes
+Use: Metrics, logs where occasional loss OK
+Latency: ~1ms
+
+acks=1 (leader acknowledgment):
+Producer sends → leader writes to disk → leader responds
+Risk: If leader crashes before replication, message lost
+Use: Most applications (good balance)
+Latency: ~5ms
+
+acks=all (full replication):
+Producer sends → leader + all followers write → leader responds
+Risk: None (message on 3 brokers before acknowledgment)
+Use: Financial data, critical events
+Latency: ~10ms
+```
+
+**Producer implementation flow:**
+```
+Step 1: Application calls producer.send(topic, key, value)
+Step 2: Producer buffers message in memory
+Step 3: Wait for batch to fill (batch.size) OR timeout (linger.ms)
+Step 4: Compress batch (snappy/gzip/lz4)
+Step 5: Determine target partition (hash key or round-robin)
+Step 6: Send ProduceRequest to partition leader broker
+Step 7: Broker writes to log and replicates
+Step 8: Broker sends ProduceResponse
+Step 9: Producer callback: success or error
+```
+
+---
+
+#### Component 4: Consumers (The Receivers)
+
+**What they are:**
+Client applications that subscribe to topics and process messages.
+
+**Detailed explanation:**
+
+Consumers are like people picking up packages from the post office. Key differences from traditional systems:
+- **Pull model**: Consumers request messages (don't get pushed)
+- **Control their pace**: Read fast or slow based on processing capability
+- **Remember their position**: Track offset of last read message
+
+**Consumer responsibilities:**
+
+**1. Subscription (Which topics to read)**
+
+```
+Simple subscription (one topic):
+consumer.subscribe(["orders"])
+
+Multi-topic subscription:
+consumer.subscribe(["orders", "payments", "shipments"])
+
+Pattern-based subscription:
+consumer.subscribe(pattern="user-.*")
+Matches: user-created, user-updated, user-deleted
+```
+
+**2. Polling (Requesting messages)**
+
+Consumers continuously poll for new messages:
+
+```
+Polling loop:
+while True:
+    # Request up to 1MB of messages or 500ms timeout
+    records = consumer.poll(timeout_ms=500, max_bytes=1048576)
+    
+    for record in records:
+        process(record)  # Your business logic
+    
+    # Commit offsets after successful processing
+    consumer.commit()
+```
+
+**Why poll vs push?**
+
+**Push model** (traditional message queues):
+```
+Broker → pushes messages → Consumer
+Problems:
+- Broker decides pace (might overwhelm slow consumers)
+- Consumer can't control when messages arrive
+- Complex backpressure handling
+```
+
+**Pull model** (pub/sub systems):
+```
+Consumer → requests messages → Broker
+Benefits:
+- Consumer controls pace (process at own speed)
+- Consumer can batch requests (fetch 1000 messages at once)
+- Simple backpressure (consumer stops polling when busy)
+```
+
+**3. Offset Management (Remembering position)**
+
+Each message has an offset (position number) in the partition:
+
+```
+Partition 0 contents:
+Offset 0: {"order_id": 1, "amount": 50}
+Offset 1: {"order_id": 2, "amount": 75}
+Offset 2: {"order_id": 3, "amount": 100}
+Offset 3: {"order_id": 4, "amount": 25}
+...
+Offset 999: {"order_id": 1000, "amount": 200}
+
+Consumer tracks: "I've processed up to offset 999"
+```
+
+**Offset commit strategies:**
+
+```
+Auto-commit (simple but risky):
+enable.auto.commit = true
+auto.commit.interval.ms = 5000
+Problem: Might lose 5 seconds of data if consumer crashes!
+
+Manual commit (safer):
+consumer.poll()
+process_messages()
+consumer.commit()  ← Explicit commit after processing
+Benefit: Only commit when processing succeeds
+
+At-least-once pattern:
+Read message → Process → Write to database → Commit offset
+If crash before commit, message reprocessed (duplicate)
+
+Exactly-once pattern:
+Read message → Process → Write to database + commit offset in same transaction
+No duplicates, but requires transactional support
+```
+
+**4. Consumer Groups (Team coordination)**
+
+Multiple consumers work together in a group:
+
+```
+Scenario: Topic "orders" with 4 partitions
+Consumer Group "order-processors" with 2 consumers
+
+Partition assignment:
+Consumer 1 handles: Partition 0, 1
+Consumer 2 handles: Partition 2, 3
+
+Benefits:
+- Parallel processing (2x faster than 1 consumer)
+- Automatic rebalancing (if Consumer 1 crashes, Consumer 2 takes over)
+- Each message processed exactly once per group
+```
+
+**What happens when a consumer joins/leaves:**
+
+```
+Initial state:
+Consumer A: Partitions 0, 1, 2, 3 (handling everything)
+
+Consumer B joins:
+Rebalancing triggered...
+Consumer A: Partitions 0, 1 (lost 2, 3)
+Consumer B: Partitions 2, 3 (gained 2, 3)
+
+Consumer A crashes:
+Rebalancing triggered...
+Consumer B: Partitions 0, 1, 2, 3 (gained 0, 1)
+
+Rebalancing time: 3-10 seconds (messages not processed during this)
+```
+
+---
+
+#### Component 5: Controller (The Cluster Manager)
+
+**What it is:**
+One broker in the cluster that acts as the "master coordinator" for administrative tasks.
+
+**Detailed explanation:**
+
+Think of the controller like the main manager in a chain of post offices:
+- Regular brokers handle customer requests (store/serve messages)
+- Controller handles organizational tasks (who's the leader? who's hiring? who's fired?)
+
+**Controller responsibilities:**
+
+**1. Broker Lifecycle Management**
+
+```
+When a new broker joins:
+Step 1: New broker registers with ZooKeeper
+Step 2: Controller detects new broker
+Step 3: Controller assigns partitions to new broker
+Step 4: Controller triggers partition rebalancing
+Step 5: Data starts replicating to new broker
+
+When a broker leaves:
+Step 1: Controller detects broker is dead (no heartbeat)
+Step 2: Controller identifies orphaned partitions (leader was on dead broker)
+Step 3: Controller elects new leaders from remaining replicas
+Step 4: Controller updates partition metadata in ZooKeeper
+Step 5: Producers/consumers get new routing info
+```
+
+**2. Partition Leader Election**
+
+When a partition leader fails, controller elects a new one:
+
+```
+Example: Partition orders-0
+
+Current state:
+Leader: Broker 1
+Replicas: [Broker 1, Broker 2, Broker 3]
+ISR (In-Sync Replicas): [Broker 1, Broker 2, Broker 3]
+
+Broker 1 crashes!
+
+Controller's election logic:
+1. Look at ISR list: [Broker 2, Broker 3] (exclude dead Broker 1)
+2. Pick first alive replica from ISR: Broker 2
+3. Promote Broker 2 to leader
+4. Update ZooKeeper: orders-0 leader = Broker 2
+5. Notify all brokers of new leader
+
+New state:
+Leader: Broker 2
+Replicas: [Broker 2, Broker 3] (Broker 1 removed until it recovers)
+ISR: [Broker 2, Broker 3]
+
+Time taken: 3-5 seconds
+```
+
+**3. Topic and Partition Management**
+
+```
+Create topic command:
+kafka-topics --create --topic user-events --partitions 10 --replication-factor 3
+
+Controller's actions:
+1. Validate parameters (10 partitions, 3 replicas)
+2. Choose which brokers store which partitions (load balancing)
+   Partition 0: [Broker 1 (leader), Broker 2, Broker 3]
+   Partition 1: [Broker 2 (leader), Broker 3, Broker 1]
+   Partition 2: [Broker 3 (leader), Broker 1, Broker 2]
+   ... (ensure even distribution)
+3. Write partition assignments to ZooKeeper
+4. Notify brokers to create partition directories
+5. Initialize partition leaders
+
+Result: 10 partitions created across cluster in <1 second
+```
+
+**4. Controller Election (Who becomes controller?)**
+
+There's always exactly ONE controller in the cluster:
+
+```
+Controller election process:
+1. All brokers try to create /controller node in ZooKeeper
+2. First broker to create the node becomes controller
+3. Other brokers watch this node for changes
+4. If controller dies, node is deleted
+5. Remaining brokers race to create node again
+6. Winner becomes new controller
+
+Current controller:
+Broker 1 with epoch=5 (epoch prevents split-brain)
+
+If Broker 1 crashes:
+Broker 2 and Broker 3 race to become controller
+Broker 2 wins, becomes controller with epoch=6
+```
+
+**Why have a controller?**
+- **Centralized coordination**: One place makes all administrative decisions
+- **Avoid conflicts**: Two brokers might elect different leaders without coordination
+- **Simplifies logic**: Regular brokers don't need complex coordination code
+
+---
+
+### Architecture Diagram Explained
+
+```mermaid
+graph TB
+    subgraph Producer Cluster
+        P1[Producer 1<br/>Application Server 1]
+        P2[Producer 2<br/>Application Server 2]
+        P3[Producer 3<br/>Application Server 3]
+        PN[Producer N<br/>Microservices]
+    end
+    
+    subgraph Broker Cluster
+        subgraph Broker 1 - Controller
+            B1[Broker 1<br/>Controller Node]
+            B1P0[Topic A-P0<br/>Leader]
+            B1P1[Topic A-P1<br/>Follower]
+            B1P2[Topic B-P0<br/>Follower]
+        end
+        
+        subgraph Broker 2
+            B2[Broker 2<br/>Data Node]
+            B2P0[Topic A-P0<br/>Follower]
+            B2P1[Topic A-P1<br/>Follower]
+            B2P2[Topic B-P1<br/>Leader]
+        end
+        
+        subgraph Broker 3
+            B3[Broker 3<br/>Data Node]
+            B3P0[Topic A-P1<br/>Leader]
+            B3P1[Topic B-P0<br/>Leader]
+            B3P2[Topic B-P1<br/>Follower]
+        end
+    end
+    
+    subgraph Metadata Store
+        ZK[ZooKeeper/KRaft<br/>Cluster Coordinator]
+        ZKData[(Metadata Storage<br/>- Topic configs<br/>- Partition map<br/>- Consumer groups<br/>- Leader election)]
+    end
+    
+    subgraph Consumer Groups
+        subgraph Consumer Group 1
+            CG1C1[Consumer 1<br/>Partition 0,1]
+            CG1C2[Consumer 2<br/>Partition 2,3]
+        end
+        
+        subgraph Consumer Group 2
+            CG2C1[Consumer 1<br/>Partition 0,2]
+            CG2C2[Consumer 2<br/>Partition 1,3]
+        end
+    end
+    
+    subgraph Offset Store
+        OffsetTopic[__consumer_offsets<br/>Internal Topic]
+    end
+    
+    P1 -->|Publish Messages| B1P0
+    P2 -->|Publish Messages| B2P2
+    P3 -->|Publish Messages| B3P0
+    PN -->|Publish Messages| B3P1
+    
+    B1P0 -.->|Replicate| B2P0
+    B1P0 -.->|Replicate| B3P0
+    B3P0 -.->|Replicate| B1P1
+    B3P0 -.->|Replicate| B2P1
+    B2P2 -.->|Replicate| B3P2
+    B3P1 -.->|Replicate| B1P2
+    
+    B1 <-->|Cluster Metadata| ZK
+    B2 <-->|Cluster Metadata| ZK
+    B3 <-->|Cluster Metadata| ZK
+    ZK <--> ZKData
+    
+    B1P0 -->|Poll Messages| CG1C1
+    B3P0 -->|Poll Messages| CG1C2
+    B1P0 -->|Poll Messages| CG2C1
+    B2P2 -->|Poll Messages| CG2C2
+    
+    CG1C1 -->|Commit Offsets| OffsetTopic
+    CG1C2 -->|Commit Offsets| OffsetTopic
+    CG2C1 -->|Commit Offsets| OffsetTopic
+    CG2C2 -->|Commit Offsets| OffsetTopic
+    
+    style B1 fill:#e1f5ff
+    style B1P0 fill:#4caf50
+    style B3P0 fill:#4caf50
+    style B3P1 fill:#4caf50
+    style B2P2 fill:#4caf50
+    style ZK fill:#fff3e0
+```
+
+**What this diagram shows:**
+
+**Left side - Producers:**
+- Multiple producer applications (microservices, servers)
+- Each connects to different partition leaders
+- No coordination needed between producers
+
+**Center - Broker Cluster:**
+- 3 brokers (Broker 1 is also the controller)
+- Each broker hosts multiple partitions
+- Green boxes = Partition leaders (handle writes)
+- White boxes = Partition followers (replicate data)
+- Dotted lines = Replication flow
+
+**Top - Metadata Store:**
+- ZooKeeper/KRaft stores all coordination data
+- All brokers connect to it for metadata
+
+**Right side - Consumers:**
+- Two consumer groups (can read same data independently)
+- Each consumer handles specific partitions
+- Consumers poll messages from partition leaders
+- Offsets stored in special __consumer_offsets topic
+
+**Key observations:**
+1. **No direct producer-consumer connection** (decoupled!)
+2. **Partition leaders distributed** across brokers (load balancing)
+3. **Replication happens asynchronously** (leaders don't wait)
+4. **Multiple consumer groups** read same partitions independently
+
+---
+
+*[Intermediate and Advanced levels continue in next response due to length...]*
 
 ### Architecture Diagram
 
