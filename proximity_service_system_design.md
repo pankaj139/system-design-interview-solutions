@@ -4508,3 +4508,907 @@ despite REST convention, because complex queries don't fit GET well.
 
 ---
 
+## Section 7: Proximity Search Algorithm
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Understand how proximity search algorithms work step-by-step
+- Design efficient algorithms for finding businesses within a radius
+- Optimize search performance using geohash and spatial indexes
+- Handle edge cases like boundary conditions and high-density areas
+- Implement multi-stage filtering and ranking
+
+### Why This Matters
+
+The proximity search algorithm is the heart of your system - a poorly designed algorithm leads to slow queries, timeouts, and frustrated users! Real-world example: When Foursquare first launched, they used a simple distance calculation that checked every business in the database. In Manhattan with 10K+ businesses per km², this meant checking 785,000 businesses for a 5km radius search, taking 5+ seconds. They redesigned to use geohash prefix filtering first (narrowing to ~1,000 businesses), then precise distance calculation, reducing query time to 50ms. Good algorithm design is the difference between a usable product and a broken one!
+
+### 🟢 For Beginners: The Fundamentals
+
+#### What is Proximity Search?
+
+Proximity search is like asking "What restaurants are within walking distance?" and getting a list sorted by distance:
+
+```text
+Real-World Analogy:
+├─ You: Standing at Times Square, New York
+├─ Question: "Find pizza places within 1km"
+├─ System: Checks all businesses, calculates distance to each
+├─ Filter: Only businesses within 1km
+├─ Sort: Closest first
+└─ Result: List of 15 pizza places, closest is 200m away
+
+The challenge: There are 100M businesses globally, but you only 
+want the ones near you. We need a smart way to find them quickly!
+```
+
+**The Naive Approach (Why It Fails):**
+
+```text
+Naive Algorithm:
+1. Get all 100M businesses from database
+2. For each business:
+   a. Calculate distance to user's location
+   b. If distance <= radius, add to results
+3. Sort results by distance
+4. Return top 20
+
+Problem:
+├─ Step 1: Loading 100M businesses = 5GB of data (impossible!)
+├─ Step 2: Calculating 100M distances = 100M calculations (slow!)
+├─ Time: 5+ seconds (way too slow!)
+└─ Result: System crashes or times out
+
+This is like checking every restaurant in the world when you only 
+want ones in your neighborhood!
+```
+
+**The Smart Approach (How We Actually Do It):**
+
+```text
+Smart Algorithm (3 Steps):
+1. Geohash Filtering (Narrow Down):
+   ├─ Calculate geohash for user's location
+   ├─ Find businesses with matching geohash prefix
+   ├─ Result: 100M → ~1,000 businesses (99.999% reduction!)
+   └─ Time: 5ms (very fast!)
+
+2. Precise Distance Calculation (Filter):
+   ├─ For each of the ~1,000 businesses:
+   │   ├─ Calculate exact distance using Haversine formula
+   │   └─ If distance <= radius, keep it
+   ├─ Result: ~1,000 → ~50 businesses
+   └─ Time: 10ms (fast!)
+
+3. Ranking and Sorting (Finalize):
+   ├─ Apply filters (category, rating, price)
+   ├─ Calculate ranking score (distance + rating + popularity)
+   ├─ Sort by score
+   ├─ Return top 20
+   └─ Time: 5ms (very fast!)
+
+Total Time: 5ms + 10ms + 5ms = 20ms (250x faster than naive!)
+```
+
+#### Understanding Distance Calculation
+
+**Haversine Formula:**
+
+The Haversine formula calculates the distance between two points on Earth (like two GPS coordinates):
+
+```text
+Why "Haversine"?
+├─ Earth is a sphere (not flat!)
+├─ Simple distance formula (straight line) doesn't work
+├─ Haversine accounts for Earth's curvature
+└─ Named after the mathematical function it uses
+
+Formula (Simplified Explanation):
+├─ Input: Two points (lat1, lng1) and (lat2, lng2)
+├─ Calculate: Difference in latitude and longitude
+├─ Account for: Earth's radius (6,371 km)
+├─ Output: Distance in kilometers (or meters)
+
+Example:
+├─ Point 1: Times Square (40.7580, -73.9855)
+├─ Point 2: Central Park (40.7829, -73.9654)
+├─ Distance: 2.8 km (walking distance!)
+└─ Calculation: ~1ms per distance check
+
+Why It Matters:
+├─ Need to check thousands of businesses
+├─ Each check takes ~1ms
+├─ 1,000 businesses = 1 second (too slow!)
+└─ Solution: Filter first with geohash, then calculate distance
+```
+
+**Distance Units:**
+
+```text
+Common Units:
+├─ Meters: 1,000m = 1km (most precise)
+├─ Kilometers: 1km = 1,000m (easier to understand)
+├─ Miles: 1 mile = 1.6km (US standard)
+└─ Feet: 1km = 3,280 feet (very precise, rarely used)
+
+Our System Uses:
+├─ Storage: Meters (most precise, integer math)
+├─ API: Accepts meters or kilometers (flexible)
+├─ Display: User's preferred unit (miles in US, km elsewhere)
+└─ Calculation: Always in meters internally (consistent)
+```
+
+#### The Search Process Step-by-Step
+
+Let's walk through a real search example:
+
+```text
+User Request:
+├─ Location: Times Square, NYC (40.7580, -73.9855)
+├─ Radius: 2km
+├─ Category: Restaurants
+├─ Filters: Rating >= 4.0, Open now
+
+Step 1: Geohash Filtering (5ms)
+├─ User location geohash: "dr5regy8" (8 characters)
+├─ Query: Find businesses with geohash starting with "dr5reg"
+├─ Result: 1,200 businesses (down from 100M!)
+└─ Why: Geohash groups nearby businesses together
+
+Step 2: Distance Calculation (10ms)
+├─ For each of 1,200 businesses:
+│   ├─ Calculate distance using Haversine
+│   └─ If distance <= 2000m, keep it
+├─ Result: 85 businesses within 2km
+└─ Why: Precise filtering based on actual distance
+
+Step 3: Apply Filters (5ms)
+├─ Category filter: 85 → 45 restaurants
+├─ Rating filter: 45 → 30 (rating >= 4.0)
+├─ Open now filter: 30 → 22 (currently open)
+└─ Result: 22 businesses match all criteria
+
+Step 4: Ranking (5ms)
+├─ Calculate score for each business:
+│   ├─ Distance score: Closer = higher (40% weight)
+│   ├─ Rating score: Higher rating = higher (30% weight)
+│   └─ Popularity score: More reviews = higher (30% weight)
+├─ Sort by score (highest first)
+└─ Result: Top 20 businesses ranked by relevance
+
+Step 5: Return Results (5ms)
+├─ Format: JSON with business details
+├─ Include: Distance, rating, hours, photos
+└─ Total Time: 30ms (well under 100ms target!)
+```
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### The Proximity Search Algorithm Framework
+
+When designing proximity search in an interview, follow this systematic approach:
+
+**Step 1: Understand the Problem (1 minute)**
+
+```text
+"Let me clarify the requirements:"
+
+Key Questions:
+├─ What's the search radius? (1km, 5km, 50km?)
+├─ How many businesses total? (1M, 100M?)
+├─ What's the density? (Rural: 10/km², Urban: 10K/km²?)
+├─ What filters? (Category, rating, price, hours?)
+├─ What's the latency target? (<100ms?)
+└─ How many results? (Top 20, top 100?)
+
+Assumptions:
+├─ 100M businesses globally
+├─ 5km average search radius
+├─ High-density areas: 10K businesses/km²
+├─ Need: Category, rating, price, hours filters
+├─ Target: <100ms response time
+└─ Return: Top 20 results
+```
+
+**Step 2: Design the Algorithm (3 minutes)**
+
+```text
+"Let me design a multi-stage algorithm:"
+
+Stage 1: Geohash Prefix Filtering
+├─ Purpose: Narrow down from 100M to manageable set
+├─ Method: Calculate geohash for user location
+├─ Precision: 6-8 characters (depending on radius)
+│   ├─ 5km radius: 6 chars (±0.61km precision)
+│   └─ 1km radius: 8 chars (±0.019km precision)
+├─ Query: SELECT * FROM businesses WHERE geohash LIKE 'dr5reg%'
+├─ Result: 100M → ~1,000 businesses
+└─ Time: 5ms (index lookup)
+
+Stage 2: Bounding Box Pre-Filter
+├─ Purpose: Further reduce before expensive distance calc
+├─ Method: Check if business in bounding box
+├─ Calculation: Simple rectangle check (fast!)
+├─ Query: WHERE lat BETWEEN min_lat AND max_lat 
+│         AND lng BETWEEN min_lng AND max_lng
+├─ Result: ~1,000 → ~500 businesses
+└─ Time: 2ms (simple comparison)
+
+Stage 3: Precise Distance Calculation
+├─ Purpose: Exact filtering by radius
+├─ Method: Haversine formula for each business
+├─ Optimization: Only calculate for businesses in bounding box
+├─ Query: Calculate distance, filter WHERE distance <= radius
+├─ Result: ~500 → ~50 businesses
+└─ Time: 10ms (500 calculations × 0.02ms each)
+
+Stage 4: Apply Business Filters
+├─ Purpose: Category, rating, price, hours
+├─ Method: Filter in application layer (fast)
+├─ Filters:
+│   ├─ Category: WHERE category_id = 'restaurants'
+│   ├─ Rating: WHERE rating >= 4.0
+│   ├─ Price: WHERE price_level IN (1, 2)
+│   └─ Hours: Check if open_now = true
+├─ Result: ~50 → ~20 businesses
+└─ Time: 3ms (in-memory filtering)
+
+Stage 5: Ranking and Sorting
+├─ Purpose: Sort by relevance (distance + quality)
+├─ Method: Calculate composite score
+├─ Score Formula:
+│   ├─ Distance component: exp(-distance / 2000) × 0.4
+│   ├─ Rating component: (rating / 5.0) × 0.3
+│   └─ Popularity component: log(review_count + 1) × 0.3
+├─ Sort: ORDER BY score DESC
+├─ Result: Top 20 businesses
+└─ Time: 2ms (sorting 20 items)
+
+Total Time: 5 + 2 + 10 + 3 + 2 = 22ms (well under 100ms!)
+```
+
+**Step 3: Handle Edge Cases (2 minutes)**
+
+```text
+"Let me think about edge cases:"
+
+Edge Case 1: Boundary Conditions
+├─ Problem: Geohash boundaries don't match radius circles
+├─ Example: Business just outside geohash but within radius
+├─ Solution: Check neighboring geohash cells
+├─ Implementation: Calculate 8 neighbors, query all 9 cells
+└─ Impact: Slightly more businesses to check, but ensures accuracy
+
+Edge Case 2: High-Density Areas
+├─ Problem: 10K businesses/km² = 785K in 5km radius
+├─ Challenge: Even after geohash, still 10K+ businesses
+├─ Solution: 
+│   ├─ Use higher precision geohash (8 chars instead of 6)
+│   ├─ Limit initial query to 1,000 businesses
+│   ├─ Apply distance filter early
+│   └─ Use QuadTree for very dense areas
+└─ Impact: Query time stays <100ms even in Manhattan
+
+Edge Case 3: No Results Found
+├─ Problem: User in rural area, no businesses nearby
+├─ Solution: 
+│   ├─ Return empty results array (not error)
+│   ├─ Suggest expanding radius
+│   └─ Show message: "No results found. Try expanding your search."
+└─ Impact: Good user experience, no confusion
+
+Edge Case 4: Invalid Location
+├─ Problem: User provides invalid coordinates
+├─ Solution:
+│   ├─ Validate: lat between -90 and 90, lng between -180 and 180
+│   ├─ Return: 400 Bad Request with clear error
+│   └─ Message: "Invalid location coordinates"
+└─ Impact: Prevents errors, clear feedback
+```
+
+⚠️ **Common Mistake:** Many candidates skip the geohash filtering stage and try to calculate distance for all businesses. Always filter first, then calculate!
+
+#### Optimizing the Algorithm
+
+```text
+"Let me optimize for performance:"
+
+Optimization 1: Index Strategy
+├─ Geohash Index: B-tree index on geohash column
+│   ├─ Query: WHERE geohash LIKE 'dr5reg%'
+│   ├─ Performance: O(log n) lookup
+│   └─ Result: 5ms to find 1,000 businesses
+│
+├─ Spatial Index: GIST index on location (PostGIS)
+│   ├─ Query: ST_DWithin(location, user_point, radius)
+│   ├─ Performance: O(log n) spatial lookup
+│   └─ Result: 10ms for precise distance filtering
+│
+└─ Composite Index: (category_id, rating, geohash)
+    ├─ Query: WHERE category = X AND rating >= Y AND geohash LIKE '...'
+    ├─ Performance: Single index scan
+    └─ Result: 8ms for filtered query
+
+Optimization 2: Caching Strategy
+├─ Cache Key: geohash_prefix + category + filters_hash
+├─ Cache TTL: 2 minutes (businesses don't change often)
+├─ Hit Rate: 60% (most searches are for popular locations)
+├─ Performance: Cache hit = 2ms (vs 22ms uncached)
+└─ Result: 60% of queries are 10x faster
+
+Optimization 3: Parallel Processing
+├─ Stage 1-2: Can run in parallel (geohash + bounding box)
+├─ Stage 3: Can batch distance calculations
+├─ Implementation: Use worker threads for distance calc
+├─ Performance: 22ms → 15ms (30% improvement)
+└─ Trade-off: More complex, but worth it for scale
+```
+
+### 🔴 For Advanced: Production Considerations
+
+#### Advanced Algorithm Patterns
+
+**Pattern 1: Adaptive Precision Strategy**
+
+```text
+Challenge: Different areas have different densities
+
+Problem: 
+├─ Rural: 10 businesses/km² → 6-char geohash is fine
+├─ Urban: 10K businesses/km² → 6-char geohash returns 10K+ results
+└─ Solution: Use different precision based on density
+
+Adaptive Algorithm:
+├─ Step 1: Detect density for user's location
+│   ├─ Query: Count businesses in 6-char geohash
+│   ├─ Low density (< 100): Use 6-char geohash
+│   ├─ Medium density (100-1000): Use 7-char geohash
+│   └─ High density (> 1000): Use 8-char geohash + QuadTree
+│
+├─ Step 2: Execute search with appropriate precision
+│   ├─ Low: Simple geohash query (fast)
+│   ├─ Medium: Higher precision geohash (moderate)
+│   └─ High: QuadTree subdivision (complex but necessary)
+│
+└─ Result: Consistent <100ms performance across all densities
+
+Implementation:
+├─ Pre-compute density map: Store density per geohash prefix
+├─ Cache: Density lookups in Redis (1ms)
+├─ Fallback: If density unknown, start with 7-char, adjust if needed
+└─ Performance: Adds 2ms overhead, but ensures consistency
+
+💡 Real-world: Google Maps uses adaptive precision - they detect 
+urban vs rural and adjust search strategy accordingly.
+```
+
+**Pattern 2: Multi-Stage Filtering with Early Termination**
+
+```text
+Challenge: Need to return top 20, but have 10K candidates
+
+Problem: Calculating distance for 10K businesses is slow (200ms)
+
+Solution: Apply filters early, terminate when we have enough
+
+Optimized Algorithm:
+├─ Stage 1: Geohash filter → 10K businesses
+├─ Stage 2: Quick filters (category, active) → 5K businesses
+│   ├─ Apply: WHERE category = X AND is_active = true
+│   ├─ Time: 3ms (index scan)
+│   └─ Early termination: If < 20 results, return immediately
+│
+├─ Stage 3: Bounding box → 2K businesses
+│   ├─ Apply: Simple rectangle check
+│   ├─ Time: 5ms
+│   └─ Early termination: If < 20 results, skip to distance calc
+│
+├─ Stage 4: Distance calculation (batched) → 500 businesses
+│   ├─ Apply: Calculate distance, keep top 100 by distance
+│   ├─ Time: 10ms (only calculate for 2K, not 10K)
+│   └─ Early termination: If we have 20+ good results, stop
+│
+├─ Stage 5: Expensive filters (rating, hours) → 50 businesses
+│   ├─ Apply: Rating check, hours check (slower)
+│   ├─ Time: 5ms (only for 100 businesses)
+│   └─ Early termination: If we have 20+, stop
+│
+└─ Stage 6: Ranking → Top 20
+    ├─ Apply: Composite score, sort
+    ├─ Time: 2ms
+    └─ Result: Top 20 businesses
+
+Performance:
+├─ Without early termination: 25ms (all stages)
+├─ With early termination: 15ms average (skip expensive stages)
+└─ Improvement: 40% faster for common cases
+
+💡 Real-world: Elasticsearch uses this pattern - they apply 
+filters in order of selectivity, terminating early when possible.
+```
+
+**Pattern 3: Approximate vs Exact Distance**
+
+```text
+Challenge: Exact Haversine is accurate but slow
+
+Trade-off: Accuracy vs Performance
+
+Option A: Exact Haversine (Current)
+├─ Accuracy: 100% accurate (accounts for Earth's curvature)
+├─ Performance: 0.02ms per calculation
+├─ Use Case: Final filtering, when we have < 1K businesses
+└─ Result: 10ms for 500 businesses
+
+Option B: Euclidean Distance (Approximate)
+├─ Accuracy: 99% accurate (treats Earth as flat)
+├─ Performance: 0.001ms per calculation (20x faster!)
+├─ Formula: sqrt((lat1-lat2)² + (lng1-lng2)²) × 111km
+├─ Use Case: Initial filtering, when we have 10K+ businesses
+└─ Result: 1ms for 10K businesses (vs 200ms with Haversine)
+
+Hybrid Approach (Best):
+├─ Stage 1: Euclidean distance for 10K businesses
+│   ├─ Filter: Keep top 1,000 by approximate distance
+│   ├─ Time: 1ms (very fast)
+│   └─ Accuracy: 99% (good enough for filtering)
+│
+├─ Stage 2: Haversine distance for 1,000 businesses
+│   ├─ Filter: Exact distance for final results
+│   ├─ Time: 20ms (acceptable)
+│   └─ Accuracy: 100% (exact for final results)
+│
+└─ Result: 21ms total (vs 200ms with Haversine only)
+
+Error Analysis:
+├─ Euclidean error: < 1% for distances < 100km
+├─ For 5km radius: Error is < 50m (negligible)
+└─ Acceptable: Users won't notice 50m difference
+
+💡 Real-world: Many systems use Euclidean for initial filtering, 
+Haversine for final results. The performance gain (10x) outweighs 
+the tiny accuracy loss (<1%).
+```
+
+#### Production Algorithm Trade-offs
+
+**Trade-off 1: Index Choice: Geohash vs R-tree vs QuadTree**
+
+```text
+Scenario: Need to choose spatial index for 100M businesses
+
+Option A: Geohash Only
+├─ Pros: Simple, easy to implement, good for moderate density
+├─ Cons: Boundary issues, struggles in high density
+├─ Performance: 20ms for moderate, 200ms for high density
+└─ Use Case: MVP, moderate density areas
+
+Option B: R-tree (PostGIS)
+├─ Pros: Precise, handles boundaries well, proven at scale
+├─ Cons: More complex, higher memory usage
+├─ Performance: 15ms consistent across densities
+└─ Use Case: Production systems requiring precision
+
+Option C: QuadTree for High Density
+├─ Pros: Excellent for high density, adaptive subdivision
+├─ Cons: Complex implementation, memory overhead
+├─ Performance: 10ms in high density, 25ms in low density
+└─ Use Case: Systems with extreme density variations
+
+Hybrid Approach (Best):
+├─ Low density: Geohash (simple, fast)
+├─ Medium density: R-tree (precise, consistent)
+├─ High density: QuadTree (handles extreme cases)
+├─ Detection: Pre-compute density map, route accordingly
+└─ Result: Best performance for each scenario
+
+💡 Real-world: Yelp uses Geohash for most queries, R-tree for 
+precise filtering, QuadTree only in Manhattan/Tokyo level density.
+```
+
+**Trade-off 2: Filter Order: Early vs Late Application**
+
+```text
+Scenario: Multiple filters (category, rating, price, hours)
+
+Option A: Apply All Filters Early (In Database)
+├─ Query: WHERE geohash LIKE '...' AND category = X AND rating >= Y 
+│         AND price IN (...) AND is_open_now = true
+├─ Pros: Database does filtering (efficient)
+├─ Cons: Complex query, harder to optimize, less flexible
+├─ Performance: 15ms (single query)
+└─ Use Case: Simple filters, known query patterns
+
+Option B: Apply Filters Late (In Application)
+├─ Query: WHERE geohash LIKE '...' (get all candidates)
+├─ Filter: In application code (category, rating, etc.)
+├─ Pros: Flexible, easy to add new filters, can A/B test
+├─ Cons: More data transferred, application processing
+├─ Performance: 18ms (query + filtering)
+└─ Use Case: Complex filters, frequent filter changes
+
+Hybrid Approach (Best):
+├─ Database: Geohash + category + is_active (fast, indexed)
+├─ Application: Rating + price + hours (flexible, changeable)
+├─ Result: 16ms (best of both worlds)
+└─ Rationale: Index what's stable, filter what changes
+
+💡 Real-world: Most systems use hybrid - database for spatial + 
+core filters, application for business logic filters.
+```
+
+### Real-World Example: How Yelp's Search Algorithm Evolved
+
+Let's examine how Yelp's proximity search algorithm changed:
+
+**2004-2006 - Simple Distance Sort:**
+
+```text
+Context: 10K businesses, single city, simple use case
+├─ Algorithm: 
+│   1. Get all businesses in city
+│   2. Calculate distance to each
+│   3. Sort by distance
+│   4. Return top 20
+├─ Performance: 200ms (acceptable for 10K businesses)
+└─ Result: Worked fine for single city
+```
+
+**2007-2010 - Geohash Introduction:**
+
+```text
+Context: 5M businesses, national scale, performance critical
+├─ Challenge: Calculating distance for 5M businesses = 100 seconds!
+├─ Innovation: Geohash prefix filtering
+├─ Algorithm:
+│   1. Calculate geohash for user location
+│   2. Query businesses with matching geohash prefix
+│   3. Calculate distance for filtered set (1K businesses)
+│   4. Sort and return
+├─ Performance: 50ms (2000x faster!)
+└─ Result: Could scale nationally
+```
+
+**2011-2015 - Multi-Stage Filtering:**
+
+```text
+Context: 50M businesses, complex filters, high-density areas
+├─ Challenge: Even with geohash, high-density areas slow (200ms)
+├─ Innovation: Multi-stage filtering with early termination
+├─ Algorithm:
+│   1. Geohash filter (6-8 chars based on density)
+│   2. Bounding box pre-filter
+│   3. Quick filters (category, active)
+│   4. Distance calculation (batched)
+│   5. Expensive filters (rating, hours)
+│   6. Ranking and sorting
+├─ Performance: 30ms average, 80ms in high density
+└─ Result: Handled global scale with consistent performance
+```
+
+**2016-Present - Adaptive Precision + Caching:**
+
+```text
+Context: 100M+ businesses, real-time, ML ranking
+├─ Innovation: Adaptive precision + aggressive caching
+├─ Algorithm:
+│   1. Check cache (60% hit rate, 2ms)
+│   2. Detect density, choose precision (Geohash/R-tree/QuadTree)
+│   3. Multi-stage filtering with early termination
+│   4. ML-based ranking (personalization)
+│   5. Cache results (2min TTL)
+├─ Performance: 15ms average (50% cached), 25ms uncached
+└─ Result: Production-grade, handles any scenario
+```
+
+📊 **By The Numbers:**
+- 2004: Simple sort, 200ms, 10K businesses
+- 2010: Geohash, 50ms, 5M businesses
+- 2015: Multi-stage, 30ms, 50M businesses
+- 2025: Adaptive + cache, 15ms, 100M+ businesses
+
+**Key Lesson:** Start simple, add geohash for scale, optimize with multi-stage filtering, then add caching and ML. Each optimization builds on the previous one!
+
+### 🎯 Interview Questions: Proximity Search Algorithm
+
+#### Question 1: Walk me through how you would implement a proximity search algorithm.
+
+**What the interviewer wants to know:**
+- Can you break down the problem into steps?
+- Do you understand geohash and spatial indexing?
+- Can you optimize for performance?
+
+**Answer Framework:**
+
+```text
+1. Problem Understanding
+   ├─ Input: User location (lat, lng), radius, filters
+   ├─ Output: Top 20 businesses within radius, sorted by relevance
+   ├─ Scale: 100M businesses, need <100ms response time
+   └─ Challenge: Can't check all 100M businesses
+
+2. Multi-Stage Algorithm Design
+
+   Stage 1: Geohash Prefix Filtering
+   ├─ Purpose: Narrow down from 100M to manageable set
+   ├─ Method: Calculate geohash for user location
+   ├─ Precision: 6 chars for 5km radius (±0.61km)
+   ├─ Query: SELECT * FROM businesses WHERE geohash LIKE 'dr5reg%'
+   ├─ Result: 100M → ~1,000 businesses
+   └─ Time: 5ms (index lookup)
+
+   Stage 2: Bounding Box Pre-Filter
+   ├─ Purpose: Further reduce before expensive distance calc
+   ├─ Method: Simple rectangle check (lat/lng ranges)
+   ├─ Query: WHERE lat BETWEEN min_lat AND max_lat 
+   │         AND lng BETWEEN min_lng AND max_lng
+   ├─ Result: ~1,000 → ~500 businesses
+   └─ Time: 2ms (simple comparison)
+
+   Stage 3: Precise Distance Calculation
+   ├─ Purpose: Exact filtering by radius
+   ├─ Method: Haversine formula for each business
+   ├─ Optimization: Only for businesses in bounding box
+   ├─ Query: Calculate distance, filter WHERE distance <= radius
+   ├─ Result: ~500 → ~50 businesses
+   └─ Time: 10ms (500 calculations × 0.02ms each)
+
+   Stage 4: Apply Business Filters
+   ├─ Purpose: Category, rating, price, hours
+   ├─ Method: Filter in application layer
+   ├─ Filters: category, rating >= 4.0, price_level, is_open_now
+   ├─ Result: ~50 → ~20 businesses
+   └─ Time: 3ms (in-memory filtering)
+
+   Stage 5: Ranking and Sorting
+   ├─ Purpose: Sort by relevance
+   ├─ Method: Composite score (distance + rating + popularity)
+   ├─ Score: distance_weight × distance_score + rating_weight × rating_score + ...
+   ├─ Sort: ORDER BY score DESC
+   ├─ Result: Top 20 businesses
+   └─ Time: 2ms (sorting)
+
+   Total Time: 5 + 2 + 10 + 3 + 2 = 22ms (well under 100ms!)
+
+3. Optimizations
+   ├─ Indexes: Geohash index (B-tree), spatial index (GIST)
+   ├─ Caching: Cache results by geohash + filters (60% hit rate)
+   ├─ Early termination: Stop when we have 20+ good results
+   └─ Parallel processing: Batch distance calculations
+
+4. Edge Cases
+   ├─ Boundary conditions: Check neighboring geohash cells
+   ├─ High density: Use higher precision geohash or QuadTree
+   ├─ No results: Return empty array with helpful message
+   └─ Invalid location: Validate coordinates, return 400 error
+```
+
+**Follow-up: How would you handle a search in Manhattan where there are 10K+ businesses per km²?**
+
+```text
+Challenge: 5km radius in Manhattan = 785,000 businesses
+
+Problem: Even 6-char geohash returns 10K+ businesses
+
+Solution: Adaptive Precision Strategy
+
+Step 1: Detect High Density
+├─ Query: Count businesses in 6-char geohash
+├─ If count > 1,000: High density detected
+└─ Action: Switch to higher precision
+
+Step 2: Use Higher Precision Geohash
+├─ Instead of 6 chars: Use 8-char geohash
+├─ Precision: ±0.019km (much smaller area)
+├─ Result: 10K → ~500 businesses per 8-char cell
+└─ Query: Check multiple 8-char cells covering radius
+
+Step 3: Alternative: Use QuadTree
+├─ For extreme density: Use QuadTree instead of geohash
+├─ Subdivision: Divide area until < 500 businesses per cell
+├─ Query: Traverse QuadTree, collect businesses in radius
+└─ Result: Efficient even with 785K businesses
+
+Step 4: Early Termination
+├─ Limit: Process max 2,000 businesses
+├─ Strategy: Calculate distance for closest 2,000 first
+├─ Stop: When we have 20+ results within radius
+└─ Result: Don't process all 785K, just enough for top 20
+
+Performance:
+├─ Without optimization: 2,000ms (timeout!)
+├─ With 8-char geohash: 150ms (acceptable but slow)
+├─ With QuadTree: 50ms (good)
+└─ With caching: 10ms (excellent, 60% hit rate)
+
+Real-world: Yelp uses 8-char geohash + QuadTree for Manhattan, 
+regular geohash for most other areas.
+```
+
+#### Question 2: How does the Haversine formula work, and when would you use it vs Euclidean distance?
+
+**What the interviewer wants to know:**
+- Do you understand distance calculation methods?
+- Can you explain the trade-offs?
+- Do you know when to use which?
+
+**Answer Framework:**
+
+```text
+1. Haversine Formula (Exact)
+
+   Purpose: Calculate distance between two points on Earth's surface
+
+   Why Needed:
+   ├─ Earth is a sphere (not flat!)
+   ├─ Simple distance formula doesn't account for curvature
+   ├─ For large distances, error becomes significant
+   └─ Haversine accounts for Earth's radius
+
+   Formula (Conceptual):
+   ├─ Input: (lat1, lng1) and (lat2, lng2)
+   ├─ Calculate: Difference in latitude and longitude
+   ├─ Account for: Earth's radius (6,371 km)
+   ├─ Apply: Haversine mathematical function
+   └─ Output: Distance in kilometers
+
+   Accuracy: 100% accurate (accounts for Earth's curvature)
+   Performance: ~0.02ms per calculation
+   Use Case: Final filtering, when accuracy matters
+
+2. Euclidean Distance (Approximate)
+
+   Purpose: Fast approximation for initial filtering
+
+   Formula:
+   ├─ Treat Earth as flat plane
+   ├─ Calculate: sqrt((lat1-lat2)² + (lng1-lng2)²) × 111km
+   └─ 111km: Conversion factor (1 degree latitude ≈ 111km)
+
+   Accuracy: 99% accurate for distances < 100km
+   Performance: ~0.001ms per calculation (20x faster!)
+   Use Case: Initial filtering with many candidates
+
+3. When to Use Which
+
+   Option A: Haversine Only
+   ├─ Use: When you have < 1,000 businesses to check
+   ├─ Pros: 100% accurate
+   ├─ Cons: Slower for large sets
+   └─ Performance: 20ms for 1,000 businesses
+
+   Option B: Euclidean Only
+   ├─ Use: When accuracy not critical, speed is
+   ├─ Pros: 20x faster
+   ├─ Cons: 1% error (50m for 5km radius)
+   └─ Performance: 1ms for 1,000 businesses
+
+   Option C: Hybrid (Best)
+   ├─ Stage 1: Euclidean for 10K businesses (fast filtering)
+   │   ├─ Keep top 1,000 by approximate distance
+   │   ├─ Time: 1ms
+   │   └─ Accuracy: 99% (good enough for filtering)
+   │
+   ├─ Stage 2: Haversine for 1,000 businesses (exact)
+   │   ├─ Final distance calculation
+   │   ├─ Time: 20ms
+   │   └─ Accuracy: 100% (exact for results)
+   │
+   └─ Result: 21ms total (vs 200ms with Haversine only)
+
+4. Error Analysis
+   ├─ Euclidean error: < 1% for distances < 100km
+   ├─ For 5km radius: Error is < 50m (negligible)
+   ├─ User impact: Won't notice 50m difference
+   └─ Acceptable: Performance gain (10x) outweighs tiny error
+
+5. Real-World Example
+   ├─ Yelp: Uses Euclidean for initial filtering, Haversine for final
+   ├─ Google Maps: Uses Haversine always (accuracy critical)
+   └─ Foursquare: Hybrid approach (balance speed and accuracy)
+```
+
+#### Question 3: How would you optimize the algorithm for high-density urban areas?
+
+**What the interviewer wants to know:**
+- Can you handle edge cases?
+- Do you understand adaptive strategies?
+- Can you think about performance under stress?
+
+**Answer Framework:**
+
+```text
+1. The High-Density Challenge
+   ├─ Problem: 10K businesses/km² in urban areas
+   ├─ Example: 5km radius in Manhattan = 785,000 businesses
+   ├─ Challenge: Even geohash filtering returns 10K+ businesses
+   └─ Target: Still need <100ms response time
+
+2. Detection Strategy
+   ├─ Pre-compute: Density map (businesses per geohash prefix)
+   ├─ Store: In Redis cache (1ms lookup)
+   ├─ Query: Look up density for user's geohash prefix
+   ├─ Thresholds:
+   │   ├─ Low: < 100 businesses/km² → 6-char geohash
+   │   ├─ Medium: 100-1000 → 7-char geohash
+   │   └─ High: > 1000 → 8-char geohash + QuadTree
+   └─ Result: Choose strategy based on density
+
+3. Optimization Strategies
+
+   Strategy 1: Higher Precision Geohash
+   ├─ Low density: 6-char geohash (±0.61km)
+   ├─ High density: 8-char geohash (±0.019km)
+   ├─ Benefit: Smaller area = fewer businesses per cell
+   ├─ Trade-off: Need to check more cells (9 vs 1)
+   └─ Performance: 150ms → 80ms (still acceptable)
+
+   Strategy 2: QuadTree for Extreme Density
+   ├─ Use: When 8-char geohash still returns 1K+ businesses
+   ├─ Method: Recursively subdivide area
+   ├─ Subdivision: Split until < 500 businesses per cell
+   ├─ Query: Traverse tree, collect businesses in radius
+   └─ Performance: 80ms → 50ms (excellent)
+
+   Strategy 3: Early Termination
+   ├─ Limit: Process max 2,000 businesses
+   ├─ Strategy: 
+   │   ├─ Calculate distance for closest 2,000 first
+   │   ├─ Sort by distance
+   │   └─ Stop when we have 20+ results within radius
+   ├─ Benefit: Don't process all 785K, just enough
+   └─ Performance: 50ms → 30ms (great)
+
+   Strategy 4: Aggressive Caching
+   ├─ Cache: Results for popular locations (Times Square, etc.)
+   ├─ TTL: 2 minutes (businesses don't change often)
+   ├─ Hit Rate: 70% in high-density areas (many repeat searches)
+   └─ Performance: 30ms → 5ms for cached (excellent!)
+
+4. Combined Approach
+   ├─ Step 1: Check cache (70% hit, 5ms)
+   ├─ Step 2: Detect density (1ms lookup)
+   ├─ Step 3: Choose strategy (Geohash 8-char or QuadTree)
+   ├─ Step 4: Execute with early termination
+   ├─ Step 5: Cache results
+   └─ Result: 5ms cached, 30ms uncached (both <100ms!)
+
+5. Monitoring
+   ├─ Track: Query time by density level
+   ├─ Alert: If p95 > 100ms for high-density areas
+   ├─ Optimize: Tune thresholds based on real data
+   └─ Result: Continuous improvement
+```
+
+### 🤔 Think About It
+
+1. **For Beginners:** Why do you think we use geohash filtering first instead of calculating distance for all businesses? (Hint: Think about how many calculations we'd need to do)
+
+2. **For Intermediate:** If you had to choose between using Haversine formula for all businesses vs using Euclidean first then Haversine, which would you choose and why?
+
+3. **For Advanced:** How would your algorithm change if you needed to support moving objects (like food trucks) that update their location every 30 seconds, in addition to static businesses?
+
+### ✅ Key Takeaways
+
+- **Multi-stage filtering**: Geohash → Bounding box → Distance → Filters → Ranking
+- **Filter early, calculate late**: Reduce candidate set before expensive operations
+- **Adaptive precision**: Use different strategies based on density (Geohash 6/7/8 chars, QuadTree)
+- **Hybrid distance**: Euclidean for filtering, Haversine for final results
+- **Early termination**: Stop processing when we have enough results
+- **Caching**: Cache popular searches for 10x performance improvement
+- **Edge cases**: Handle boundaries, high density, no results, invalid input
+
+### 🎯 Practice Exercise
+
+**Scenario:** You're designing a proximity search algorithm that needs to handle both static businesses (restaurants) and dynamic events (concerts happening tonight) that have specific locations and times.
+
+**Your Task:**
+1. Design the algorithm to handle both static and dynamic data
+2. Explain how the search process differs for events vs businesses
+3. Optimize for the case where there are 1M events happening today globally
+4. Handle the edge case where an event's location changes 1 hour before it starts
+
+**Bonus Challenge:** How would your algorithm handle real-time location updates for moving objects (food trucks) that broadcast their location every 5 seconds?
+
+---
+
