@@ -100,16 +100,19 @@ This course is designed for three different learning levels. You can progress th
 ### 🎯 Prerequisites
 
 **For Beginners:**
+
 - Basic programming knowledge (any language)
 - Understanding of files and databases
 - No distributed systems experience needed!
 
 **For Intermediate:**
+
 - Familiarity with REST APIs
 - Basic understanding of databases (SQL/NoSQL)
 - Exposure to microservices concepts
 
 **For Advanced:**
+
 - Experience with distributed systems
 - Understanding of consistency models (eventual, strong)
 - Knowledge of networking fundamentals (TCP/IP, DNS)
@@ -118,6 +121,7 @@ This course is designed for three different learning levels. You can progress th
 ### 📊 What Makes This Learning Experience Unique
 
 Each section follows a proven learning pattern:
+
 1. **What You'll Learn** - Clear learning objectives
 2. **Why This Matters** - Real-world context
 3. **Multi-Level Content** - Tailored explanations for your level
@@ -250,6 +254,7 @@ Before diving in, here are key technical terms you'll encounter (with everyday a
 ### What You'll Learn
 
 By the end of this section, you'll be able to:
+
 - Explain what a pub/sub messaging system is and why companies like LinkedIn, Uber, and Netflix need it
 - Identify the key functional and non-functional requirements for a large-scale messaging system
 - Understand the difference between different delivery guarantees (at-most-once, at-least-once, exactly-once)
@@ -266,6 +271,7 @@ Before writing a single line of code or drawing any diagrams, you need to unders
 #### What is a Pub/Sub Messaging System?
 
 Imagine you're running a large restaurant chain with hundreds of locations. When a customer places an order at one location, multiple departments need to know about it:
+
 - The kitchen needs to prepare the food
 - The billing system needs to charge the customer
 - The inventory system needs to update stock levels
@@ -318,6 +324,7 @@ Let's understand different perspectives through real-world scenarios:
 *"I'm building the checkout service for an e-commerce site. When a customer completes a purchase, I need to notify the inventory service, shipping service, email service, and analytics service. If I call each service directly, my checkout becomes slow and can fail if any service is down. With pub/sub, I publish one 'order-completed' event, and each service processes it independently. My checkout completes in milliseconds!"*
 
 **What they need:**
+
 - Publish messages to topics without worrying about who consumes them
 - Get acknowledgment that messages are safely stored
 - Simple API to integrate with their application
@@ -327,6 +334,7 @@ Let's understand different perspectives through real-world scenarios:
 *"Our recommendation engine processes 50 million user behavior events per day (page views, clicks, purchases). One consumer can't handle that volume. With consumer groups, I can run 100 consumers in parallel, each processing 1% of the events. When traffic spikes during Black Friday, I just add more consumers—the system automatically distributes the load!"*
 
 **What they need:**
+
 - Consumer groups to distribute processing across multiple instances
 - Automatic partition assignment when consumers join/leave
 - Load balancing without manual configuration
@@ -336,6 +344,7 @@ Let's understand different perspectives through real-world scenarios:
 *"Last week, our analytics pipeline had a bug that processed user events incorrectly for 2 hours. In traditional systems, that data would be lost forever. With pub/sub's message retention, I can 'rewind' to 2 hours ago and reprocess all events with the fixed code. It's like having a time machine for your data!"*
 
 **What they need:**
+
 - Ability to replay historical messages (seek to any offset)
 - Configurable retention period (days, weeks, or forever)
 - Multiple consumer groups reading the same data independently
@@ -345,6 +354,7 @@ Let's understand different perspectives through real-world scenarios:
 *"We have 20 microservices, each running 10 instances. That's 200 consumers! When we deploy a new version, consumers restart. Without automatic rebalancing, we'd need manual configuration. With pub/sub, when a consumer dies, its partitions are automatically reassigned to healthy consumers within seconds. Zero manual intervention!"*
 
 **What they need:**
+
 - Automatic partition rebalancing when consumers join/leave/crash
 - Health checking and failure detection
 - Seamless deployment without downtime
@@ -354,6 +364,7 @@ Let's understand different perspectives through real-world scenarios:
 *"Disk failures happen. Network issues happen. In our previous system, if a server crashed, messages were lost forever—we once lost $50,000 worth of orders! Now with replication, every message is copied to 3 different servers. Even if 2 servers explode simultaneously, the third has all the data. We sleep better at night!"*
 
 **What they need:**
+
 - Replication across multiple servers (brokers)
 - Automatic failover when a broker crashes
 - No data loss guarantee for critical messages
@@ -363,6 +374,7 @@ Let's understand different perspectives through real-world scenarios:
 *"I'm building a fraud detection system that monitors financial transactions. If I process the same transaction twice, I might block a legitimate customer. If I miss a transaction, fraud goes undetected. I need exactly-once semantics—process each transaction exactly one time, guaranteed. Lives and money depend on it!"*
 
 **What they need:**
+
 - Exactly-once delivery guarantee (no duplicates, no data loss)
 - Transactional writes across multiple topics
 - Idempotent consumers
@@ -378,6 +390,7 @@ Let's break down what our pub/sub system must accomplish, with detailed explanat
 *What it means:* Producers must be able to send messages to topics reliably and efficiently.
 
 *Detailed explanation:*
+
 - **API simplicity**: Developer calls `send(topic, key, value)` and gets back an acknowledgment
 - **Batching**: Instead of sending one message at a time (slow), group 100 messages into one network request (fast)
 - **Compression**: Compress messages to save bandwidth (like zipping a file)
@@ -397,6 +410,7 @@ value: {"user_id": 123, "photo_url": "...", "caption": "Sunset!", "timestamp": 1
 *What it means:* Consumers must be able to read messages from topics in a controlled, scalable way.
 
 *Detailed explanation:*
+
 - **Pull model**: Consumers request messages (don't push to them). This way consumers control the pace.
   - Like going to a buffet (you take food at your pace) vs waiter service (they control the pace)
   - Consumer says "give me next 100 messages from partition 5" repeatedly
@@ -421,6 +435,7 @@ value: {"user_id": 123, "photo_url": "...", "caption": "Sunset!", "timestamp": 1
 *What it means:* Administrators can create, configure, and manage topics.
 
 *Detailed explanation:*
+
 - **Create topic**: Define name, number of partitions, replication factor
   - Example: Create "user-events" with 100 partitions (for high parallelism) and replication=3 (for durability)
 - **Configure retention**: How long to keep messages
@@ -432,6 +447,7 @@ value: {"user_id": 123, "photo_url": "...", "caption": "Sunset!", "timestamp": 1
   - Cannot decrease partitions (would break ordering guarantees)
 
 *Real-world example:* LinkedIn's "user-activity" topic
+
 - 500 partitions for parallel processing
 - 7-day retention (older data moved to data warehouse)
 - Replication factor 3 (tolerates 2 broker failures)
@@ -445,17 +461,20 @@ value: {"user_id": 123, "photo_url": "...", "caption": "Sunset!", "timestamp": 1
 Let's use a restaurant analogy. You have a kitchen with 10 orders to prepare:
 
 **Without consumer groups (everyone cooks everything):**
+
 - 5 chefs each try to cook all 10 orders
 - Massive duplication of work
 - Chaos and inefficiency
 
 **With consumer groups (team coordination):**
+
 - 5 chefs form a group called "dinner-shift-team"
 - Orders are distributed: Chef A handles orders 1-2, Chef B handles 3-4, etc.
 - Each order is cooked exactly once
 - If Chef C goes home sick, the manager (coordinator) reassigns orders 5-6 to other chefs
 
 **In pub/sub terms:**
+
 - Topic has 10 partitions (like 10 order queues)
 - Consumer group "analytics-team" has 5 consumers
 - Partition assignment: Consumer 1 → partitions 0,1; Consumer 2 → partitions 2,3; etc.
@@ -463,6 +482,7 @@ Let's use a restaurant analogy. You have a kitchen with 10 orders to prepare:
 - If Consumer 3 crashes, its partitions (4,5) are reassigned to other consumers
 
 **Multiple groups reading the same topic:**
+
 - "analytics-team" group reads "orders" topic for trends
 - "billing-team" group reads "orders" topic for invoicing
 - "inventory-team" group reads "orders" topic for stock updates
@@ -477,17 +497,20 @@ Let's use a restaurant analogy. You have a kitchen with 10 orders to prepare:
 Think of offsets like page numbers in a book. Each partition is a separate book.
 
 **The process:**
+
 1. Consumer reads messages from partition 0, offsets 100-199 (like reading pages 100-199)
 2. Consumer processes them (validates data, writes to database, etc.)
 3. Consumer commits offset 200 (telling the system "I've successfully processed up to offset 199")
 4. System stores: "consumer_group=analytics-team, topic=orders, partition=0, offset=200"
 
 **If consumer crashes:**
+
 1. New consumer starts and asks "where did we leave off?"
 2. System responds: "offset 200"
 3. Consumer resumes from offset 200 (no messages lost or reprocessed)
 
 **Commit strategies:**
+
 - **Auto-commit**: Automatically commit every 5 seconds (simple but risky—might lose 5 seconds of data if crash)
 - **Manual commit**: Commit after successfully processing each batch (safer but requires careful coding)
 - **Commit after database write**: Only commit offset after writing to database (ensures at-least-once processing)
@@ -499,10 +522,12 @@ Think of offsets like page numbers in a book. Each partition is a separate book.
 *Detailed explanation:*
 
 Traditional message queues (like RabbitMQ) work like regular mail:
+
 - Message arrives → you read it → it's deleted
 - If you want to read it again, tough luck!
 
 Pub/sub messaging (like Kafka) works like a library:
+
 - Message arrives → stored on disk for 7 days (or whatever you configure)
 - You can read it once, 10 times, or 1000 times in those 7 days
 - After 7 days, it's automatically deleted to save space
@@ -513,6 +538,7 @@ Pub/sub messaging (like Kafka) works like a library:
 ```
 retention.ms = 604800000  (7 days in milliseconds)
 ```
+
 - Messages older than 7 days are deleted
 - Regardless of whether anyone read them
 - Use case: Recent activity feeds, temporary logs
@@ -521,6 +547,7 @@ retention.ms = 604800000  (7 days in milliseconds)
 ```
 retention.bytes = 107374182400  (100 GB)
 ```
+
 - Keep up to 100GB per partition
 - When limit reached, delete oldest messages (FIFO)
 - Use case: Limited disk space, predictable storage costs
@@ -529,10 +556,12 @@ retention.bytes = 107374182400  (100 GB)
 ```
 retention.ms = -1  (keep forever)
 ```
+
 - Never delete messages
 - Use case: Audit logs, regulatory compliance, complete event sourcing
 
 **Why this matters:**
+
 - **Replay**: Reprocess messages after fixing a bug
 - **New consumers**: New service can read historical data
 - **Debugging**: Investigate issues by replaying events
@@ -545,6 +574,7 @@ retention.ms = -1  (keep forever)
 *Detailed explanation:*
 
 Imagine you write an important document. How do you prevent losing it?
+
 - One copy on your laptop: Laptop crashes → document lost!
 - Two copies (laptop + USB drive): Both fail → still lost!
 - Three copies (laptop + USB drive + cloud): Extremely unlikely to lose all three
@@ -552,6 +582,7 @@ Imagine you write an important document. How do you prevent losing it?
 Pub/sub replication works the same way:
 
 **Replication factor = 3 (industry standard):**
+
 - Every partition has 3 copies on 3 different brokers
 - One broker is the "leader" (handles all reads/writes)
 - Two brokers are "followers" (keep identical copies)
@@ -564,6 +595,7 @@ Broker 3 (Follower): Partition 0 - copy 2
 ```
 
 **When a producer writes a message:**
+
 1. Producer sends message to Broker 1 (leader)
 2. Broker 1 writes to its disk
 3. Broker 1 sends message to Broker 2 and Broker 3
@@ -572,12 +604,14 @@ Broker 3 (Follower): Partition 0 - copy 2
 6. Broker 1 acknowledges to producer: "Message safely replicated!"
 
 **If Broker 1 crashes:**
+
 - System elects Broker 2 as the new leader (takes <5 seconds)
 - Broker 2 handles all reads/writes now
 - No messages are lost (they're on Broker 2 and Broker 3)
 - When Broker 1 recovers, it becomes a follower and catches up
 
 **Trade-offs:**
+
 - More replicas = better durability but more storage and network bandwidth
 - Typical configurations:
   - Replication = 2: Development environments
@@ -593,10 +627,12 @@ Broker 3 (Follower): Partition 0 - copy 2
 **Why ordering matters:**
 
 Consider a bank account with $1000:
+
 1. Deposit $500 → Balance = $1500
 2. Withdraw $200 → Balance = $1300
 
 If these events are processed out of order:
+
 1. Withdraw $200 → FAIL! (insufficient funds, only $1000 available)
 2. Deposit $500 → Balance = $1500
 
@@ -605,6 +641,7 @@ Same events, wrong order = wrong result!
 **How pub/sub maintains order:**
 
 **Within a partition (GUARANTEED):**
+
 - Messages with the same key go to the same partition
 - Partition is an append-only log (like a line of people—first in, first out)
 - Messages are numbered sequentially: offset 0, 1, 2, 3...
@@ -624,6 +661,7 @@ Final balance: $1000 + $500 - $200 + $300 = $1600 ✓ Correct!
 ```
 
 **Across partitions (NOT GUARANTEED):**
+
 - Different partitions are processed independently and in parallel
 - No ordering guarantee between partitions
 
@@ -637,6 +675,7 @@ That's okay because different users' events are independent!
 ```
 
 **Best practices:**
+
 - Use meaningful keys (user_id, order_id, session_id) to group related messages
 - All events for the same entity go to the same partition
 - Don't mix unrelated entities in the same topic
@@ -652,33 +691,39 @@ These are the "quality attributes"—not about what the system does, but how wel
 **Throughput: Support 10M messages/second**
 
 *What this means:*
+
 - The system must handle 10 million messages every second
 - That's 600 million messages per minute
 - 36 billion messages per hour
 - 864 billion messages per day!
 
 *How to achieve it:*
+
 - **Batching**: Group 100-1000 messages per network request (reduces overhead)
 - **Partitioning**: 1000 partitions × 10,000 msg/sec/partition = 10M total
 - **Zero-copy transfers**: Move data from disk to network without CPU involvement
 - **Sequential disk I/O**: Writing sequentially is 100x faster than random writes
 
 *Real-world comparison:*
+
 - LinkedIn Kafka: 7 trillion messages/day (81 million/second average)
 - Uber: 1 trillion messages/day (11 million/second average)
 
 **Publish Latency: <10ms p99**
 
 *What this means:*
+
 - 99% of message publishes complete in under 10 milliseconds
 - From when producer calls send() to when acknowledgment is received
 - p99 = 99th percentile (only 1% of requests are slower)
 
 *Why it matters:*
+
 - Fast publish means applications don't slow down when logging events
 - User actions don't block waiting for message delivery
 
 *How to achieve it:*
+
 - In-memory buffering before disk write
 - Batch writes to disk (reduces seek time)
 - Fast network (10+ Gbps)
@@ -687,19 +732,23 @@ These are the "quality attributes"—not about what the system does, but how wel
 **Consumer Lag: <50ms under normal load**
 
 *What this means:*
+
 - Time difference between when message is published and when consumer reads it
 - "Lag" = how far behind consumers are from the latest message
 
 *Example:*
+
 - Producer writes message at offset 1000 at time 10:00:00.000
 - Consumer is currently reading offset 950 at time 10:00:00.045
 - Lag = 50 messages or 45 milliseconds
 
 *Why it matters:*
+
 - Low lag means near-real-time processing
 - High lag means consumers can't keep up (need more consumers or optimization)
 
 *How to achieve it:*
+
 - Sufficient consumer instances (1 per partition for max parallelism)
 - Fast consumer processing (efficient code, database optimization)
 - Load balancing across consumers
@@ -709,17 +758,20 @@ These are the "quality attributes"—not about what the system does, but how wel
 **99.99% uptime (52 minutes downtime/year)**
 
 *What this means:*
+
 - System must be available 99.99% of the time
 - Only 52.56 minutes of downtime allowed per year
 - That's less than 1 hour out of 8,760 hours!
 
 *Comparison:*
+
 - 99% (two nines) = 3.65 days downtime/year (unacceptable for critical systems)
 - 99.9% (three nines) = 8.76 hours downtime/year (acceptable for many systems)
 - 99.99% (four nines) = 52 minutes downtime/year (industry standard for databases)
 - 99.999% (five nines) = 5 minutes downtime/year (very expensive to achieve)
 
 *How to achieve it:*
+
 - Replication (3 copies of every partition)
 - No single point of failure (multiple brokers, redundant networks)
 - Automatic failover when brokers crash
@@ -741,10 +793,12 @@ Time T=6: System is fully operational again (total downtime: 5 seconds)
 **Partition leader election < 5 seconds**
 
 *What this means:*
+
 - When a leader fails, a new leader must be elected within 5 seconds
 - During these 5 seconds, the partition is unavailable for writes (but reads can still happen from replicas)
 
 *Election process:*
+
 1. ZooKeeper detects leader failure (heartbeat missed)
 2. Controller broker selects a new leader from In-Sync Replicas (ISRs)
 3. New leader is announced to all brokers
@@ -756,6 +810,7 @@ Time T=6: System is fully operational again (total downtime: 5 seconds)
 **100+ topics with 1000+ partitions**
 
 *What this means:*
+
 - System must support at least 100 different topics
 - Total of 1000+ partitions across all topics
 
@@ -771,6 +826,7 @@ Total: 100 topics, 1000 partitions
 ```
 
 *Why partitions matter:*
+
 - Each partition can be consumed by one consumer
 - More partitions = more parallelism = higher throughput
 - Limit: Each broker should handle at most 100-200 partitions
@@ -778,11 +834,13 @@ Total: 100 topics, 1000 partitions
 **10K+ producers and consumers**
 
 *What this means:*
+
 - System must handle 10,000+ simultaneous client connections
 - Producers: Microservices, web servers, mobile apps, IoT devices
 - Consumers: Analytics services, databases, monitoring tools
 
 *Network considerations:*
+
 - 10,000 clients × 1 connection each = 10,000 TCP connections
 - Load balancers distribute clients across brokers
 - Each broker handles 500-1000 connections typically
@@ -790,6 +848,7 @@ Total: 100 topics, 1000 partitions
 **Horizontal scaling by adding brokers**
 
 *What this means:*
+
 - When you need more capacity, add more brokers (servers)
 - System automatically redistributes partitions across new brokers
 
@@ -807,6 +866,7 @@ After scaling: 10 brokers, 100 partitions
 ```
 
 *Process:*
+
 1. Add new broker to cluster
 2. New broker joins automatically (registers with ZooKeeper)
 3. Controller assigns partitions to new broker
@@ -819,24 +879,28 @@ After scaling: 10 brokers, 100 partitions
 **No data loss with proper acknowledgment**
 
 *What this means:*
+
 - With correct configuration, messages are guaranteed to never be lost
 - "Proper acknowledgment" means waiting for replication before confirming to producer
 
 *Three acknowledgment levels:*
 
 **acks=0 (fire and forget):**
+
 - Producer sends message and immediately considers it sent
 - No acknowledgment from broker
 - Fastest but unsafe (message might be lost if broker crashes)
 - Use case: Metrics, logs where occasional loss is acceptable
 
 **acks=1 (leader acknowledgment):**
+
 - Producer waits for leader broker to write to disk
 - Leader sends acknowledgment
 - Faster than acks=all but risky (if leader crashes before replication, message lost)
 - Use case: Most applications with at-least-once is acceptable
 
 **acks=all (full replication):**
+
 - Producer waits for leader AND all In-Sync Replicas (ISRs) to write message
 - All replicas acknowledge
 - Slowest but safest (message survives multiple broker failures)
@@ -859,6 +923,7 @@ If Broker 1 crashes before step 3, the message is lost with acks=1, but would be
 **At-least-once delivery guarantee (default)**
 
 *What this means:*
+
 - Every message is delivered to consumers at least one time
 - But might be delivered multiple times (duplicates possible)
 
@@ -873,6 +938,7 @@ If Broker 1 crashes before step 3, the message is lost with acks=1, but would be
 ```
 
 *How to handle duplicates:*
+
 - Make consumers idempotent (processing twice = same result as once)
 - Example: "Set user email to bob@example.com" (idempotent - doing it twice is fine)
 - Example: "Add $50 to account" (NOT idempotent - need deduplication logic)
@@ -880,16 +946,19 @@ If Broker 1 crashes before step 3, the message is lost with acks=1, but would be
 **Exactly-once delivery option available**
 
 *What this means:*
+
 - Messages are delivered and processed exactly one time
 - No duplicates, no data loss
 - Harder to achieve but necessary for critical systems
 
 *How it works:*
+
 - Transactional writes with unique message IDs
 - Consumer tracks processed message IDs
 - If duplicate arrives, consumer checks ID and skips it
 
 *Use cases:*
+
 - Financial transactions (can't charge twice!)
 - Inventory management (can't decrement stock twice!)
 - Billing systems
@@ -899,6 +968,7 @@ If Broker 1 crashes before step 3, the message is lost with acks=1, but would be
 **30 days message retention (configurable)**
 
 *What this means:*
+
 - Messages are stored for 30 days by default
 - After 30 days, automatically deleted to free space
 
@@ -912,12 +982,14 @@ With replication factor 3: 25.9 PB × 3 = 77.7 PB
 ```
 
 That's 77.7 petabytes! Enough to store:
+
 - 77.7 million hours of HD video
 - The entire Library of Congress 1,000 times over
 
 **10 PB total storage capacity**
 
 *What this means:*
+
 - System must support at least 10 petabytes of storage
 - Distributed across all brokers
 
@@ -932,15 +1004,18 @@ Actual disk per broker: 600 TB (some overhead for OS, metadata)
 **Log-structured storage for sequential writes**
 
 *What this means:*
+
 - Messages are written to disk sequentially (like writing in a journal)
 - Not randomly scattered across disk (like updating a text document)
 
 *Why this matters:*
+
 - Sequential writes: ~600 MB/sec on modern SSDs
 - Random writes: ~6 MB/sec on same SSDs
 - 100x faster with sequential writes!
 
 *How it works:*
+
 - Each partition is a directory on disk
 - Messages are appended to the end of the current log file
 - When file reaches 1 GB, start a new file (segment)
@@ -949,6 +1024,7 @@ Actual disk per broker: 600 TB (some overhead for OS, metadata)
 **Support for compacted topics**
 
 *What this means:*
+
 - For some topics, only keep the latest value for each key
 - Older values are automatically deleted
 
@@ -966,6 +1042,7 @@ Total storage: 1 message (saves 67% space!)
 ```
 
 *Perfect for:*
+
 - Configuration data (only need current config)
 - User profiles (only need current state)
 - Database change logs (only need latest row values)
@@ -979,16 +1056,19 @@ When given a system design problem, don't start coding or drawing immediately! A
 **Scale Questions (always ask first):**
 
 **Q:** "What's the expected message throughput?"
+
 - **Why ask:** Determines cluster size, number of partitions, hardware specs
 - **Good answers:** "1M messages/second" or "100K messages/second during normal hours, 1M during peak"
 - **What to do with answer:** Calculate bandwidth, storage, number of brokers needed
 
 **Q:** "How many topics and partitions are we expecting?"
+
 - **Why ask:** Too many topics can overwhelm metadata management; too many partitions per broker causes performance issues
 - **Good answers:** "50-100 topics with 10-50 partitions each" or "5 topics with 1000 partitions total"
 - **Rule of thumb:** Each broker should handle 100-200 partitions maximum
 
 **Q:** "How long should messages be retained?"
+
 - **Why ask:** Directly impacts storage requirements (7 days vs 30 days = 4x storage difference)
 - **Good answers:** "7 days for logs, 30 days for events, infinite for audit trails"
 - **Trade-off:** Longer retention = more storage cost but better replay capability
@@ -996,18 +1076,21 @@ When given a system design problem, don't start coding or drawing immediately! A
 **Usage Pattern Questions:**
 
 **Q:** "What's the typical message size?"
+
 - **Why ask:** Impacts throughput calculations and network bandwidth
 - **Average:** 1-10 KB for most applications
 - **Small:** <1 KB for logs, metrics, simple events
 - **Large:** 100 KB - 1 MB for file uploads, images (consider object storage instead)
 
 **Q:** "What delivery guarantees are needed?"
+
 - **Why ask:** Affects performance (exactly-once is slower) and complexity
 - **At-most-once:** Metrics, logs where loss is acceptable (fastest)
 - **At-least-once:** Most applications (good balance)
 - **Exactly-once:** Financial, billing, inventory (slowest but safest)
 
 **Q:** "Are there ordering requirements?"
+
 - **Why ask:** Determines partitioning strategy
 - **If yes:** Use keys to route related messages to same partition
 - **If no:** Can use round-robin partitioning for better load distribution
@@ -1015,17 +1098,20 @@ When given a system design problem, don't start coding or drawing immediately! A
 **Architecture Questions:**
 
 **Q:** "How many datacenters/regions?"
+
 - **Why ask:** Single vs multi-region changes architecture significantly
 - **Single region:** Simpler, lower latency, cheaper
 - **Multi-region:** Complex replication, higher latency, disaster recovery
 
 **Q:** "What replication factor should we use?"
+
 - **Why ask:** Balances durability vs storage cost
 - **Development:** 1-2 replicas
 - **Production:** 3 replicas (industry standard)
 - **Critical systems:** 5 replicas (tolerates 2 failures)
 
 **Q:** "Should consumers read from replicas or only from leaders?"
+
 - **Why ask:** Affects load distribution and complexity
 - **Leader-only:** Simpler, consistent reads (default)
 - **Replica reads:** Distributes load, might read slightly stale data
@@ -1041,6 +1127,7 @@ As an intermediate candidate, you're expected to demonstrate a structured approa
 **The 3-Phase Requirements Framework:**
 
 **Phase 1: Understand the Business Context (2 minutes)**
+
 - What problem are we solving?
 - Who are the users?
 - What's the business impact?
@@ -1061,6 +1148,7 @@ that's hitting limits, or is this for a new event-driven architecture initiative
 ```
 
 **Phase 2: Define Scale and Constraints (3 minutes)**
+
 - Traffic: messages/second, DAU, QPS
 - Data: message size, retention period
 - Performance: latency, availability requirements
@@ -1083,6 +1171,7 @@ You: [Takes notes, calculates] "So at 10M msg/sec with 1KB messages, that's
 ```
 
 **Phase 3: Prioritize Features (2 minutes)**
+
 - Must-have for MVP
 - Nice-to-have for later
 - Out of scope
@@ -1608,6 +1697,7 @@ Problem: LinkedIn's activity data pipeline was broken
 Imagine you're designing a pub/sub system for a different scenario:
 
 **Scenario:** IoT sensor network for smart city infrastructure
+
 - 100,000 sensors (traffic lights, air quality monitors, parking sensors)
 - Each sensor sends data every 10 seconds
 - Data must be processed for real-time dashboards AND stored for 5-year trend analysis
@@ -1615,6 +1705,7 @@ Imagine you're designing a pub/sub system for a different scenario:
 - Budget constraint: $100,000/year total
 
 **Your task:**
+
 1. Calculate throughput (msgs/sec, data volume)
 2. Identify key functional requirements (different from microservices use case?)
 3. Define non-functional requirements (how does 99.999% differ from 99.99%?)
@@ -1637,6 +1728,7 @@ Spend 20 minutes on this. Compare your requirements to the ones we defined for t
 **Answer:** Compare the two patterns:
 
 **Message Queue (Point-to-Point):**
+
 - One producer → One consumer (1:1 relationship)
 - Message consumed only once
 - Consumer acknowledges, message deleted
@@ -1644,6 +1736,7 @@ Spend 20 minutes on this. Compare your requirements to the ones we defined for t
 - Use case: Task processing (each task processed once)
 
 **Pub/Sub Messaging:**
+
 - One producer → Many consumers (1:N relationship)
 - Message consumed by all subscribers
 - Message persists for retention period
@@ -1674,6 +1767,7 @@ Producer → Topic → Consumer 1 (reads copy)
 **Answer:** Break down into core capabilities:
 
 **1. Message Publishing:**
+
 - Producers send messages to topics
 - Messages have key (optional) and value (payload)
 - Support batching (send 100 messages at once)
@@ -1681,6 +1775,7 @@ Producer → Topic → Consumer 1 (reads copy)
 - Acknowledgment levels (fire-and-forget, leader-ack, all-ack)
 
 **2. Message Consumption:**
+
 - Consumers subscribe to topics
 - Pull model (consumers request messages)
 - Offset tracking (bookmark current position)
@@ -1688,22 +1783,26 @@ Producer → Topic → Consumer 1 (reads copy)
 - Rebalancing (redistribute partitions when consumers join/leave)
 
 **3. Topic Management:**
+
 - Create topics with configurable partitions
 - Set retention policies (time-based: 7 days, size-based: 100 GB)
 - Configure replication factor (usually 3 copies)
 - Topic deletion and compaction
 
 **4. Ordering Guarantees:**
+
 - Per-partition ordering (messages in same partition stay ordered)
 - No cross-partition ordering
 - Key-based routing (same key → same partition)
 
 **5. Durability:**
+
 - Messages replicated across multiple brokers
 - Survives single broker failure
 - Configurable acknowledgment (trade latency for durability)
 
 **6. Scalability:**
+
 - Horizontal scaling (add more brokers)
 - Partition-based parallelism (more partitions = more consumers)
 - Handle millions of messages per second
@@ -1723,24 +1822,28 @@ Producer → Topic → Consumer 1 (reads copy)
 "Think of our messaging system like a DVR that records TV shows:
 
 **Time-Based Retention (7 days):**
+
 - We keep all messages for 7 days, like how a DVR keeps recordings for a week
 - After 7 days, old messages are automatically deleted
 - If you don't watch (consume) within 7 days, you miss it
 - Use case: Real-time analytics (only need recent data)
 
 **Size-Based Retention (100 GB):**
+
 - We keep messages until they reach 100 GB total
 - Like a DVR with 100 hours of storage
 - Oldest messages deleted when storage full
 - Use case: Cost management (don't let storage grow infinitely)
 
 **Infinite Retention (Compacted Topics):**
+
 - We keep only the latest value for each key, forever
 - Like a phonebook that only shows current phone numbers
 - Old phone numbers are discarded
 - Use case: Database changelog (current state of each record)"
 
 **Business Impact:**
+
 - Longer retention = Higher storage costs ($0.10/GB/month)
 - 7-day retention for 100 TB = $70,000/month
 - 30-day retention for 100 TB = $300,000/month
@@ -1897,16 +2000,19 @@ Trade-off accepted:
 **When to Choose What:**
 
 **Single Partition (Ordering Critical):**
+
 - Bank account transactions (balance must be correct)
 - Inventory updates (stock count must be accurate)
 - State machines (order of state transitions matters)
 
 **Multiple Partitions (Throughput Critical):**
+
 - Application logs (order doesn't matter)
 - Metrics/telemetry (aggregate stats, not individual events)
 - Click streams (analytics on batches, not real-time processing)
 
 **Hybrid (Most Common):**
+
 - E-commerce orders (order per customer, not across customers)
 - Social media feeds (order per user, not global timeline)
 - IoT sensor data (order per device, not across devices)
@@ -1925,6 +2031,7 @@ Trade-off accepted:
 **Answer:** GDPR compliance in immutable log systems is challenging:
 
 **The Problem:**
+
 - Pub/sub systems are append-only (messages never modified)
 - Retention period might be 30 days
 - User requests deletion immediately
@@ -2048,6 +2155,7 @@ Total: $10,500/month for GDPR compliance
 ### What You'll Learn
 
 By the end of this section, you'll be able to:
+
 - Calculate storage requirements for a given message throughput and retention period
 - Estimate bandwidth needs for producers, consumers, and replication
 - Determine the number of brokers needed based on multiple constraints
@@ -2064,11 +2172,13 @@ Capacity planning prevents two expensive mistakes: over-provisioning (wasting mo
 #### Why Do We Calculate Capacity?
 
 Imagine opening a restaurant. Before you open, you need to know:
+
 - How many tables? (too few = customers leave, too many = wasted rent)
 - How big should the kitchen be? (too small = can't keep up, too large = expensive)
 - How many chefs? (too few = slow service, too many = high payroll)
 
 System design capacity planning is the same! We calculate:
+
 - **Storage**: How much disk space for messages?
 - **Bandwidth**: How fast must the network be?
 - **Compute**: How many servers (brokers)?
@@ -2118,6 +2228,7 @@ Convert to more readable units:
 ```
 
 **Beginner tip:** Why round up? Because:
+
 - Some messages are larger than 1 KB (spikes to 10 KB happen)
 - We need overhead for metadata (headers, timestamps)
 - Better to have extra capacity than run out!
@@ -2130,6 +2241,7 @@ Data per second = 864 TB ÷ 86,400 seconds = 0.01 TB/second = 10 GB/second
 ```
 
 **Summary of Calculation 1:**
+
 - ✅ **Messages per day**: 864 billion
 - ✅ **Data per day**: 864 TB  
 - ✅ **Data per second**: 10 GB/s
@@ -2148,6 +2260,7 @@ Total storage = 864 TB × 30 = 25,920 TB ≈ 26 PB (petabytes)
 ```
 
 *Scale check:* 26 PB is enormous! To visualize:
+
 - Your laptop: 1 TB
 - Small company server: 100 TB
 - Our system: 26,000 TB (26 PB) 😱
@@ -2160,6 +2273,7 @@ Total storage = 26 PB × 3 = 78 PB
 ```
 
 *Why 3 copies?*
+
 - Copy 1 (Leader): Handles all reads and writes
 - Copy 2 (Follower): Backup if leader crashes
 - Copy 3 (Follower): Backup if leader AND first follower crash
@@ -2199,6 +2313,7 @@ Total: ~2,200 brokers (still a lot, but 3.5x better than 7,800!)
 **Step 4 - Metadata storage (bonus calculation):**
 
 Besides message data, we need storage for:
+
 - Topic configurations
 - Partition metadata  
 - Consumer group states
@@ -2213,6 +2328,7 @@ Total metadata: ~12 MB (negligible!)
 *Key insight:* Metadata is tiny compared to message data. It easily fits in RAM, so metadata lookups are super fast!
 
 **Summary of Calculation 2:**
+
 - ✅ **Storage (30 days, no replication)**: 26 PB
 - ✅ **Storage (30 days, 3x replication)**: 78 PB
 - ✅ **With tiered storage + compression**: ~38 PB effective
@@ -2275,6 +2391,7 @@ Total: 4 + 12 + 8 = 24 Gbps per broker
 ```
 
 **Network card selection:**
+
 - Standard 10 Gbps card: ❌ NOT ENOUGH (we need 24 Gbps)
 - 25 Gbps card: ✅ Just enough (with 4% headroom)
 - 40 Gbps card: ✅ Comfortable (67% headroom for spikes)
@@ -2282,6 +2399,7 @@ Total: 4 + 12 + 8 = 24 Gbps per broker
 *Real-world choice:* Use 40 Gbps network cards (or 2×25 Gbps bonded). Cost: ~$1,000 per broker vs $300 for 10 Gbps, but prevents bottlenecks!
 
 **Summary of Calculation 3:**
+
 - ✅ **Ingress bandwidth**: 80 Gbps total (4 Gbps per broker)
 - ✅ **Egress bandwidth**: 240 Gbps total (12 Gbps per broker)
 - ✅ **Replication bandwidth**: 160 Gbps total (8 Gbps per broker)
@@ -2359,6 +2477,7 @@ Phase 3 (Year 1): 300 brokers
 *Key insight:* Start small, scale based on actual usage! Don't spend $750K/month on Day 1.
 
 **Summary of Calculation 4:**
+
 - ✅ **Minimum brokers (throughput)**: 100
 - ✅ **Minimum brokers (partition leadership)**: 20
 - ✅ **Minimum brokers (storage)**: 300-1,300 (depends on tiering/compression)
@@ -2658,6 +2777,7 @@ Requirements:
 ```
 
 **Your tasks:**
+
 1. Calculate messages per second
 2. Calculate storage requirements (with and without compression)
 3. Calculate bandwidth (ingress, egress, replication)
@@ -2684,6 +2804,7 @@ Spend 30 minutes on this. Check your math carefully—errors compound!
 **Answer:** Step-by-step calculation approach:
 
 **Given:**
+
 - Message throughput: 10M messages/second
 - Average message size: 1 KB
 - Retention period: 7 days
@@ -2717,6 +2838,7 @@ Final storage = 18 PB × 1.2
 ```
 
 **Storage breakdown per broker:**
+
 - If using 100 brokers: 21.6 PB / 100 = 216 TB per broker
 - Use 12 × 18 TB SSDs per broker (216 TB capacity)
 
@@ -2732,6 +2854,7 @@ Final storage = 18 PB × 1.2
 **Answer:** Break down bandwidth by traffic type:
 
 **Given:**
+
 - 10M messages/second
 - 1 KB average message size
 - 3 consumer groups
@@ -2769,6 +2892,7 @@ This is inter-broker traffic (internal network)
 ```
 
 **Total Broker Network:**
+
 - Ingress: 80 Gbps (external)
 - Egress: 240 Gbps (external)
 - Replication: 160 Gbps (internal)
@@ -3044,11 +3168,13 @@ Adjusted cost: $4,500 × (14/24) = $2,625/month
 ```
 
 **Total Capacity:**
+
 - Base: 2M msg/sec (always)
 - Base + Reserved: 7M msg/sec (always)
 - All tiers: 10M msg/sec (peak)
 
 **Total Cost:**
+
 - Base: $10,000/month
 - Reserved: $15,000/month
 - Spot: $2,625/month
@@ -3146,6 +3272,7 @@ Annual savings: $1.28M/year
 ### What You'll Learn
 
 By the end of this section, you'll be able to:
+
 - Identify the 5 core components of a pub/sub system and explain their roles
 - Understand how messages flow from producers through brokers to consumers
 - Explain the relationship between topics, partitions, and replicas
@@ -3162,6 +3289,7 @@ Architecture is the blueprint of your system—get it wrong and you'll hit scali
 #### The Big Picture: How Everything Connects
 
 Imagine building a city's transportation system:
+
 - **Producers** = People who want to send packages (your microservices creating events)
 - **Brokers** = Post offices that store and organize packages (servers storing messages)
 - **Topics** = Different mail categories (first-class, parcel, international)
@@ -3181,6 +3309,7 @@ A broker is a server that stores messages and serves them to consumers. Multiple
 **Detailed explanation:**
 
 Think of a broker like a post office branch:
+
 - **Stores messages**: Like a post office storing mail in sorting bins
 - **Handles requests**: Producers drop off messages, consumers pick them up
 - **Manages partitions**: Each broker is responsible for certain partitions (like certain ZIP codes)
@@ -3207,6 +3336,7 @@ Cluster of 3 Brokers:
 ```
 
 **Key responsibilities:**
+
 1. **Accept messages from producers** (like accepting mail at the counter)
 2. **Store messages durably** (write to disk, not just RAM)
 3. **Serve messages to consumers** (hand out mail when requested)
@@ -3224,6 +3354,7 @@ Typical Broker Hardware:
 ```
 
 **Why multiple brokers?**
+
 1. **Storage capacity**: One broker can't hold 78 PB (from Section 2)
 2. **Throughput**: One broker can't handle 10M messages/second
 3. **Fault tolerance**: If one broker crashes, others take over
@@ -3239,6 +3370,7 @@ A separate system that stores metadata and coordinates the broker cluster.
 **Detailed explanation:**
 
 Think of ZooKeeper like the city planning office:
+
 - **Keeps track of who's who**: Which brokers are alive? Which partitions exist?
 - **Assigns responsibilities**: Which broker should be leader for partition 5?
 - **Handles elections**: When a broker dies, elect a new leader
@@ -3274,6 +3406,7 @@ ZooKeeper Data Structure:
 ```
 
 **Key responsibilities:**
+
 1. **Broker registration**: Brokers announce "I'm alive!" on startup
 2. **Leader election**: Elect leader when current leader fails
 3. **Topic management**: Store topic configurations and partition mappings
@@ -3283,12 +3416,14 @@ ZooKeeper Data Structure:
 **ZooKeeper vs KRaft (the newer alternative):**
 
 **ZooKeeper** (traditional approach - before 2023):
+
 - Separate system (3-5 ZooKeeper nodes)
 - Proven and battle-tested
 - Adds operational complexity (another system to manage)
 - External dependency
 
 **KRaft** (new approach - after 2023):
+
 - Built into Kafka itself (no external dependency!)
 - Uses Raft consensus algorithm
 - Simpler to operate (one less system)
@@ -3320,6 +3455,7 @@ Client applications that publish messages to topics.
 **Detailed explanation:**
 
 Producers are like people dropping off packages at the post office. They decide:
+
 1. **Which topic?** (e.g., "orders" topic)
 2. **Which partition?** (based on message key or round-robin)
 3. **How to batch?** (send 1 message or wait to batch 100?)
@@ -3431,6 +3567,7 @@ Client applications that subscribe to topics and process messages.
 **Detailed explanation:**
 
 Consumers are like people picking up packages from the post office. Key differences from traditional systems:
+
 - **Pull model**: Consumers request messages (don't get pushed)
 - **Control their pace**: Read fast or slow based on processing capability
 - **Remember their position**: Track offset of last read message
@@ -3573,6 +3710,7 @@ One broker in the cluster that acts as the "master coordinator" for administrati
 **Detailed explanation:**
 
 Think of the controller like the main manager in a chain of post offices:
+
 - Regular brokers handle customer requests (store/serve messages)
 - Controller handles organizational tasks (who's the leader? who's hiring? who's fired?)
 
@@ -3667,6 +3805,7 @@ Broker 2 wins, becomes controller with epoch=6
 ```
 
 **Why have a controller?**
+
 - **Centralized coordination**: One place makes all administrative decisions
 - **Avoid conflicts**: Two brokers might elect different leaders without coordination
 - **Simplifies logic**: Regular brokers don't need complex coordination code
@@ -3766,11 +3905,13 @@ graph TB
 **What this diagram shows:**
 
 **Left side - Producers:**
+
 - Multiple producer applications (microservices, servers)
 - Each connects to different partition leaders
 - No coordination needed between producers
 
 **Center - Broker Cluster:**
+
 - 3 brokers (Broker 1 is also the controller)
 - Each broker hosts multiple partitions
 - Green boxes = Partition leaders (handle writes)
@@ -3778,16 +3919,19 @@ graph TB
 - Dotted lines = Replication flow
 
 **Top - Metadata Store:**
+
 - ZooKeeper/KRaft stores all coordination data
 - All brokers connect to it for metadata
 
 **Right side - Consumers:**
+
 - Two consumer groups (can read same data independently)
 - Each consumer handles specific partitions
 - Consumers poll messages from partition leaders
 - Offsets stored in special __consumer_offsets topic
 
 **Key observations:**
+
 1. **No direct producer-consumer connection** (decoupled!)
 2. **Partition leaders distributed** across brokers (load balancing)
 3. **Replication happens asynchronously** (leaders don't wait)
@@ -3833,12 +3977,14 @@ graph TB
 Imagine you're building a Kafka-as-a-Service platform like AWS MSK or Confluent Cloud:
 
 **Requirements:**
+
 - 100 customer organizations (tenants)
 - Each tenant has 5-10 topics
 - Tenants must be completely isolated (Tenant A can't read Tenant B's data)
 - Cost-efficient (don't want 100 separate Kafka clusters)
 
 **Your tasks:**
+
 1. How would you architect this? One shared cluster or multiple clusters?
 2. How do you enforce isolation? (Hint: Think about ACLs, network segmentation, or physical separation)
 3. How do you handle a "noisy neighbor" problem (one tenant consuming all resources)?
@@ -3886,6 +4032,7 @@ All three groups read every signup event independently!
 ```
 
 **When to use:**
+
 - Multiple teams need same data
 - Different processing speeds acceptable
 - Each team owns their consumer group
@@ -3914,6 +4061,7 @@ Throughput: 20x faster than single consumer!
 ```
 
 **When to use:**
+
 - High-throughput requirements
 - Order not critical across all messages (only within partition)
 - CPU-intensive processing
@@ -3946,6 +4094,7 @@ Consumer maintains state, outputs only on significant change (>$1)
 ```
 
 **When to use:**
+
 - Need aggregation or stateful processing
 - Streaming analytics (rolling averages, counts)
 - Complex event processing
@@ -3989,10 +4138,12 @@ Notice: Unbalanced! Consumer 1 has 8, others have 7.
 ```
 
 **Pros:**
+
 - Simple to understand
 - Preserves co-partitioning (same partition numbers together)
 
 **Cons:**
+
 - Can be unbalanced with multiple topics
 - Doesn't consider consumer capacity
 
@@ -4012,10 +4163,12 @@ Better balance: 8-7-7 instead of 8-7-7 (same in this case, but better with diffe
 ```
 
 **Pros:**
+
 - Better balance across topics
 - Fair distribution
 
 **Cons:**
+
 - Breaks co-partitioning
 - More partition movement on rebalance
 
@@ -4043,11 +4196,13 @@ Total: Only 3 partitions moved (P4, P5, P6)!
 ```
 
 **Pros:**
+
 - Minimal partition movement = faster rebalancing
 - Preserves consumer caches/state
 - Better for stateful processing
 
 **Cons:**
+
 - Slightly more complex logic
 - Initial assignment may not be perfectly balanced
 
@@ -4333,11 +4488,13 @@ Failover:
 ```
 
 **Pros:**
+
 - Simple architecture
 - Lower cost (secondary underutilized)
 - Clear primary/secondary roles
 
 **Cons:**
+
 - RPO (Recovery Point Objective): 1-5 minutes (replication lag)
 - RTO (Recovery Time Objective): 5-15 minutes
 - Secondary resources wasted when not in use
@@ -4368,11 +4525,13 @@ Both clusters active, bidirectional replication!
 ```
 
 **Pros:**
+
 - Low latency (users write to nearest region)
 - High availability (either region can fail)
 - Better resource utilization (both clusters serve traffic)
 
 **Cons:**
+
 - Complex conflict resolution (same key written in both regions)
 - Higher cost (both clusters fully sized)
 - Data duplication (every message exists in both regions)
@@ -4423,11 +4582,13 @@ If AZ-A fails:
 ```
 
 **Pros:**
+
 - Automatic failover (no DNS changes)
 - Single cluster to manage
 - Lower complexity
 
 **Cons:**
+
 - Higher inter-AZ network costs ($0.01/GB between AZs)
 - Latency increase (2-5ms between AZs vs <1ms within AZ)
 - Limited to same region (can't span us-east to us-west)
@@ -4740,11 +4901,13 @@ These questions test your understanding of system architecture. Try answering be
 When a broker fails, here's the step-by-step recovery process:
 
 **Step 1: Detection (1-5 seconds)**
+
 - ZooKeeper detects broker heartbeat stopped
 - Controller is notified immediately
 - All active connections to failed broker are closed
 
 **Step 2: Leader Election for Affected Partitions**
+
 - Controller identifies all partitions where the failed broker was leader
 - For each partition, controller selects a new leader from ISR (In-Sync Replicas)
 - New leaders are chosen based on replica priorities
@@ -4763,17 +4926,20 @@ Partition 5: Leader = Broker 4, Followers = [Broker 5]
 ```
 
 **Step 3: Metadata Update**
+
 - Controller updates partition metadata in ZooKeeper
 - Controller sends LeaderAndISR requests to all brokers
 - Brokers update their local caches
 
 **Step 4: Client Recovery**
+
 - Producers and consumers detect the failure
 - Clients fetch new metadata from any broker
 - Clients reconnect to new partition leaders
 - Operations resume automatically
 
 **Step 5: Replication Catch-up**
+
 - Remaining replicas continue replicating from new leaders
 - When failed broker comes back online, it rejoins as follower
 - It catches up on missed messages before rejoining ISR
@@ -4781,6 +4947,7 @@ Partition 5: Leader = Broker 4, Followers = [Broker 5]
 **Total downtime:** 3-10 seconds for well-configured systems
 
 **What clients experience:**
+
 - Producers: Brief errors, then auto-retry succeeds
 - Consumers: Brief pause, then reading continues from new leader
 - No data loss (assuming replication factor ≥ 2 and acks=all)
@@ -4799,6 +4966,7 @@ Partition 5: Leader = Broker 4, Followers = [Broker 5]
 **Advantages of Pull Model:**
 
 **1. Consumer Controls Rate**
+
 - Pull: Consumer says "give me 100 messages" when ready
 - Push: Broker decides how fast to send, can overwhelm consumer
 
@@ -4821,28 +4989,34 @@ With PUSH:
 ```
 
 **2. Replay is Easy**
+
 - Pull: Consumer can reset offset and re-pull old messages
 - Push: Once pushed, message is gone from consumer's control
 
 **Use case:** Bug in processing logic. With pull, reset offset to yesterday and reprocess. With push, data is already gone.
 
 **3. Broker is Simpler**
+
 - Pull: Broker just stores messages, serves read requests
 - Push: Broker must track each consumer's state, handle retries, manage acknowledgments
 
 **4. Consumer Parallelism**
+
 - Pull: Add more consumer instances, each pulls independently
 - Push: Broker must distribute messages, handle rebalancing
 
 **Disadvantages of Pull Model:**
 
 **1. Busy-waiting**: If no messages, consumer keeps polling
+
 - *Solution:* Long-polling (broker waits before responding if no data)
 
 **2. Higher latency**: Small delay between message arrival and consumer poll
+
 - *Mitigation:* Consumers poll frequently (every 100ms)
 
 **Real-World Evidence:**
+
 - Kafka: Pull model, handles 1M+ msg/sec per consumer
 - LinkedIn: 7 trillion messages/day with pull model
 - Uber: 1 trillion messages/day, pull model
@@ -4992,14 +5166,17 @@ Choose: 40 partitions (higher of the two)
 **Key Factors:**
 
 **1. Target Throughput**
+
 - Higher throughput = more partitions
 - Each partition: ~50-100 MB/s max throughput
 
 **2. Consumer Parallelism**
+
 - Want 10 consumer instances? Need at least 10 partitions
 - Extra partitions allow future scaling
 
 **3. Ordering Requirements**
+
 - Strict ordering within partition
 - More partitions = less ordering guarantee globally
 
@@ -5015,14 +5192,17 @@ Option B: 100 partitions
 ```
 
 **4. End-to-End Latency**
+
 - More partitions = more leader elections on failure
 - Each partition adds ~1-2ms latency during rebalance
 
 **5. Broker Resources**
+
 - Each partition: ~1 MB memory per broker
 - 1,000 partitions × 3 replicas = 3,000 partition replicas = ~3 GB memory
 
 **6. File Descriptors**
+
 - Each partition uses file descriptors for segment files
 - OS limit (default ~65,000) can be hit with many partitions
 
@@ -5052,11 +5232,13 @@ Expect 20 consumer instances?
 **Real-World Examples:**
 
 **LinkedIn Kafka:**
+
 - High-volume topics: 30-50 partitions
 - Medium topics: 10-20 partitions
 - Low-volume: 3-5 partitions
 
 **Uber:**
+
 - Ride events: 100 partitions (high volume, many consumers)
 - Driver events: 50 partitions
 - Admin events: 10 partitions
@@ -5064,21 +5246,25 @@ Expect 20 consumer instances?
 **Anti-Patterns to Avoid:**
 
 ❌ **Over-partitioning:** 1,000 partitions for 10 MB/s topic
+
 - Wastes memory
 - Slow leader elections
 - Coordination overhead
 
 ❌ **Under-partitioning:** 5 partitions for 1 GB/s topic
+
 - Throughput bottleneck
 - Can't add consumers
 
 ❌ **Partition per User:** 1M users = 1M partitions
+
 - Broker can't handle this
 - Use key-based routing instead
 
 **Changing Partition Count:**
 
 ⚠️ You can increase partitions, but NOT decrease
+
 - Increasing is safe, happens in seconds
 - Decreasing requires creating new topic and migrating
 
@@ -5207,14 +5393,17 @@ Only P7-P9 pause briefly, others continue!
 **Rebalance Strategies:**
 
 **1. RangeAssignor (Default)**
+
 - Assigns contiguous partition ranges
 - Can be unbalanced if topics have different partition counts
 
 **2. RoundRobinAssignor**
+
 - Distributes partitions evenly in round-robin
 - Better balance across topics
 
 **3. StickyAssignor**
+
 - Minimizes partition movement during rebalance
 - Keeps assignments stable
 
@@ -5263,11 +5452,13 @@ Handle SIGTERM signal:
 **Real-World Impact:**
 
 **LinkedIn (before cooperative rebalancing):**
+
 - 15-second rebalance when adding consumer
 - 7 trillion messages/day = ~81 million msg/sec
 - 15-second pause = 1.2 billion messages backlog!
 
 **After cooperative rebalancing:**
+
 - <1 second pause for affected partitions only
 - 99% of partitions continue processing
 
@@ -5563,6 +5754,7 @@ Interviewers love asking about partitioning because it tests your understanding 
 
 **In Production:**
 Poor partitioning decisions are expensive to fix (can't reduce partition count!) and directly impact:
+
 - **Throughput**: Under-partitioned topics become bottlenecks
 - **Ordering**: Wrong partition key breaks order guarantees
 - **Scalability**: Can't add consumers beyond partition count
@@ -5664,6 +5856,7 @@ Result:
 ```
 
 **When to use:**
+
 - Need ordering per entity (user, device, account)
 - Processing requires related messages together
 - Example: User session events, bank account transactions
@@ -5690,6 +5883,7 @@ Result:
 ```
 
 **When to use:**
+
 - Ordering not important
 - Just need high throughput
 - Example: Application logs, metrics, independent events
@@ -5716,6 +5910,7 @@ Result:
 ```
 
 **When to use:**
+
 - Special business logic for partitioning
 - Geographic data isolation
 - Compliance requirements (GDPR, data residency)
@@ -5914,11 +6109,13 @@ Result:
 ```
 
 **Key requirements:**
+
 1. Same partition key (user_id)
 2. Same partition count (30 = 30)
 3. Same partitioner logic (default hash)
 
 **Benefits:**
+
 - No external database needed for join
 - Process locally in memory (fast!)
 - Linear scalability (30 consumers, each handles 1 partition pair)
@@ -5940,6 +6137,7 @@ Throughput: 50x parallelism, zero network calls for join!
 #### Partition Reassignment (Advanced)
 
 **When to reassign:**
+
 - Broker added (rebalance load)
 - Broker removed (migrate partitions)
 - Hot partition (move to less-loaded broker)
@@ -6064,6 +6262,7 @@ Offsets 0 and 2 deleted (superseded by offset 4)
 ```
 
 **Use cases:**
+
 1. **Database changelog:** Each key = row ID, value = latest row state
 2. **Configuration management:** Each key = config parameter, value = latest value
 3. **User profiles:** Each key = user ID, value = latest profile
@@ -6082,6 +6281,7 @@ Result:
 ```
 
 **Compaction gotchas:**
+
 - Tombstone messages (null value) delete keys after grace period
 - Compaction is lazy (not immediate)
 - Can't compact across partitions (only within)
@@ -6117,6 +6317,7 @@ Why so many:
 ```
 
 **Challenges at scale:**
+
 1. **Controller pressure:** 2M partitions = slow leader elections
    - Solution: Incremental cooperative rebalancing (only affected partitions)
 
@@ -6238,6 +6439,7 @@ else return 2;
 ### What You'll Learn
 
 In this section, you'll understand:
+
 - How consumer groups enable parallel processing and scalability
 - Offset management strategies and their trade-offs
 - Rebalancing protocols and how to minimize disruption
@@ -6247,12 +6449,14 @@ In this section, you'll understand:
 ### Why This Matters
 
 **Interview relevance:** Consumer groups and offset management are frequently asked topics in system design interviews. Interviewers want to see if you understand:
+
 - How to achieve horizontal scalability in message processing
 - Trade-offs between different commit strategies
 - How to handle failures without losing or duplicating messages
 - Production challenges like rebalancing storms and consumer lag
 
 **Real-world impact:**
+
 - **Uber**: Processes 1 trillion Kafka messages/day using consumer groups for parallel ETL pipelines
 - **Netflix**: 700+ billion events/day with 500+ consumer groups for different analytics workloads
 - **LinkedIn**: 7 trillion messages/day with consumer groups enabling real-time and batch processing simultaneously
@@ -6303,6 +6507,7 @@ Topic: user-events
 ```
 
 **What this means:**
+
 - Consumer A reads from partitions 0 and 1
 - Consumer B reads from partitions 2 and 3
 - Consumer C reads from partitions 4 and 5
@@ -6316,6 +6521,7 @@ Topic: user-events
 **Simple analogy:** An offset is like a bookmark in a book.
 
 **Imagine reading a 1,000-page book:**
+
 - You read page 1, put bookmark at page 2
 - You read page 2, move bookmark to page 3
 - If you stop reading and come back tomorrow, you resume from page 3
@@ -6332,6 +6538,7 @@ Current offset: 3 (next message to read)
 ```
 
 **Key characteristics:**
+
 1. **Sequential:** Offsets increment by 1 for each message (0, 1, 2, 3...)
 2. **Per-partition:** Each partition has its own offset sequence
 3. **Persistent:** Offsets are stored in Kafka (in `__consumer_offsets` topic)
@@ -6474,11 +6681,13 @@ Lag = 1,000,000 - 3 = 999,997 messages
 ```
 
 **Why lag matters:**
+
 1. **Latency:** Data processed is old (999,997 messages old = hours or days!)
 2. **Disk pressure:** Old messages retained longer (cost!)
 3. **Risk:** If consumer fails, even more messages to catch up
 
 **How to fix:**
+
 1. Add more consumers (if partitions available)
 2. Optimize processing speed (faster code)
 3. Increase batch size (process 100 at once instead of 1)
@@ -6511,12 +6720,14 @@ Impact: 3-6 second delay for all customers
 ```
 
 **When rebalancing happens:**
+
 1. Consumer joins group (new consumer starts)
 2. Consumer leaves group (crashes or stops)
 3. Consumer heartbeat timeout (network issue)
 4. Partition count changes (rare)
 
 **Cost of rebalancing:**
+
 - **Stop-the-world:** All consumers pause processing (3-6 seconds typical)
 - **State loss:** In-memory state discarded (if processing statefully)
 - **Duplicate processing:** Messages read but not committed are reprocessed
@@ -6543,6 +6754,7 @@ Total pause: 3-4 seconds for ALL consumers
 ```
 
 **Impact on 100-consumer group:**
+
 - 1 consumer fails
 - 99 healthy consumers also pause
 - Processing stops completely for 3-4 seconds
@@ -6568,6 +6780,7 @@ Other partitions: 0 second pause!
 ```
 
 **Benefit calculation:**
+
 - Old: 100% of partitions pause for 3s = 300% partition-seconds lost
 - New: 33% of partitions pause for 2s = 66% partition-seconds lost
 - **Improvement: 78% reduction in disruption!**
@@ -6610,6 +6823,7 @@ Result: Zero rebalances during restart!
 ```
 
 **When to use:**
+
 - Frequent restarts (deployments, config changes)
 - Stateful processing (in-memory caches)
 - Large consumer groups (>50 consumers)
@@ -6629,10 +6843,12 @@ for message in messages:
 ```
 
 **Pros:**
+
 - Minimal duplicates on failure (at most 1 message)
 - Simple to reason about
 
 **Cons:**
+
 - Very slow! (1,000 messages = 1,000 network calls to Kafka)
 - Throughput: ~100 messages/sec (vs 100,000 with batching)
 
@@ -6650,11 +6866,13 @@ commit_offset(batch.last_offset + 1)  # One commit per batch
 ```
 
 **Pros:**
+
 - Fast! (1,000 messages = 10 commits = 10 network calls)
 - Throughput: ~10,000-100,000 messages/sec
 - Industry standard approach
 
 **Cons:**
+
 - On failure, reprocess entire batch (up to 100 duplicates)
 
 **When to use:** Most production systems (recommended).
@@ -6673,10 +6891,12 @@ for message in messages:
 ```
 
 **Pros:**
+
 - Bounded duplicate window (at most 10 seconds of messages)
 - Predictable commit frequency
 
 **Cons:**
+
 - If low traffic, might process 1 message but wait 10 seconds to commit
 - If high traffic, might process 10,000 messages in 10 seconds = 10,000 duplicates on failure
 
@@ -6707,6 +6927,7 @@ Time to clear 1 million message backlog:
 ```
 
 **Limitation:** Can't add more consumers than partitions!
+
 - 10 partitions → max 10 consumers
 - 11th consumer sits idle (no partitions to assign)
 
@@ -6848,11 +7069,13 @@ while true:
 ```
 
 **Cost analysis:**
+
 - **Throughput impact:** 20-30% reduction (more network round-trips)
 - **Latency impact:** p99 latency increases from 10ms to 50ms
 - **Benefit:** Zero duplicates, zero message loss
 
 **When to use:**
+
 - Financial transactions
 - Inventory management
 - Payment processing
@@ -6901,6 +7124,7 @@ Setting too high (e.g., 10 minutes):
 ```
 
 **Uber production pattern:** Separate consumer groups by processing speed:
+
 - Fast group (max.poll.interval.ms = 30s): Simple transformations
 - Slow group (max.poll.interval.ms = 10min): ML inference
 
@@ -6954,6 +7178,7 @@ Cons: More complex to implement
 ```
 
 **LinkedIn production alerting:**
+
 - Page on-call: Time lag > 15 minutes (critical)
 - Warn team: Lag growth > 10,000 msg/sec (warning)
 - Auto-scale: Lag growth > 50,000 msg/sec for 10 minutes (trigger auto-scaling)
@@ -7002,6 +7227,7 @@ Cons:
 ```
 
 **Cost comparison (1 TB/day consumption):**
+
 - Local: $0 (within region)
 - Global: $20/day = $600/month cross-region costs
 
@@ -7098,16 +7324,19 @@ Duplicates on failure: At most 1 message
 ```
 
 **Pros:**
+
 - Minimal duplicates (only current message)
 - Simple mental model
 - Easy to reason about failure scenarios
 
 **Cons:**
+
 - Very slow (network latency kills throughput)
 - Commit latency ~5-10ms × 10,000 = 50-100 seconds for 10K messages!
 - Overwhelms Kafka with commit requests
 
 **Real numbers:**
+
 - Commit latency: 5ms per commit
 - Processing 10,000 messages: 10,000 × 5ms = 50 seconds
 - Effective throughput: 10,000 / 50 = 200 msg/sec
@@ -7128,15 +7357,18 @@ Duplicates on failure: Up to 100 messages
 ```
 
 **Pros:**
+
 - Much faster (100x fewer commits)
 - Industry standard approach
 - Kafka designed for this pattern
 
 **Cons:**
+
 - On failure, reprocess up to 100 messages
 - Need idempotent processing to handle duplicates
 
 **Real numbers:**
+
 - Commit latency: 5ms per commit
 - Processing 10,000 messages: 100 × 5ms = 500ms
 - Effective throughput: 10,000 / 0.5 = 20,000 msg/sec
@@ -7278,6 +7510,7 @@ Result:
 **Problem:** Consumer group with 100 consumers rebalancing every 3 minutes.
 
 **Diagnosis:**
+
 - Logs showed "max poll interval exceeded"
 - Processing time: 7 minutes per batch
 - max.poll.interval.ms: 5 minutes (default)
@@ -7285,6 +7518,7 @@ Result:
 **Root cause:** Slow database writes during peak traffic.
 
 **Fix:**
+
 1. Increased max.poll.interval.ms to 10 minutes (immediate fix)
 2. Optimized database writes with batching (reduced to 3 min)
 3. Added more consumers to reduce per-consumer load
@@ -7347,6 +7581,7 @@ CREATE TABLE consumer_offsets (
 ```
 
 **Key design decisions:**
+
 1. **payment_id from message:** Ensures same message always creates same payment
 2. **UNIQUE (partition, offset):** Database enforces no duplicate processing of same Kafka message
 3. **Consumer offsets table:** Store offsets in same database as payments for atomic commits
@@ -7614,6 +7849,7 @@ WHILE true:
 **Production example (LinkedIn):**
 
 Payment processing system:
+
 - 100M transactions/day
 - Zero duplicate payments in 5 years
 - Uses pattern described above (DB transactions)
@@ -7659,6 +7895,7 @@ Payment processing system:
 **Scenario:** You're building a real-time fraud detection system for an e-commerce platform.
 
 **Requirements:**
+
 - Process 50,000 transactions/second
 - Each transaction requires ML model inference (50ms per transaction)
 - Fraud detection must complete within 500ms of transaction creation
@@ -7678,6 +7915,7 @@ Payment processing system:
 5. **Lag monitoring:** What metrics would you track? When would you alert?
 
 **Hints:**
+
 - 50,000 tx/sec with 50ms processing time = how many parallel consumers?
 - Consider the 500ms latency SLA when choosing commit strategy
 - ML model inference may need batching for efficiency
@@ -7690,6 +7928,7 @@ Payment processing system:
 ### What You'll Learn
 
 In this section, you'll understand:
+
 - How Kafka stores messages in log-structured format on disk
 - Segment files, index files, and time-based indexing
 - Log compaction and its use cases
@@ -7699,12 +7938,14 @@ In this section, you'll understand:
 ### Why This Matters
 
 **Interview relevance:** Storage internals are frequently tested to see if you understand:
+
 - How Kafka achieves high throughput with disk storage
 - Trade-offs between retention policies
 - When to use log compaction vs time-based retention
 - Performance implications of storage design
 
 **Real-world impact:**
+
 - **LinkedIn**: 1.4 PB/day message volume, 7-day retention with tiered storage
 - **Uber**: Compacted topics for driver locations (infinite retention of latest state)
 - **Netflix**: Log compaction for user preferences (700 million user profiles, only latest state)
@@ -7771,6 +8012,7 @@ Partition 0 (on disk):
 ```
 
 **File naming:** Filename = offset of first message in segment
+
 - `00000000000000000000.log` → starts at offset 0
 - `00000000000000001000.log` → starts at offset 1000
 
@@ -7802,6 +8044,7 @@ Segment rolls over when EITHER:
 ```
 
 **Why segments?**
+
 1. **Deletion:** Delete old segments instead of scanning entire partition
 2. **Compaction:** Compact old segments while active segment still writable
 3. **Performance:** Limit file size for faster operations
@@ -7844,6 +8087,7 @@ Time: ~5 milliseconds (1000x faster!)
 ```
 
 **Index characteristics:**
+
 - **Sparse index:** Not every offset (entries every ~4 KB)
 - **Memory-mapped:** Loaded into memory for fast access
 - **Rebuilt automatically:** If corrupted, rebuild from log file
@@ -7956,6 +8200,7 @@ Storage saved: 60% (3 messages deleted out of 5)
 ```
 
 **Key characteristics:**
+
 - **Infinite retention** of latest state
 - **Space efficient** (only latest per key)
 - **Eventual consistency** (compaction runs periodically)
@@ -7990,6 +8235,7 @@ Total time: 5ms for first message + 0.1ms per subsequent message
 ```
 
 **Why so fast?**
+
 1. **Page cache:** OS caches recently read disk pages in RAM
 2. **Sequential reads:** Disk reads 100 MB/s sequentially (vs 1 MB/s random)
 3. **Read-ahead:** OS predicts sequential pattern, prefetches next blocks
@@ -8020,6 +8266,7 @@ Size-based (500 GB):
 ```
 
 **When to use each:**
+
 - **Time-based:** Legal compliance (must keep 30 days), debugging (need last week's logs)
 - **Size-based:** Fixed budget (10 TB cluster), cost control
 
@@ -8108,6 +8355,7 @@ Result:
 **Use cases by industry:**
 
 1. **Database CDC (Change Data Capture):**
+
 ```
 Topic: "database-changelog"
 Messages: INSERT/UPDATE/DELETE operations
@@ -8121,6 +8369,7 @@ With compaction:
 ```
 
 2. **User profiles:**
+
 ```
 Topic: "user-preferences"
 Messages: User setting updates
@@ -8135,6 +8384,7 @@ With compaction:
 ```
 
 3. **Configuration management:**
+
 ```
 Topic: "service-config"
 Messages: Config updates per service
@@ -8203,6 +8453,7 @@ Tuning:
 ```
 
 **LinkedIn production:**
+
 - 90% of reads served from page cache (RAM speed)
 - 10% reads from disk (catching-up consumers)
 - Effective read throughput: 5 GB/s per broker
@@ -8267,6 +8518,7 @@ Cost for 1 PB:
 ```
 
 **Uber implementation:**
+
 - 90% of data in S3 (days 8-90)
 - 10% of data on SSD (last 7 days)
 - Reduced storage costs from $500K/month to $150K/month (70% savings)
@@ -8363,6 +8615,7 @@ Action:
 ```
 
 **Netflix monitoring:**
+
 - 50,000 partitions monitored
 - Alert if 1% of partitions exceed retention SLA
 - Auto-scale compaction threads based on lag
@@ -8411,6 +8664,7 @@ Throughput: 83-142 operations/second per disk
 ```
 
 **Comparison:**
+
 - Kafka: 500,000 writes/sec
 - Database: 100 writes/sec
 - **Kafka is 5,000x faster for writes!**
@@ -8495,6 +8749,7 @@ Kafka advantage: 120x higher throughput for message writes
 **Answer:**
 
 **Use log compaction when:**
+
 1. Need infinite retention of **latest state** per entity
 2. High update frequency for same keys (shopping cart updated 10x during session)
 3. Downstream systems need full current state (new consumer reads all carts)
@@ -8697,17 +8952,20 @@ Plus: Infinite retention (can always rebuild state)
 **Trade-offs:**
 
 **Pros of compaction:**
+
 - 98% storage savings
 - Infinite retention of current state
 - Fast bootstrap for new consumers (10s vs 40 min)
 - No external database needed (Kafka is source of truth)
 
 **Cons of compaction:**
+
 - Can't query historical cart states ("what was in cart yesterday?")
 - Compaction has CPU cost (background process)
 - Slightly increased read latency for historical data
 
 **When NOT to use compaction:**
+
 - Need historical audit trail (use time-based retention)
 - Analyzing user behavior over time (need all events)
 - Compliance requires keeping all updates
@@ -9048,6 +9306,7 @@ S3 reads (Tier 2):
 **Scenario:** Design storage strategy for a social media platform.
 
 **Requirements:**
+
 - 500 million posts per day (average 5 KB each = 2.5 TB/day raw)
 - Users edit posts within first hour (20% edit rate, 2 edits average)
 - Need to show current version of each post
@@ -9067,6 +9326,7 @@ S3 reads (Tier 2):
 5. **Edit handling:** How would you store post edits? Single compacted topic or separate topics?
 
 **Hints:**
+
 - Edits happen within first hour (recent data = hot tier)
 - 20% edit rate × 2 edits = 40% extra messages in first hour
 - After 1 hour, posts don't change (candidates for compaction)
@@ -9079,6 +9339,7 @@ S3 reads (Tier 2):
 ### What You'll Learn
 
 In this section, you'll understand:
+
 - Leader-follower replication mechanics and ISR (In-Sync Replicas)
 - Leader election algorithms and failure recovery
 - Unclean leader election trade-offs
@@ -9089,12 +9350,14 @@ In this section, you'll understand:
 ### Why This Matters
 
 **Interview relevance:** Replication is a core distributed systems concept frequently tested:
+
 - How to achieve high availability without data loss
 - Trade-offs between consistency and availability (CAP theorem)
 - Failure recovery procedures and their impact on latency
 - Production incidents and how to prevent them
 
 **Real-world impact:**
+
 - **LinkedIn**: Zero data loss during broker failures with min.insync.replicas=2
 - **Uber**: 99.99% availability across 3 datacenters with rack-aware replication
 - **Netflix**: Automatic failover in <10 seconds during broker failures
@@ -9136,10 +9399,12 @@ Copy 2: Offsite storage facility
 **Restaurant analogy:** Head chef and assistant chefs.
 
 **Roles:**
+
 - **Leader (Head Chef):** Takes orders from customers (producers), serves food (consumers)
 - **Followers (Assistant Chefs):** Watch head chef, copy exactly what they do
 
 **Why this pattern?**
+
 - **Simplicity:** Only one chef (leader) coordinates with customers
 - **Consistency:** Assistants copy head chef's work exactly (no conflicting orders)
 - **Availability:** If head chef is sick, promote an assistant to head chef
@@ -9225,6 +9490,7 @@ Broker 1: "Both followers have the message now!"
 ISR = set of replicas that are "caught up" with the leader.
 
 **Caught up means:**
+
 - Follower has fetched all messages up to leader's latest offset
 - Follower is within `replica.lag.time.max.ms` (default 30 seconds) of leader
 
@@ -9245,6 +9511,7 @@ Why Broker 3 is lagging:
 ```
 
 **Why ISR matters:**
+
 - **Safety:** Only elect new leaders from ISR (guarantee no data loss)
 - **Availability:** If ISR has 2+ members, system can tolerate 1 failure
 - **Observability:** Shrinking ISR = warning sign of problems
@@ -9401,6 +9668,7 @@ Message REJECTED (better than accepting and losing data!)
 ```
 
 **Trade-off:**
+
 - **Pro:** Guaranteed durability (at least 2 copies before ACK)
 - **Con:** Reduced availability (rejects writes if ISR drops below 2)
 
@@ -9471,6 +9739,7 @@ Config                false (strict)    true (permissive)
 ```
 
 **Uber production:**
+
 - Critical topics (payments): unclean.leader.election.enable=false
 - Log topics (debugging): unclean.leader.election.enable=true
 - Different reliability levels for different use cases!
@@ -9523,6 +9792,7 @@ Kafka automatically spreads replicas across racks!
 ```
 
 **Netflix production:**
+
 - 3 availability zones (AZs) in AWS
 - Each broker assigned to an AZ (broker.rack=us-east-1a/1b/1c)
 - Replicas spread across AZs
@@ -9566,15 +9836,18 @@ Recovery time: 90 seconds (RPO: 1-5 sec lag)
 ```
 
 **Pros:**
+
 - Simple to operate (one active cluster)
 - No write conflicts (single source of truth)
 
 **Cons:**
+
 - Wasted capacity (secondary cluster idle)
 - Manual failover (or automated with DNS)
 - Data loss = replication lag (1-5 seconds)
 
 **Cost:**
+
 - Primary: $10,000/month
 - Secondary: $10,000/month (idle!)
 - Total: $20,000/month (50% waste)
@@ -9633,16 +9906,19 @@ Resolution strategies:
 ```
 
 **Pros:**
+
 - Low latency (users write to local region)
 - High availability (both regions always active)
 - Better resource utilization (no idle cluster)
 
 **Cons:**
+
 - Complex conflict resolution
 - Eventual consistency (not immediate)
 - Higher operational complexity
 
 **Uber production:**
+
 - US + EU active-active
 - Region-priority conflict resolution (home region wins)
 - Handles 1 trillion messages/day across regions
@@ -9666,6 +9942,7 @@ Follower: Broker 3 (AZ-c)
 ```
 
 **Characteristics:**
+
 - **Latency:** 1-2ms cross-AZ (same region)
 - **Consistency:** Strong (single cluster, single source of truth)
 - **Availability:** Survives single AZ failure
@@ -9683,16 +9960,19 @@ All data preserved (Brokers 2 & 3 have copies)
 ```
 
 **Pros:**
+
 - No replication lag (single cluster)
 - No conflict resolution needed
 - Fastest failover (<10 sec)
 - Lowest cost (single cluster)
 
 **Cons:**
+
 - Only works within single region (low cross-AZ latency)
 - Can't survive full region failure
 
 **LinkedIn production:**
+
 - Stretch cluster across 3 AZs
 - 99.99% availability (4 AZ failures in 5 years)
 - Preferred pattern for single-region deployments
@@ -9747,6 +10027,7 @@ Throughput improvement: 20-30%
 ```
 
 **LinkedIn production:**
+
 - lz4 compression (70% reduction)
 - 1 MB replica fetch batches
 - Network utilization: 20 Gbps (vs 80 Gbps without optimization)
@@ -9790,11 +10071,13 @@ When partition heals:
 ```
 
 **ZooKeeper's role (before KRaft):**
+
 - Controller election stored in ZooKeeper
 - ZooKeeper quorum ensures single controller
 - Prevents split-brain automatically
 
 **KRaft (Kafka Raft, new):**
+
 - Kafka's own consensus (no ZooKeeper)
 - Raft quorum protocol
 - Same split-brain prevention, simpler architecture
@@ -9933,6 +10216,7 @@ Downtime: Brief (3-10 sec), then fully functional
 | Leader | 2 | ✓ After election | Elect new leader from followers |
 
 **Key insight:** With RF=3 and min.insync.replicas=2, you get:
+
 - **Durability:** Always 2+ copies before ACK (no data loss)
 - **Availability:** Tolerates 1 failure (2 replicas still meet minimum)
 - **Safety:** Rejects writes if 2+ failures (better than data loss)
@@ -10263,6 +10547,7 @@ Acceptable for payment processing (vs transaction fees of $0.30+)
 **Scenario:** Design replication for a global e-commerce platform.
 
 **Requirements:**
+
 - US and EU customers (latency sensitive)
 - 1 million orders/day
 - Payment data (zero loss acceptable)
@@ -10282,17 +10567,19 @@ Acceptable for payment processing (vs transaction fees of $0.30+)
 5. **Conflict resolution:** If same user adds to cart in both regions, how do you merge?
 
 **Hints:**
+
 - Payment orders: Zero loss (RF=3, min.insync=2)
 - Product catalog: Can rebuild (RF=2, eventual consistency)
 - User sessions: Stateless, can recreate (RF=1 or external cache)
 
 ---
 
-## 8. Producer & Consumer Optimizations
+## Section 8: Producer & Consumer Optimizations
 
 ### What You'll Learn
 
 In this section, you'll master:
+
 - Batching strategies to achieve 1,000x throughput improvements
 - Compression algorithms and when to use each (lz4, gzip, snappy)
 - Idempotency configuration for exactly-once semantics
@@ -10360,24 +10647,28 @@ Compress message batches before sending over network. Like zipping a folder befo
 *4 Compression Algorithms:*
 
 **None (baseline):**
+
 - Network bandwidth: 1 GB/s
 - CPU usage: 0%
 - Latency: 5ms
 - Use when: CPU-constrained
 
 **lz4 (recommended):**
+
 - Network bandwidth: 333 MB/s (67% reduction!)
 - CPU usage: 5%
 - Latency: 6ms
 - Use when: Most production scenarios
 
 **snappy (fastest):**
+
 - Network bandwidth: 400 MB/s (60% reduction)
 - CPU usage: 3%
 - Latency: 5.5ms
 - Use when: Latency-critical (trading systems)
 
 **gzip (highest compression):**
+
 - Network bandwidth: 250 MB/s (75% reduction)
 - CPU usage: 25%
 - Latency: 10ms
@@ -10658,11 +10949,13 @@ linger.ms = 100
 *Real example: LinkedIn compression savings*
 
 Before (no compression):
+
 - Traffic: 30 GB/s  
 - Cross-datacenter bandwidth: $0.08/GB
 - Monthly cost: $6.2M
 
 After (lz4 compression):
+
 - Traffic: 10 GB/s (67% reduction)
 - Monthly cost: $2.1M
 - **Savings: $4.1M/month, $49M/year!**
@@ -10715,6 +11008,7 @@ Result:
 *Problem: Rebalancing pauses processing*
 
 Every consumer join/leave triggers rebalance:
+
 - All consumers in group stop processing
 - Rebalancing takes 3-6 seconds
 - Thousands of messages delayed
@@ -10726,12 +11020,14 @@ group.instance.id = "consumer-1"
 ```
 
 Effect:
+
 - Consumer restart doesn't trigger rebalance
 - Broker waits session.timeout.ms (e.g., 45s) before reassigning partitions
 - If consumer returns within 45s, gets same partitions back
 - **Zero rebalance downtime on deployment!**
 
 LinkedIn result:
+
 - Deployments: 20/day
 - Before: 20 rebalances/day (120 seconds total downtime)
 - After: 0 rebalances (no downtime)
@@ -10745,6 +11041,7 @@ heartbeat.interval.ms = 3000  // 3 seconds (rule: session/3)
 ```
 
 Effect:
+
 - Tolerates 45s network hiccup without rebalance
 - Tolerates 15s GC pause without rebalance
 - But: Takes 45s to detect truly dead consumer
@@ -10916,6 +11213,7 @@ isolation.level = read_committed
 *Optimizations applied:*
 
 **1. Multi-threading (10 threads per consumer):**
+
 - 4K messages/sec → 40K messages/sec per consumer
 - 10x improvement
 
@@ -10931,6 +11229,7 @@ compression.type = lz4  // 67% network reduction
 max.partition.fetch.bytes = 10485760  // 10 MB
 fetch.min.bytes = 1048576             // 1 MB
 ```
+
 - Fetch requests: 50K/sec → 100/sec (500x reduction)
 
 **4. Static membership:**
@@ -10938,6 +11237,7 @@ fetch.min.bytes = 1048576             // 1 MB
 group.instance.id = "netflix-consumer-{instance-id}"
 session.timeout.ms = 45000
 ```
+
 - Rebalancing: Every deployment (20/day) → Zero
 
 *After optimization:*
@@ -10989,20 +11289,24 @@ For each, calculate throughput and latency, then recommend which to use for whic
 **1. No batching (linger.ms=0)**
 
 How it works:
+
 - Sends each message immediately
 - No waiting for batch to fill
 
 Performance:
+
 - Throughput: 1,000 messages/sec (network RTT bound)
 - Latency: 2ms p99 (just network time)
 - Network requests: 1,000/sec
 
 Use case:
+
 - Real-time trading systems
 - Gaming leaderboards  
 - Instant messaging
 
 Trade-off:
+
 - Lowest latency
 - Lowest throughput
 - Highest broker CPU (many small requests)
@@ -11012,21 +11316,25 @@ Trade-off:
 **2. Small batches (linger.ms=10, batch.size=16KB)**
 
 How it works:
+
 - Waits 10ms OR until 16KB collected
 - Sends batch when either threshold met
 
 Performance:
+
 - Throughput: 100,000 messages/sec (100x improvement!)
 - Latency: 15ms p99 (2ms network + 10ms linger + 3ms processing)
 - Network requests: 100/sec (10x reduction)
 
 Use case:
+
 - **Recommended for most applications**
 - User activity tracking
 - Service logs
 - Application metrics
 
 Trade-off:
+
 - Good balance of throughput and latency
 - 10ms added latency acceptable for most use cases
 - Significant throughput improvement
@@ -11048,21 +11356,25 @@ Result:
 **3. Medium batches (linger.ms=100, batch.size=256KB)**
 
 How it works:
+
 - Waits 100ms OR until 256KB collected
 - Much larger batches
 
 Performance:
+
 - Throughput: 500,000 messages/sec (500x improvement!)
 - Latency: 105ms p99 (2ms network + 100ms linger + 3ms processing)
 - Network requests: 10/sec (100x reduction)
 
 Use case:
+
 - Analytics pipelines
 - ETL processes
 - Data warehouse ingestion
 - Batch reporting
 
 Trade-off:
+
 - Very high throughput
 - 100ms latency only acceptable for non-real-time
 - Extremely efficient (minimal broker load)
@@ -11084,19 +11396,23 @@ Result:
 **4. Large batches (linger.ms=1000, batch.size=1MB)**
 
 How it works:
+
 - Waits 1 second OR until 1MB collected
 
 Performance:
+
 - Throughput: 5,000,000 messages/sec (5,000x improvement!)
 - Latency: 1,005ms p99 (1+ second delay!)
 - Network requests: 1/sec (1,000x reduction)
 
 Use case:
+
 - Overnight batch jobs
 - Historical data migration
 - Infrequent large exports
 
 Trade-off:
+
 - Maximum throughput
 - Unacceptable latency for interactive use
 - Use ONLY for batch processing
@@ -11165,12 +11481,14 @@ Compare lz4, snappy, gzip, and none. Calculate monthly costs and recommend compr
 **Baseline: No compression**
 
 Traffic breakdown:
+
 - Clickstream: 10 GB/s × 0.80 = 8 GB/s
 - Payments: 10 GB/s × 0.10 = 1 GB/s
 - ML data: 10 GB/s × 0.10 = 1 GB/s
 - Total: 10 GB/s
 
 Cross-region replication:
+
 - 3 regions, each replicates to 2 others
 - Cross-region traffic: 10 GB/s × 2 = 20 GB/s per region
 - Total cross-region: 20 GB/s × 3 regions = 60 GB/s
@@ -11195,11 +11513,13 @@ Monthly cost (no compression):
 **1. lz4 (balanced)**
 
 Compression ratio: 3:1 (67% reduction)
+
 - Clickstream: 8 GB/s → 2.67 GB/s
 - Payments: 1 GB/s → 0.33 GB/s
 - ML data: 1 GB/s → 0.33 GB/s
 
 CPU overhead: 5%
+
 - Current: 1,000 CPU cores total
 - With lz4: 1,050 CPU cores (+50 cores)
 - Cost increase: 50 cores × $50/month = $2,500/month
@@ -11215,11 +11535,13 @@ Monthly cost: $4.3M + $2,500 CPU = **$4.3M/month**
 **2. snappy (fastest)**
 
 Compression ratio: 2.5:1 (60% reduction)
+
 - Clickstream: 8 GB/s → 3.2 GB/s
 - Payments: 1 GB/s → 0.4 GB/s
 - ML data: 1 GB/s → 0.4 GB/s
 
 CPU overhead: 3%
+
 - Cost increase: 30 cores × $50/month = $1,500/month
 
 Cross-region traffic: 60 GB/s → 24 GB/s
@@ -11233,11 +11555,13 @@ Monthly cost: $5.1M + $1,500 CPU = **$5.1M/month**
 **3. gzip (highest compression)**
 
 Compression ratio: 4:1 (75% reduction)
+
 - Clickstream: 8 GB/s → 2 GB/s
 - Payments: 1 GB/s → 0.25 GB/s
 - ML data: 1 GB/s → 0.25 GB/s
 
 CPU overhead: 25%
+
 - Cost increase: 250 cores × $50/month = $12,500/month
 
 Cross-region traffic: 60 GB/s → 15 GB/s
@@ -11255,12 +11579,14 @@ Monthly cost: $3.2M + $12,500 CPU = **$3.2M/month**
 **Recommended: lz4**
 
 Reasoning:
+
 - High volume needs good compression
 - Moderate CPU overhead acceptable (analytics workload)
 - 67% bandwidth reduction = $6.8M/month savings just for clickstream
 - 5% CPU = 40 cores = $2,000/month (ROI: 3,400:1!)
 
 Alternative: gzip if CPU abundant
+
 - 75% reduction would save extra $600K/month
 - But 25% CPU overhead (200 cores, $10K/month)
 - Only if CPU cost <$600K (unlikely)
@@ -11275,12 +11601,14 @@ Alternative: gzip if CPU abundant
 **Recommended: snappy (or none)**
 
 Reasoning:
+
 - Critical data where latency matters most
 - Can't afford 25% CPU overhead (gzip) on payment processing
 - lz4 adds 1ms latency (5ms → 6ms)
 - snappy adds 0.5ms latency (5ms → 5.5ms)
 
 Decision:
+
 - If latency SLA <10ms: Use snappy or none
 - If latency SLA >10ms: Use lz4
 
@@ -11300,12 +11628,14 @@ Savings: $125K/month (not huge, but free wins)
 **Recommended: gzip**
 
 Reasoning:
+
 - Not latency-sensitive (batch processing)
 - Large messages compress extremely well
 - 75% compression = huge bandwidth savings
 - CPU overhead doesn't matter for offline processing
 
 Actual compression on ML data (measured):
+
 - Log data: 4:1 (75%)
 - JSON data: 6:1 (83%)
 - Image features: 3:1 (67%)
@@ -11381,6 +11711,7 @@ Provide complete configuration, calculate infrastructure requirements, estimate 
 **System Overview**
 
 Target scale:
+
 - Throughput: 10M messages/sec = 10 GB/s (assuming 1KB avg message size)
 - Topic: 500 partitions (allows 500 consumer parallelism)
 - Replication factor: 3 (survive 2 failures)
@@ -11417,21 +11748,25 @@ min.insync.replicas = 2  // Survive 1 broker failure
 **Why these settings:**
 
 *linger.ms = 10:*
+
 - Collects ~1000 messages per batch (at 100K msg/sec per producer)
 - Adds 10ms latency but achieves 100x throughput improvement
 - Needed to reach 10M msg/sec target
 
 *compression.type = lz4:*
+
 - Reduces 10 GB/s → 3.3 GB/s (critical for network costs)
 - Only 5% CPU overhead
 - Bandwidth savings: $2.4M/month (see calculation below)
 
 *enable.idempotence = true:*
+
 - Prevents duplicates on retry (exactly-once requirement)
 - Automatically sets acks=all (needed anyway for durability)
 - 5-10% throughput cost (acceptable)
 
 *acks = all, min.insync.replicas = 2:*
+
 - Ensures message committed to 2 brokers before ACK
 - Survives single broker failure (requirement #4)
 - Adds 5ms latency vs acks=1
@@ -11479,12 +11814,14 @@ log.flush.interval.ms = 1000  // Or every 1 second
 **Broker capacity calculation:**
 
 Per-broker throughput:
+
 - Target: 10M msg/sec total
 - With RF=3: 30M msg/sec write load (10M × 3 replicas)
 - Single broker max: 150K msg/sec (measured)
 - Brokers needed: 30M / 150K = 200 brokers
 
 Per-broker storage:
+
 - Daily data: 10M msg/sec × 86,400 sec × 1 KB = 864 TB/day
 - 7 days retention: 6,048 TB
 - With RF=3: 18,144 TB total
@@ -11584,6 +11921,7 @@ Total consumer cost: 50 × $0.68 × 730 = $24,820/month
 **PART 4: Performance Validation**
 
 **Throughput:**
+
 - Producers: 100 × 100K msg/sec = 10M msg/sec ✅
 - Brokers: 200 × 150K msg/sec capacity = 30M msg/sec (3x headroom) ✅
 - Consumers: 50 × 200K msg/sec = 10M msg/sec ✅
@@ -11686,6 +12024,7 @@ $1,758,460 / (10M msg/sec × 2.6M sec/month) = $0.000068 per message
 **Cost optimization opportunities:**
 
 1. **Compression savings:**
+
 ```
 Without lz4: 10 GB/s network
 With lz4: 3.3 GB/s network
@@ -11697,6 +12036,7 @@ Cross-AZ transfer (assuming 50% cross-AZ):
 ```
 
 2. **Reserved instances (1-year):**
+
 ```
 On-demand: $1,758,460/month
 Reserved (40% discount): $1,055,076/month
@@ -11704,6 +12044,7 @@ Savings: $703,384/month = $8.4M/year
 ```
 
 3. **Spot instances for non-critical consumers (50%):**
+
 ```
 50 consumers on spot (70% discount):
 Savings: 50 × $0.68 × 730 × 0.70 = $17,374/month
@@ -11985,6 +12326,7 @@ Always start with requirements, do capacity math, then optimize costs. Most cand
 5. What trade-offs do you make vs a batch analytics workload?
 
 **Hints:**
+
 - With <5ms SLA, linger.ms must be 0 (no batching)
 - But how do you handle 500K individual sends/sec?
 - Idempotency costs 10% throughput—worth it?
@@ -11992,11 +12334,12 @@ Always start with requirements, do capacity math, then optimize costs. Most cand
 
 ---
 
-## 9. Message Delivery Guarantees
+## Section 9: Message Delivery Guarantees
 
 ### What You'll Learn
 
 In this section, you'll master:
+
 - Three delivery semantics: at-most-once, at-least-once, exactly-once
 - When to use each semantic (and why it matters)
 - How to implement exactly-once with idempotency and transactions
@@ -12014,6 +12357,7 @@ Choosing the wrong delivery guarantee can cost millions. At-most-once loses data
 **Understanding the Guarantees**
 
 Think of message delivery like package delivery:
+
 - **At-most-once**: Leave package at door, don't check if received (fire-and-forget)
 - **At-least-once**: Keep delivering until signature received (may deliver duplicate)
 - **Exactly-once**: Deliver once AND track with unique ID (no duplicates, no loss)
@@ -12562,6 +12906,7 @@ For each choice, calculate the impact of the wrong guarantee.
 **Use Case 1: Temperature Sensors**
 
 *Scenario:*
+
 - 1M sensors sending temperature every second
 - Throughput: 1M messages/sec
 - Use: Real-time dashboard + historical analytics
@@ -12608,6 +12953,7 @@ If chose Exactly-once:
 **Use Case 2: User Activity Tracking**
 
 *Scenario:*
+
 - 100M events/day (clickstream, page views, clicks)
 - Throughput: 1,157 messages/sec average (10K/sec peak)
 - Use: Recommendation engine, user analytics
@@ -12681,6 +13027,7 @@ If chose Exactly-once:
 **Use Case 3: Payment Processing**
 
 *Scenario:*
+
 - 1M payments/day (12 payments/sec average, 100/sec peak)
 - Average payment: $50
 - Total daily volume: $50M
@@ -12819,6 +13166,7 @@ If chose At-least-once:
 **Scenario:** Design message delivery for an e-commerce order system:
 
 Components:
+
 1. Order placement (high volume, 10K orders/sec)
 2. Inventory decrement (critical, can't double-decrement)
 3. Order confirmation email (can tolerate duplicates)
@@ -12833,6 +13181,7 @@ Components:
 5. What happens if inventory service is down when order arrives?
 
 **Hints:**
+
 - Order placement: Can't lose, can't duplicate
 - Inventory: Double-decrement = oversold, angry customers
 - Email: Duplicate email annoying but not catastrophic
@@ -12909,6 +13258,7 @@ Scale testing:
 #### Architecture Evolution: 3-Year Roadmap
 
 **Year 1: Establish Foundation**
+
 - ✅ Deploy 20-30 brokers
 - ✅ 1M msg/sec throughput
 - ✅ 7-day retention
@@ -12916,6 +13266,7 @@ Scale testing:
 - Cost: $500K/year
 
 **Year 2: Scale and Optimize**
+
 - Add tiered storage (move old data to S3)
 - Implement exactly-once semantics for critical topics
 - Deploy Kafka Streams for real-time processing
@@ -12924,6 +13275,7 @@ Scale testing:
 - Cost: $1.2M/year
 
 **Year 3: Enterprise Features**
+
 - Multi-region deployment (US, EU, APAC)
 - Geo-replication for disaster recovery
 - Implement multi-tenancy with ACLs
@@ -12936,6 +13288,7 @@ Scale testing:
 Before launching, ensure you have:
 
 **Infrastructure:**
+
 - [ ] At least 3 brokers (for replication factor 3)
 - [ ] 3-5 ZooKeeper nodes (odd number for quorum)
 - [ ] Load balancers for producer/consumer connections
@@ -12943,6 +13296,7 @@ Before launching, ensure you have:
 - [ ] Network bandwidth (25-40 Gbps per broker)
 
 **Configuration:**
+
 - [ ] Topics created with appropriate partitions and replication
 - [ ] Retention policy set based on business needs
 - [ ] Compression enabled (snappy recommended)
@@ -12950,6 +13304,7 @@ Before launching, ensure you have:
 - [ ] Monitoring exporters installed
 
 **Operational:**
+
 - [ ] Runbooks for common incidents
 - [ ] Backup and disaster recovery plan
 - [ ] Capacity planning model
@@ -12957,6 +13312,7 @@ Before launching, ensure you have:
 - [ ] Training completed for operations team
 
 **Application:**
+
 - [ ] Producers use batching and compression
 - [ ] Producers handle broker failures gracefully
 - [ ] Consumers implement idempotent processing
@@ -12970,6 +13326,7 @@ Before launching, ensure you have:
 ### Official Documentation
 
 **Apache Kafka:**
+
 - Official Docs: https://kafka.apache.org/documentation/
 - Confluent Platform Docs: https://docs.confluent.io/
 - KRaft Mode: https://kafka.apache.org/documentation/#kraft
@@ -12977,26 +13334,31 @@ Before launching, ensure you have:
 ### Engineering Blogs & Case Studies
 
 **LinkedIn (Where Kafka Was Born):**
+
 - "The Log: What every software engineer should know about real-time data's unifying abstraction" by Jay Kreps
 - "Benchmarking Apache Kafka: 2 Million Writes Per Second"
 - Link: https://engineering.linkedin.com/blog/topic/kafka
 
 **Uber:**
+
 - "Scaling Kafka to Support Uber's Ride Sharing Platform" (1 trillion msg/day)
 - "Building Reliable Reprocessing and Dead Letter Queues with Apache Kafka"
 - Link: https://eng.uber.com/tag/kafka/
 
 **Netflix:**
+
 - "Kafka Inside Keystone Pipeline" (700B events/day)
 - "Evolution of the Netflix Data Pipeline"
 - Link: https://netflixtechblog.com/tagged/kafka
 
 **Airbnb:**
+
 - "Streaming SQL for Data Engineers" (Kafka + Flink)
 - "Achieving 10 Gbps on a Single Kafka Partition"
 - Link: https://medium.com/airbnb-engineering
 
 **Cloudflare:**
+
 - "A Byzantine failure in the real world" (Kafka incident analysis)
 - "How we scaled Kafka to handle 4 million messages per second"
 
@@ -13020,40 +13382,48 @@ Before launching, ensure you have:
 ### Online Courses
 
 **Confluent Training:**
+
 - Apache Kafka Fundamentals (Free)
 - Building Kafka Solutions (Paid)
 - Kafka Streams Development
 
 **LinkedIn Learning:**
+
 - "Learning Apache Kafka" by Kumaran Ponnambalam
 - "Apache Kafka Essential Training" by Sneha Kamale
 
 ### Conference Talks
 
 **Kafka Summit (Annual):**
+
 - Watch past talks: https://www.kafka-summit.org/past-events
 - Topics: Performance tuning, operations, case studies
 
 **Strange Loop, QCon:**
+
 - Search for Kafka-related talks
 - Often cover advanced distributed systems concepts
 
 ### Community Resources
 
 **Mailing Lists:**
+
 - Users: users@kafka.apache.org
 - Dev: dev@kafka.apache.org
 
 **Slack:**
+
 - Confluent Community Slack: https://launchpass.com/confluentcommunity
 
 **Stack Overflow:**
+
 - Tag: [apache-kafka]
 - 50,000+ questions answered
 
 ### Hands-On Practice
 
 **Local Setup:**
+
 1. Install Kafka locally with Docker:
    ```
    docker-compose up kafka zookeeper
@@ -13062,11 +13432,13 @@ Before launching, ensure you have:
 3. Experiment with different configurations
 
 **Cloud Sandbox:**
+
 - AWS MSK (Managed Streaming for Kafka)
 - Confluent Cloud (Free tier available)
 - Practice without managing infrastructure
 
 **Kafka Tutorials:**
+
 - https://kafka-tutorials.confluent.io/
 - Interactive tutorials covering common patterns
 - Code examples in multiple languages
@@ -13080,16 +13452,19 @@ You've completed an in-depth journey through Pub/Sub Messaging System Design! He
 ### What You've Learned
 
 **Foundations:**
+
 - ✅ What pub/sub messaging is and why it's critical for modern systems
 - ✅ The 5 core components and how they work together
 - ✅ How to calculate capacity (storage, bandwidth, cost)
 
 **System Design Skills:**
+
 - ✅ How to gather requirements systematically
 - ✅ How to make design trade-offs (ordering vs throughput, latency vs durability)
 - ✅ How to present your design in interviews with frameworks
 
 **Production Knowledge:**
+
 - ✅ Cost optimization strategies ($16.8M/year savings with compression!)
 - ✅ Compliance and security (GDPR, SOC 2, encryption)
 - ✅ Operational excellence (monitoring, disaster recovery)
@@ -13097,17 +13472,20 @@ You've completed an in-depth journey through Pub/Sub Messaging System Design! He
 ### Your Readiness Level
 
 **For Interviews:**
+
 - 🟢 **Entry-level**: You can explain pub/sub basics with analogies
 - 🟡 **Mid-level**: You can design a system with 10M msg/sec and justify trade-offs
 - 🔴 **Senior-level**: You can discuss production concerns (cost, compliance, DR)
 
 **Next Steps for Interview Prep:**
+
 1. Practice drawing the architecture diagram in 5 minutes
 2. Memorize key numbers (864TB/day, 78PB storage, 240Gbps egress)
 3. Practice explaining trade-offs out loud
 4. Review "Think About It" questions—interviewers love these!
 
 **For Real-World Work:**
+
 - 🏗️ You can design a Kafka cluster for your organization
 - 📊 You can perform capacity planning and cost estimation
 - 🔧 You can troubleshoot common issues (lag, rebalancing)
@@ -13116,16 +13494,19 @@ You've completed an in-depth journey through Pub/Sub Messaging System Design! He
 ### Continue Your Learning Journey
 
 **Next System Designs to Study:**
+
 1. **Distributed Key-Value Store** (Builds on pub/sub concepts)
 2. **Social Media Platform** (Uses pub/sub for newsfeed)
 3. **Real-time Analytics** (Kafka + Flink/Storm)
 
 **Deep Dive Topics:**
+
 1. **Kafka Streams**: Build real-time stream processing apps
 2. **Kafka Connect**: Integrate with databases and other systems
 3. **Schema Registry**: Enforce data contracts with Avro/Protobuf
 
 **Advanced Concepts:**
+
 1. **Exactly-once semantics**: How it really works (idempotent producers + transactional writes)
 2. **Multi-region replication**: Active-active vs active-passive strategies
 3. **Kubernetes operators**: Deploy Kafka on K8s with Strimzi
@@ -13133,18 +13514,21 @@ You've completed an in-depth journey through Pub/Sub Messaging System Design! He
 ### Final Thoughts
 
 Pub/sub messaging (especially Apache Kafka) is a cornerstone of modern distributed systems. You'll find it at:
+
 - Tech giants: LinkedIn (7T msg/day), Uber (1T msg/day), Netflix (700B events/day)
 - Financial services: Real-time fraud detection, trading platforms
 - E-commerce: Order processing, inventory management, recommendation engines
 - IoT: Millions of sensors streaming data continuously
 
 **The skills you've learned here apply broadly:**
+
 - Event-driven architecture
 - Microservices communication
 - Real-time data pipelines
 - Stream processing systems
 
 **You're now equipped to:**
+
 - ✅ Design pub/sub systems in interviews (FAANG-ready!)
 - ✅ Make informed architectural decisions at work
 - ✅ Communicate complex technical concepts clearly
@@ -13153,6 +13537,7 @@ Pub/sub messaging (especially Apache Kafka) is a cornerstone of modern distribut
 ### Keep in Touch!
 
 As you continue learning:
+
 - Revisit this document when working on real pub/sub projects
 - Use it as a reference during interviews
 - Share it with teammates learning about messaging systems
