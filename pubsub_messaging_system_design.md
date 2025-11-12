@@ -3851,6 +3851,824 @@ Spend 30 minutes designing this. Think about trade-offs: shared cluster (cheaper
 
 ---
 
+### 🎯 Interview Questions
+
+These questions test your understanding of system architecture. Try answering before expanding the solutions!
+
+#### 🟢 Beginner Level Questions
+
+<details>
+<summary><strong>Q1: What happens when a broker fails? Walk me through the failure recovery process.</strong></summary>
+
+**Answer:**
+
+When a broker fails, here's the step-by-step recovery process:
+
+**Step 1: Detection (1-5 seconds)**
+- ZooKeeper detects broker heartbeat stopped
+- Controller is notified immediately
+- All active connections to failed broker are closed
+
+**Step 2: Leader Election for Affected Partitions**
+- Controller identifies all partitions where the failed broker was leader
+- For each partition, controller selects a new leader from ISR (In-Sync Replicas)
+- New leaders are chosen based on replica priorities
+
+**Example:**
+```
+Before failure:
+Partition 0: Leader = Broker 1, Followers = [Broker 2, Broker 3]
+Partition 5: Leader = Broker 1, Followers = [Broker 4, Broker 5]
+
+Broker 1 fails!
+
+After leader election (2-3 seconds):
+Partition 0: Leader = Broker 2, Followers = [Broker 3]
+Partition 5: Leader = Broker 4, Followers = [Broker 5]
+```
+
+**Step 3: Metadata Update**
+- Controller updates partition metadata in ZooKeeper
+- Controller sends LeaderAndISR requests to all brokers
+- Brokers update their local caches
+
+**Step 4: Client Recovery**
+- Producers and consumers detect the failure
+- Clients fetch new metadata from any broker
+- Clients reconnect to new partition leaders
+- Operations resume automatically
+
+**Step 5: Replication Catch-up**
+- Remaining replicas continue replicating from new leaders
+- When failed broker comes back online, it rejoins as follower
+- It catches up on missed messages before rejoining ISR
+
+**Total downtime:** 3-10 seconds for well-configured systems
+
+**What clients experience:**
+- Producers: Brief errors, then auto-retry succeeds
+- Consumers: Brief pause, then reading continues from new leader
+- No data loss (assuming replication factor ≥ 2 and acks=all)
+
+**Interview tip:** Emphasize that failure recovery is automatic and transparent to applications. Mention that replication factor determines resilience (RF=3 can tolerate 2 broker failures).
+
+</details>
+
+<details>
+<summary><strong>Q2: Why do we use a pull model for consumers instead of pushing messages to them?</strong></summary>
+
+**Answer:**
+
+**Pull model** means consumers request ("pull") messages from brokers. **Push model** means brokers send ("push") messages to consumers. Pub/Sub uses pull model. Here's why:
+
+**Advantages of Pull Model:**
+
+**1. Consumer Controls Rate**
+- Pull: Consumer says "give me 100 messages" when ready
+- Push: Broker decides how fast to send, can overwhelm consumer
+
+**Analogy:** Pull is like buffet dining (you control portions), Push is like force-feeding.
+
+**Example scenario:**
+```
+Consumer A: Can process 1,000 msg/sec (fast CPU)
+Consumer B: Can process 100 msg/sec (slow CPU, heavy processing)
+
+With PULL:
+- Consumer A pulls 1,000 messages per request
+- Consumer B pulls 100 messages per request
+- Each consumer works at own pace
+
+With PUSH:
+- Broker sends 1,000 msg/sec to both
+- Consumer B gets overwhelmed, crashes or drops messages
+- Need complex backpressure mechanisms
+```
+
+**2. Replay is Easy**
+- Pull: Consumer can reset offset and re-pull old messages
+- Push: Once pushed, message is gone from consumer's control
+
+**Use case:** Bug in processing logic. With pull, reset offset to yesterday and reprocess. With push, data is already gone.
+
+**3. Broker is Simpler**
+- Pull: Broker just stores messages, serves read requests
+- Push: Broker must track each consumer's state, handle retries, manage acknowledgments
+
+**4. Consumer Parallelism**
+- Pull: Add more consumer instances, each pulls independently
+- Push: Broker must distribute messages, handle rebalancing
+
+**Disadvantages of Pull Model:**
+
+**1. Busy-waiting**: If no messages, consumer keeps polling
+- *Solution:* Long-polling (broker waits before responding if no data)
+
+**2. Higher latency**: Small delay between message arrival and consumer poll
+- *Mitigation:* Consumers poll frequently (every 100ms)
+
+**Real-World Evidence:**
+- Kafka: Pull model, handles 1M+ msg/sec per consumer
+- LinkedIn: 7 trillion messages/day with pull model
+- Uber: 1 trillion messages/day, pull model
+
+**Interview tip:** Mention that pull model enables replay, a killer feature for debugging and reprocessing. Also note that long-polling solves the busy-waiting problem.
+
+</details>
+
+<details>
+<summary><strong>Q3: Explain the concept of consumer groups. Why can't we just have multiple consumers subscribe to the same topic?</strong></summary>
+
+**Answer:**
+
+**Consumer groups** allow parallel processing while maintaining message ordering within partitions. You can have multiple consumers subscribe to the same topic, but consumer groups provide coordination.
+
+**Without Consumer Groups (Naive Approach):**
+
+```
+Topic with 10 partitions
+3 independent consumers all subscribe
+
+Problem 1: Duplicate processing
+- Consumer A reads partition 0: messages 1-100
+- Consumer B reads partition 0: messages 1-100 (same messages!)
+- Consumer C reads partition 0: messages 1-100 (triplicate!)
+
+Problem 2: No coordination
+- All three consumers compete for all partitions
+- Complex application-level coordination needed
+```
+
+**With Consumer Groups:**
+
+```
+Consumer Group "analytics-team" has 3 consumers
+
+Automatic partition assignment:
+- Consumer A → Partitions 0, 1, 2, 3
+- Consumer B → Partitions 4, 5, 6
+- Consumer C → Partitions 7, 8, 9
+
+Benefits:
+- Each partition consumed by exactly one consumer in the group
+- Each message processed exactly once by the group
+- Load balanced automatically
+```
+
+**Key Concepts:**
+
+**1. Group ID:**
+Every consumer joins a group using `group.id` configuration.
+
+```
+Consumer A: group.id = "analytics-team"
+Consumer B: group.id = "analytics-team"
+→ They coordinate and divide work
+
+Consumer C: group.id = "billing-team"
+→ Separate group, reads all messages independently
+```
+
+**2. Partition Assignment:**
+Broker coordinator assigns partitions to consumers:
+
+```
+3 consumers, 9 partitions → Each gets 3 partitions (balanced)
+2 consumers, 9 partitions → One gets 5, one gets 4
+5 consumers, 3 partitions → Only 3 consumers get work, 2 idle
+```
+
+**Rule:** Maximum parallelism = number of partitions
+
+**3. Independent Groups:**
+Multiple groups can subscribe to same topic:
+
+```
+Topic: "user-clicks" (10 partitions)
+
+Group "analytics" (3 consumers):
+- Calculates click metrics
+- Each message processed once by this group
+
+Group "recommendations" (2 consumers):
+- Updates user profiles
+- Same messages processed once by this group
+
+Both groups read ALL messages, but within each group, no duplicates!
+```
+
+**Real-World Example (E-commerce Order Events):**
+
+```
+Topic: "orders" (100 partitions)
+
+Consumer Group "warehouse" (10 consumers):
+- Prepares items for shipping
+- Each order processed once
+
+Consumer Group "analytics" (5 consumers):
+- Updates sales dashboard
+- Same orders processed once
+
+Consumer Group "email" (2 consumers):
+- Sends confirmation emails
+- Same orders processed once
+
+All three teams process every order, but within each team, no duplicates!
+```
+
+**Interview tip:** Emphasize that consumer groups enable "fan-out" pattern (one message to many consumers) while maintaining "exactly-once" processing within each group. This is why pub/sub is more powerful than simple queues.
+
+</details>
+
+#### 🟡 Intermediate Level Questions
+
+<details>
+<summary><strong>Q1: How do you decide the number of partitions for a topic? What factors influence this decision?</strong></summary>
+
+**Answer:**
+
+Partition count is one of the most critical design decisions. Too few = bottleneck, too many = overhead.
+
+**Formula-Based Approach:**
+
+```
+Partitions = MAX(
+    (Target Throughput / Producer Throughput per Partition),
+    (Target Throughput / Consumer Throughput per Partition)
+)
+```
+
+**Example Calculation:**
+
+```
+Requirements:
+- Target throughput: 1 GB/s (1,000 MB/s)
+- Single producer can write 50 MB/s per partition
+- Single consumer can read 25 MB/s per partition
+
+Partitions needed:
+- From producer side: 1,000 / 50 = 20 partitions
+- From consumer side: 1,000 / 25 = 40 partitions
+
+Choose: 40 partitions (higher of the two)
+```
+
+**Key Factors:**
+
+**1. Target Throughput**
+- Higher throughput = more partitions
+- Each partition: ~50-100 MB/s max throughput
+
+**2. Consumer Parallelism**
+- Want 10 consumer instances? Need at least 10 partitions
+- Extra partitions allow future scaling
+
+**3. Ordering Requirements**
+- Strict ordering within partition
+- More partitions = less ordering guarantee globally
+
+**Trade-off example:**
+```
+Option A: 10 partitions
+- Benefit: Messages with same key stay ordered
+- Drawback: Max 10 consumers, limited throughput
+
+Option B: 100 partitions
+- Benefit: High throughput, 100 consumers possible
+- Drawback: Ordering only within 100 groups, not globally
+```
+
+**4. End-to-End Latency**
+- More partitions = more leader elections on failure
+- Each partition adds ~1-2ms latency during rebalance
+
+**5. Broker Resources**
+- Each partition: ~1 MB memory per broker
+- 1,000 partitions × 3 replicas = 3,000 partition replicas = ~3 GB memory
+
+**6. File Descriptors**
+- Each partition uses file descriptors for segment files
+- OS limit (default ~65,000) can be hit with many partitions
+
+**Common Patterns:**
+
+**Pattern 1: Start Small, Scale Up**
+```
+Month 1: 10 partitions (learning phase)
+Month 3: 30 partitions (traffic growing)
+Month 6: 100 partitions (stable traffic)
+```
+
+**Pattern 2: Predictable Formula**
+```
+Partitions = (Target Throughput / 50 MB/s) × 1.5 (growth buffer)
+
+Example: 500 MB/s target
+500 / 50 = 10, plus 50% buffer = 15 partitions
+```
+
+**Pattern 3: Consumer-Driven**
+```
+Expect 20 consumer instances?
+→ Use 30 partitions (50% extra for scaling)
+```
+
+**Real-World Examples:**
+
+**LinkedIn Kafka:**
+- High-volume topics: 30-50 partitions
+- Medium topics: 10-20 partitions
+- Low-volume: 3-5 partitions
+
+**Uber:**
+- Ride events: 100 partitions (high volume, many consumers)
+- Driver events: 50 partitions
+- Admin events: 10 partitions
+
+**Anti-Patterns to Avoid:**
+
+❌ **Over-partitioning:** 1,000 partitions for 10 MB/s topic
+- Wastes memory
+- Slow leader elections
+- Coordination overhead
+
+❌ **Under-partitioning:** 5 partitions for 1 GB/s topic
+- Throughput bottleneck
+- Can't add consumers
+
+❌ **Partition per User:** 1M users = 1M partitions
+- Broker can't handle this
+- Use key-based routing instead
+
+**Changing Partition Count:**
+
+⚠️ You can increase partitions, but NOT decrease
+- Increasing is safe, happens in seconds
+- Decreasing requires creating new topic and migrating
+
+**Interview tip:** Walk through a calculation with specific numbers. Mention that increasing partitions is easy but decreasing is impossible, so start conservative and scale up. Also note that partitions are the unit of parallelism.
+
+</details>
+
+<details>
+<summary><strong>Q2: Describe the rebalancing protocol. What happens when a consumer joins or leaves a group?</strong></summary>
+
+**Answer:**
+
+**Rebalancing** is the process of reassigning partitions among consumers when group membership changes. It's critical for fault tolerance but causes brief processing pauses.
+
+**Rebalance Triggers:**
+
+1. New consumer joins group
+2. Consumer leaves gracefully (shutdown)
+3. Consumer crashes (heartbeat timeout)
+4. Consumer takes too long processing (session timeout)
+5. Topic metadata changes (partitions added)
+
+**Rebalancing Protocol (Eager Rebalancing - Traditional):**
+
+**Phase 1: Join Group (Discovery)**
+
+```
+Step 1: Consumer sends JoinGroup request to coordinator
+- Consumer A: "I want to join group 'analytics'"
+- Consumer B: "I'm already in 'analytics'"
+- Consumer C: "I'm new to 'analytics'"
+
+Step 2: Coordinator waits for rebalance.timeout (3 seconds default)
+- Collects all consumers in group
+- Determines generation ID (incremented each rebalance)
+
+Step 3: Coordinator selects group leader
+- First consumer to join becomes leader
+- Leader is responsible for partition assignment strategy
+```
+
+**Phase 2: Sync Group (Assignment)**
+
+```
+Step 4: Leader receives group member list from coordinator
+- Members: [Consumer A, Consumer B, Consumer C]
+- Partitions: [P0, P1, P2, P3, P4, P5, P6, P7, P8, P9]
+
+Step 5: Leader computes assignment using strategy
+RangeAssignor (default):
+- Sort partitions: P0, P1, P2, ..., P9
+- Divide equally: 10 partitions / 3 consumers = 3-4 each
+- Assignment:
+  Consumer A → [P0, P1, P2, P3]
+  Consumer B → [P4, P5, P6]
+  Consumer C → [P7, P8, P9]
+
+Step 6: Leader sends SyncGroup with assignments to coordinator
+
+Step 7: Coordinator sends individual assignments to each consumer
+- Consumer A receives: "You own P0, P1, P2, P3"
+- Consumer B receives: "You own P4, P5, P6"
+- Consumer C receives: "You own P7, P8, P9"
+```
+
+**Phase 3: Stabilization**
+
+```
+Step 8: Each consumer commits current offsets (before stop)
+- Saves progress for partitions they're losing
+
+Step 9: Each consumer stops consuming from old partitions
+
+Step 10: Each consumer starts consuming from new partitions
+- Fetches committed offset for each partition
+- Begins reading from that offset
+```
+
+**Timeline:**
+
+```
+Time 0s: Consumer C crashes
+Time 0-3s: Coordinator waits for heartbeat timeout
+Time 3s: Rebalance triggered
+Time 3-4s: Join phase (all consumers rejoin)
+Time 4-5s: Sync phase (partition assignment)
+Time 5-6s: Consumers commit offsets and switch partitions
+Time 6s+: Normal processing resumes
+
+Total downtime: ~3-6 seconds of stopped processing
+```
+
+**Stop-the-World Problem:**
+
+During eager rebalancing, ALL consumers stop processing:
+
+```
+Before rebalance:
+Consumer A processing P0-P3 ✓
+Consumer B processing P4-P6 ✓
+Consumer C processing P7-P9 ✗ (crashed)
+
+During rebalance (3-6 seconds):
+Consumer A stopped 🚫
+Consumer B stopped 🚫
+Consumer C offline 🚫
+
+All processing paused! This is the "stop-the-world" problem.
+```
+
+**Improved: Cooperative (Incremental) Rebalancing (Kafka 2.4+):**
+
+Consumers only stop on partitions being reassigned:
+
+```
+Consumer C crashes, owned P7-P9
+
+Cooperative rebalance:
+Consumer A: Continues processing P0-P3 (no change) ✓
+Consumer B: Continues processing P4-P6 (no change) ✓
+Coordinator: Assigns P7-P9 to A and B
+
+Only P7-P9 pause briefly, others continue!
+```
+
+**Rebalance Strategies:**
+
+**1. RangeAssignor (Default)**
+- Assigns contiguous partition ranges
+- Can be unbalanced if topics have different partition counts
+
+**2. RoundRobinAssignor**
+- Distributes partitions evenly in round-robin
+- Better balance across topics
+
+**3. StickyAssignor**
+- Minimizes partition movement during rebalance
+- Keeps assignments stable
+
+**Example:**
+```
+3 consumers, 10 partitions
+
+Initial: A=[P0,P1,P2,P3], B=[P4,P5,P6], C=[P7,P8,P9]
+Consumer B leaves
+
+Sticky: A=[P0,P1,P2,P3,P4], C=[P7,P8,P9,P5,P6]
+(Only P4, P5, P6 moved)
+
+Round-Robin: A=[P0,P2,P4,P6,P8], C=[P1,P3,P5,P7,P9]
+(Almost all partitions reassigned)
+```
+
+**Minimizing Rebalance Impact:**
+
+**1. Static Membership (Kafka 2.3+)**
+```
+Consumer config:
+group.instance.id = "consumer-1"  // Sticky ID
+
+When consumer restarts:
+- Joins with same ID
+- Gets same partitions back
+- No rebalance needed!
+```
+
+**2. Tune Timeouts:**
+```
+session.timeout.ms = 10000  // 10 seconds (how long coordinator waits)
+heartbeat.interval.ms = 3000  // 3 seconds (how often consumer pings)
+max.poll.interval.ms = 300000  // 5 minutes (max time between polls)
+```
+
+**3. Graceful Shutdown:**
+```
+Handle SIGTERM signal:
+- Commit offsets
+- Leave group cleanly
+- Coordinator reassigns immediately
+```
+
+**Real-World Impact:**
+
+**LinkedIn (before cooperative rebalancing):**
+- 15-second rebalance when adding consumer
+- 7 trillion messages/day = ~81 million msg/sec
+- 15-second pause = 1.2 billion messages backlog!
+
+**After cooperative rebalancing:**
+- <1 second pause for affected partitions only
+- 99% of partitions continue processing
+
+**Interview tip:** Emphasize stop-the-world problem with eager rebalancing and how cooperative rebalancing fixes it. Mention static membership for preventing rebalances on restarts. Calculate impact: rebalance duration × throughput = messages backed up.
+
+</details>
+
+#### 🔴 Advanced Level Question
+
+<details>
+<summary><strong>Q1: You're seeing frequent rebalancing storms (cascading rebalances) in production. How do you diagnose and fix this?</strong></summary>
+
+**Answer:**
+
+**Rebalancing storm** is when rebalances trigger more rebalances in a cascading failure pattern. This is a critical production issue.
+
+**Symptoms:**
+
+```
+12:00:00 - Consumer C joins, triggers rebalance
+12:00:05 - Rebalance completes
+12:00:10 - Consumer A times out (slow processing), triggers rebalance
+12:00:15 - Rebalance completes
+12:00:18 - Consumer B times out, triggers rebalance
+12:00:23 - Rebalance completes
+12:00:25 - Consumer C times out, triggers rebalance
+...endless cycle
+```
+
+**Root Causes:**
+
+**Cause 1: Processing Time > max.poll.interval.ms**
+
+```
+Configuration:
+max.poll.interval.ms = 300,000 (5 minutes)
+
+Consumer behavior:
+poll() → fetch 500 messages
+process() → takes 6 minutes (heavy ML inference)
+poll() → coordinator already kicked consumer out!
+
+Result:
+- Consumer removed from group → rebalance
+- Consumer rejoins → rebalance
+- Repeat forever
+```
+
+**Diagnosis:**
+```
+Check consumer lag:
+kafka-consumer-groups --describe --group analytics-team
+
+Observe:
+- LAG keeps resetting to 0 then growing
+- CONSUMER-ID keeps changing
+- Frequent rebalances in logs
+```
+
+**Fix:**
+```
+Option 1: Increase timeout
+max.poll.interval.ms = 600,000 (10 minutes)
+
+Option 2: Reduce batch size
+max.poll.records = 100 (from 500)
+Now processing takes 1 minute < 5 minute timeout
+
+Option 3: Async processing
+poll() → add to queue → return quickly
+Separate thread pool processes from queue
+```
+
+**Cause 2: GC Pauses > session.timeout.ms**
+
+```
+Configuration:
+session.timeout.ms = 10,000 (10 seconds)
+
+Consumer JVM:
+Processing message → heap is full
+GC pause: 15 seconds (stop-the-world)
+During GC, heartbeat thread frozen
+Coordinator: "No heartbeat for 15s, consumer is dead"
+
+Result:
+- Consumer evicted → rebalance
+- GC completes, consumer rejoins → rebalance
+- GC happens again → rebalance
+```
+
+**Diagnosis:**
+```
+Check GC logs:
+2024-01-15 12:00:00.123 [GC pause (young) 15234 ms]
+2024-01-15 12:00:15.456 [Consumer] Broker connection lost
+2024-01-15 12:00:16.789 [Consumer] Rejoining group
+
+Correlation: GC pause duration ≈ session timeout
+```
+
+**Fix:**
+```
+Option 1: Tune JVM
+-XX:+UseG1GC (low-latency GC)
+-XX:MaxGCPauseMillis=200 (target 200ms pauses)
+-Xmx4g -Xms4g (consistent heap size)
+
+Option 2: Increase session timeout
+session.timeout.ms = 30,000 (30 seconds)
+Tolerates longer GC pauses
+
+Option 3: Reduce memory pressure
+Process smaller batches
+max.poll.records = 50
+```
+
+**Cause 3: Network Issues / Slow Coordinator**
+
+```
+Network latency:
+Consumer → Coordinator: 200ms (normally 2ms)
+Heartbeat interval: 3 seconds
+Session timeout: 10 seconds
+
+Issue:
+Heartbeats arrive after 3.2s (200ms latency × retries)
+Coordinator: "Heartbeat late, consumer might be dead"
+Consumer: "Network is slow, but I'm alive!"
+Coordinator preemptively evicts → rebalance
+```
+
+**Diagnosis:**
+```
+Check network metrics:
+Consumer logs: "Heartbeat thread sending heartbeat to coordinator"
+Network monitor: RTT to coordinator = 150-300ms (high!)
+Coordinator logs: "Member heartbeat-timeout" warnings
+```
+
+**Fix:**
+```
+Option 1: Increase session timeout to account for network
+session.timeout.ms = 30,000
+heartbeat.interval.ms = 10,000
+
+Option 2: Fix network
+- Ensure consumer and broker in same region/AZ
+- Check for network congestion
+- Use dedicated network for Kafka traffic
+
+Option 3: Isolate coordinator
+- Pin coordinator to broker with best network
+- Use broker rack awareness
+```
+
+**Cause 4: Cascading Rebalance (Domino Effect)**
+
+```
+10 consumers in group, processing 100 partitions
+
+Scenario:
+Consumer 1 slow → triggers rebalance
+During rebalance (5 seconds):
+- All 10 consumers stop processing
+- Backlog grows: 5s × 100K msg/s = 500K messages
+- Rebalance completes, partitions reassigned
+- Each consumer gets 50K message backlog
+- Consumer 2 times out processing backlog → rebalance
+- Repeat with Consumer 3, 4, 5... (domino!)
+```
+
+**Diagnosis:**
+```
+Check rebalance timestamps:
+12:00:00 - Rebalance 1 (Consumer 1 timeout)
+12:00:05 - Rebalance 2 (Consumer 2 timeout during backlog processing)
+12:00:10 - Rebalance 3 (Consumer 3 timeout)
+12:00:15 - Rebalance 4 (Consumer 4 timeout)
+Pattern: Rebalances every 5 seconds
+```
+
+**Fix:**
+```
+Option 1: Cooperative rebalancing (Kafka 2.4+)
+partition.assignment.strategy = CooperativeStickyAssignor
+Only affected partitions stop, others continue
+
+Option 2: Static membership
+group.instance.id = "consumer-1-static"
+Consumer restarts don't trigger rebalance
+
+Option 3: Reduce rebalance duration
+rebalance.timeout.ms = 60,000 (1 minute)
+Give consumers more time to process backlog
+
+Option 4: Pause consumers during rebalance
+Instead of processing, consumers can:
+- Pause consumption
+- Drain current batch
+- Then rebalance
+```
+
+**Production War Story (Real LinkedIn Incident):**
+
+```
+Context:
+- 100 consumers in group
+- Processing ML features (expensive)
+- max.poll.interval.ms = 5 minutes
+
+Incident:
+12:00 - Deploy new ML model (20% slower)
+12:05 - One consumer times out (processing > 5 min)
+12:05 - Rebalance triggered, all 100 consumers stop
+12:05-12:10 - Rebalance takes 5 minutes (100 consumers)
+12:10 - Rebalance completes, massive backlog (5M messages)
+12:10-12:15 - All consumers process backlog, many timeout
+12:15 - 50 consumers timeout → rebalance
+12:15-12:20 - Another rebalance
+...death spiral continues for 2 hours
+
+Impact:
+- 2-hour outage
+- 500M messages delayed
+- $2M revenue impact
+
+Root cause:
+- ML model 20% slower pushed processing over 5-min limit
+- Rebalance storm cascaded
+- No circuit breaker
+
+Fix:
+1. Increased max.poll.interval.ms to 10 minutes
+2. Enabled cooperative rebalancing
+3. Added consumer lag alerting (lag > 1M = page)
+4. Load tested ML model changes before deploy
+5. Implemented static membership
+
+After fix:
+- Rebalances dropped from 100/hour to 2/hour
+- Average rebalance time: 500ms (from 5 minutes)
+- No cascading failures in 2 years
+```
+
+**Comprehensive Diagnosis Checklist:**
+
+```
+1. Check consumer lag:
+kafka-consumer-groups --describe --group GROUP_ID
+
+2. Check rebalance frequency:
+grep "Rebalance" consumer.log | wc -l
+
+3. Check GC logs:
+grep "GC pause" gc.log
+
+4. Check network latency:
+ping BROKER_HOST
+
+5. Check coordinator load:
+Check JMX metric: kafka.coordinator.group:type=GroupCoordinator,name=NumGroups
+
+6. Check timeout configurations:
+session.timeout.ms
+max.poll.interval.ms
+heartbeat.interval.ms
+rebalance.timeout.ms
+```
+
+**Interview tip:** Walk through a real incident with cascading rebalances. Emphasize the importance of monitoring consumer lag, GC pauses, and rebalance frequency. Mention that cooperative rebalancing + static membership are the two biggest improvements for preventing storms.
+
+</details>
+
+---
+
 ## Putting It All Together
 
 ### The Complete System: End-to-End View
