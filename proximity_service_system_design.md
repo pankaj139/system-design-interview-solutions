@@ -2843,3 +2843,1668 @@ Cost per QPS: Drops from $160/year to $90/year (44% reduction!)
 
 ---
 
+## Section 5: Database Design
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Design database schemas for businesses, users, and reviews
+- Choose the right database technology for each data type
+- Understand when to use relational vs NoSQL databases
+- Design indexes for geospatial and text search queries
+- Handle data relationships and normalization vs denormalization
+
+### Why This Matters
+
+Database design is the foundation of your system - poor schema design leads to slow queries, data inconsistency, and scaling nightmares! Real-world example: When Yelp first launched, they stored everything in a single PostgreSQL database. As reviews grew to millions, queries became slow and the database became a bottleneck. They had to migrate reviews to Cassandra (NoSQL) for write scalability, while keeping business data in PostgreSQL for ACID compliance. Understanding when to use which database saves months of migration work!
+
+### 🟢 For Beginners: The Fundamentals
+
+#### What Data Do We Need to Store?
+
+Think of a proximity service database like a filing cabinet with different drawers for different types of information:
+
+```text
+Filing Cabinet Analogy:
+├─ Drawer 1 (Businesses): Restaurant info, location, hours
+├─ Drawer 2 (Users): User profiles, preferences
+├─ Drawer 3 (Reviews): Customer reviews and ratings
+├─ Drawer 4 (Photos): Links to photos stored elsewhere
+└─ Drawer 5 (Analytics): Search logs, click tracking
+
+Each drawer is organized differently based on how you access the data!
+```
+
+**Core Data Types:**
+
+```text
+1. Business Data (Like a business card):
+   ├─ Name, address, phone, website
+   ├─ Location (latitude, longitude)
+   ├─ Category (restaurant, hotel, etc.)
+   ├─ Hours of operation
+   ├─ Rating and review count
+   └─ Features (outdoor seating, delivery, etc.)
+
+2. User Data (Like a user profile):
+   ├─ Email, username, password
+   ├─ Preferences (favorite categories, price range)
+   ├─ Search history
+   └─ Saved businesses
+
+3. Review Data (Like a comment thread):
+   ├─ Review text, rating (1-5 stars)
+   ├─ Photos attached to review
+   ├─ Helpful votes
+   ├─ Owner responses
+   └─ Timestamp (when written)
+
+4. Search Logs (Like a visitor log):
+   ├─ What users searched for
+   ├─ What results they clicked
+   ├─ How long they spent
+   └─ Used for analytics and improvement
+```
+
+#### Why Use Different Databases?
+
+You might wonder: "Why not put everything in one database?" The answer is that different types of data have different access patterns:
+
+```text
+Business Data:
+├─ Access Pattern: Read-heavy (100 reads per write)
+├─ Needs: Strong consistency (business hours must be accurate)
+├─ Queries: "Get business by ID", "Search businesses near location"
+├─ Best Database: PostgreSQL (relational, ACID compliance)
+└─ Why: Need transactions, relationships, complex queries
+
+Review Data:
+├─ Access Pattern: Write-heavy (reviews submitted constantly)
+├─ Needs: High write throughput (10K reviews/second)
+├─ Queries: "Get reviews for business", "Get user's reviews"
+├─ Best Database: Cassandra (NoSQL, time-series)
+└─ Why: Optimized for writes, horizontal scaling
+
+Search Index:
+├─ Access Pattern: Read-heavy, complex text search
+├─ Needs: Fast full-text search + geospatial queries
+├─ Queries: "Find businesses matching 'Italian restaurant' near location"
+├─ Best Database: Elasticsearch (search engine)
+└─ Why: Built for search, not for transactions
+
+Cache:
+├─ Access Pattern: Super fast reads, frequent updates
+├─ Needs: Sub-millisecond access
+├─ Queries: "Get cached search results", "Check if business in cache"
+├─ Best Database: Redis (in-memory)
+└─ Why: Everything in memory = extremely fast
+```
+
+Think of it like organizing a library:
+- **PostgreSQL**: Reference books (business data) - organized, reliable, you can look things up precisely
+- **Cassandra**: Newspapers (reviews) - lots of new content added constantly, organized by time
+- **Elasticsearch**: Card catalog (search index) - optimized for finding things quickly
+- **Redis**: Librarian's quick notes (cache) - frequently accessed info kept at hand
+
+#### Understanding Database Tables
+
+A database table is like a spreadsheet with rows and columns:
+
+```text
+Businesses Table (like a spreadsheet):
+┌─────────────┬──────────────┬──────────┬─────────────┬─────────┐
+│ business_id │ name         │ category │ rating      │ location │
+├─────────────┼──────────────┼──────────┼─────────────┼─────────┤
+│ biz_001     │ Best Pizza   │ Restaurant│ 4.5         │ (37.7,   │
+│             │              │          │             │ -122.4)  │
+│ biz_002     │ Coffee Shop  │ Cafe      │ 4.2         │ (37.8,   │
+│             │              │          │             │ -122.3)  │
+└─────────────┴──────────────┴──────────┴─────────────┴─────────┘
+
+Each row = one business
+Each column = one piece of information about the business
+```
+
+**Why Separate Tables?**
+
+Instead of putting everything in one giant table, we split data into multiple tables:
+
+```text
+Bad Design (One Giant Table):
+┌─────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+│ biz_id  │ name     │ category │ review1  │ review2  │ review3  │
+└─────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+Problem: What if a business has 100 reviews? Need 100 columns!
+Problem: Most businesses have 0-5 reviews, so 95 columns are empty!
+Problem: Can't easily query "all reviews" or "reviews by user"
+
+Good Design (Separate Tables):
+Businesses Table:
+┌─────────┬──────────┬──────────┐
+│ biz_id  │ name     │ category │
+└─────────┴──────────┴──────────┘
+
+Reviews Table:
+┌─────────┬──────────┬──────────┬──────────┐
+│ biz_id  │ review_id│ rating   │ text     │
+└─────────┴──────────┴──────────┴──────────┘
+Benefit: Can have unlimited reviews per business
+Benefit: Can query reviews independently
+Benefit: No wasted space
+```
+
+This is called **normalization** - organizing data to avoid duplication and make queries efficient.
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### The Database Design Framework
+
+When designing databases in an interview, follow this systematic approach:
+
+**Step 1: Identify Entities and Relationships (3 minutes)**
+
+```text
+"Let me identify the main entities and how they relate:"
+
+Core Entities:
+├─ Businesses (main entity)
+├─ Users (who use the service)
+├─ Reviews (users review businesses)
+├─ Categories (businesses belong to categories)
+├─ Photos (businesses and reviews have photos)
+└─ Business Hours (businesses have operating hours)
+
+Relationships:
+├─ One Business → Many Reviews (1:N)
+├─ One User → Many Reviews (1:N)
+├─ One Business → One Category (N:1, many businesses per category)
+├─ One Business → Many Photos (1:N)
+├─ One Business → Many Hours (1:7, one per day of week)
+└─ One Business → One Owner (N:1, optional)
+
+Key Insight: Reviews are write-heavy, businesses are read-heavy
+→ Use different databases for each!
+```
+
+**Step 2: Choose Database Technology (2 minutes)**
+
+```text
+"Based on access patterns, I'll use different databases:"
+
+Business Data → PostgreSQL + PostGIS:
+├─ Why: ACID compliance, spatial operations, complex queries
+├─ Access: Read-heavy (50K reads/sec), write-light (1K writes/sec)
+├─ Queries: Geospatial search, filtering, joins
+└─ Schema: Normalized (separate tables for hours, features)
+
+Review Data → Cassandra:
+├─ Why: Write-heavy (10K writes/sec), time-series data
+├─ Access: Append-only (reviews rarely updated)
+├─ Queries: Get reviews by business (partitioned by business_id)
+└─ Schema: Denormalized (store all review data together)
+
+Search Index → Elasticsearch:
+├─ Why: Full-text search + geospatial in one query
+├─ Access: Read-only for queries, write for indexing
+├─ Queries: "Italian restaurants near me" (text + location)
+└─ Schema: Denormalized (business data copied for search)
+
+Cache → Redis:
+├─ Why: Sub-millisecond access, geospatial data structures
+├─ Access: Read/write heavy, frequent updates
+├─ Queries: Get cached results, check if in cache
+└─ Schema: Key-value (simple structure)
+```
+
+**Step 3: Design Indexes (2 minutes)**
+
+```text
+"Indexes are like the table of contents in a book - they help you 
+find data quickly without reading every page:"
+
+PostgreSQL Indexes:
+├─ Primary Key: business_id (unique identifier)
+├─ Geospatial: location (GIST index for spatial queries)
+├─ Geohash: geohash (B-tree index for prefix matching)
+├─ Composite: (category_id, rating, is_active) for filtered searches
+└─ Full-text: (name, description) for text search
+
+Elasticsearch Indexes:
+├─ business_id: keyword (exact match)
+├─ name: text with autocomplete (fuzzy search)
+├─ location: geo_point (geospatial queries)
+├─ geohash: keyword (prefix filtering)
+└─ rating, category: keyword (filtering)
+
+Redis Indexes:
+├─ Geospatial: GEOADD for location-based lookups
+├─ Sorted Sets: Leaderboards by rating
+└─ Hash: Business details by ID
+```
+
+⚠️ **Common Mistake:** Many candidates design one schema for everything. Always consider access patterns - reviews need different design than businesses!
+
+#### Making Schema Decisions Explicit
+
+```text
+"Let me explain my schema design decisions:"
+
+Decision 1: Normalize Business Hours
+├─ Option A: Store as JSON in businesses table
+│   ├─ Pros: Simple, one query gets everything
+│   └─ Cons: Hard to query "businesses open on Sunday", can't index
+├─ Option B: Separate business_hours table
+│   ├─ Pros: Can index by day, query efficiently
+│   └─ Cons: Need join to get business + hours
+└─ Decision: Option B (separate table) for query flexibility
+
+Decision 2: Denormalize Rating in Businesses Table
+├─ Option A: Calculate rating on-the-fly from reviews
+│   ├─ Pros: Always accurate, no sync needed
+│   └─ Cons: Slow (need to aggregate millions of reviews)
+├─ Option B: Store rating in businesses table, update on review
+│   ├─ Pros: Fast reads, one field to query
+│   └─ Cons: Need to keep in sync (eventual consistency)
+└─ Decision: Option B (denormalize) for performance
+
+Decision 3: Store Photos Separately
+├─ Option A: Store photo URLs in database
+│   ├─ Pros: Simple, can query photos by business
+│   └─ Cons: Database stores large text (URLs)
+├─ Option B: Store in S3, only store URLs in database
+│   ├─ Pros: Database stays small, photos served via CDN
+│   └─ Cons: Need to manage S3 + database
+└─ Decision: Option B (S3 + database URLs) for scalability
+```
+
+### 🔴 For Advanced: Production Considerations
+
+#### Advanced Database Patterns
+
+**Pattern 1: Read/Write Splitting**
+
+```text
+Challenge: 50K reads/sec but only 1K writes/sec
+
+Solution: Separate read and write databases
+
+Architecture:
+├─ Write Database: 1 primary PostgreSQL instance
+│   ├─ Handles: All writes (business updates, new businesses)
+│   ├─ Replicates: To read replicas asynchronously
+│   └─ Latency: 50-100ms (acceptable for writes)
+│
+├─ Read Databases: 5 read replicas per shard
+│   ├─ Handles: All reads (search queries, business lookups)
+│   ├─ Sync: <1 second lag from primary
+│   └─ Latency: 10-20ms (critical for user experience)
+│
+└─ Load Balancing:
+    ├─ Writes: Always go to primary
+    ├─ Reads: Distributed across replicas
+    └─ Result: 5x read capacity, no write contention
+
+Benefits:
+├─ Read throughput: 1K QPS → 5K QPS per shard
+├─ Write isolation: Writes don't slow down reads
+├─ Availability: If primary fails, promote replica
+└─ Cost: 5 replicas cost 5x, but handle 5x reads (same $/QPS)
+```
+
+**Pattern 2: Database Sharding**
+
+```text
+Challenge: 100M businesses can't fit in one database
+
+Solution: Shard (split) businesses across multiple databases
+
+Sharding Strategy:
+├─ Shard Key: Geohash prefix (first 2 characters)
+├─ Shards: 32 shards (one per geohash prefix character)
+├─ Distribution: ~3M businesses per shard
+└─ Routing: Application calculates geohash, routes to correct shard
+
+Example:
+├─ Business in San Francisco: geohash = "9q8yyk"
+├─ First 2 chars: "9q"
+├─ Shard: Shard_9q (handles all businesses starting with "9q")
+└─ Query: Route to Shard_9q, query within that shard
+
+Benefits:
+├─ Scale: Each shard handles 3M businesses (manageable)
+├─ Performance: Smaller database = faster queries
+├─ Isolation: Shard failure only affects that region
+└─ Growth: Add shards as new regions grow
+
+Challenges:
+├─ Cross-shard queries: Need to query multiple shards
+├─ Data distribution: Some shards might be larger (uneven)
+└─ Rebalancing: Moving businesses between shards is complex
+```
+
+**Pattern 3: Eventual Consistency Between Databases**
+
+```text
+Challenge: Business data in PostgreSQL, search index in Elasticsearch
+
+Problem: How to keep them in sync?
+
+Solution: Event-driven synchronization
+
+Flow:
+├─ 1. Business owner updates hours
+├─ 2. Write to PostgreSQL (source of truth)
+├─ 3. Publish "BusinessHoursUpdated" event to Kafka
+├─ 4. Background worker consumes event
+├─ 5. Update Elasticsearch index
+├─ 6. Invalidate Redis cache
+└─ Total delay: 5-30 seconds (eventual consistency)
+
+Why Acceptable:
+├─ Business hours rarely change
+├─ 5-30 second delay is imperceptible to users
+├─ Critical updates (business closed) use real-time invalidation
+└─ Performance benefit (fast Elasticsearch) outweighs slight delay
+
+Alternative (Strong Consistency):
+├─ Update PostgreSQL and Elasticsearch in transaction
+├─ Problem: Cross-database transactions are slow (200ms+)
+├─ Problem: If Elasticsearch down, can't update business
+└─ Decision: Eventual consistency for better performance
+```
+
+#### Production Database Trade-offs
+
+**Trade-off 1: Normalization vs Denormalization**
+
+```text
+Scenario: Business data with hours, features, photos
+
+Option A: Fully Normalized (Separate Tables)
+├─ Tables: businesses, business_hours, business_features, business_photos
+├─ Pros: No data duplication, easy to update
+├─ Cons: Need joins for complete business data (slow)
+├─ Query: 4 table joins = 50ms
+└─ Use Case: When data changes frequently, need ACID
+
+Option B: Denormalized (Everything in One Table)
+├─ Table: businesses (with JSON columns for hours, features)
+├─ Pros: One query gets everything (fast)
+├─ Cons: Data duplication, harder to update
+├─ Query: Single table read = 5ms
+└─ Use Case: Read-heavy, data rarely changes
+
+Option C: Hybrid (Normalized in DB, Denormalized in Search)
+├─ PostgreSQL: Normalized (source of truth)
+├─ Elasticsearch: Denormalized (copy for fast search)
+├─ Pros: Best of both worlds
+├─ Cons: Need to keep in sync
+└─ Use Case: Production systems (Yelp uses this)
+
+💡 Real-world: Yelp stores normalized data in PostgreSQL (easy to 
+update), denormalized copy in Elasticsearch (fast to search). 
+Updates sync via Kafka events (5-30 second delay acceptable).
+```
+
+**Trade-off 2: SQL vs NoSQL for Reviews**
+
+```text
+Scenario: 5 billion reviews, 10K new reviews per second
+
+Option A: PostgreSQL (SQL)
+├─ Pros: ACID compliance, complex queries, joins
+├─ Cons: Write bottleneck (single primary), expensive scaling
+├─ Write throughput: 1K writes/sec per database
+├─ Cost: Need 10 databases = $8K/month
+└─ Verdict: Too expensive, can't scale writes
+
+Option B: Cassandra (NoSQL)
+├─ Pros: Write-optimized, horizontal scaling, time-series
+├─ Cons: No joins, eventual consistency, complex queries harder
+├─ Write throughput: 10K writes/sec per node
+├─ Cost: 3 nodes = $2.4K/month
+└─ Verdict: Perfect for write-heavy reviews
+
+Option C: MongoDB (Document Store)
+├─ Pros: Flexible schema, good for reviews with photos
+├─ Cons: Weaker consistency, not optimized for time-series
+├─ Write throughput: 5K writes/sec per node
+└─ Verdict: Good but Cassandra better for time-series
+
+💡 Real-world: Yelp uses Cassandra for reviews because:
+1. Reviews are append-only (rarely updated)
+2. Time-series access pattern (get recent reviews)
+3. Need high write throughput (10K+ reviews/sec)
+4. Can tolerate eventual consistency (5-30 second delay)
+```
+
+**Trade-off 3: Single vs Multiple Databases**
+
+```text
+Challenge: Should we use one database for everything?
+
+Option A: Single PostgreSQL Database
+├─ Pros: Simple, one system to manage, ACID transactions
+├─ Cons: Can't optimize for different access patterns
+├─ Performance: 
+│   ├─ Business queries: 20ms (good)
+│   ├─ Review queries: 200ms (slow, too many reviews)
+│   └─ Search queries: 500ms (terrible, not optimized for search)
+└─ Verdict: Fails at scale
+
+Option B: Specialized Databases (PostgreSQL + Cassandra + Elasticsearch)
+├─ Pros: Each optimized for its use case
+├─ Cons: More complex, need to sync data
+├─ Performance:
+│   ├─ Business queries: 15ms (PostgreSQL, excellent)
+│   ├─ Review queries: 10ms (Cassandra, excellent)
+│   └─ Search queries: 20ms (Elasticsearch, excellent)
+└─ Verdict: Best performance, worth the complexity
+
+💡 Real-world: At scale (100M+ businesses), specialized databases 
+are essential. The performance gains (10-50x faster) justify the 
+operational complexity. Companies like Yelp, Google Maps all use 
+multiple databases.
+```
+
+### Real-World Example: How Yelp's Database Evolved
+
+Let's examine how Yelp's database architecture changed over time:
+
+**2004-2006 - Single Database:**
+
+```text
+Context: 10K businesses, 100K users, single city
+├─ Database: Single PostgreSQL instance
+├─ Schema: All tables in one database
+├─ Performance: 50ms average query time
+├─ Scale: Worked fine for single city
+└─ Result: Simple, easy to manage
+```
+
+**2007-2010 - Read Replicas:**
+
+```text
+Context: 5M businesses, 10M users, national scale
+├─ Challenge: Database became read bottleneck
+├─ Solution: Added read replicas
+├─ Architecture:
+│   ├─ 1 primary (writes)
+│   ├─ 3 read replicas (reads)
+│   └─ Load balancer routes reads to replicas
+├─ Performance: 20ms average (2.5x faster)
+└─ Result: Could handle national scale
+```
+
+**2011-2015 - Database Sharding:**
+
+```text
+Context: 50M businesses, 100M users, global scale
+├─ Challenge: Single database too large, slow queries
+├─ Solution: Sharded by geohash prefix
+├─ Architecture:
+│   ├─ 10 shards (by geohash first 2 chars)
+│   ├─ Each shard: 1 primary + 3 replicas
+│   └─ Application routes by geohash
+├─ Performance: 15ms average (faster with smaller DBs)
+└─ Result: Could scale globally
+```
+
+**2016-Present - Multi-Database Architecture:**
+
+```text
+Context: 100M+ businesses, 500M+ users, real-time features
+├─ Innovation: Specialized databases for each use case
+├─ Architecture:
+│   ├─ PostgreSQL: Business data (ACID, spatial)
+│   ├─ Cassandra: Reviews (write-heavy, time-series)
+│   ├─ Elasticsearch: Search index (full-text + geo)
+│   ├─ Redis: Cache (in-memory, geospatial)
+│   └─ Kafka: Event streaming (sync between DBs)
+├─ Performance: 10ms average (optimized for each use case)
+└─ Result: Production-grade, handles any scale
+```
+
+📊 **By The Numbers:**
+- 2004: 1 database, 50ms queries
+- 2010: 4 databases (1 primary + 3 replicas), 20ms queries
+- 2015: 40 databases (10 shards × 4), 15ms queries
+- 2025: 100+ databases (specialized), 10ms queries
+
+**Key Lesson:** Start with one database, add replicas for reads, shard for scale, then specialize for performance. Don't try to build the perfect multi-database architecture day one!
+
+### 🎯 Interview Questions: Database Design
+
+#### Question 1: How would you design the database schema for a proximity service?
+
+**What the interviewer wants to know:**
+- Can you identify entities and relationships?
+- Do you understand normalization?
+- Can you choose appropriate data types and indexes?
+
+**Answer Framework:**
+
+```text
+1. Identify Core Entities
+   ├─ Businesses (main entity)
+   ├─ Users (who use the service)
+   ├─ Reviews (users review businesses)
+   ├─ Categories (business classification)
+   ├─ Business Hours (operating hours)
+   ├─ Business Features (amenities, services)
+   └─ Photos (business and review photos)
+
+2. Design Relationships
+   ├─ Business → Reviews: One-to-Many (1 business has many reviews)
+   ├─ User → Reviews: One-to-Many (1 user writes many reviews)
+   ├─ Business → Category: Many-to-One (many businesses per category)
+   ├─ Business → Hours: One-to-Many (7 hours per business, one per day)
+   ├─ Business → Features: One-to-Many (many features per business)
+   └─ Business → Photos: One-to-Many (many photos per business)
+
+3. Choose Database Technology
+   ├─ Business Data → PostgreSQL + PostGIS
+   │   ├─ Why: ACID compliance, spatial operations
+   │   └─ Access: Read-heavy, complex queries
+   │
+   ├─ Review Data → Cassandra
+   │   ├─ Why: Write-heavy, time-series
+   │   └─ Access: Append-only, partitioned by business_id
+   │
+   ├─ Search Index → Elasticsearch
+   │   ├─ Why: Full-text + geospatial search
+   │   └─ Access: Read-only queries, write for indexing
+   │
+   └─ Cache → Redis
+       ├─ Why: Sub-millisecond access
+       └─ Access: Frequent reads/writes
+
+4. Design Indexes
+   ├─ PostgreSQL:
+   │   ├─ Primary: business_id (UUID)
+   │   ├─ Spatial: location (GIST index)
+   │   ├─ Geohash: geohash (B-tree for prefix matching)
+   │   ├─ Composite: (category_id, rating, is_active)
+   │   └─ Full-text: (name, description)
+   │
+   ├─ Elasticsearch:
+   │   ├─ business_id: keyword
+   │   ├─ name: text with autocomplete
+   │   ├─ location: geo_point
+   │   └─ geohash: keyword
+   │
+   └─ Redis:
+       ├─ Geospatial: GEOADD structures
+       └─ Hash: Business details by ID
+
+5. Handle Edge Cases
+   ├─ Business moves location: Update geohash, reindex
+   ├─ Business permanently closed: Soft delete (is_active = false)
+   ├─ Review spam: Store moderation status, filter in queries
+   └─ High review volume: Partition reviews by date for archiving
+```
+
+**Follow-up: Why use separate tables for business_hours instead of storing as JSON?**
+
+```text
+JSON Approach:
+├─ Store: hours JSON column in businesses table
+├─ Example: {"monday": {"open": "09:00", "close": "21:00"}, ...}
+├─ Pros: Simple, one query gets everything
+└─ Cons: Can't efficiently query "businesses open on Sunday"
+
+Separate Table Approach:
+├─ Store: business_hours table with day_of_week column
+├─ Example: (business_id, 0, "09:00", "21:00") for Monday
+├─ Pros: Can index by day, query "WHERE day_of_week = 0 AND is_closed = false"
+└─ Cons: Need join to get business + hours
+
+Decision: Use separate table because:
+1. Need to query "businesses open now" frequently
+2. Can index day_of_week for fast filtering
+3. Can handle special hours (holidays) in separate table
+4. Join overhead (5ms) acceptable for query flexibility
+
+Real-world: Yelp uses separate business_hours table for this exact reason.
+```
+
+#### Question 2: Why would you use Cassandra for reviews instead of PostgreSQL?
+
+**What the interviewer wants to know:**
+- Do you understand write-heavy vs read-heavy workloads?
+- Can you choose databases based on access patterns?
+- Do you understand NoSQL trade-offs?
+
+**Answer Framework:**
+
+```text
+1. Access Pattern Analysis
+   ├─ Reviews: Write-heavy workload
+   │   ├─ Writes: 10K reviews/second (constant stream)
+   │   ├─ Reads: 5K reads/second (get reviews for business)
+   │   └─ Ratio: 2:1 write to read
+   │
+   └─ Businesses: Read-heavy workload
+       ├─ Writes: 1K updates/second (occasional)
+       ├─ Reads: 50K reads/second (search queries)
+       └─ Ratio: 1:50 write to read
+
+2. PostgreSQL Limitations for Reviews
+   ├─ Write bottleneck: Single primary handles all writes
+   ├─ Scaling: Can't easily scale writes horizontally
+   ├─ Cost: Need 10 PostgreSQL instances = $8K/month
+   ├─ Performance: Write contention causes 200ms+ latency
+   └─ Verdict: PostgreSQL struggles with high write volume
+
+3. Cassandra Advantages for Reviews
+   ├─ Write-optimized: Designed for high write throughput
+   ├─ Horizontal scaling: Add nodes to increase write capacity
+   ├─ Partitioning: Reviews partitioned by business_id
+   │   ├─ All reviews for one business on same node
+   │   └─ Fast to query "reviews for business X"
+   ├─ Time-series: Clustered by created_at (get recent reviews)
+   ├─ Cost: 3 Cassandra nodes = $2.4K/month (3x cheaper!)
+   └─ Performance: 10K writes/sec with 10ms latency
+
+4. Trade-offs
+   ├─ Pros: High write throughput, horizontal scaling, cost-effective
+   ├─ Cons: No joins, eventual consistency, complex queries harder
+   └─ Acceptable: Reviews don't need joins, eventual consistency OK
+
+5. Schema Design
+   ├─ Partition Key: business_id (all reviews for business together)
+   ├─ Clustering Key: created_at DESC (newest first)
+   ├─ Query: Get reviews for business, sorted by date
+   └─ Performance: O(1) lookup by business_id, O(log n) by date
+
+Example:
+Reviews table in Cassandra:
+├─ PRIMARY KEY (business_id, created_at, review_id)
+├─ business_id: Partition key (which node stores it)
+├─ created_at: Clustering key (sort order)
+└─ review_id: Ensures uniqueness
+Query: SELECT * FROM reviews WHERE business_id = 'biz_123'
+Result: All reviews for that business, sorted newest first, <10ms
+```
+
+#### Question 3: How would you handle database consistency when business data is in PostgreSQL but search index is in Elasticsearch?
+
+**What the interviewer wants to know:**
+- Do you understand eventual vs strong consistency?
+- Can you design sync mechanisms?
+- Do you think about failure scenarios?
+
+**Answer Framework:**
+
+```text
+1. The Consistency Challenge
+   ├─ Problem: Business data in PostgreSQL, search in Elasticsearch
+   ├─ Challenge: Keep them in sync
+   ├─ Options: Strong consistency vs eventual consistency
+   └─ Decision: Eventual consistency (5-30 second delay)
+
+2. Sync Mechanism: Event-Driven
+   ├─ Step 1: Business owner updates hours in PostgreSQL
+   ├─ Step 2: PostgreSQL write succeeds (source of truth)
+   ├─ Step 3: Publish "BusinessHoursUpdated" event to Kafka
+   ├─ Step 4: Background worker consumes event
+   ├─ Step 5: Update Elasticsearch document
+   ├─ Step 6: Invalidate Redis cache for that business
+   └─ Total delay: 5-30 seconds
+
+3. Why Eventual Consistency is Acceptable
+   ├─ Business data rarely changes (hours, status)
+   ├─ 5-30 second delay is imperceptible to users
+   ├─ Critical updates (business closed) use real-time invalidation
+   └─ Performance benefit (fast Elasticsearch) outweighs delay
+
+4. Handling Failures
+   ├─ If Elasticsearch update fails:
+   │   ├─ Retry: Exponential backoff (1s, 2s, 4s, 8s)
+   │   ├─ Dead letter queue: Store failed events
+   │   ├─ Alert: Notify engineers if >100 failures
+   │   └─ Manual replay: Can replay events from Kafka
+   │
+   ├─ If Kafka is down:
+   │   ├─ Fallback: Write directly to Elasticsearch (slower)
+   │   ├─ Queue: Store events in database, process when Kafka recovers
+   │   └─ Monitoring: Alert if sync lag > 5 minutes
+   │
+   └─ If PostgreSQL write fails:
+       ├─ Don't update Elasticsearch (source of truth failed)
+       └─ Return error to user
+
+5. Monitoring and Validation
+   ├─ Track: Sync lag between PostgreSQL and Elasticsearch
+   ├─ Alert: If lag > 30 seconds for >5 minutes
+   ├─ Validate: Periodic job checks data consistency
+   ├─ Metrics: % of businesses in sync, average lag time
+   └─ Dashboard: Real-time view of sync status
+
+6. Critical Updates (Real-Time)
+   ├─ Business permanently closed: Write-through to Elasticsearch
+   ├─ Business verification: Immediate invalidation
+   └─ Emergency updates: Bypass queue, sync immediately
+```
+
+### 🤔 Think About It
+
+1. **For Beginners:** Why do you think we store photos in S3 (cloud storage) instead of in the database? (Hint: Think about the size of photos vs database storage costs)
+
+2. **For Intermediate:** If you had to choose between storing business hours as a JSON column vs a separate table, which would you choose and why? Consider query patterns like "find all businesses open on Sunday."
+
+3. **For Advanced:** How would your database design change if you needed to support real-time collaborative editing (multiple business owners editing the same business profile simultaneously)? What about if you needed to maintain a complete audit trail of all changes?
+
+### ✅ Key Takeaways
+
+- **Right database for right job**: PostgreSQL for transactions, Cassandra for writes, Elasticsearch for search, Redis for cache
+- **Normalize for updates, denormalize for reads**: PostgreSQL normalized, Elasticsearch denormalized
+- **Index strategically**: Geospatial indexes for location, composite indexes for filtered queries
+- **Shard for scale**: Split large tables across multiple databases by geohash
+- **Read/write splitting**: Separate replicas for reads, primary for writes
+- **Eventual consistency acceptable**: 5-30 second delay between databases is fine for most use cases
+- **Design for access patterns**: Reviews are write-heavy (Cassandra), businesses are read-heavy (PostgreSQL)
+
+### 🎯 Practice Exercise
+
+**Scenario:** You're designing a database for a proximity service that needs to track not just businesses, but also events (concerts, festivals) that have specific start/end times and locations.
+
+**Your Task:**
+1. Design the database schema for events (how do they differ from businesses?)
+2. Explain how you'd handle events that move locations (like food truck festivals)
+3. Design indexes for querying "events happening this weekend near me"
+4. Choose which database(s) to use for events and justify your choice
+
+**Bonus Challenge:** How would your design handle recurring events (weekly farmers market, monthly art walk) vs one-time events (concert, festival)?
+
+---
+
+## Section 6: API Design
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Design RESTful APIs for proximity search and business management
+- Understand API versioning, authentication, and rate limiting strategies
+- Design request/response formats for geospatial queries
+- Handle pagination, filtering, and sorting in API responses
+- Design APIs that support both mobile apps and web browsers
+
+### Why This Matters
+
+API design is the contract between your service and all clients - poor API design leads to confusion, breaking changes, and frustrated developers! Real-world example: When Google Maps first launched their Places API, they used simple query parameters like `?lat=37.7&lng=-122.4&radius=5000`. As features grew, they had to add more parameters, leading to URLs with 20+ parameters that were hard to use. They redesigned to use POST requests with JSON bodies, making the API more maintainable and easier to extend. Good API design saves months of developer time and prevents breaking changes!
+
+### 🟢 For Beginners: The Fundamentals
+
+#### What is an API?
+
+An API (Application Programming Interface) is like a menu at a restaurant - it tells clients what they can order (what requests they can make) and what they'll get back (what responses to expect):
+
+```text
+Restaurant Menu Analogy:
+├─ Menu (API Documentation): Lists all available dishes (endpoints)
+├─ Order (API Request): "I'd like pizza near me" (search request)
+├─ Kitchen (Your Service): Prepares the dish (processes the request)
+└─ Food (API Response): Delivers pizza list (returns search results)
+
+The menu doesn't change often (API versioning), and everyone gets 
+the same menu (consistent interface).
+```
+
+**Core API Concepts:**
+
+```text
+1. Endpoint (Like a menu item):
+   ├─ URL: /api/v1/search/nearby
+   ├─ Method: POST (send data) or GET (retrieve data)
+   ├─ Purpose: Find businesses near a location
+   └─ Example: Like ordering "pizza" from the menu
+
+2. Request (What you send):
+   ├─ Headers: Authentication token, content type
+   ├─ Body: Location, radius, filters (JSON format)
+   └─ Example: "Find Italian restaurants within 2km"
+
+3. Response (What you get back):
+   ├─ Status Code: 200 (success), 400 (error), 404 (not found)
+   ├─ Body: List of businesses with details (JSON format)
+   └─ Example: List of 20 Italian restaurants with ratings
+
+4. Authentication (Proving who you are):
+   ├─ API Key: Like a membership card
+   ├─ JWT Token: Like a temporary pass
+   └─ Purpose: Prevent abuse, track usage
+```
+
+#### Understanding REST APIs
+
+REST (Representational State Transfer) is a way of designing APIs that follows simple rules:
+
+```text
+REST Principles:
+├─ Use HTTP methods correctly:
+│   ├─ GET: Retrieve data (read-only)
+│   ├─ POST: Create new data
+│   ├─ PUT: Update existing data (replace entire resource)
+│   ├─ PATCH: Update part of data (partial update)
+│   └─ DELETE: Remove data
+│
+├─ Use URLs to represent resources:
+│   ├─ /businesses/{id} - Get specific business
+│   ├─ /businesses/{id}/reviews - Get reviews for business
+│   └─ /search/nearby - Search endpoint (not a resource)
+│
+├─ Use status codes to indicate results:
+│   ├─ 200 OK: Success
+│   ├─ 201 Created: Resource created
+│   ├─ 400 Bad Request: Invalid input
+│   ├─ 401 Unauthorized: Not authenticated
+│   ├─ 404 Not Found: Resource doesn't exist
+│   └─ 500 Server Error: Something went wrong
+│
+└─ Return JSON format:
+    ├─ Easy to parse
+    ├─ Works with any programming language
+    └─ Human-readable
+```
+
+**Example API Request/Response:**
+
+```text
+Request (What client sends):
+POST /api/v1/search/nearby
+Headers:
+  Authorization: Bearer abc123xyz
+  Content-Type: application/json
+Body:
+{
+  "location": {
+    "latitude": 37.7749,
+    "longitude": -122.4194
+  },
+  "radius": 2000,
+  "category": "restaurants"
+}
+
+Response (What server returns):
+Status: 200 OK
+Body:
+{
+  "results": [
+    {
+      "business_id": "biz_123",
+      "name": "Best Pizza",
+      "distance_meters": 150,
+      "rating": 4.5
+    }
+  ],
+  "total": 45
+}
+```
+
+#### Why API Design Matters
+
+Good API design makes it easy for developers to use your service:
+
+```text
+Bad API Design:
+├─ Confusing: /api/search?lat=37.7&lng=-122.4&r=2000&cat=rest&min_rating=4
+├─ Hard to remember: What does "r" mean? What's the format?
+├─ Error-prone: Easy to make mistakes with parameters
+└─ Result: Developers frustrated, many support requests
+
+Good API Design:
+├─ Clear: POST /api/v1/search/nearby with JSON body
+├─ Self-documenting: Field names explain themselves
+├─ Type-safe: JSON schema validates input
+└─ Result: Developers happy, fewer bugs, faster integration
+```
+
+### 🟡 For Intermediate: Interview Patterns
+
+#### The API Design Framework
+
+When designing APIs in an interview, follow this systematic approach:
+
+**Step 1: Identify Core Endpoints (3 minutes)**
+
+```text
+"Let me identify the main API endpoints needed:"
+
+Core Endpoints:
+├─ Search & Discovery:
+│   ├─ POST /search/nearby - Find businesses near location
+│   ├─ GET /businesses/{id} - Get business details
+│   ├─ GET /businesses/{id}/reviews - Get reviews
+│   └─ GET /categories - List all categories
+│
+├─ Business Management:
+│   ├─ POST /businesses - Create new business
+│   ├─ PUT /businesses/{id} - Update business
+│   ├─ POST /businesses/{id}/photos - Upload photo
+│   └─ PUT /businesses/{id}/hours - Update hours
+│
+├─ User Actions:
+│   ├─ POST /businesses/{id}/reviews - Submit review
+│   ├─ POST /businesses/{id}/checkin - Check in
+│   └─ GET /users/{id}/favorites - Get saved businesses
+│
+└─ Analytics (Optional):
+    ├─ GET /businesses/{id}/analytics - Business metrics
+    └─ POST /events/search - Track search event
+```
+
+**Step 2: Design Request/Response Formats (2 minutes)**
+
+```text
+"Let me design the request and response formats:"
+
+Search Request:
+├─ Method: POST (complex query with filters)
+├─ Endpoint: /api/v1/search/nearby
+├─ Body:
+│   ├─ location: {latitude, longitude} (required)
+│   ├─ radius: integer in meters (required, 1-50000)
+│   ├─ category: string (optional)
+│   ├─ filters: object (optional)
+│   │   ├─ rating_min: float (1.0-5.0)
+│   │   ├─ price_level: array [1,2,3,4]
+│   │   ├─ open_now: boolean
+│   │   └─ features: array ["outdoor_seating", "delivery"]
+│   ├─ sort_by: string ("distance", "rating", "popularity")
+│   ├─ page: integer (default: 1)
+│   └─ page_size: integer (default: 20, max: 100)
+
+Search Response:
+├─ Status: 200 OK
+├─ Body:
+│   ├─ results: array of business objects
+│   ├─ pagination: {page, page_size, total, total_pages}
+│   └─ metadata: {search_id, response_time_ms, cache_hit}
+│
+└─ Error Response (400 Bad Request):
+    ├─ error: {code, message, details}
+    └─ Example: {"error": {"code": "INVALID_RADIUS", "message": "Radius must be between 1 and 50000 meters"}}
+```
+
+**Step 3: Handle Edge Cases (2 minutes)**
+
+```text
+"Let me think about edge cases:"
+
+Edge Cases:
+├─ Invalid location: Return 400 with clear error message
+├─ No results found: Return 200 with empty results array (not 404)
+├─ Radius too large: Limit to 50km, return warning in metadata
+├─ High-density area: Return top 100, add "more_results_available" flag
+├─ Rate limiting: Return 429 Too Many Requests with retry-after header
+├─ Authentication failure: Return 401 with WWW-Authenticate header
+└─ Server error: Return 500 with error ID for tracking
+```
+
+⚠️ **Common Mistake:** Many candidates design GET requests for complex queries. Use POST when you have:
+- Complex filters (many parameters)
+- Large request bodies
+- Sensitive data (location privacy)
+- Need for request body logging
+
+#### API Versioning Strategy
+
+```text
+"Let me explain my versioning strategy:"
+
+Challenge: Need to update API without breaking existing clients
+
+Solution: URL-based versioning
+
+Strategy:
+├─ Version in URL: /api/v1/search/nearby
+├─ Benefits:
+│   ├─ Clear: Easy to see which version client uses
+│   ├─ Parallel: Can run multiple versions simultaneously
+│   ├─ Gradual: Migrate clients one by one
+│   └─ Safe: Old clients unaffected by new version
+│
+├─ Version Lifecycle:
+│   ├─ v1: Current stable version (supported for 2 years)
+│   ├─ v2: New version (beta, then stable)
+│   └─ v1: Deprecated after 6 months notice
+│
+└─ Breaking Changes:
+    ├─ Remove field: Create v2, keep v1
+    ├─ Change field type: Create v2, keep v1
+    ├─ Add required field: Create v2, keep v1
+    └─ Non-breaking: Add optional field to v1 (backward compatible)
+
+Example:
+├─ v1: /api/v1/search/nearby (uses "radius" in meters)
+├─ v2: /api/v2/search/nearby (uses "radius_km" for clarity)
+└─ Both run simultaneously, clients migrate gradually
+```
+
+### 🔴 For Advanced: Production Considerations
+
+#### Advanced API Patterns
+
+**Pattern 1: GraphQL vs REST**
+
+```text
+Challenge: Mobile app needs different data than web app
+
+Option A: REST (Multiple Endpoints)
+├─ Web: GET /businesses/{id} (full details)
+├─ Mobile: GET /businesses/{id}/summary (minimal data)
+├─ Problem: Need separate endpoints for each use case
+└─ Result: API bloat, more maintenance
+
+Option B: GraphQL (Single Endpoint)
+├─ Single: POST /graphql
+├─ Client specifies fields needed:
+│   query {
+│     business(id: "biz_123") {
+│       name
+│       rating
+│       # Client chooses what to fetch
+│     }
+│   }
+├─ Benefits:
+│   ├─ Flexible: Client gets exactly what it needs
+│   ├─ Efficient: Mobile gets less data (faster, less bandwidth)
+│   └─ Single endpoint: Easier to maintain
+└─ Trade-off: More complex, harder to cache
+
+Decision: Use REST for proximity service because:
+1. Geospatial queries are complex (better as POST with JSON)
+2. Need strong caching (REST URLs are cacheable)
+3. Simpler for developers (REST is more familiar)
+4. GraphQL adds complexity without clear benefit here
+
+💡 Real-world: Yelp uses REST, Google Maps uses REST, Foursquare 
+uses REST. GraphQL is better for social media (Facebook uses it) 
+where clients need different views of same data.
+```
+
+**Pattern 2: Rate Limiting Strategies**
+
+```text
+Challenge: Prevent API abuse, ensure fair usage
+
+Strategy: Multi-tier rate limiting
+
+Tier 1: Per-User Rate Limiting
+├─ Limit: 1000 requests/hour per user
+├─ Storage: Redis with user_id as key
+├─ Algorithm: Token bucket (refill 1000 tokens/hour)
+├─ Response: 429 Too Many Requests with retry-after
+└─ Purpose: Prevent individual abuse
+
+Tier 2: Per-IP Rate Limiting
+├─ Limit: 100 requests/minute per IP
+├─ Storage: Redis with IP address as key
+├─ Algorithm: Sliding window (last 60 seconds)
+├─ Response: 429 with retry-after
+└─ Purpose: Prevent distributed attacks
+
+Tier 3: Global Rate Limiting
+├─ Limit: 50K requests/second globally
+├─ Storage: Distributed counter (Redis Cluster)
+├─ Algorithm: Distributed token bucket
+├─ Response: 503 Service Unavailable (all users affected)
+└─ Purpose: Protect infrastructure
+
+Implementation:
+├─ Check in API Gateway (before hitting services)
+├─ Use Redis for fast lookups (<1ms)
+├─ Return headers: X-RateLimit-Limit, X-RateLimit-Remaining
+└─ Log violations for security monitoring
+
+Example Response:
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1640995200
+Retry-After: 3600
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded. Try again in 3600 seconds."
+  }
+}
+```
+
+**Pattern 3: API Pagination Strategies**
+
+```text
+Challenge: Search returns 10,000 results, can't return all at once
+
+Option A: Offset-Based Pagination
+├─ Request: ?page=1&page_size=20
+├─ Implementation: LIMIT 20 OFFSET 0
+├─ Pros: Simple, easy to implement
+├─ Cons: 
+│   ├─ Inconsistent: If data changes, page 2 might show duplicates
+│   ├─ Slow: OFFSET 10000 is slow (database scans 10000 rows)
+│   └─ Not suitable for real-time data
+└─ Use Case: Static data, small result sets
+
+Option B: Cursor-Based Pagination
+├─ Request: ?cursor=eyJidXNpbmVzc19pZCI6ImJpel8xMjMifQ&page_size=20
+├─ Implementation: WHERE business_id > 'biz_123' LIMIT 20
+├─ Pros:
+│   ├─ Consistent: No duplicates even if data changes
+│   ├─ Fast: Index-based, no OFFSET scanning
+│   └─ Real-time: Works with changing data
+├─ Cons:
+│   ├─ Complex: Need to encode/decode cursor
+│   └─ No random access: Can't jump to page 50
+└─ Use Case: Real-time data, large result sets (Yelp uses this)
+
+Option C: Keyset Pagination (Best for Geospatial)
+├─ Request: ?last_business_id=biz_123&last_distance=150&page_size=20
+├─ Implementation: 
+│   WHERE (distance > 150 OR (distance = 150 AND business_id > 'biz_123'))
+│   ORDER BY distance, business_id
+│   LIMIT 20
+├─ Pros:
+│   ├─ Consistent: Works with distance-based sorting
+│   ├─ Fast: Uses composite index (distance, business_id)
+│   └─ Real-time: No duplicates
+└─ Use Case: Geospatial queries with distance sorting
+
+Decision: Use keyset pagination for proximity search because:
+1. Results sorted by distance (need consistent pagination)
+2. Real-time data (businesses can change)
+3. Large result sets (10K+ businesses in dense areas)
+4. Performance critical (<100ms response time)
+
+Example Response:
+{
+  "results": [...],
+  "pagination": {
+    "page_size": 20,
+    "has_more": true,
+    "next_cursor": "eyJkaXN0YW5jZSI6MTUwLCJidXNpbmVzc19pZCI6ImJpel8xMjMifQ"
+  }
+}
+```
+
+#### Production API Trade-offs
+
+**Trade-off 1: Synchronous vs Asynchronous for Writes**
+
+```text
+Scenario: Business owner updates hours, review submission
+
+Option A: Synchronous (Wait for completion)
+├─ Flow: Client → API → Database → Response
+├─ Response: 200 OK with updated data
+├─ Pros: Simple, client knows result immediately
+├─ Cons: 
+│   ├─ Slow: 200ms for database write
+│   ├─ Blocking: Can't handle high write volume
+│   └─ Failure: If database slow, API slow
+└─ Use Case: Critical updates (business closed)
+
+Option B: Asynchronous (Accept and process later)
+├─ Flow: Client → API → Queue → Response (immediate)
+├─ Background: Worker processes queue → Database
+├─ Response: 202 Accepted with job_id
+├─ Pros:
+│   ├─ Fast: 5ms response time
+│   ├─ Scalable: Queue handles bursts
+│   └─ Resilient: Retry on failure
+├─ Cons:
+│   ├─ Complex: Need job tracking, status endpoints
+│   └─ Eventual: Update visible in 5-30 seconds
+└─ Use Case: Non-critical updates (photos, reviews)
+
+Hybrid Approach (Best):
+├─ Critical: Synchronous (business hours, status)
+│   ├─ Response: 200 OK with updated data
+│   └─ Latency: 100-200ms (acceptable)
+│
+├─ Non-Critical: Asynchronous (photos, reviews)
+│   ├─ Response: 202 Accepted with job_id
+│   ├─ Status: GET /jobs/{job_id} to check status
+│   └─ Latency: 5ms (fast user experience)
+│
+└─ Result: Fast for users, reliable for critical data
+
+💡 Real-world: Yelp uses synchronous for business updates (critical), 
+asynchronous for reviews and photos (non-critical, high volume).
+```
+
+**Trade-off 2: API Response Size Optimization**
+
+```text
+Challenge: Mobile app on slow connection, need fast loading
+
+Problem: Full business object is 5KB, returning 20 = 100KB
+
+Solution: Field selection and compression
+
+Strategy 1: Field Selection
+├─ Request: ?fields=id,name,rating,distance (client specifies)
+├─ Response: Only requested fields (1KB instead of 5KB)
+├─ Benefit: 80% reduction in response size
+└─ Trade-off: More complex API, need to maintain field lists
+
+Strategy 2: Separate Summary Endpoint
+├─ Search: GET /search/nearby returns summary (id, name, rating, distance)
+├─ Details: GET /businesses/{id} returns full object
+├─ Benefit: Search fast (small payload), details on demand
+└─ Trade-off: Two API calls instead of one
+
+Strategy 3: Compression
+├─ Response: gzip compression (automatic)
+├─ Benefit: 70% size reduction (100KB → 30KB)
+├─ Cost: Minimal CPU overhead
+└─ Trade-off: None, always use this
+
+Strategy 4: Pagination
+├─ Default: 20 results per page
+├─ Benefit: Smaller responses, faster loading
+└─ Trade-off: Need multiple requests for all results
+
+Decision: Use all strategies:
+1. Compression: Always enabled (70% reduction)
+2. Summary in search: Return minimal fields (80% reduction)
+3. Details endpoint: Full object on demand
+4. Pagination: 20 results default
+Result: 100KB → 6KB (94% reduction, 16x faster on 3G)
+```
+
+### Real-World Example: How Google Maps Places API Evolved
+
+Let's examine how Google Maps API design changed over time:
+
+**2005-2010 - Simple Query Parameters:**
+
+```text
+Context: Early web applications, simple use cases
+├─ Design: GET /places/search?lat=37.7&lng=-122.4&radius=5000
+├─ Pros: Simple, easy to use
+├─ Cons: Limited filters, URL length limits, hard to extend
+└─ Result: Worked for basic use cases
+```
+
+**2011-2015 - POST with JSON Body:**
+
+```text
+Context: Mobile apps, complex filters needed
+├─ Design: POST /places/search with JSON body
+├─ Benefits:
+│   ├─ Complex filters: Can send nested objects
+│   ├─ No URL length limits: Can send large requests
+│   ├─ Type safety: JSON schema validation
+│   └─ Extensible: Easy to add new fields
+├─ Example:
+│   POST /places/search
+│   {
+│     "location": {"lat": 37.7, "lng": -122.4},
+│     "radius": 5000,
+│     "filters": {
+│       "type": "restaurant",
+│       "rating": {"min": 4.0},
+│       "price_level": [1, 2]
+│     }
+│   }
+└─ Result: More flexible, easier to maintain
+```
+
+**2016-Present - RESTful with Versioning:**
+
+```text
+Context: Multiple clients, need backward compatibility
+├─ Design: /api/v1/places/search with versioning
+├─ Features:
+│   ├─ Versioning: /v1, /v2 for breaking changes
+│   ├─ Field selection: ?fields=id,name,rating
+│   ├─ Cursor pagination: Consistent results
+│   ├─ Rate limiting: Per-API-key and per-IP
+│   └─ Webhooks: Async updates for business changes
+├─ Benefits:
+│   ├─ Backward compatible: Old clients still work
+│   ├─ Flexible: Clients get what they need
+│   ├─ Scalable: Handles millions of requests
+│   └─ Maintainable: Clear version lifecycle
+└─ Result: Production-grade, handles any scale
+```
+
+📊 **By The Numbers:**
+- 2005: 1 endpoint, 5 parameters, 50ms average
+- 2010: 3 endpoints, 15 parameters, 45ms average
+- 2015: 10 endpoints, JSON bodies, 30ms average
+- 2025: 20 endpoints, versioned, 20ms average
+
+**Key Lesson:** Start simple with GET parameters, evolve to POST with JSON for complexity, then add versioning and optimization. Don't over-engineer from day one!
+
+### 🎯 Interview Questions: API Design
+
+#### Question 1: How would you design the API for a proximity service?
+
+**What the interviewer wants to know:**
+- Can you identify core endpoints?
+- Do you understand REST principles?
+- Can you design request/response formats?
+
+**Answer Framework:**
+
+```text
+1. Identify Core Endpoints
+   ├─ Search: POST /api/v1/search/nearby
+   │   ├─ Purpose: Find businesses near location
+   │   ├─ Method: POST (complex query with filters)
+   │   └─ Why POST: Many parameters, sensitive location data
+   │
+   ├─ Business Details: GET /api/v1/businesses/{business_id}
+   │   ├─ Purpose: Get full business information
+   │   ├─ Method: GET (simple retrieval)
+   │   └─ Why GET: Idempotent, cacheable
+   │
+   ├─ Reviews: GET /api/v1/businesses/{business_id}/reviews
+   │   ├─ Purpose: Get reviews for a business
+   │   ├─ Method: GET (read-only)
+   │   └─ Why nested: Follows REST resource hierarchy
+   │
+   ├─ Create Business: POST /api/v1/businesses
+   │   ├─ Purpose: Register new business
+   │   ├─ Method: POST (creates resource)
+   │   └─ Response: 201 Created with business_id
+   │
+   └─ Update Business: PUT /api/v1/businesses/{business_id}
+       ├─ Purpose: Update business information
+       ├─ Method: PUT (replaces resource)
+       └─ Response: 200 OK with updated data
+
+2. Design Request Format
+   POST /api/v1/search/nearby
+   Headers:
+     Authorization: Bearer {token}
+     Content-Type: application/json
+   Body:
+   {
+     "location": {
+       "latitude": 37.7749,
+       "longitude": -122.4194
+     },
+     "radius": 5000,
+     "category": "restaurants",
+     "filters": {
+       "rating_min": 4.0,
+       "price_level": [1, 2],
+       "open_now": true,
+       "features": ["outdoor_seating", "delivery"]
+     },
+     "sort_by": "distance",
+     "page": 1,
+     "page_size": 20
+   }
+
+3. Design Response Format
+   Status: 200 OK
+   Body:
+   {
+     "results": [
+       {
+         "business_id": "biz_123",
+         "name": "Best Restaurant",
+         "category": "Italian Restaurant",
+         "location": {
+           "latitude": 37.7750,
+           "longitude": -122.4195,
+           "address": "123 Main St, San Francisco, CA"
+         },
+         "distance_meters": 150,
+         "rating": 4.5,
+         "review_count": 1250,
+         "price_level": 2,
+         "is_open_now": true
+       }
+     ],
+     "pagination": {
+       "page": 1,
+       "page_size": 20,
+       "total_results": 485,
+       "total_pages": 25,
+       "has_more": true
+     },
+     "metadata": {
+       "search_id": "search_abc123",
+       "response_time_ms": 45,
+       "cache_hit": true
+     }
+   }
+
+4. Handle Errors
+   ├─ 400 Bad Request: Invalid input (missing location, invalid radius)
+   ├─ 401 Unauthorized: Missing or invalid authentication
+   ├─ 404 Not Found: Business ID doesn't exist
+   ├─ 429 Too Many Requests: Rate limit exceeded
+   └─ 500 Server Error: Internal error (with error ID for tracking)
+
+5. API Versioning
+   ├─ URL-based: /api/v1/... for versioning
+   ├─ Benefits: Clear, can run multiple versions
+   └─ Lifecycle: Support v1 for 2 years after v2 release
+```
+
+**Follow-up: Why use POST instead of GET for search?**
+
+```text
+GET Approach:
+├─ URL: /search?lat=37.7&lng=-122.4&radius=5000&category=restaurants&...
+├─ Pros: Simple, cacheable, idempotent
+├─ Cons:
+│   ├─ URL length limit (2048 chars) - complex filters exceed this
+│   ├─ Sensitive data in URL (location logged in server logs)
+│   ├─ Hard to extend (adding filters makes URL longer)
+│   └─ Not semantic (GET should be for retrieval, not complex queries)
+└─ Verdict: Works for simple queries, fails for complex ones
+
+POST Approach:
+├─ URL: /search/nearby
+├─ Body: JSON with all parameters
+├─ Pros:
+│   ├─ No length limits (can send large JSON)
+│   ├─ Secure (body not logged, location privacy)
+│   ├─ Extensible (easy to add new filters)
+│   ├─ Semantic (POST for complex operations)
+│   └─ Type-safe (JSON schema validation)
+├─ Cons:
+│   ├─ Not cacheable (but we cache results in Redis anyway)
+│   └─ Slightly more complex
+└─ Verdict: Better for production APIs with complex queries
+
+Decision: Use POST because:
+1. Complex filters (many parameters)
+2. Location privacy (sensitive data in body, not URL)
+3. Extensibility (easy to add new filters)
+4. Industry standard (Google Maps, Yelp use POST for search)
+
+Real-world: Both Google Maps and Yelp use POST for proximity search 
+despite REST convention, because complex queries don't fit GET well.
+```
+
+#### Question 2: How would you handle pagination for search results?
+
+**What the interviewer wants to know:**
+- Do you understand pagination trade-offs?
+- Can you choose the right pagination strategy?
+- Do you think about consistency and performance?
+
+**Answer Framework:**
+
+```text
+1. Pagination Challenge
+   ├─ Problem: Search returns 10,000 results, can't return all
+   ├─ Requirements:
+   │   ├─ Consistent: No duplicates if data changes
+   │   ├─ Fast: <100ms response time
+   │   └─ Real-time: Handle changing business data
+   └─ Options: Offset-based, cursor-based, keyset
+
+2. Offset-Based (Not Suitable)
+   ├─ Request: ?page=2&page_size=20
+   ├─ Implementation: LIMIT 20 OFFSET 20
+   ├─ Pros: Simple, can jump to any page
+   ├─ Cons:
+   │   ├─ Inconsistent: If business added, page 2 shows duplicates
+   │   ├─ Slow: OFFSET 10000 scans 10000 rows (slow)
+   │   └─ Not real-time: Fails with changing data
+   └─ Verdict: Not suitable for real-time proximity search
+
+3. Cursor-Based (Good for General)
+   ├─ Request: ?cursor=eyJidXNpbmVzc19pZCI6ImJpel8xMjMifQ&page_size=20
+   ├─ Implementation: WHERE business_id > 'biz_123' LIMIT 20
+   ├─ Pros:
+   │   ├─ Consistent: No duplicates even if data changes
+   │   ├─ Fast: Index-based, no OFFSET scanning
+   │   └─ Real-time: Works with changing data
+   ├─ Cons:
+   │   ├─ Complex: Need to encode/decode cursor
+   │   └─ No random access: Can't jump to page 50
+   └─ Verdict: Good for general pagination
+
+4. Keyset Pagination (Best for Geospatial)
+   ├─ Request: ?last_business_id=biz_123&last_distance=150&page_size=20
+   ├─ Implementation:
+   │   WHERE (distance > 150 OR (distance = 150 AND business_id > 'biz_123'))
+   │   ORDER BY distance, business_id
+   │   LIMIT 20
+   ├─ Pros:
+   │   ├─ Consistent: Works with distance-based sorting
+   │   ├─ Fast: Uses composite index (distance, business_id)
+   │   ├─ Real-time: No duplicates
+   │   └─ Semantic: Client knows last distance and ID
+   ├─ Cons:
+   │   ├─ More complex: Need two fields for cursor
+   │   └─ No random access: Sequential pages only
+   └─ Verdict: Best for geospatial queries
+
+5. Decision: Keyset Pagination
+   ├─ Why: Results sorted by distance (need consistent pagination)
+   ├─ Implementation:
+   │   ├─ First page: ORDER BY distance, business_id LIMIT 20
+   │   ├─ Next page: Use last distance and business_id from previous page
+   │   └─ Response: Include next_cursor for client
+   │
+   └─ Response Format:
+       {
+         "results": [...],
+         "pagination": {
+           "page_size": 20,
+           "has_more": true,
+           "next_cursor": "eyJkaXN0YW5jZSI6MTUwLCJidXNpbmVzc19pZCI6ImJpel8xMjMifQ"
+         }
+       }
+```
+
+#### Question 3: How would you implement rate limiting for the API?
+
+**What the interviewer wants to know:**
+- Do you understand rate limiting strategies?
+- Can you design multi-tier rate limiting?
+- Do you think about abuse prevention and fair usage?
+
+**Answer Framework:**
+
+```text
+1. Rate Limiting Requirements
+   ├─ Prevent abuse: Stop malicious users
+   ├─ Ensure fair usage: Distribute resources fairly
+   ├─ Protect infrastructure: Prevent overload
+   └─ User experience: Clear error messages
+
+2. Multi-Tier Strategy
+   ├─ Tier 1: Per-User Rate Limiting
+   │   ├─ Limit: 1000 requests/hour per authenticated user
+   │   ├─ Storage: Redis key = "rate_limit:user:{user_id}"
+   │   ├─ Algorithm: Token bucket (refill 1000 tokens/hour)
+   │   ├─ Check: In API Gateway before hitting services
+   │   └─ Response: 429 with X-RateLimit-* headers
+   │
+   ├─ Tier 2: Per-IP Rate Limiting
+   │   ├─ Limit: 100 requests/minute per IP address
+   │   ├─ Storage: Redis key = "rate_limit:ip:{ip_address}"
+   │   ├─ Algorithm: Sliding window (last 60 seconds)
+   │   ├─ Purpose: Prevent distributed attacks
+   │   └─ Response: 429 with retry-after
+   │
+   └─ Tier 3: Global Rate Limiting
+       ├─ Limit: 50K requests/second globally
+       ├─ Storage: Distributed counter (Redis Cluster)
+       ├─ Algorithm: Distributed token bucket
+       ├─ Purpose: Protect infrastructure from overload
+       └─ Response: 503 Service Unavailable
+
+3. Implementation Details
+   ├─ Location: API Gateway (before hitting services)
+   ├─ Storage: Redis (fast lookups, <1ms)
+   ├─ Algorithm: Token bucket for smooth rate limiting
+   │   ├─ Refill rate: 1000 tokens/hour
+   │   ├─ Burst: Allow short bursts above limit
+   │   └─ Fair: Distributes requests evenly
+   │
+   └─ Response Headers:
+       X-RateLimit-Limit: 1000
+       X-RateLimit-Remaining: 750
+       X-RateLimit-Reset: 1640995200
+       Retry-After: 3600
+
+4. Error Response
+   Status: 429 Too Many Requests
+   Headers:
+     X-RateLimit-Limit: 1000
+     X-RateLimit-Remaining: 0
+     X-RateLimit-Reset: 1640995200
+     Retry-After: 3600
+   Body:
+   {
+     "error": {
+       "code": "RATE_LIMIT_EXCEEDED",
+       "message": "Rate limit exceeded. Try again in 3600 seconds.",
+       "retry_after": 3600
+     }
+   }
+
+5. Edge Cases
+   ├─ Authenticated vs Anonymous: Different limits (1000 vs 100/hour)
+   ├─ Premium users: Higher limits (10,000/hour)
+   ├─ Burst handling: Allow 10% burst above limit
+   ├─ Distributed systems: Use Redis Cluster for consistency
+   └─ Monitoring: Log violations, alert on abuse patterns
+```
+
+### 🤔 Think About It
+
+1. **For Beginners:** Why do you think we use POST instead of GET for the search endpoint? (Hint: Think about URL length limits and privacy)
+
+2. **For Intermediate:** If you had to choose between returning all business data in the search response vs returning just IDs and requiring a separate call for details, which would you choose and why?
+
+3. **For Advanced:** How would your API design change if you needed to support real-time streaming of search results (as businesses are found, stream them to the client) instead of returning a complete list?
+
+### ✅ Key Takeaways
+
+- **REST principles**: Use HTTP methods correctly, URLs represent resources, status codes indicate results
+- **POST for complex queries**: Use POST when you have many parameters, sensitive data, or complex filters
+- **API versioning**: URL-based versioning (/v1, /v2) for backward compatibility
+- **Pagination**: Keyset pagination for geospatial queries (consistent, fast, real-time)
+- **Rate limiting**: Multi-tier (user, IP, global) to prevent abuse and ensure fair usage
+- **Error handling**: Clear error messages with codes, helpful for debugging
+- **Response optimization**: Field selection, compression, pagination for mobile apps
+
+### 🎯 Practice Exercise
+
+**Scenario:** You're designing an API for a proximity service that needs to support both real-time search (users searching now) and scheduled searches (users want to be notified when new businesses open in their area).
+
+**Your Task:**
+1. Design the API endpoints for both use cases
+2. Explain how the request/response formats differ
+3. Design how scheduled searches would work (webhooks? polling?)
+4. Handle rate limiting for scheduled searches (different from real-time)
+
+**Bonus Challenge:** How would your API handle batch searches (user wants to search 10 different locations at once)?
+
+---
+
