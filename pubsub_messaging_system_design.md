@@ -2671,6 +2671,476 @@ Spend 30 minutes on this. Check your math carefully—errors compound!
 
 ---
 
+
+### 🎯 Interview Questions - Capacity Planning
+
+#### Beginner Level
+
+**Q1:** How would you calculate storage requirements for a pub/sub messaging system?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:** Step-by-step calculation approach:
+
+**Given:**
+- Message throughput: 10M messages/second
+- Average message size: 1 KB
+- Retention period: 7 days
+- Replication factor: 3
+
+**Step 1: Calculate daily data volume**
+```
+Messages per day = 10M msg/sec × 86,400 seconds/day
+                 = 864 billion messages/day
+
+Data per day = 864 billion messages × 1 KB/message
+             = 864 TB/day
+```
+
+**Step 2: Calculate retention storage**
+```
+Storage for retention = 864 TB/day × 7 days
+                      = 6,048 TB = 6 PB
+```
+
+**Step 3: Account for replication**
+```
+Total storage = 6 PB × 3 (replication factor)
+              = 18 PB raw storage needed
+```
+
+**Step 4: Add overhead (20% for indexes, metadata)**
+```
+Final storage = 18 PB × 1.2
+              = 21.6 PB total
+```
+
+**Storage breakdown per broker:**
+- If using 100 brokers: 21.6 PB / 100 = 216 TB per broker
+- Use 12 × 18 TB SSDs per broker (216 TB capacity)
+
+**Interview Tip:** Always show your work step-by-step. Interviewers want to see your thought process, not just the final number.
+
+</details>
+
+**Q2:** Calculate bandwidth requirements for producers, consumers, and replication.
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:** Break down bandwidth by traffic type:
+
+**Given:**
+- 10M messages/second
+- 1 KB average message size
+- 3 consumer groups
+- Replication factor of 3
+
+**Ingress Bandwidth (Producers → Brokers):**
+```
+Data rate = 10M msg/sec × 1 KB/msg
+          = 10 GB/sec
+          = 80 Gbps
+
+Network requirement: 100 Gbps NICs per broker
+(80 Gbps data + 20% overhead for headers/retries)
+```
+
+**Egress Bandwidth (Brokers → Consumers):**
+```
+Per consumer group = 10 GB/sec
+Total for 3 groups = 10 GB/sec × 3
+                   = 30 GB/sec
+                   = 240 Gbps
+
+Network requirement: 10 Gbps per consumer × 30 consumers
+(assuming each consumer handles 333 MB/sec)
+```
+
+**Replication Bandwidth (Leader → Followers):**
+```
+Each message replicated to 2 followers
+Replication traffic = 10 GB/sec × 2
+                    = 20 GB/sec
+                    = 160 Gbps
+
+This is inter-broker traffic (internal network)
+```
+
+**Total Broker Network:**
+- Ingress: 80 Gbps (external)
+- Egress: 240 Gbps (external)
+- Replication: 160 Gbps (internal)
+- **Total: 480 Gbps combined**
+
+**Per-Broker Calculation:**
+```
+With 10 brokers handling traffic:
+- Per broker ingress: 80 Gbps / 10 = 8 Gbps
+- Per broker egress: 240 Gbps / 10 = 24 Gbps
+- Per broker replication: 160 Gbps / 10 = 16 Gbps
+Total per broker: ~48 Gbps
+
+Recommendation: 25-40 Gbps NIC per broker
+(25 Gbps typical, 40 Gbps for peak traffic)
+```
+
+**Interview Tip:** Distinguish between ingress, egress, and replication. Many candidates forget replication bandwidth, which is substantial!
+
+</details>
+
+#### Intermediate Level
+
+**Q1:** How would you present capacity planning calculations in a system design interview?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:** Use structured 5-step framework:
+
+**Step 1: Clarify Scale (30 seconds)**
+```
+You: "Let's start with scale. You mentioned 100M daily active users.
+      How many events does each user generate per day?"
+Interviewer: "About 100 events—page views, clicks, purchases."
+You: "So 10 billion events per day. Got it."
+```
+
+**Step 2: Calculate QPS (1 minute)**
+```
+You: "Let me calculate requests per second:
+      
+      10 billion events/day ÷ 86,400 sec/day = 115,740 events/sec average
+      
+      For peak traffic, I'll assume 3x average:
+      115,740 × 3 = 347,220 events/sec peak
+      
+      Round up to 350K events/sec for design.
+      
+      Does that sound reasonable?"
+Interviewer: "Yes, that's good."
+```
+
+**Step 3: Storage Calculation (2 minutes)**
+```
+You: "For storage, let's calculate:
+      
+      Message size: 1 KB per event (payload + metadata)
+      Daily data: 10B events × 1 KB = 10 TB/day
+      
+      Retention: You mentioned 7 days
+      Storage for retention: 10 TB × 7 = 70 TB
+      
+      Replication factor 3: 70 TB × 3 = 210 TB
+      
+      Add 20% overhead: 210 TB × 1.2 = 252 TB total
+      
+      With 20 brokers: 252 TB ÷ 20 = 12.6 TB per broker
+      Use 1 × 16 TB SSD per broker"
+```
+
+**Step 4: Cost Estimation (2 minutes)**
+```
+You: "Quick cost estimate:
+      
+      Brokers: 20 × r5d.4xlarge = $2,000/month
+      Storage: 252 TB × $0.10/GB = $25,200/month
+      Bandwidth: 1 PB/month × $0.09/GB = $90,000/month
+      Total: ~$117,000/month
+      
+      We can optimize with compression (3:1 ratio):
+      Storage: $25,200 ÷ 3 = $8,400/month
+      Bandwidth: $90,000 ÷ 3 = $30,000/month
+      Optimized total: ~$40,400/month"
+```
+
+**Step 5: Validate Assumptions (30 seconds)**
+```
+You: "Let me validate my assumptions:
+      - 350K events/sec peak traffic ✓
+      - 7-day retention ✓
+      - 252 TB storage with replication ✓
+      - $40K/month with compression ✓
+      
+      Does this align with your expectations?"
+```
+
+**Common Mistakes to Avoid:**
+
+1. **Forgetting Replication Multiplier**
+   - Wrong: 70 TB storage
+   - Right: 70 TB × 3 = 210 TB (with replication)
+
+2. **Wrong Unit Conversion**
+   - Wrong: 10 TB = 10,000 MB (off by 1000x!)
+   - Right: 10 TB = 10,240 GB = 10,485,760 MB
+
+3. **Ignoring Egress Multiplier**
+   - Wrong: Bandwidth = ingress only
+   - Right: Bandwidth = ingress + (egress × consumer groups)
+
+4. **Not Discussing Trade-offs**
+   - Wrong: "We need 252 TB storage."
+   - Right: "We need 252 TB, but could use 84 TB with compression (trade CPU for storage)."
+
+**Interview Tip:** Write numbers on whiteboard as you calculate. Interviewers follow along better when they can see your math.
+
+</details>
+
+**Q2:** A pub/sub system is experiencing performance degradation. How would you diagnose if it's a capacity issue?
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:** Systematic troubleshooting approach:
+
+**Step 1: Check Throughput Utilization**
+```
+Metric to check: Messages/sec vs capacity
+Current: 8M msg/sec
+Capacity: 10M msg/sec
+Utilization: 80%
+
+If utilization > 80%: Likely capacity issue
+If utilization < 60%: Not capacity, check other causes
+```
+
+**Step 2: Check Storage Utilization**
+```
+Metric to check: Disk usage per broker
+Broker 1: 1.5 TB / 2 TB = 75%
+Broker 2: 1.9 TB / 2 TB = 95% ← Problem!
+Broker 3: 1.6 TB / 2 TB = 80%
+
+If any broker > 90%: Storage capacity issue
+Action: Add more brokers or increase retention cleanup
+```
+
+**Step 3: Check Network Saturation**
+```
+Metric to check: Network bandwidth utilization
+Ingress: 45 Gbps / 100 Gbps NIC = 45% ✓ OK
+Egress: 180 Gbps / 200 Gbps NIC = 90% ← Problem!
+
+If network > 80%: Bandwidth capacity issue
+Action: Upgrade NICs or add more brokers
+```
+
+**Step 4: Check Consumer Lag**
+```
+Metric to check: Consumer group lag
+Group analytics: Lag = 100,000 messages
+At 10K msg/sec consumption rate: 10 seconds behind
+
+If lag growing over time: Consumer can't keep up
+This indicates either:
+- Too few consumers (capacity issue)
+- Slow consumer processing (application issue)
+
+Action: Add more consumers or optimize processing
+```
+
+**Step 5: Check Partition Distribution**
+```
+Metric to check: Messages per partition
+Partition 0: 100K msg/sec
+Partition 1: 100K msg/sec
+Partition 7: 8M msg/sec ← Hot partition!
+...
+
+If one partition >> others: Partition skew issue
+This is a capacity issue (one partition bottleneck)
+Action: Redesign partition key or add sub-partitioning
+```
+
+**Decision Matrix:**
+```
+Symptom                    → Diagnosis
+─────────────────────────────────────────────
+Throughput > 80%          → Add brokers
+Disk > 90% any broker     → Add brokers or reduce retention
+Network > 80%             → Upgrade NICs or add brokers
+Consumer lag growing      → Add consumers or optimize code
+Hot partition (skew)      → Redesign partitioning strategy
+All metrics < 70%         → Not capacity, check application
+```
+
+**Real-World Example:**
+```
+Company: E-commerce during Black Friday
+Symptom: 5-second publish latency (normally 10ms)
+
+Diagnosis:
+✓ Throughput: 9.5M / 10M = 95% (at capacity!)
+✓ Disk: All brokers 60-70% (not issue)
+✓ Network: 85% utilized (near capacity)
+✓ Consumer lag: Normal
+
+Root cause: Throughput + network capacity hit
+Solution: Added 10 more brokers (10 → 20)
+Result: Latency back to 10ms, headroom for 2x growth
+```
+
+**Interview Tip:** Always check multiple metrics. Rarely is capacity issue isolated to one dimension. Often it's combination of throughput + network or storage + throughput.
+
+</details>
+
+#### Advanced Level
+
+**Q1:** Design a cost-optimized capacity plan for a pub/sub system handling variable traffic (10x difference between peak and off-peak).
+
+<details>
+<summary>💭 Think first, then reveal answer</summary>
+
+**Answer:** Multi-tier capacity strategy with elastic scaling:
+
+**Traffic Pattern:**
+```
+Peak hours (8 AM - 10 PM): 10M msg/sec (14 hours)
+Off-peak (10 PM - 8 AM): 1M msg/sec (10 hours)
+
+Daily average: ((10M × 14) + (1M × 10)) / 24 = 6.25M msg/sec
+Peak to average ratio: 10M / 6.25M = 1.6x
+Peak to off-peak ratio: 10M / 1M = 10x
+```
+
+**Naive Approach (Always Peak Capacity):**
+```
+Brokers for 10M msg/sec: 100 brokers
+Cost: 100 × $500/month = $50,000/month
+Utilization: (6.25M / 10M) × 100% = 62.5% average
+
+Problem: Paying for 100 brokers but only need 62 on average
+Waste: $18,750/month (37.5% unused capacity)
+```
+
+**Optimized Approach: Base + Burst Capacity**
+
+**Tier 1: Base Capacity (On-Demand)**
+```
+Handle 2M msg/sec (20% of peak, covers off-peak 2x)
+Brokers: 20 × r5d.4xlarge on-demand
+Cost: 20 × $500 = $10,000/month
+Running: 24/7 (always on)
+```
+
+**Tier 2: Reserved Capacity (1-Year RI)**
+```
+Handle 5M msg/sec (50% of peak)
+Brokers: 50 × r5d.4xlarge reserved (40% discount)
+Cost: 50 × $300 = $15,000/month
+Running: 24/7 (always on)
+Savings: $10,000/month vs on-demand
+```
+
+**Tier 3: Spot Capacity (Burst)**
+```
+Handle 3M msg/sec (30% of peak)
+Brokers: 30 × r5d.4xlarge spot (70% discount)
+Cost: 30 × $150 = $4,500/month
+Running: 14 hours/day (peak only)
+Adjusted cost: $4,500 × (14/24) = $2,625/month
+```
+
+**Total Capacity:**
+- Base: 2M msg/sec (always)
+- Base + Reserved: 7M msg/sec (always)
+- All tiers: 10M msg/sec (peak)
+
+**Total Cost:**
+- Base: $10,000/month
+- Reserved: $15,000/month
+- Spot: $2,625/month
+- **Total: $27,625/month**
+
+**Savings: $50,000 - $27,625 = $22,375/month (45% reduction!)**
+
+**Spot Instance Risk Mitigation:**
+```
+Challenge: Spot instances can be terminated with 2-minute warning
+
+Solution 1: Graceful degradation
+- On spot termination, reduce partition count gracefully
+- Remaining brokers (base + reserved) still handle 7M msg/sec
+- Temporarily higher latency (10ms → 30ms) acceptable for 2 minutes
+
+Solution 2: Spot fleet diversification
+- Request spots across 3 AZs and 3 instance types
+- Reduces likelihood of all spots terminated simultaneously
+- Historically 95%+ spot availability with diversification
+
+Solution 3: Quick replacement
+- CloudWatch alarm on spot termination
+- Auto-launch new spots in different AZ
+- Replacement time: 3-5 minutes
+```
+
+**Additional Optimizations:**
+
+**Compression (3:1 ratio):**
+```
+Before: 10M msg/sec × 1 KB = 10 GB/sec
+After: 10M msg/sec × 333 bytes = 3.33 GB/sec
+
+Bandwidth savings:
+- Before: 1 PB/month × $0.09/GB = $90,000/month
+- After: 333 TB/month × $0.09/GB = $30,000/month
+- Savings: $60,000/month
+
+Cost: +5% CPU for compression = +$1,500/month
+Net savings: $60,000 - $1,500 = $58,500/month
+```
+
+**Tiered Storage (Hot/Warm/Cold):**
+```
+Days 0-2 (hot): SSD storage (frequent reads)
+- 20 TB × $0.10/GB/month = $2,000/month
+
+Days 3-7 (warm): HDD storage (occasional reads)
+- 50 TB × $0.03/GB/month = $1,500/month
+
+Days 8-30 (cold): S3 storage (archival)
+- 230 TB × $0.01/GB/month = $2,300/month
+
+Total storage: $5,800/month
+
+Savings vs all-SSD:
+- All-SSD: 300 TB × $0.10/GB/month = $30,000/month
+- Tiered: $5,800/month
+- Savings: $24,200/month
+```
+
+**Final Optimized Cost:**
+```
+Compute: $27,625/month (base + reserved + spot)
+Bandwidth: $30,000/month (with compression)
+Storage: $5,800/month (tiered)
+Total: $63,425/month
+
+Baseline (naive): $170,000/month
+Optimized: $63,425/month
+Savings: $106,575/month (63% reduction!)
+Annual savings: $1.28M/year
+```
+
+**Trade-offs:**
+```
+✓ Pros:
+- 63% cost reduction
+- Still handles peak traffic
+- Graceful degradation on spot loss
+
+✗ Cons:
+- Complexity (3-tier architecture)
+- Spot availability risk (mitigated with diversification)
+- Tiered storage adds latency for cold data reads
+```
+
+**Interview Tip:** When discussing cost optimization, always present: baseline cost → optimization strategies → trade-offs → final savings with percentage. Quantify everything!
+
+</details>
+
 ## Section 3: Designing the System Architecture
 
 ### What You'll Learn
