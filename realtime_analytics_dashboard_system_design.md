@@ -671,3 +671,765 @@ Experienced engineers probe for requirements the interviewer might not mention:
 
 ---
 
+## 2. BACK-OF-THE-ENVELOPE CALCULATIONS
+
+### Traffic Estimates
+
+🟢 **BEGINNER: Basic Math**
+
+Let's figure out how many events per second we need to handle:
+
+**Restaurant Analogy:**
+```text
+If a restaurant serves 300 customers per day:
+├─ Open 10 hours = 600 minutes
+├─ 300 customers ÷ 600 minutes = 0.5 customers/minute
+└─ During lunch rush (2x normal) = 1 customer/minute
+```
+
+**Our System:**
+
+**Current Scale: 5-10M events/day**
+
+```text
+Average events per second:
+├─ 10M events/day
+├─ 24 hours/day × 60 min × 60 sec = 86,400 seconds/day
+├─ 10,000,000 ÷ 86,400 = 115 events/second (average)
+└─ Peak (3x average) = 345 events/second
+```
+
+**Target Scale (10x growth): 50-100M events/day**
+
+```text
+10x growth calculation:
+├─ 100M events/day
+├─ 100,000,000 ÷ 86,400 = 1,157 events/second (average)
+└─ Peak (3x average) = 3,471 events/second
+```
+
+**Query Load:**
+
+```text
+Dashboard users: 1,000 concurrent users
+├─ Each user runs 1 query every 30 seconds
+├─ 1,000 users ÷ 30 seconds = 33 queries/second (average)
+└─ Peak hours (3x) = 100 queries/second
+```
+
+---
+
+🟡 **INTERMEDIATE: Detailed Breakdown**
+
+**Event Ingestion Traffic:**
+
+| Scale Level | Events/Day | Avg Events/Sec | Peak Events/Sec | Monthly Events |
+|-------------|------------|----------------|-----------------|----------------|
+| **Current** | 10M | 115 | 345 | 300M |
+| **1 Year** | 20M | 231 | 693 | 600M |
+| **2 Years (Target)** | 50M | 578 | 1,734 | 1.5B |
+| **Peak Growth** | 100M | 1,157 | 3,471 | 3B |
+
+**Peak Calculation Breakdown:**
+
+```text
+Average events/sec × Peak multiplier = Peak events/sec
+
+Peak multipliers by time:
+├─ Daily peak (business hours): 2x average
+├─ Campaign launch: 3x average
+├─ Black Friday/Flash sale: 5-10x average
+└─ System must handle: 3x sustained, 10x burst (with backpressure)
+```
+
+**Query Traffic Patterns:**
+
+```text
+Dashboard Queries:
+├─ Active users during business hours: 500-1000
+├─ Avg query frequency: 1 query/30 seconds
+├─ Base query rate: 20-33 QPS
+├─ Peak query rate: 60-100 QPS
+└─ Burst capacity needed: 200 QPS (2x peak)
+
+Query Types Distribution:
+├─ Simple aggregations (COUNT, SUM): 60% - <100ms latency
+├─ Percentile calculations (P50, P90, P99): 25% - <500ms latency
+├─ Funnel queries (multi-step): 10% - <1s latency
+└─ Complex drill-downs: 5% - <3s latency
+```
+
+**Data Flow Summary:**
+
+```text
+Ingestion Path (Write-Heavy):
+└─ 1,157 events/sec avg → 3,471 events/sec peak
+
+Processing Path (Compute):
+└─ 1,157 events/sec need aggregation in real-time
+
+Query Path (Read-Heavy):
+└─ 33 queries/sec avg → 100 queries/sec peak
+
+Read:Write Ratio = 33:1157 ≈ 1:35 (Write-heavy system!)
+```
+
+---
+
+🔴 **ADVANCED: Capacity Planning**
+
+**Detailed Traffic Analysis:**
+
+**1. Event Ingestion Capacity:**
+
+```text
+Target: 100M events/day peak capacity
+
+Sustained throughput:
+├─ Average: 1,157 events/sec
+├─ Peak (3x): 3,471 events/sec
+├─ Burst (10x): 11,570 events/sec (must handle for 5-10 minutes)
+└─ Design capacity: 15,000 events/sec (30% headroom)
+
+Message queue sizing:
+├─ Kafka partition throughput: ~5,000 msgs/sec/partition
+├─ Required partitions: 15,000 ÷ 5,000 = 3 partitions (minimum)
+├─ Recommended: 12 partitions (4x over-provisioned for:
+│   ├─ Key-based partitioning for ordering
+│   ├─ Future growth
+│   └─ Rebalancing overhead)
+└─ Total Kafka throughput: 12 × 5,000 = 60,000 events/sec capacity
+```
+
+**2. Stream Processing Capacity:**
+
+```text
+Processing requirements per event:
+├─ Parsing & validation: 1ms
+├─ Enrichment (geo-lookup, user data): 5ms
+├─ Aggregation updates: 2ms
+└─ Total: ~8ms per event
+
+Single processor capacity:
+├─ 1,000ms ÷ 8ms = 125 events/sec per core
+├─ 8-core machine: 1,000 events/sec
+└─ For 3,471 events/sec peak: Need 4 machines (with 2x redundancy = 8 machines)
+
+Flink/Spark Streaming cluster:
+├─ Worker nodes: 8 machines (c5.2xlarge - 8 vCPUs, 16 GB RAM)
+├─ Total capacity: 8,000 events/sec
+├─ Utilization at peak: 43% (healthy headroom)
+└─ Cost: ~$2,000/month (8 × $250 = $2,000)
+```
+
+**3. Query Capacity:**
+
+```text
+Query service capacity:
+├─ Target: 100 QPS sustained, 200 QPS burst
+├─ Average query latency: 500ms
+├─ Queries in-flight: 100 QPS × 0.5s = 50 concurrent queries
+├─ CPU per query: 100ms (assume efficient OLAP DB)
+└─ Per-node capacity: 10 cores × 1000ms ÷ 100ms = 100 queries/sec
+
+Node sizing:
+├─ Minimum nodes: 200 QPS ÷ 100 QPS = 2 nodes
+├─ Recommended: 4 nodes (N+1 redundancy + headroom)
+└─ Instance type: c5.4xlarge (16 vCPUs, 32 GB RAM)
+```
+
+**Regional Distribution (Future):**
+
+```text
+If expanding to multi-region:
+
+North America (60% traffic):
+├─ Events: 60K/day (avg) → 180K/day (peak)
+└─ Queries: 60 QPS
+
+Europe (25% traffic):
+├─ Events: 25K/day (avg) → 75K/day (peak)
+└─ Queries: 25 QPS
+
+Asia Pacific (15% traffic):
+├─ Events: 15K/day (avg) → 45K/day (peak)
+└─ Queries: 15 QPS
+```
+
+---
+
+### Storage Estimates
+
+🟢 **BEGINNER: How Much Disk Space?**
+
+**Simple Calculation:**
+
+```text
+One event = 1 KB (1,000 bytes)
+10 million events/day = 10 million KB = 10 GB/day
+
+For 90 days (3 months):
+├─ 10 GB/day × 90 days = 900 GB
+└─ Almost 1 TB (Terabyte) of storage
+```
+
+**Why 1 KB per event?**
+
+```json
+{
+  "event_id": "evt_1234567890",           // 30 bytes
+  "event_type": "product_viewed",         // 20 bytes
+  "user_id": "user_12345",                // 15 bytes
+  "session_id": "sess_abcd",              // 15 bytes
+  "timestamp": "2026-01-22T10:30:00Z",    // 25 bytes
+  "properties": {                         // ~800 bytes
+    "product_id": "prod_789",
+    "product_name": "Wireless Headphones",
+    "category": "electronics",
+    "price": 299.99,
+    "country": "US",
+    "city": "San Francisco",
+    "device": "mobile",
+    "browser": "Chrome",
+    // ... more properties
+  }
+}
+// Total: ~1,000 bytes (1 KB)
+```
+
+---
+
+🟡 **INTERMEDIATE: Complete Storage Breakdown**
+
+**Raw Events Storage:**
+
+| Time Period | Events | Size per Event | Total Size | Compression | Final Size |
+|-------------|--------|----------------|------------|-------------|------------|
+| **1 Day** | 10M | 1 KB | 10 GB | 5:1 | 2 GB |
+| **1 Week** | 70M | 1 KB | 70 GB | 5:1 | 14 GB |
+| **1 Month** | 300M | 1 KB | 300 GB | 5:1 | 60 GB |
+| **90 Days (Hot)** | 900M | 1 KB | 900 GB | 5:1 | 180 GB |
+| **1 Year (Cold)** | 3.6B | 1 KB | 3.6 TB | 10:1 | 360 GB |
+
+**Compression Rationale:**
+- JSON text compresses well (5:1 with gzip/snappy)
+- Time-series data has repetitive fields (event_type, user patterns)
+- Columnar formats (Parquet) achieve 10:1 for cold storage
+
+**Aggregated Metrics Storage:**
+
+```text
+Pre-computed aggregations (for fast queries):
+
+Granularity levels:
+├─ Per-minute aggregates: 60×24 = 1,440 rows/day/metric
+├─ Per-hour aggregates: 24 rows/day/metric
+└─ Per-day aggregates: 1 row/day/metric
+
+Dimensions tracked:
+├─ Time (minute/hour/day)
+├─ Event type (50 types)
+├─ Country (200 countries)
+├─ Product category (100 categories)
+└─ Combinations: 50 × 200 × 100 = 1M dimension combinations
+
+Per-minute aggregates:
+├─ 1,440 minutes/day × 1M combinations = 1.44B rows/day
+├─ Each row: ~100 bytes (timestamp, dimensions, metrics)
+├─ Daily storage: 1.44B × 100 bytes = 144 GB/day
+└─ With compression (3:1): 48 GB/day
+
+90-day aggregates:
+└─ 48 GB/day × 90 days = 4.3 TB (compressed)
+```
+
+**Total Storage Requirements:**
+
+```text
+For 90 days hot storage:
+├─ Raw events: 180 GB
+├─ Pre-aggregated metrics: 4.3 TB
+├─ Indexes & metadata: 500 GB
+└─ Total: ~5 TB
+
+For 1 year total:
+├─ Hot storage (90 days): 5 TB
+├─ Cold storage (275 days): 1 TB (heavily aggregated)
+└─ Total: 6 TB
+```
+
+---
+
+🔴 **ADVANCED: Storage Optimization**
+
+**Storage Architecture:**
+
+```text
+3-Tier Storage Strategy:
+
+Tier 1: Hot Storage (Last 7 days)
+├─ Technology: ClickHouse on NVMe SSDs
+├─ Raw events: 2 GB/day × 7 = 14 GB
+├─ Minute-level aggregates: 48 GB/day × 7 = 336 GB
+├─ Total: 350 GB
+├─ Replication: 3x = 1.05 TB
+├─ Cost: $0.10/GB/month × 1,050 GB = $105/month
+└─ Query latency: <100ms
+
+Tier 2: Warm Storage (8-90 days)
+├─ Technology: ClickHouse on GP3 SSDs
+├─ Raw events: 2 GB/day × 83 = 166 GB
+├─ Hour-level aggregates: 10 GB/day × 83 = 830 GB
+├─ Total: 996 GB
+├─ Replication: 3x = 3 TB
+├─ Cost: $0.05/GB/month × 3,000 GB = $150/month
+└─ Query latency: <500ms
+
+Tier 3: Cold Storage (91 days - 1 year)
+├─ Technology: S3 + Athena (query on demand)
+├─ Daily aggregates only: 1 GB/day × 275 = 275 GB
+├─ Compression: 10:1 (Parquet columnar format)
+├─ Total: 27.5 GB
+├─ Cost: $0.023/GB/month × 27.5 = $0.63/month
+└─ Query latency: 5-30 seconds (acceptable for historical analysis)
+```
+
+**Storage Cost Optimization:**
+
+```text
+Total monthly storage cost:
+├─ Tier 1 (Hot): $105
+├─ Tier 2 (Warm): $150
+├─ Tier 3 (Cold): $0.63
+└─ Total: ~$256/month for 10M events/day
+
+At 100M events/day (10x scale):
+├─ Tier 1: $1,050 (10x data)
+├─ Tier 2: $1,500 (10x data)
+├─ Tier 3: $6.30 (10x data)
+└─ Total: ~$2,556/month
+
+Cost per event:
+└─ $2,556 ÷ 3B events/month = $0.000852 per event
+```
+
+**Data Retention Policy:**
+
+```text
+Retention strategy by event type:
+
+Critical events (revenue, conversions):
+├─ Raw events: 365 days
+├─ Aggregates: Forever (minimal storage)
+└─ Why: Compliance, financial reporting, historical analysis
+
+Engagement events (page views, clicks):
+├─ Raw events: 90 days
+├─ Aggregates: 365 days
+├─ Summary (daily): Forever
+└─ Why: Balance between insight value and cost
+
+System events (errors, logs):
+├─ Raw events: 30 days
+├─ Aggregates: 90 days
+└─ Why: Debugging recent issues, minimal historical value
+```
+
+**Database Sizing (ClickHouse):**
+
+```text
+ClickHouse cluster configuration:
+
+Hot tier (7 days):
+├─ Nodes: 3 replicas × 2 shards = 6 nodes
+├─ Instance: i3.2xlarge (8 vCPUs, 61 GB RAM, 1.9 TB NVMe)
+├─ Storage per node: 350 GB (raw) + overhead = 500 GB
+├─ CPU utilization: 30% average, 70% peak
+├─ Cost: 6 nodes × $0.624/hour × 730 hours = $2,733/month
+└─ Total capacity: Handles 10x current load
+
+Warm tier (83 days):
+├─ Nodes: 3 replicas × 2 shards = 6 nodes
+├─ Instance: r5.2xlarge (8 vCPUs, 64 GB RAM, 1 TB EBS)
+├─ Storage per node: 1 TB
+├─ Cost: 6 nodes × $0.504/hour × 730 hours = $2,207/month
+└─ Total capacity: Adequate for current load
+```
+
+---
+
+### Resource Estimates
+
+🟢 **BEGINNER: Server Resources**
+
+**What resources does our system need?**
+
+```text
+Think of a computer's resources like a restaurant:
+├─ CPU (Processing power) = Chefs cooking
+├─ Memory (RAM) = Prep tables for active orders
+├─ Storage (Disk) = Pantry storing ingredients
+└─ Network (Bandwidth) = Delivery trucks
+```
+
+**Our System Needs:**
+
+**1. Message Queue Servers (Kafka)**
+- 3 servers (for reliability)
+- Each: 8 CPUs, 32 GB memory, 1 TB disk
+- Why? Temporarily hold events before processing
+
+**2. Stream Processing Servers**
+- 8 servers
+- Each: 8 CPUs, 16 GB memory
+- Why? Process events in real-time
+
+**3. Database Servers (ClickHouse)**
+- 12 servers (6 hot + 6 warm)
+- Each: 8 CPUs, 64 GB memory, 1 TB disk
+- Why? Store and query event data
+
+**4. API Servers**
+- 4 servers
+- Each: 4 CPUs, 8 GB memory
+- Why? Handle incoming events and dashboard queries
+
+**Total:**
+- 27 servers
+- 172 CPUs
+- 1.4 TB memory
+- ~$8,000/month cloud cost
+
+---
+
+🟡 **INTERMEDIATE: Detailed Resource Breakdown**
+
+**Component-wise Resource Allocation:**
+
+**1. Ingestion Layer:**
+
+```text
+API Gateway (Nginx):
+├─ Instances: 3 (c5.large: 2 vCPUs, 4 GB RAM)
+├─ Throughput: 5,000 req/sec per instance = 15,000 total
+├─ Cost: 3 × $0.085/hour × 730 = $186/month
+└─ Purpose: Load balancing, TLS termination, rate limiting
+
+Event API Servers (Go/Node.js):
+├─ Instances: 6 (c5.xlarge: 4 vCPUs, 8 GB RAM)
+├─ Capacity: 500 events/sec per instance = 3,000 total
+├─ Cost: 6 × $0.17/hour × 730 = $745/month
+└─ Purpose: Validation, enrichment, Kafka publishing
+```
+
+**2. Message Queue (Kafka):**
+
+```text
+Kafka Cluster:
+├─ Brokers: 3 (r5.xlarge: 4 vCPUs, 32 GB RAM, 1 TB gp3)
+├─ Partitions: 12 (per topic)
+├─ Replication factor: 3
+├─ Throughput: 60,000 msgs/sec (20,000 per broker)
+├─ Retention: 7 days (for replay capability)
+├─ Storage: 3 TB total (1 TB per broker)
+└─ Cost: 3 × $0.252/hour × 730 = $552/month
+
+Zookeeper (for Kafka coordination):
+├─ Instances: 3 (t3.small: 2 vCPUs, 2 GB RAM)
+└─ Cost: 3 × $0.021/hour × 730 = $46/month
+```
+
+**3. Stream Processing (Apache Flink):**
+
+```text
+Flink Cluster:
+├─ Task Managers: 8 (c5.2xlarge: 8 vCPUs, 16 GB RAM)
+├─ Job Managers: 2 (c5.xlarge: 4 vCPUs, 8 GB RAM)
+├─ Processing capacity: 8,000 events/sec
+├─ State backend: S3 (for checkpointing)
+├─ Checkpointing: Every 5 minutes
+└─ Cost:
+    ├─ Task Managers: 8 × $0.34/hour × 730 = $1,987/month
+    └─ Job Managers: 2 × $0.17/hour × 730 = $248/month
+    Total: $2,235/month
+```
+
+**4. Data Storage (ClickHouse):**
+
+```text
+(Already detailed in Storage Estimates section)
+├─ Hot tier: 6 nodes = $2,733/month
+├─ Warm tier: 6 nodes = $2,207/month
+└─ Cold tier (S3): ~$1/month
+Total: $4,941/month
+```
+
+**5. Query Service:**
+
+```text
+Query API Servers:
+├─ Instances: 4 (c5.2xlarge: 8 vCPUs, 16 GB RAM)
+├─ Capacity: 100 QPS per instance = 400 total
+├─ Cache: Redis (r5.large: 2 vCPUs, 13 GB RAM)
+└─ Cost:
+    ├─ API servers: 4 × $0.34/hour × 730 = $993/month
+    └─ Redis: 1 × $0.126/hour × 730 = $92/month
+    Total: $1,085/month
+```
+
+**6. Monitoring & Operations:**
+
+```text
+Prometheus + Grafana:
+├─ Instances: 2 (t3.large: 2 vCPUs, 8 GB RAM)
+└─ Cost: 2 × $0.0832/hour × 730 = $122/month
+
+ELK Stack (Logs):
+├─ Instances: 3 (r5.large: 2 vCPUs, 16 GB RAM)
+└─ Cost: 3 × $0.126/hour × 730 = $276/month
+
+Total monitoring: $398/month
+```
+
+**Grand Total Monthly Cost:**
+
+```text
+Component                 | Monthly Cost
+========================= | ============
+Ingestion (API + Nginx)  | $931
+Message Queue (Kafka)     | $598
+Stream Processing (Flink) | $2,235
+Storage (ClickHouse + S3) | $4,941
+Query Service            | $1,085
+Monitoring               | $398
+========================= | ============
+Total                    | $10,188/month
+
+Cost per event: $10,188 ÷ 300M events = $0.000034 per event
+```
+
+---
+
+🔴 **ADVANCED: Cost Optimization Strategies**
+
+**Reserved Instance Savings:**
+
+```text
+1-year Reserved Instances (40% discount):
+├─ Current on-demand: $10,188/month
+├─ With Reserved: $6,113/month
+└─ Annual savings: $48,900
+
+3-year Reserved Instances (60% discount):
+├─ With Reserved: $4,075/month
+└─ Annual savings: $73,356
+```
+
+**Spot Instance Usage:**
+
+```text
+For stateless components (stream processing):
+├─ Flink Task Managers on Spot: 70% discount
+├─ Current: $1,987/month
+├─ With Spot: $596/month
+├─ Savings: $1,391/month ($16,692/year)
+└─ Risk: Acceptable (Flink checkpoints enable fast recovery)
+```
+
+**Auto-scaling Strategy:**
+
+```text
+Time-based scaling:
+
+Peak hours (9 AM - 5 PM weekdays):
+├─ Full capacity: 27 servers
+└─ Cost: $10,188/month (during peak)
+
+Off-peak hours (nights, weekends):
+├─ Scale down to 60% capacity
+├─ Reduced cost: $6,113/month
+└─ Average effective cost: $7,800/month
+
+Potential savings: $2,388/month ($28,656/year)
+```
+
+**Multi-tenancy Cost Allocation:**
+
+```text
+If serving multiple customers:
+
+Small customers (1M events/day):
+├─ Share infrastructure
+├─ Cost allocation: $1,000/month/customer
+└─ Margin: 70% (infrastructure cost: $300)
+
+Medium customers (10M events/day):
+├─ Dedicated query nodes
+├─ Cost allocation: $8,000/month/customer
+└─ Margin: 20% (infrastructure cost: $6,400)
+
+Large customers (100M events/day):
+├─ Fully dedicated infrastructure
+├─ Cost allocation: $40,000/month/customer
+└─ Margin: 60% (infrastructure cost: $25,000)
+```
+
+---
+
+### Bandwidth Estimates
+
+🟢 **BEGINNER: Network Traffic**
+
+**How much data travels over the network?**
+
+```text
+Inbound (Events coming in):
+├─ 10M events/day
+├─ 1 KB per event
+├─ 10M × 1 KB = 10 GB/day
+└─ 10 GB ÷ 24 hours ÷ 3600 seconds = 120 KB/second
+
+Outbound (Dashboard queries):
+├─ 33 queries/second
+├─ Average response: 10 KB (time-series data for charts)
+├─ 33 × 10 KB = 330 KB/second
+└─ Much less than inbound!
+```
+
+**Monthly Bandwidth:**
+
+```text
+Inbound: 10 GB/day × 30 days = 300 GB/month
+Outbound: 330 KB/sec × 86,400 sec × 30 days = 856 GB/month
+Total: ~1.2 TB/month
+```
+
+---
+
+🟡 **INTERMEDIATE: Detailed Bandwidth Analysis**
+
+**Ingestion Bandwidth:**
+
+```text
+Current (10M events/day):
+├─ Average: 115 events/sec × 1 KB = 115 KB/sec = 0.92 Mbps
+├─ Peak (3x): 345 events/sec × 1 KB = 345 KB/sec = 2.76 Mbps
+└─ Daily: 10 GB
+
+Target (100M events/day):
+├─ Average: 1,157 events/sec × 1 KB = 1.13 MB/sec = 9.05 Mbps
+├─ Peak (3x): 3,471 events/sec × 1 KB = 3.39 MB/sec = 27.1 Mbps
+└─ Daily: 100 GB
+
+Burst (10x):
+└─ 11,570 events/sec × 1 KB = 11.3 MB/sec = 90.5 Mbps
+```
+
+**Query Bandwidth:**
+
+```text
+Query response sizes:
+├─ Simple aggregates (counts): 1 KB
+├─ Time-series (7 days): 10 KB
+├─ Drill-down (detailed): 50 KB
+└─ Export (full data): 1 MB
+
+Average query: 10 KB
+
+Query traffic:
+├─ Average: 33 QPS × 10 KB = 330 KB/sec = 2.64 Mbps
+├─ Peak: 100 QPS × 10 KB = 1 MB/sec = 8 Mbps
+└─ Daily: 33 QPS × 86,400 sec × 10 KB = 28.5 GB
+```
+
+**Internal Bandwidth (Between Components):**
+
+```text
+Kafka → Flink → ClickHouse:
+├─ Events flow: 115 events/sec × 1 KB = 115 KB/sec
+├─ Aggregates: 115 KB/sec ÷ 10 (compression) = 11.5 KB/sec
+└─ Total internal: 126.5 KB/sec
+
+ClickHouse replication:
+├─ Replication factor: 3
+├─ Data written: 2 GB/day (compressed)
+├─ Replicated: 2 GB × 2 (source → 2 replicas) = 4 GB/day
+└─ Average: 46 KB/sec
+```
+
+**Monthly Bandwidth Summary:**
+
+| Direction | Daily | Monthly | Cost (@$0.09/GB) |
+|-----------|-------|---------|------------------|
+| **Ingress (Events)** | 10 GB | 300 GB | $0 (free on AWS) |
+| **Egress (Queries)** | 28.5 GB | 855 GB | $76.95 |
+| **Internal** | 6 GB | 180 GB | $0 (same region) |
+| **Total** | 44.5 GB | 1,335 GB | $76.95 |
+
+---
+
+🔴 **ADVANCED: Network Optimization**
+
+**CDN for Dashboard Assets:**
+
+```text
+Dashboard frontend (static assets):
+├─ Size: 2 MB (HTML, JS, CSS, images)
+├─ Users: 1,000 daily
+├─ Page views: 10,000/day
+├─ Without CDN: 10,000 × 2 MB = 20 GB/day egress
+├─ With CDN (95% cache hit): 20 GB × 0.05 = 1 GB/day egress
+└─ Savings: 19 GB/day × 30 = 570 GB/month = $51/month
+```
+
+**API Response Compression:**
+
+```text
+Without compression:
+├─ Query response: 10 KB (JSON)
+└─ 100 QPS × 10 KB = 1 MB/sec
+
+With gzip compression:
+├─ Compressed response: 2 KB (5:1 compression)
+├─ 100 QPS × 2 KB = 200 KB/sec
+└─ Savings: 80% bandwidth = $61/month (855 GB → 171 GB)
+```
+
+**Regional Data Centers:**
+
+```text
+Multi-region deployment:
+
+US-based customers (60%):
+├─ US East data center
+└─ Cross-region bandwidth: $0
+
+EU-based customers (25%):
+├─ EU data center
+├─ Cross-region sync: 2.5 GB/day × $0.02/GB = $0.05/day
+└─ Monthly: $1.50
+
+APAC customers (15%):
+├─ Singapore data center
+├─ Cross-region sync: 1.5 GB/day × $0.02/GB = $0.03/day
+└─ Monthly: $0.90
+
+Total multi-region bandwidth cost: $2.40/month (minimal!)
+```
+
+**Bandwidth Budget at Scale:**
+
+```text
+At 100M events/day (10x growth):
+
+Ingress: 100 GB/day = 3 TB/month (free)
+Egress (queries): 280 GB/day = 8.4 TB/month
+├─ Without optimization: 8.4 TB × $0.09 = $756/month
+├─ With CDN + compression: 1.7 TB × $0.09 = $153/month
+└─ Savings: $603/month ($7,236/year)
+```
+
+---
+
+
+
