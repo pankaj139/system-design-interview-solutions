@@ -5138,3 +5138,1909 @@ Result: 1-2 database queries instead of 100
 
 ---
 
+## Section 6: How Users Interact (API Design)
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Design RESTful APIs for authentication and authorization
+- Structure secure request/response formats for auth flows
+- Implement OAuth 2.0, SAML, and OpenID Connect endpoints
+- Handle token lifecycle management APIs
+- Design multi-factor authentication endpoints
+- Create admin and audit APIs for identity management
+
+### Why This Matters
+
+Your authentication API is the gateway to every secure system. A well-designed API is intuitive for developers, secure against attacks, and flexible enough to support multiple authentication methods. A bad API leads to security vulnerabilities, poor developer experience, and integration nightmares. Real example: Twitter's API key breach in 2018 exposed millions of passwords because of inadequate API security design!
+
+---
+
+### 🟢 For Beginners: What is an Authentication API?
+
+#### The Security Guard Analogy
+
+Think of an authentication API like a security checkpoint at a building:
+
+```text
+You (visitor) → Show ID → Guard checks → Get visitor badge → Enter building
+
+In technical terms:
+Your app → Login credentials → Auth API → Access token → Call protected APIs
+
+Security Guard = Authentication API (checks who you are)
+ID Card = Username/Password (your credentials)
+Visitor Badge = Access Token (proof you're allowed in)
+Building Access = Protected Resources (your data)
+```
+
+#### The Three Main Things Our Auth API Does
+
+##### 1. Register User (Getting an ID Card)
+
+```text
+You say: "I'm new, need to register"
+Guard: "Fill out this form" (Provide username, email, password)
+System: Creates your account, sends verification email
+You get: User account ready to use
+```
+
+##### 2. Login (Showing ID, Getting Badge)
+
+```text
+You say: "I want to login" (Send username and password)
+Guard checks: "Are these credentials valid?" (Verify against database)
+System: Generates access token
+You get: Token to access protected resources
+```
+
+##### 3. Access Protected Resources (Using Your Badge)
+
+```text
+You say: "I want to see my profile" (Send token with request)
+Guard checks: "Is this token valid?" (Verify token)
+System: Returns your data if authorized
+You get: Your profile information
+```
+
+#### What Does an Auth API Request Look Like?
+
+Let's see a real example of registering a user:
+
+##### Your Request (What you send)
+
+```http
+POST https://api.auth.example.com/v1/register
+Content-Type: application/json
+
+{
+  "username": "john_doe",
+  "email": "john@example.com",
+  "password": "SecureP@ssw0rd!"
+}
+```
+
+Think of this as saying: "I want to create an account!"
+
+##### Server's Response (What you get back)
+
+```http
+HTTP/1.1 201 Created
+Content-Type: application/json
+
+{
+  "user_id": "usr_abc123",
+  "username": "john_doe",
+  "email": "john@example.com",
+  "email_verified": false,
+  "created_at": "2025-01-15T10:30:00Z",
+  "message": "Verification email sent to john@example.com"
+}
+```
+
+Think of this as: "Account created! Check your email to verify."
+
+#### Understanding HTTP Methods for Auth
+
+HTTP methods are like different security operations:
+
+```text
+POST = "Create new" / "Submit credentials"
+├─ Example: POST /v1/login
+├─ Like: "Check my credentials, let me in"
+└─ Used for: Login, Register, Token refresh
+
+GET = "Show me" / "Retrieve"
+├─ Example: GET /v1/users/me
+├─ Like: "Show me my profile"
+└─ Used for: Get user info, permissions
+
+PUT = "Update completely"
+├─ Example: PUT /v1/users/me
+├─ Like: "Update all my profile info"
+└─ Used for: Update user profile
+
+PATCH = "Update partially"
+├─ Example: PATCH /v1/users/me/password
+├─ Like: "Just change my password"
+└─ Used for: Password reset, email update
+
+DELETE = "Remove"
+├─ Example: DELETE /v1/sessions
+├─ Like: "Log me out, remove my session"
+└─ Used for: Logout, delete account
+```
+
+#### Our Auth API's Menu (Main Endpoints)
+
+Here's what you can do with our authentication API:
+
+```text
+1. Register User
+   POST /v1/register
+   "I want to create an account"
+
+2. Login
+   POST /v1/login
+   "Let me in with my credentials"
+
+3. Logout
+   POST /v1/logout
+   "Log me out, invalidate my token"
+
+4. Get My Profile
+   GET /v1/users/me
+   "Show me my profile information"
+
+5. Refresh Token
+   POST /v1/token/refresh
+   "My token is expiring, give me a new one"
+
+6. Reset Password
+   POST /v1/password/reset
+   "I forgot my password, send reset link"
+
+7. Verify MFA Code
+   POST /v1/mfa/verify
+   "Here's my 6-digit code from authenticator app"
+```
+
+#### What Can Go Wrong? (Common Auth Errors)
+
+Just like with building security, things can go wrong:
+
+```text
+401 Unauthorized = "I don't know who you are"
+├─ You: Try to access profile without token
+├─ Server: "Please login first!"
+└─ Example: Missing or expired token
+
+403 Forbidden = "I know who you are, but you can't do that"
+├─ You: Try to delete admin account as regular user
+├─ Server: "You don't have permission!"
+└─ Example: Insufficient permissions
+
+400 Bad Request = "Invalid credentials or data"
+├─ You: "My password is '123'"
+├─ Server: "Password too weak!"
+└─ Example: Password doesn't meet requirements
+
+429 Too Many Requests = "Too many login attempts"
+├─ You: Try wrong password 10 times
+├─ Server: "Locked out for 15 minutes!"
+└─ Example: Brute force protection triggered
+
+409 Conflict = "Username already taken"
+├─ You: Register with existing username
+├─ Server: "That username is taken!"
+└─ Example: Duplicate user registration
+```
+
+💡 **Pro Tip:** Security error messages should be helpful but not give away too much! Don't say "Password wrong" vs "Username wrong" - say "Invalid credentials" for both!
+
+---
+
+### 🟡 For Intermediate: RESTful Auth API Design Patterns
+
+#### REST Principles Applied to Authentication
+
+**Key REST Principles for Auth APIs:**
+
+```text
+1. Stateless (No Server Memory Between Requests)
+   ✅ Good: Each request includes token for auth
+   ❌ Bad: Server remembers "you logged in 5 mins ago"
+
+2. Standard HTTP Methods
+   ✅ Good: POST /login (create session)
+   ❌ Bad: GET /doLogin (GET should be idempotent)
+
+3. Proper Status Codes
+   ✅ Good: 401 for auth failure, 403 for permission
+   ❌ Bad: Everything returns 200 OK with error in body
+
+4. Secure by Default
+   ✅ Good: HTTPS only, secure headers
+   ❌ Bad: HTTP allowed, no CORS protection
+
+5. Token in Authorization Header
+   ✅ Good: Authorization: Bearer <token>
+   ❌ Bad: Token in query string (logs everywhere!)
+```
+
+#### Complete API Design
+
+##### 1. User Management APIs
+
+**1.1 Register User**
+
+```http
+POST /v1/register
+Content-Type: application/json
+
+Request Body:
+{
+  "username": "john_doe",
+  "email": "john@example.com",
+  "password": "SecureP@ssw0rd!",
+  "first_name": "John",
+  "last_name": "Doe",
+  "phone": "+1-555-0123",           // Optional
+  "consent": {
+    "terms": true,
+    "privacy": true,
+    "marketing": false
+  }
+}
+
+Success Response (201 Created):
+{
+  "status": "success",
+  "data": {
+    "user_id": "usr_abc123",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "email_verified": false,
+    "created_at": "2025-01-15T10:30:00Z",
+    "verification_sent": true,
+    "next_steps": [
+      "Check email for verification link",
+      "Verification link expires in 24 hours"
+    ]
+  }
+}
+
+Error Response (400 Bad Request):
+{
+  "status": "error",
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Registration validation failed",
+    "details": [
+      {
+        "field": "password",
+        "reason": "Password must be at least 12 characters"
+      },
+      {
+        "field": "email",
+        "reason": "Invalid email format"
+      }
+    ]
+  },
+  "request_id": "req_abc123"
+}
+
+Error Response (409 Conflict):
+{
+  "status": "error",
+  "error": {
+    "code": "USER_EXISTS",
+    "message": "User with this email already exists",
+    "details": {
+      "field": "email",
+      "suggestion": "Try logging in or use password reset"
+    }
+  }
+}
+```
+
+**1.2 Login**
+
+```http
+POST /v1/login
+Content-Type: application/json
+
+Request Body:
+{
+  "username": "john_doe",           // or email
+  "password": "SecureP@ssw0rd!",
+  "remember_me": true,              // Optional: longer session
+  "device_info": {                  // Optional: for device tracking
+    "device_id": "dev_xyz789",
+    "device_name": "iPhone 13",
+    "user_agent": "MyApp/1.0"
+  }
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "token_type": "Bearer",
+    "expires_in": 3600,                    // seconds
+    "refresh_token": "rt_abc123xyz...",
+    "user": {
+      "user_id": "usr_abc123",
+      "username": "john_doe",
+      "email": "john@example.com",
+      "roles": ["user"],
+      "permissions": ["read:profile", "write:profile"]
+    }
+  }
+}
+
+Success Response with MFA Required (200 OK):
+{
+  "status": "success",
+  "data": {
+    "mfa_required": true,
+    "mfa_token": "mfa_temp_token_xyz",     // Temporary token
+    "mfa_methods": ["totp", "sms"],
+    "message": "Please provide MFA code to complete login"
+  }
+}
+
+Error Response (401 Unauthorized):
+{
+  "status": "error",
+  "error": {
+    "code": "INVALID_CREDENTIALS",
+    "message": "Invalid username or password",
+    "attempts_remaining": 3,
+    "lockout_after": 5
+  }
+}
+
+Error Response (423 Locked):
+{
+  "status": "error",
+  "error": {
+    "code": "ACCOUNT_LOCKED",
+    "message": "Account temporarily locked due to too many failed attempts",
+    "locked_until": "2025-01-15T11:00:00Z",
+    "retry_after_seconds": 900
+  }
+}
+```
+
+**1.3 Logout**
+
+```http
+POST /v1/logout
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+Request Body (Optional):
+{
+  "logout_all_devices": false      // true = invalidate all sessions
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "message": "Successfully logged out",
+    "logged_out_at": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+**1.4 Get User Profile**
+
+```http
+GET /v1/users/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "user_id": "usr_abc123",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "email_verified": true,
+    "first_name": "John",
+    "last_name": "Doe",
+    "phone": "+1-555-0123",
+    "phone_verified": false,
+    "avatar_url": "https://cdn.example.com/avatars/abc123.jpg",
+    "roles": ["user", "premium"],
+    "mfa_enabled": true,
+    "created_at": "2025-01-01T10:00:00Z",
+    "last_login": "2025-01-15T10:30:00Z",
+    "account_status": "active"
+  }
+}
+```
+
+**1.5 Update User Profile**
+
+```http
+PATCH /v1/users/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+Request Body:
+{
+  "first_name": "Jonathan",
+  "phone": "+1-555-9999"
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "user_id": "usr_abc123",
+    "updated_fields": ["first_name", "phone"],
+    "updated_at": "2025-01-15T10:35:00Z"
+  }
+}
+```
+
+**1.6 Change Password**
+
+```http
+PATCH /v1/users/me/password
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+Request Body:
+{
+  "current_password": "OldP@ssw0rd!",
+  "new_password": "NewSecureP@ssw0rd!",
+  "logout_other_sessions": true     // Invalidate other tokens
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "message": "Password changed successfully",
+    "changed_at": "2025-01-15T10:40:00Z",
+    "sessions_invalidated": 3
+  }
+}
+
+Error Response (400 Bad Request):
+{
+  "status": "error",
+  "error": {
+    "code": "WEAK_PASSWORD",
+    "message": "New password does not meet security requirements",
+    "requirements": {
+      "min_length": 12,
+      "require_uppercase": true,
+      "require_lowercase": true,
+      "require_numbers": true,
+      "require_special": true,
+      "not_in_breach_database": true
+    }
+  }
+}
+```
+
+**1.7 Request Password Reset**
+
+```http
+POST /v1/password/reset-request
+Content-Type: application/json
+
+Request Body:
+{
+  "email": "john@example.com"
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "message": "If this email exists, a reset link has been sent",
+    "expires_in": 3600
+  }
+}
+
+Note: Always return success even if email doesn't exist (security best practice)
+```
+
+**1.8 Reset Password with Token**
+
+```http
+POST /v1/password/reset
+Content-Type: application/json
+
+Request Body:
+{
+  "reset_token": "reset_abc123xyz...",
+  "new_password": "NewSecureP@ssw0rd!"
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "message": "Password reset successful",
+    "reset_at": "2025-01-15T10:50:00Z"
+  }
+}
+
+Error Response (400 Bad Request):
+{
+  "status": "error",
+  "error": {
+    "code": "INVALID_TOKEN",
+    "message": "Reset token is invalid or expired"
+  }
+}
+```
+
+##### 2. Token Management APIs
+
+**2.1 Refresh Access Token**
+
+```http
+POST /v1/token/refresh
+Content-Type: application/json
+
+Request Body:
+{
+  "refresh_token": "rt_abc123xyz..."
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "refresh_token": "rt_new456abc..."  // New refresh token (rotation)
+  }
+}
+
+Error Response (401 Unauthorized):
+{
+  "status": "error",
+  "error": {
+    "code": "INVALID_REFRESH_TOKEN",
+    "message": "Refresh token is invalid or expired",
+    "action": "Please login again"
+  }
+}
+```
+
+**2.2 Validate Token (Introspection)**
+
+```http
+POST /v1/token/introspect
+Content-Type: application/json
+Authorization: Bearer <service_token>  // Service-to-service auth
+
+Request Body:
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "active": true,
+    "token_type": "access_token",
+    "user_id": "usr_abc123",
+    "username": "john_doe",
+    "scope": "read:profile write:profile",
+    "client_id": "client_xyz",
+    "exp": 1705329000,
+    "iat": 1705325400,
+    "iss": "https://auth.example.com"
+  }
+}
+
+Inactive Token Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "active": false,
+    "reason": "expired"
+  }
+}
+```
+
+**2.3 Revoke Token**
+
+```http
+POST /v1/token/revoke
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+Request Body:
+{
+  "token": "rt_abc123xyz...",
+  "token_type_hint": "refresh_token"  // Optional: access_token or refresh_token
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "message": "Token revoked successfully",
+    "revoked_at": "2025-01-15T11:00:00Z"
+  }
+}
+```
+
+##### 3. Multi-Factor Authentication (MFA) APIs
+
+**3.1 Setup MFA (TOTP)**
+
+```http
+POST /v1/mfa/totp/setup
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "secret": "JBSWY3DPEHPK3PXP",
+    "qr_code_url": "https://api.auth.example.com/v1/mfa/qr/abc123",
+    "qr_code_data": "otpauth://totp/MyApp:john_doe?secret=JBSWY3DPEHPK3PXP&issuer=MyApp",
+    "backup_codes": [
+      "12345678",
+      "23456789",
+      "34567890",
+      "45678901",
+      "56789012"
+    ],
+    "instructions": [
+      "Scan QR code with authenticator app (Google Authenticator, Authy)",
+      "Enter 6-digit code to verify setup",
+      "Save backup codes in secure location"
+    ]
+  }
+}
+```
+
+**3.2 Verify MFA Setup**
+
+```http
+POST /v1/mfa/totp/verify-setup
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+Request Body:
+{
+  "code": "123456"
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "message": "MFA enabled successfully",
+    "enabled_at": "2025-01-15T11:10:00Z",
+    "backup_codes_count": 5
+  }
+}
+
+Error Response (400 Bad Request):
+{
+  "status": "error",
+  "error": {
+    "code": "INVALID_MFA_CODE",
+    "message": "The provided code is invalid",
+    "attempts_remaining": 2
+  }
+}
+```
+
+**3.3 Verify MFA During Login**
+
+```http
+POST /v1/mfa/verify
+Content-Type: application/json
+
+Request Body:
+{
+  "mfa_token": "mfa_temp_token_xyz",  // From login response
+  "code": "123456",
+  "method": "totp"                    // or "sms", "backup_code"
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "refresh_token": "rt_abc123xyz..."
+  }
+}
+```
+
+**3.4 Generate New Backup Codes**
+
+```http
+POST /v1/mfa/backup-codes/regenerate
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+Request Body:
+{
+  "password": "SecureP@ssw0rd!"  // Require password for security
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "backup_codes": [
+      "87654321",
+      "76543210",
+      "65432109",
+      "54321098",
+      "43210987"
+    ],
+    "message": "Previous backup codes have been invalidated",
+    "generated_at": "2025-01-15T11:20:00Z"
+  }
+}
+```
+
+**3.5 Disable MFA**
+
+```http
+DELETE /v1/mfa
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+Request Body:
+{
+  "password": "SecureP@ssw0rd!",
+  "code": "123456"  // Current MFA code
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "message": "MFA disabled successfully",
+    "disabled_at": "2025-01-15T11:30:00Z"
+  }
+}
+```
+
+##### 4. OAuth 2.0 APIs
+
+**4.1 Authorization Endpoint (Authorization Code Flow)**
+
+```http
+GET /v1/oauth/authorize
+  ?response_type=code
+  &client_id=client_abc123
+  &redirect_uri=https://app.example.com/callback
+  &scope=read:profile write:profile
+  &state=random_state_string
+  &code_challenge=BASE64URL(SHA256(code_verifier))  // PKCE
+  &code_challenge_method=S256
+
+User is redirected to login page, then back to redirect_uri:
+
+Success Redirect:
+https://app.example.com/callback
+  ?code=auth_code_xyz789
+  &state=random_state_string
+
+Error Redirect:
+https://app.example.com/callback
+  ?error=access_denied
+  &error_description=User+denied+access
+  &state=random_state_string
+```
+
+**4.2 Token Exchange (Authorization Code → Access Token)**
+
+```http
+POST /v1/oauth/token
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic base64(client_id:client_secret)
+
+Request Body:
+grant_type=authorization_code
+&code=auth_code_xyz789
+&redirect_uri=https://app.example.com/callback
+&code_verifier=original_code_verifier  // PKCE
+
+Success Response (200 OK):
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "rt_abc123xyz...",
+  "scope": "read:profile write:profile",
+  "id_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  // OpenID Connect
+}
+```
+
+**4.3 Client Credentials Grant (Service-to-Service)**
+
+```http
+POST /v1/oauth/token
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic base64(client_id:client_secret)
+
+Request Body:
+grant_type=client_credentials
+&scope=service:access
+
+Success Response (200 OK):
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 7200,
+  "scope": "service:access"
+}
+```
+
+##### 5. Single Sign-On (SSO) / SAML APIs
+
+**5.1 Initiate SSO Login (SAML)**
+
+```http
+GET /v1/sso/saml/login
+  ?SAMLRequest=<base64_encoded_saml_request>
+  &RelayState=<app_state>
+
+Response: 302 Redirect to Identity Provider (IdP)
+Location: https://idp.example.com/saml/login
+  ?SAMLRequest=...
+  &RelayState=...
+```
+
+**5.2 SAML Assertion Consumer Service (ACS)**
+
+```http
+POST /v1/sso/saml/acs
+Content-Type: application/x-www-form-urlencoded
+
+Request Body:
+SAMLResponse=<base64_encoded_saml_response>
+&RelayState=<app_state>
+
+Success: 302 Redirect to application with session
+Location: https://app.example.com/dashboard
+Set-Cookie: session_id=xyz789; HttpOnly; Secure; SameSite=Strict
+```
+
+**5.3 SAML Metadata**
+
+```http
+GET /v1/sso/saml/metadata
+
+Success Response (200 OK):
+Content-Type: application/xml
+
+<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"
+                  entityID="https://auth.example.com">
+  <SPSSODescriptor>
+    <AssertionConsumerService
+      Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+      Location="https://auth.example.com/v1/sso/saml/acs"
+      index="0"/>
+  </SPSSODescriptor>
+</EntityDescriptor>
+```
+
+##### 6. Permission Check APIs
+
+**6.1 Check Permission**
+
+```http
+POST /v1/permissions/check
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+Request Body:
+{
+  "user_id": "usr_abc123",
+  "resource": "document:doc_xyz789",
+  "action": "read"
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "allowed": true,
+    "reason": "User has 'editor' role on resource"
+  }
+}
+
+Denied Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "allowed": false,
+    "reason": "User lacks required permission"
+  }
+}
+```
+
+**6.2 Batch Permission Check**
+
+```http
+POST /v1/permissions/check-batch
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+Request Body:
+{
+  "user_id": "usr_abc123",
+  "checks": [
+    {"resource": "document:doc_123", "action": "read"},
+    {"resource": "document:doc_123", "action": "write"},
+    {"resource": "document:doc_456", "action": "delete"}
+  ]
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "results": [
+      {"resource": "document:doc_123", "action": "read", "allowed": true},
+      {"resource": "document:doc_123", "action": "write", "allowed": true},
+      {"resource": "document:doc_456", "action": "delete", "allowed": false}
+    ]
+  }
+}
+```
+
+**6.3 List User Permissions**
+
+```http
+GET /v1/users/me/permissions
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "user_id": "usr_abc123",
+    "permissions": [
+      "read:profile",
+      "write:profile",
+      "read:documents",
+      "write:documents",
+      "delete:own_documents"
+    ],
+    "roles": [
+      {
+        "role_id": "role_editor",
+        "role_name": "Editor",
+        "scope": "organization:org_123"
+      }
+    ]
+  }
+}
+```
+
+##### 7. Admin APIs
+
+**7.1 List Users (Admin)**
+
+```http
+GET /v1/admin/users
+Authorization: Bearer <admin_token>
+
+Query Parameters:
+- page: 1 (default: 1)
+- limit: 20 (default: 20, max: 100)
+- status: active (options: active, suspended, deleted)
+- search: john (search by username/email)
+- sort: created_at (options: created_at, last_login, username)
+- order: desc (options: asc, desc)
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "users": [
+      {
+        "user_id": "usr_abc123",
+        "username": "john_doe",
+        "email": "john@example.com",
+        "status": "active",
+        "mfa_enabled": true,
+        "last_login": "2025-01-15T10:30:00Z",
+        "created_at": "2025-01-01T10:00:00Z"
+      }
+    ],
+    "pagination": {
+      "current_page": 1,
+      "total_pages": 50,
+      "total_items": 1000,
+      "items_per_page": 20
+    }
+  }
+}
+```
+
+**7.2 Suspend User (Admin)**
+
+```http
+POST /v1/admin/users/{user_id}/suspend
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+Request Body:
+{
+  "reason": "Suspicious activity detected",
+  "duration": 86400,  // seconds, null = indefinite
+  "notify_user": true
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "user_id": "usr_abc123",
+    "status": "suspended",
+    "suspended_at": "2025-01-15T12:00:00Z",
+    "suspended_until": "2025-01-16T12:00:00Z",
+    "reason": "Suspicious activity detected"
+  }
+}
+```
+
+**7.3 Assign Role (Admin)**
+
+```http
+POST /v1/admin/users/{user_id}/roles
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+Request Body:
+{
+  "role_id": "role_moderator",
+  "scope": "organization:org_123"  // Optional: scope the role
+}
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "user_id": "usr_abc123",
+    "role_id": "role_moderator",
+    "assigned_at": "2025-01-15T12:10:00Z"
+  }
+}
+```
+
+##### 8. Audit Log APIs
+
+**8.1 Query Audit Logs**
+
+```http
+GET /v1/audit/logs
+Authorization: Bearer <admin_token>
+
+Query Parameters:
+- start_date: 2025-01-01T00:00:00Z
+- end_date: 2025-01-31T23:59:59Z
+- user_id: usr_abc123 (optional)
+- event_type: login (optional: login, logout, permission_change, etc.)
+- resource: document:doc_123 (optional)
+- page: 1
+- limit: 50
+
+Success Response (200 OK):
+{
+  "status": "success",
+  "data": {
+    "logs": [
+      {
+        "log_id": "log_xyz789",
+        "timestamp": "2025-01-15T10:30:00Z",
+        "event_type": "login",
+        "user_id": "usr_abc123",
+        "username": "john_doe",
+        "ip_address": "203.0.113.42",
+        "user_agent": "Mozilla/5.0...",
+        "status": "success",
+        "metadata": {
+          "mfa_used": true,
+          "device": "iPhone 13"
+        }
+      }
+    ],
+    "pagination": {
+      "current_page": 1,
+      "total_pages": 10,
+      "total_items": 500
+    }
+  }
+}
+```
+
+**8.2 Export Audit Logs**
+
+```http
+POST /v1/audit/logs/export
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+Request Body:
+{
+  "start_date": "2025-01-01T00:00:00Z",
+  "end_date": "2025-01-31T23:59:59Z",
+  "format": "csv",  // or "json"
+  "filters": {
+    "event_types": ["login", "permission_change"],
+    "user_ids": ["usr_abc123"]
+  }
+}
+
+Success Response (202 Accepted):
+{
+  "status": "success",
+  "data": {
+    "export_id": "export_abc123",
+    "status": "processing",
+    "estimated_completion": "2025-01-15T12:30:00Z",
+    "callback_url": "https://api.auth.example.com/v1/audit/exports/export_abc123"
+  }
+}
+```
+
+#### API Design Decisions
+
+##### Decision 1: Token Storage Location
+
+```text
+OPTION A: Authorization Header (Recommended)
+Authorization: Bearer <token>
+
+Pros:
+✅ Standard HTTP header
+✅ Not logged in server access logs
+✅ Not cached by browsers
+✅ Secure, designed for credentials
+
+Cons:
+❌ Requires JavaScript for SPAs
+
+OPTION B: Cookie
+Set-Cookie: token=<token>; HttpOnly; Secure; SameSite=Strict
+
+Pros:
+✅ Automatic browser handling
+✅ HttpOnly prevents XSS
+✅ Works without JavaScript
+
+Cons:
+❌ CSRF vulnerability (need protection)
+❌ Subdomain security concerns
+
+OPTION C: Query String (Never do this!)
+GET /api/data?token=<token>
+
+Cons:
+❌ Logged everywhere (server logs, proxy logs)
+❌ Visible in browser history
+❌ Leaked via Referer header
+
+CHOICE: Authorization Header for APIs, Cookie for web apps
+Reasoning: Best security practices, industry standard
+```
+
+##### Decision 2: API Versioning Strategy
+
+```text
+URL Path Versioning: /v1/login, /v2/login
+
+Pros:
+✅ Very explicit and clear
+✅ Easy to route to different services
+✅ Can deprecate old versions cleanly
+✅ Works with all HTTP clients
+
+Cons:
+❌ URLs change with version
+❌ Multiple endpoints to maintain
+
+CHOICE: URL Path Versioning
+Reasoning: 
+├─ Auth APIs change infrequently
+├─ Clear deprecation path
+├─ Easy for developers to understand
+└─ Interview tip: Discuss long-term support strategy
+```
+
+##### Decision 3: Password Requirements
+
+```text
+Industry Best Practices (NIST 2024):
+├─ Minimum 12 characters (not 8!)
+├─ Check against breach databases (HaveIBeenPwned)
+├─ Allow spaces and special characters
+├─ No maximum length limit (hash anyway)
+├─ No forced periodic changes
+└─ No complex rules that lead to "Password1!"
+
+Implementation:
+└─ Use zxcvbn library for strength estimation
+```
+
+#### Rate Limiting Implementation
+
+**Rate Limit Headers:**
+
+```http
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 856
+X-RateLimit-Reset: 1705329000
+Retry-After: 60
+```
+
+**Rate Limit Tiers by Endpoint:**
+
+```text
+Authentication Endpoints:
+├─ POST /v1/login: 5 per minute (per IP)
+├─ POST /v1/register: 3 per hour (per IP)
+├─ POST /v1/password/reset-request: 3 per hour (per email)
+└─ POST /v1/mfa/verify: 5 per minute (per session)
+
+Token Management:
+├─ POST /v1/token/refresh: 10 per minute (per user)
+├─ POST /v1/token/introspect: 1000 per minute (per service)
+└─ POST /v1/token/revoke: 10 per minute (per user)
+
+User APIs:
+├─ GET /v1/users/me: 100 per minute (per user)
+├─ PATCH /v1/users/me: 10 per minute (per user)
+└─ PATCH /v1/users/me/password: 3 per hour (per user)
+
+Admin APIs:
+├─ GET /v1/admin/users: 100 per minute (per admin)
+└─ POST /v1/admin/users/{id}/suspend: 50 per minute (per admin)
+
+Reasoning:
+├─ Lower limits for authentication (brute force protection)
+├─ Higher limits for read operations
+├─ Medium limits for write operations
+└─ Very high limits for service-to-service
+```
+
+**Rate Limit Response:**
+
+```http
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json
+Retry-After: 60
+X-RateLimit-Limit: 5
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1705329060
+
+{
+  "status": "error",
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Too many login attempts. Please try again in 60 seconds.",
+    "details": {
+      "limit": 5,
+      "window": "1 minute",
+      "retry_after_seconds": 60,
+      "reset_at": "2025-01-15T12:01:00Z"
+    }
+  }
+}
+```
+
+#### Error Handling Best Practices
+
+**Consistent Error Format:**
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "ERROR_CODE",                    // Machine-readable
+    "message": "Human readable description", // For developers
+    "details": {},                           // Additional context
+    "documentation_url": "https://docs.auth.example.com/errors/ERROR_CODE",
+    "support_contact": "support@example.com"
+  },
+  "request_id": "req_abc123"                 // For support tickets
+}
+```
+
+**Error Code Hierarchy:**
+
+```text
+4xx Client Errors:
+├─ 400 VALIDATION_ERROR: Input validation failed
+├─ 400 WEAK_PASSWORD: Password doesn't meet requirements
+├─ 400 INVALID_MFA_CODE: MFA code incorrect
+├─ 401 INVALID_CREDENTIALS: Wrong username/password
+├─ 401 TOKEN_EXPIRED: Access token expired
+├─ 401 INVALID_TOKEN: Malformed or invalid token
+├─ 403 INSUFFICIENT_PERMISSIONS: User lacks permission
+├─ 403 ACCOUNT_SUSPENDED: Account is suspended
+├─ 404 USER_NOT_FOUND: User doesn't exist
+├─ 409 USER_EXISTS: User already registered
+├─ 409 ALIAS_TAKEN: Username/email taken
+├─ 423 ACCOUNT_LOCKED: Too many failed attempts
+└─ 429 RATE_LIMIT_EXCEEDED: Too many requests
+
+5xx Server Errors:
+├─ 500 INTERNAL_ERROR: Generic server error
+├─ 502 IDP_ERROR: Identity provider failed
+├─ 503 SERVICE_UNAVAILABLE: Maintenance mode
+└─ 504 TIMEOUT: Request took too long
+```
+
+**Security-Conscious Error Messages:**
+
+```text
+DON'T reveal too much:
+❌ "Password is incorrect" (reveals username exists)
+❌ "Email not found" (username enumeration)
+❌ "MFA code wrong, 3 attempts remaining" (timing attacks)
+
+DO be helpful but vague:
+✅ "Invalid credentials" (both username and password)
+✅ "If this email exists, a reset link was sent"
+✅ "Invalid or expired code" (no attempt count)
+```
+
+---
+
+### 🔴 For Advanced: Production API Patterns
+
+#### Idempotency for Safe Retries
+
+**The Problem:**
+
+```text
+User clicks "Register" → Network timeout → User retries
+└─ Without idempotency: 2 accounts created!
+└─ With idempotency: Same account returned
+```
+
+**Implementation:**
+
+```http
+POST /v1/register
+Idempotency-Key: unique-client-key-abc123
+Content-Type: application/json
+
+{
+  "username": "john_doe",
+  "email": "john@example.com",
+  "password": "SecureP@ssw0rd!"
+}
+```
+
+**Server-Side Architecture:**
+
+```text
+1. Check idempotency cache
+   ├─ If key exists and within 24h: Return cached response
+   └─ If key doesn't exist: Process request
+
+2. Process request
+   ├─ Start database transaction
+   ├─ Create user
+   ├─ Store response in cache with key
+   └─ Commit transaction
+
+3. Return response
+   └─ Same response for same idempotency key
+
+Cache Structure:
+Key: "idempotency:abc123"
+Value: {
+  "status": 201,
+  "body": { user data },
+  "created_at": "2025-01-15T10:30:00Z"
+}
+TTL: 24 hours
+```
+
+**Benefits:**
+- Safe retries after network failures
+- Prevents duplicate user creation
+- 24-hour cache window for retries
+
+#### API Gateway Pattern for Auth
+
+**Why API Gateway for Auth?**
+
+```text
+Without Gateway:
+[Client] → [Auth Service]
+        → [User Service]
+        → [Permission Service]
+
+Problems:
+❌ Client needs multiple endpoints
+❌ Duplicate rate limiting logic
+❌ Complex CORS configuration
+❌ No centralized logging
+
+With Gateway:
+[Client] → [API Gateway] → [Auth Service]
+                         → [User Service]
+                         → [Permission Service]
+
+Benefits:
+✅ Single entry point with TLS termination
+✅ Centralized rate limiting and DDoS protection
+✅ Request/response transformation
+✅ Unified logging and monitoring
+✅ API versioning and routing
+```
+
+**Gateway Configuration (Kong/AWS API Gateway):**
+
+```yaml
+# Authentication Service Routes
+routes:
+  - name: user_registration
+    methods: [POST]
+    paths: [/v1/register]
+    service: auth_service
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 3
+          policy: redis
+          redis_host: redis.cache.local
+      - name: bot-detection
+        config:
+          deny_bots: true
+      - name: ip-restriction
+        config:
+          whitelist: null
+          blacklist: [known_bad_ips]
+
+  - name: user_login
+    methods: [POST]
+    paths: [/v1/login]
+    service: auth_service
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 5
+          policy: redis
+          redis_host: redis.cache.local
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Request-ID:$(uuid)
+              - X-Real-IP:$(remote_addr)
+      - name: response-caching
+        config:
+          strategy: memory
+          cache_ttl: 0  # Don't cache auth responses
+
+  - name: token_refresh
+    methods: [POST]
+    paths: [/v1/token/refresh]
+    service: token_service
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 10
+          policy: redis
+
+  - name: protected_resources
+    methods: [GET, PUT, PATCH, DELETE]
+    paths: [/v1/users/me*]
+    service: user_service
+    plugins:
+      - name: jwt
+        config:
+          secret_is_base64: false
+          claims_to_verify: [exp, nbf]
+          key_claim_name: kid
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: redis
+
+  - name: admin_operations
+    methods: [GET, POST, PUT, DELETE]
+    paths: [/v1/admin/*]
+    service: admin_service
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify: [exp, nbf]
+      - name: acl
+        config:
+          whitelist: [admin, super_admin]
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: redis
+```
+
+#### Token Rotation and Family Tracking
+
+**Refresh Token Rotation:**
+
+```text
+Why Rotate Refresh Tokens?
+
+Problem: Long-lived refresh tokens
+├─ If stolen, attacker has long-term access
+├─ Hard to detect compromise
+└─ Can't revoke without affecting user
+
+Solution: Rotate on every use
+├─ Issue new refresh token with each refresh
+├─ Invalidate old refresh token
+├─ Track token families
+└─ Detect replay attacks
+
+Token Family Architecture:
+[HLD Note: Core concept for interviews]
+
+Data Structure:
+{
+  "family_id": "fam_abc123",
+  "tokens": [
+    {
+      "token_id": "rt_v1",
+      "issued_at": "2025-01-15T10:00:00Z",
+      "expires_at": "2025-02-15T10:00:00Z",
+      "used_at": "2025-01-15T10:05:00Z",
+      "replaced_by": "rt_v2",
+      "status": "used"
+    },
+    {
+      "token_id": "rt_v2",
+      "issued_at": "2025-01-15T10:05:00Z",
+      "expires_at": "2025-02-15T10:05:00Z",
+      "status": "active"
+    }
+  ]
+}
+
+Replay Detection Logic:
+1. User sends refresh token rt_v1
+2. System checks: rt_v1 status = "used" (already rotated to rt_v2)
+3. ALERT: Token replay detected!
+4. Action: Invalidate entire token family (all tokens)
+5. User must login again
+
+Benefits:
+✅ Limits impact of token theft
+✅ Detects replay attacks
+✅ Automatic revocation on compromise
+✅ User not affected by normal rotation
+```
+
+#### Webhook Delivery for Auth Events
+
+**Auth Event Webhooks:**
+
+```text
+Webhook Events:
+├─ user.registered: New user signed up
+├─ user.login: User logged in
+├─ user.logout: User logged out
+├─ user.password_changed: Password updated
+├─ user.mfa_enabled: MFA turned on
+├─ user.mfa_disabled: MFA turned off
+├─ user.suspended: Account suspended
+├─ user.deleted: Account deleted
+├─ permission.granted: New permission assigned
+└─ permission.revoked: Permission removed
+```
+
+**Webhook Payload:**
+
+```json
+{
+  "event_id": "evt_abc123",
+  "event_type": "user.login",
+  "timestamp": "2025-01-15T10:30:00Z",
+  "api_version": "2025-01-15",
+  "data": {
+    "user_id": "usr_abc123",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "ip_address": "203.0.113.42",
+    "user_agent": "Mozilla/5.0...",
+    "mfa_used": true,
+    "location": {
+      "country": "US",
+      "city": "San Francisco"
+    }
+  },
+  "webhook_id": "wh_xyz789",
+  "signature": "sha256=a1b2c3..."  // HMAC-SHA256 signature
+}
+```
+
+**Reliable Delivery Architecture:**
+
+```text
+[HLD Note: Focus on architecture, not implementation]
+
+Components:
+├─ Event Producer: Auth service emits events
+├─ Event Queue: Kafka/RabbitMQ for buffering
+├─ Webhook Worker: Processes and delivers
+└─ Retry Handler: Handles failures
+
+Delivery Guarantees:
+1. At-least-once delivery
+   ├─ Store webhook deliveries in database
+   ├─ Mark as "pending" initially
+   └─ Update to "delivered" on success
+
+2. Retry Strategy (exponential backoff)
+   ├─ Attempt 1: Immediate
+   ├─ Attempt 2: 1 minute later
+   ├─ Attempt 3: 5 minutes later
+   ├─ Attempt 4: 15 minutes later
+   ├─ Attempt 5: 1 hour later
+   └─ Give up after 24 hours
+
+3. Verification
+   ├─ Include HMAC signature in webhook
+   ├─ Customer verifies signature
+   └─ Prevents spoofing
+
+4. Idempotency
+   ├─ Include event_id in payload
+   ├─ Customer can dedupe events
+   └─ Safe to receive same event twice
+```
+
+#### Advanced Security: Certificate-Based Auth
+
+**Mutual TLS (mTLS) for Service-to-Service:**
+
+```text
+Standard TLS:
+[Client] → verifies → [Server Certificate]
+
+Mutual TLS (mTLS):
+[Client Certificate] ← verifies ← [Server]
+[Client] → verifies → [Server Certificate]
+
+Both sides authenticate!
+
+Use Cases:
+✅ Service-to-service communication
+✅ High-security environments (banking)
+✅ Zero-trust architecture
+✅ IoT device authentication
+
+Implementation at API Gateway:
+└─ Require client certificate for /v1/service/* endpoints
+```
+
+#### Performance Optimization Patterns
+
+**1. Token Validation Caching:**
+
+```text
+Problem: Every API call validates token
+├─ Query database for revocation list
+├─ Check token signature
+├─ Verify expiration
+└─ 10ms per validation × 100K requests = 1000 seconds!
+
+Solution: Cache validation results
+├─ Cache key: SHA256(token)
+├─ Cache value: { valid: true, user_id, roles }
+├─ TTL: 5 minutes
+└─ Check revocation list every 5 min
+
+Performance Impact:
+├─ Before: 10ms per request
+├─ After: 0.1ms per request (cached)
+└─ 100x speedup!
+
+Trade-off:
+├─ Pro: Massive performance gain
+├─ Con: Up to 5-minute delay for revocations
+└─ Mitigation: Force cache invalidation for critical revocations
+```
+
+**2. Permission Check Optimization:**
+
+```text
+Problem: N+1 queries for permission checks
+├─ Check permission for resource 1 → DB query
+├─ Check permission for resource 2 → DB query
+├─ Check permission for resource 3 → DB query
+└─ 100 resources = 100 queries!
+
+Solution 1: Batch permission checks
+POST /v1/permissions/check-batch
+└─ Single query for all resources
+
+Solution 2: Pre-compute permission cache
+├─ User logs in → Load all permissions into cache
+├─ Cache key: "perms:usr_abc123"
+├─ Cache value: Set of all permissions
+└─ Permission check = O(1) set lookup
+
+Solution 3: Permission bloom filter
+├─ Probabilistic data structure
+├─ Fast negative lookups
+├─ If bloom filter says "no" → definitely no
+├─ If bloom filter says "yes" → check database
+└─ Reduces 90% of database queries
+```
+
+**3. Connection Pooling:**
+
+```text
+Database Connection Pooling:
+├─ Reuse connections instead of creating new ones
+├─ Pool size: 50-100 connections per service
+├─ Max wait time: 5 seconds
+└─ 10x faster than creating new connections
+
+Redis Connection Pooling:
+├─ Pool size: 100 connections
+├─ Pipeline commands for batch operations
+└─ Use connection multiplexing
+```
+
+#### API Deprecation Strategy
+
+**How to Deprecate Auth APIs:**
+
+```text
+Step 1: Announce (6 months before)
+├─ Add deprecation notice to docs
+├─ Email all API consumers
+└─ Add Sunset header to responses:
+    Sunset: Sat, 31 Dec 2025 23:59:59 GMT
+
+Step 2: Mark as deprecated (3 months before)
+├─ Add Warning header to responses:
+    Warning: 299 - "This API version is deprecated"
+├─ Track usage metrics
+└─ Contact heavy users directly
+
+Step 3: Restrict (1 month before)
+├─ Reduce rate limits
+├─ Add intentional delays
+└─ Force users to migrate
+
+Step 4: Shutdown (D-day)
+├─ Return 410 Gone
+├─ Redirect to documentation
+└─ Provide migration guide
+
+Never deprecate critical security endpoints without extensive notice!
+```
+
+---
+
+### 💡 Key Takeaways
+
+**Essential API Design Principles for Auth:**
+
+```text
+1. Security First
+   ├─ Always use HTTPS
+   ├─ Never log tokens or passwords
+   ├─ Token in Authorization header, not query string
+   └─ Implement rate limiting aggressively
+
+2. Developer Experience
+   ├─ Consistent error format
+   ├─ Detailed documentation
+   ├─ Request IDs for debugging
+   └─ Helpful error messages (but not too helpful!)
+
+3. Scalability
+   ├─ Stateless authentication (JWT)
+   ├─ Cache token validations
+   ├─ Batch permission checks
+   └─ Use API gateway for traffic management
+
+4. Reliability
+   ├─ Idempotency for write operations
+   ├─ Graceful degradation
+   ├─ Circuit breakers for dependencies
+   └─ Comprehensive monitoring
+
+5. Compliance
+   ├─ Audit logging for all auth events
+   ├─ GDPR-compliant data handling
+   ├─ SOC 2 / ISO 27001 requirements
+   └─ Data retention policies
+```
+
+**Interview Discussion Points:**
+
+```text
+When asked about Auth API design:
+
+1. Start with requirements
+   └─ "What authentication methods do we need to support?"
+
+2. Discuss security first
+   └─ "Let's ensure we're following OAuth 2.0 best practices..."
+
+3. Scale considerations
+   └─ "At 100K requests/second, we'll need to cache token validations..."
+
+4. Trade-offs
+   └─ "JWT offers stateless validation, but we can't revoke immediately..."
+
+5. Evolution path
+   └─ "We'll start with basic auth, then add OAuth, then SAML for enterprise..."
+```
+
+---
+
+### 🤔 Think About It
+
+1. **Token Storage:** Why is it dangerous to put tokens in query strings? Where have you seen tokens in real applications?
+
+2. **Error Messages:** Balance security vs helpfulness - how would you design error messages for failed login attempts?
+
+3. **Rate Limiting:** Why do we rate limit login attempts more aggressively than profile updates?
+
+4. **Idempotency:** When is idempotency critical for auth operations? Which endpoints need it most?
+
+5. **Versioning:** How would you deprecate an auth API version without breaking existing users?
+
+---
+
+### 💪 Practice Exercise
+
+**Scenario:** Design the complete API for a banking application's authentication system.
+
+**Requirements:**
+- Multi-factor authentication (TOTP, SMS)
+- Biometric authentication (fingerprint, face ID)
+- Device registration and management
+- Step-up authentication for sensitive operations (transfer >$10K)
+- Session management across web and mobile
+- Compliance with PSD2 (EU) and PCI DSS
+
+**Your Task:**
+1. Design all API endpoints with full request/response formats
+2. Define the authentication flow for a money transfer
+3. How do you implement step-up authentication?
+4. Design the device registration and trust flow
+5. What rate limits would you implement?
+6. How do you handle token refresh on mobile apps?
+7. Design the audit logging API
+
+**Bonus Challenge:**
+- How do you detect and prevent account takeover attacks?
+- Design an API for passwordless authentication (WebAuthn)
+- How would you implement risk-based authentication (anomaly detection)?
+- What's your strategy for handling tokens during app updates?
+
+---
+
