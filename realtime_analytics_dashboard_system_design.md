@@ -1431,5 +1431,1192 @@ Egress (queries): 280 GB/day = 8.4 TB/month
 
 ---
 
+## 3. HIGH-LEVEL DESIGN
+
+### Core Components
+
+🟢 **BEGINNER: The Big Picture with a Restaurant Analogy**
+
+Imagine a restaurant chain with a central monitoring system. Here's how our analytics dashboard works:
+
+**The Restaurant Analogy:**
+```text
+Restaurant Chain Analytics System
+├─ Cash Registers (Event Sources)
+│  └─ Every transaction, order, customer visit is recorded
+├─ Collection Trucks (API Gateway)  
+│  └─ Pick up data from all locations regularly
+├─ Sorting Center (Message Queue - Kafka)
+│  └─ Organize all receipts by type and time
+├─ Analysis Team (Stream Processor - Flink)
+│  └─ Calculate totals, averages, trends in real-time
+├─ Filing System (Database - ClickHouse)
+│  └─ Store organized summaries for quick lookup
+├─ Report Generator (Query API)
+│  └─ Answer manager's questions like "How many pizzas sold today?"
+└─ Manager's Dashboard (Web UI)
+   └─ Visual charts showing sales, trends, comparisons
+```
+
+**Why This Architecture?**
+
+Each component has a specific job, just like restaurant staff:
+- **Event Sources**: Generate data (like cashiers recording sales)
+- **API Gateway**: Accept and validate incoming events (like a receptionist checking orders)
+- **Message Queue**: Buffer events during busy times (like a ticket queue at a busy restaurant)
+- **Stream Processor**: Calculate metrics in real-time (like a manager counting money while the restaurant is still open)
+- **Database**: Store results for quick access (like a filing cabinet with organized reports)
+- **Query API**: Retrieve specific information (like asking "What were Monday's sales?")
+- **Dashboard**: Display information visually (like a chart on the manager's wall)
+
+**Key Benefit**: Each component can be scaled independently. If you have more events, add more message queue capacity. If you have slower queries, add more database nodes.
+
+---
+
+🟡 **INTERMEDIATE: Component Breakdown**
+
+Let's examine each component's role in the system:
+
+**1. Event Sources**
+- **What**: Web apps, mobile apps, backend services generating events
+- **Examples**: 
+  - JavaScript SDK tracking button clicks
+  - Mobile SDK tracking screen views  
+  - Server-side API calls tracking transactions
+- **Key Metric**: 5-10M events/day = ~115 events/second average, ~350 events/second peak
+
+**2. API Gateway (Load Balancer)**
+- **What**: Entry point for all event ingestion requests
+- **Responsibilities**:
+  - SSL termination and security
+  - API key validation
+  - Rate limiting per customer
+  - Request routing to ingestion service
+- **Technology**: Nginx, AWS ALB, Kong
+- **Capacity**: Must handle 3x average load = 1,000 requests/second
+
+**3. Ingestion Service**
+- **What**: Stateless HTTP servers accepting events
+- **Responsibilities**:
+  - Event validation (schema, required fields)
+  - Event enrichment (add server timestamp, IP geolocation)
+  - Write to message queue
+  - Return acknowledgment to client
+- **Technology**: Node.js, Go, Python (FastAPI)
+- **Scaling**: Horizontal - add more servers during traffic spikes
+
+**4. Message Queue (Kafka)**
+- **What**: Distributed log storing events temporarily
+- **Why Needed**: Decouples ingestion from processing
+  - Ingestion can accept events even if processor is slow
+  - Can replay events if processing fails
+  - Natural place for data backup
+- **Topics**: Organize by event type (page_views, clicks, purchases)
+- **Retention**: 7 days (enough time to reprocess if needed)
+- **Partitioning**: By user_id or session_id for ordered processing
+
+**5. Stream Processing (Apache Flink)**
+- **What**: Real-time computation engine
+- **Responsibilities**:
+  - Window events by time (1-minute windows)
+  - Calculate aggregations (counts, sums, averages)
+  - Handle late-arriving events
+  - Write results to database
+- **Why Flink**: 
+  - True event-time processing (not just processing time)
+  - Exactly-once state guarantees
+  - Low latency (~100ms processing time)
+
+**6. Time-Series Database (ClickHouse)**
+- **What**: Column-oriented OLAP database optimized for analytics
+- **Why ClickHouse**:
+  - Excellent compression (10x better than row stores)
+  - Fast aggregation queries (100M rows in <1 second)
+  - Scales horizontally with sharding
+- **Storage**:
+  - Raw events: 90 days in hot storage
+  - Pre-aggregated metrics: 2 years in hot storage
+  - Historical data: Cold storage (S3)
+
+**7. Query Service**
+- **What**: API layer for dashboard queries
+- **Responsibilities**:
+  - Parse query parameters (time range, filters, groupings)
+  - Generate optimized SQL
+  - Cache frequent queries
+  - Format results for UI
+- **Caching**: Redis for popular queries (last 5 minutes of data)
+
+**8. Dashboard UI**
+- **What**: Web application displaying metrics
+- **Features**:
+  - Real-time chart updates (WebSocket for live data)
+  - Interactive drill-downs
+  - Custom date ranges
+  - Export to CSV/PDF
+- **Technology**: React, D3.js for visualizations
+
+**Component Communication:**
+```text
+Sync Communication (REST/HTTP):
+├─ Client SDK → API Gateway → Ingestion Service
+├─ Dashboard → Query Service → Database
+└─ Low latency requirements, request-response pattern
+
+Async Communication (Message Queue):
+├─ Ingestion Service → Kafka → Stream Processor
+├─ Stream Processor → Database (batch writes)
+└─ High throughput, eventual consistency acceptable
+```
+
+---
+
+🔴 **ADVANCED: Production Architecture Considerations**
+
+**Component Redundancy & Fault Tolerance:**
+
+```text
+Production Deployment (3 Availability Zones)
+├─ API Gateway (3+ instances)
+│  ├─ Health checks every 10 seconds
+│  ├─ Auto-scaling based on request rate
+│  └─ Failover: <5 seconds to remove unhealthy instance
+├─ Ingestion Service (6+ instances)
+│  ├─ Stateless for easy scaling
+│  ├─ Graceful shutdown: drain connections before restart
+│  └─ Circuit breaker for Kafka writes
+├─ Kafka Cluster (5+ brokers)
+│  ├─ Replication factor: 3
+│  ├─ Min in-sync replicas: 2
+│  ├─ Leader election: <30 seconds on failure
+│  └─ Mirrors across availability zones
+├─ Flink Cluster (8+ task managers)
+│  ├─ Checkpointing every 60 seconds to S3
+│  ├─ Savepoints for version upgrades
+│  ├─ Restart strategy: fixed-delay with 3 attempts
+│  └─ Task failure isolation
+├─ ClickHouse Cluster (6+ nodes)
+│  ├─ Sharded across 3 shards
+│  ├─ Replicated: 2 replicas per shard
+│  ├─ Distributed queries via proxy
+│  └─ ZooKeeper for coordination
+├─ Query Service (4+ instances)
+│  ├─ Read replicas for ClickHouse
+│  ├─ Redis cache cluster (3 nodes, sentinel)
+│  └─ Connection pooling to database
+└─ Monitoring Stack
+   ├─ Prometheus for metrics
+   ├─ Grafana for dashboards
+   ├─ ELK for log aggregation
+   └─ PagerDuty for alerts
+```
+
+**Real Company Examples:**
+
+**Mixpanel's Architecture Evolution:**
+1. **2014**: Monolithic Python app, PostgreSQL, manual sharding
+   - Handled 1M events/day
+   - Query latency: 5-10 seconds
+2. **2017**: Migrated to Kafka + Spark + Cassandra
+   - Scaled to 50B events/day
+   - Reduced query latency to <1 second
+   - Cost: $8M/year infrastructure
+3. **2020**: Introduced ClickHouse, replaced Cassandra
+   - Same 50B events/day
+   - Query latency: <100ms for most queries
+   - Cost reduced to $3M/year (62% savings!)
+
+**Amplitude's "User-First" Architecture:**
+- Events stored by user_id, not just timestamp
+- Enables fast user journey queries
+- Trade-off: More storage (3x) but 10x faster user-specific queries
+- Business impact: Unique selling point for product analytics
+
+**Google Analytics 4 (GA4) Architecture Shift:**
+- **GA3 (Universal Analytics)**: Session-based, batch processing
+- **GA4 (2020+)**: Event-based, real-time processing with BigQuery
+- Key insight: Customers willing to pay 10x more for real-time insights
+- Revenue impact: $2B+ annual revenue from Analytics 360
+
+**Cost Optimization Strategies:**
+
+```text
+Monthly Cost Breakdown (10M events/day):
+
+Without Optimization:
+├─ Compute (Flink, services): $3,000
+├─ Kafka: $1,500
+├─ ClickHouse (hot storage): $4,000
+├─ Cold storage (S3): $500
+├─ Bandwidth: $800
+└─ Total: $9,800/month
+
+With Optimization:
+├─ Compute (spot instances, auto-scaling): $1,800 (40% savings)
+├─ Kafka (tiered storage): $900 (40% savings)
+├─ ClickHouse (compression, partitioning): $2,400 (40% savings)
+├─ Cold storage (S3 Glacier): $150 (70% savings)
+├─ Bandwidth (CDN, compression): $200 (75% savings)
+└─ Total: $5,450/month (44% overall savings = $52,200/year)
+
+Key Optimizations:
+1. Pre-aggregate data in Flink (reduces storage by 10x)
+2. Use columnar compression in ClickHouse (6-8x compression ratio)
+3. Archive raw events to S3 Glacier after 90 days
+4. Cache dashboard queries in Redis (90% cache hit rate)
+5. Use spot instances for Flink workers (60% cost savings)
+```
+
+---
+
+### Architecture Diagram
+
+🟢 **BEGINNER: Simple Flow**
+
+```mermaid
+graph LR
+    A[User Actions<br/>Clicks, Views, Purchases] --> B[Event Collection<br/>JavaScript SDK]
+    B --> C[API Gateway<br/>Receives Events]
+    C --> D[Message Queue<br/>Kafka]
+    D --> E[Stream Processor<br/>Flink]
+    E --> F[Database<br/>ClickHouse]
+    F --> G[Query API<br/>Get Metrics]
+    G --> H[Dashboard<br/>Charts & Graphs]
+    
+    style A fill:#e1f5ff
+    style D fill:#fff3cd
+    style E fill:#d4edda
+    style F fill:#f8d7da
+    style H fill:#e7e7ff
+```
+
+**Flow Explanation:**
+1. **User Actions** → Events are generated (clicks, page views)
+2. **Event Collection** → SDK captures events and sends to API
+3. **API Gateway** → Validates and accepts events
+4. **Message Queue** → Buffers events (like a waiting line)
+5. **Stream Processor** → Calculates metrics in real-time
+6. **Database** → Stores aggregated results
+7. **Query API** → Retrieves data when dashboard requests it
+8. **Dashboard** → Shows visual charts to users
+
+**Timing:** Event → Dashboard = 1-2 minutes end-to-end
+
+---
+
+🟡 **INTERMEDIATE: Detailed Component Architecture**
+
+```mermaid
+graph TB
+    subgraph "Event Sources"
+        A1[Web App<br/>JS SDK]
+        A2[Mobile App<br/>iOS/Android SDK]
+        A3[Backend Services<br/>Server-side SDK]
+    end
+    
+    subgraph "Ingestion Layer"
+        B1[API Gateway<br/>Load Balancer]
+        B2[Ingestion Service<br/>Node.js/Go]
+        B3[Schema Validator]
+    end
+    
+    subgraph "Message Queue Layer"
+        C1[Kafka Topic: page_views]
+        C2[Kafka Topic: clicks]
+        C3[Kafka Topic: purchases]
+    end
+    
+    subgraph "Stream Processing Layer"
+        D1[Flink: Windowing]
+        D2[Flink: Aggregation]
+        D3[Flink: Late Event Handling]
+    end
+    
+    subgraph "Storage Layer"
+        E1[ClickHouse: Raw Events<br/>90 days]
+        E2[ClickHouse: Aggregated<br/>2 years]
+        E3[S3: Cold Storage<br/>Historical]
+    end
+    
+    subgraph "Query Layer"
+        F1[Query Service]
+        F2[Redis Cache]
+        F3[Query Optimizer]
+    end
+    
+    subgraph "Presentation Layer"
+        G1[Dashboard UI]
+        G2[API for Custom Apps]
+        G3[Export Service]
+    end
+    
+    A1 --> B1
+    A2 --> B1
+    A3 --> B1
+    B1 --> B2
+    B2 --> B3
+    B3 --> C1
+    B3 --> C2
+    B3 --> C3
+    C1 --> D1
+    C2 --> D1
+    C3 --> D1
+    D1 --> D2
+    D2 --> D3
+    D3 --> E1
+    D3 --> E2
+    E1 --> E3
+    E2 --> F1
+    F1 --> F2
+    F1 --> F3
+    F2 --> G1
+    F3 --> G2
+    F2 --> G3
+    
+    style B1 fill:#e1f5ff
+    style C1 fill:#fff3cd
+    style C2 fill:#fff3cd
+    style C3 fill:#fff3cd
+    style D2 fill:#d4edda
+    style E2 fill:#f8d7da
+    style F2 fill:#ffe6e6
+    style G1 fill:#e7e7ff
+```
+
+**Key Data Flows:**
+
+1. **Hot Path (Real-time):**
+   ```text
+   Event → Kafka → Flink → ClickHouse (Aggregated) → Redis Cache → Dashboard
+   Latency: ~1-2 minutes
+   ```
+
+2. **Cold Path (Historical Queries):**
+   ```text
+   Event → Kafka → Flink → ClickHouse (Raw) → S3 → Query Service → Dashboard
+   Latency: 5-10 seconds
+   ```
+
+3. **Cache Hit Path:**
+   ```text
+   Dashboard → Query Service → Redis Cache → Dashboard
+   Latency: <100ms
+   ```
+
+---
+
+🔴 **ADVANCED: Multi-Region Production Architecture**
+
+```mermaid
+graph TB
+    subgraph "Region: US-EAST"
+        subgraph "Ingestion - US"
+            US_API[API Gateway]
+            US_ING[Ingestion Service<br/>6 instances]
+        end
+        subgraph "Processing - US"
+            US_KAFKA[Kafka Cluster<br/>5 brokers]
+            US_FLINK[Flink Cluster<br/>8 workers]
+        end
+        subgraph "Storage - US"
+            US_CH[ClickHouse Cluster<br/>6 nodes, 3 shards]
+            US_REDIS[Redis Cache<br/>3 nodes]
+        end
+    end
+    
+    subgraph "Region: EU-WEST"
+        subgraph "Ingestion - EU"
+            EU_API[API Gateway]
+            EU_ING[Ingestion Service<br/>4 instances]
+        end
+        subgraph "Processing - EU"
+            EU_KAFKA[Kafka Cluster<br/>3 brokers]
+            EU_FLINK[Flink Cluster<br/>4 workers]
+        end
+        subgraph "Storage - EU"
+            EU_CH[ClickHouse Cluster<br/>4 nodes, 2 shards]
+            EU_REDIS[Redis Cache<br/>3 nodes]
+        end
+    end
+    
+    subgraph "Global Services"
+        GLB[Global Load Balancer<br/>Route53/Cloudflare]
+        S3[S3 Cross-Region<br/>Cold Storage]
+        ZK[ZooKeeper<br/>Coordination]
+    end
+    
+    GLB --> US_API
+    GLB --> EU_API
+    US_API --> US_ING
+    US_ING --> US_KAFKA
+    US_KAFKA --> US_FLINK
+    US_FLINK --> US_CH
+    US_CH --> US_REDIS
+    
+    EU_API --> EU_ING
+    EU_ING --> EU_KAFKA
+    EU_KAFKA --> EU_FLINK
+    EU_FLINK --> EU_CH
+    EU_CH --> EU_REDIS
+    
+    US_CH --> S3
+    EU_CH --> S3
+    US_CH -.Async Replication.-> EU_CH
+    EU_CH -.Async Replication.-> US_CH
+    ZK --> US_KAFKA
+    ZK --> EU_KAFKA
+    
+    style GLB fill:#ff9999
+    style S3 fill:#99ccff
+    style US_CH fill:#99ff99
+    style EU_CH fill:#99ff99
+```
+
+**Multi-Region Considerations:**
+
+1. **Data Sovereignty (GDPR Compliance):**
+   ```text
+   EU Customer Events:
+   ├─ Ingested in EU region only
+   ├─ Processed in EU data centers
+   ├─ Stored in EU ClickHouse cluster
+   ├─ No replication to US (unless anonymized)
+   └─ Compliance: GDPR Article 44 (data transfers)
+   ```
+
+2. **Cross-Region Aggregation:**
+   ```text
+   Global Dashboard Query (e.g., "Total events worldwide"):
+   ├─ Query service detects multi-region request
+   ├─ Parallel queries to US and EU clusters
+   ├─ Merge results in query service
+   ├─ Cache global result in Redis
+   └─ Latency: ~200ms (vs 50ms single-region)
+   ```
+
+3. **Disaster Recovery:**
+   ```text
+   US Region Failure Scenario:
+   ├─ Global LB detects unhealthy US endpoints
+   ├─ Routes 100% traffic to EU region
+   ├─ EU region scales up to handle 2x load
+   ├─ S3 has full backup of US data
+   ├─ RTO (Recovery Time): 5 minutes
+   ├─ RPO (Data Loss): <1 minute (Kafka replication)
+   └─ Cost: 2x infrastructure in warm standby mode
+   ```
+
+**Production Metrics:**
+
+```text
+System Health Indicators:
+
+Ingestion Layer:
+├─ Event acceptance rate: 99.99% (SLA)
+├─ API latency P99: <100ms
+├─ Rejected events: <0.01% (schema validation failures)
+└─ Kafka write success: 99.999%
+
+Processing Layer:
+├─ End-to-end latency: P50=45s, P99=90s
+├─ Late events: ~2% (handled via watermarking)
+├─ Exactly-once guarantee: 99.99%
+└─ Checkpoint success rate: 99.9%
+
+Storage Layer:
+├─ Write throughput: 50K events/sec per node
+├─ Query latency: P50=50ms, P99=500ms
+├─ Storage compression: 7.2x average
+└─ Disk utilization: <70% (threshold for scaling)
+
+Query Layer:
+├─ Cache hit rate: 88% (target: 85%)
+├─ Query success rate: 99.95%
+├─ Concurrent queries: 500 peak
+└─ Response time SLA: <1 second for 95% of queries
+```
+
+---
+
+### Data Flow
+
+🟢 **BEGINNER: How an Event Becomes a Dashboard Metric**
+
+Let's follow a single event through the entire system:
+
+**Example: User clicks "Buy Now" button on e-commerce site**
+
+```text
+Step-by-Step Journey of One Event:
+
+Step 1: Event Generation (t=0 seconds)
+├─ User clicks button
+├─ JavaScript SDK captures:
+│  ├─ Event type: "button_click"
+│  ├─ Button: "buy_now"
+│  ├─ Product ID: "prod_12345"
+│  ├─ User ID: "user_789"
+│  └─ Timestamp: "2026-01-22T14:30:00.123Z"
+└─ SDK bundles into JSON and sends via HTTPS
+
+Step 2: API Gateway (t=0.1 seconds)
+├─ SSL termination
+├─ API key validation: ✓ Valid
+├─ Rate limit check: ✓ Within limits
+└─ Route to ingestion service
+
+Step 3: Ingestion Service (t=0.2 seconds)
+├─ Validate event schema: ✓ All required fields present
+├─ Enrich event:
+│  ├─ Add server timestamp
+│  ├─ Add IP geolocation: "US-CA-San Francisco"
+│  └─ Add session ID from cookie
+├─ Write to Kafka topic "button_clicks"
+└─ Return success to client (202 Accepted)
+
+Client side complete: 0.2 seconds
+
+Step 4: Kafka Queue (t=0.2 - 5 seconds)
+├─ Event sits in queue partition 3 (based on user_id hash)
+├─ Replicated to 3 brokers for safety
+└─ Waiting for Flink to consume
+
+Step 5: Flink Stream Processor (t=5-45 seconds)
+├─ Reads event from Kafka
+├─ Groups into 1-minute time window
+├─ Aggregates with other clicks in same window:
+│  ├─ Total clicks this minute: 1,247
+│  ├─ Unique users: 892
+│  ├─ Clicks by product: prod_12345 = 23 clicks
+│  └─ Clicks by country: US = 750, UK = 200, etc.
+└─ Window closes at end of minute
+
+Step 6: Write to ClickHouse (t=60-65 seconds)
+├─ Flink batch-writes aggregated results
+├─ Table: aggregated_clicks_1min
+├─ Row inserted:
+│  ├─ minute: "2026-01-22T14:30:00Z"
+│  ├─ event_type: "button_click"
+│  ├─ total_clicks: 1247
+│  ├─ unique_users: 892
+│  └─ dimension_details: {...}
+└─ Also writes raw event to raw_events table
+
+Step 7: Dashboard Query (t=65-90 seconds)
+├─ User's dashboard set to auto-refresh every 30 seconds
+├─ Dashboard queries: "Get clicks in last hour"
+├─ Query service checks Redis cache: ❌ Not cached yet
+├─ Query ClickHouse:
+│  └─ SELECT sum(total_clicks) FROM aggregated_clicks_1min
+│     WHERE minute >= now() - INTERVAL 1 HOUR
+├─ Result: 75,342 clicks
+├─ Cache result in Redis (TTL: 60 seconds)
+└─ Return to dashboard
+
+Step 8: Dashboard Display (t=90 seconds)
+├─ Dashboard receives result
+├─ Updates chart with new data point
+└─ User sees: "75,342 clicks in last hour" 
+
+Total Time: Event occurred → Visible on dashboard = 90 seconds
+```
+
+**Why Each Step Takes Time:**
+
+- **Ingestion (0.2s)**: Network latency + processing
+- **Kafka (5s)**: Waiting for batch of events to process together (more efficient)
+- **Flink (40s)**: Waiting for 1-minute window to close
+- **ClickHouse (5s)**: Batch write for efficiency
+- **Dashboard (25s)**: Waiting for next auto-refresh cycle
+
+**Trade-off:** We could make it faster (10s instead of 90s) but it would cost 5x more in compute resources. For most analytics use cases, 1-2 minutes is acceptable.
+
+---
+
+🟡 **INTERMEDIATE: Data Flow Patterns**
+
+**Pattern 1: Write Path (Event Ingestion)**
+
+```text
+Event Ingestion Flow:
+
+Client SDK
+├─ Batching: Collect 10 events or 5 seconds (whichever first)
+├─ Compression: gzip payload (60% size reduction)
+├─ Retry: Exponential backoff (1s, 2s, 4s, 8s)
+└─ POST /events/batch
+
+API Gateway (Nginx)
+├─ Rate limiting: 1000 req/sec per API key
+├─ Request validation: Check Content-Type, payload size
+├─ Health check: Return 503 if Kafka unhealthy
+└─ Forward to Ingestion Service
+
+Ingestion Service (Stateless)
+├─ Parse JSON payload
+├─ Schema validation:
+│  ├─ Required fields: event_type, timestamp, user_id
+│  ├─ Type checking: timestamp must be ISO8601
+│  └─ Reject invalid events (return 400)
+├─ Event enrichment:
+│  ├─ Add server_timestamp
+│  ├─ GeoIP lookup from IP address
+│  ├─ User-Agent parsing (browser, device, OS)
+│  └─ Session tracking (from cookie)
+├─ Kafka write:
+│  ├─ Topic selection: Based on event_type
+│  ├─ Partition key: user_id (ensures user events ordered)
+│  ├─ Acknowledgment: Wait for 2 replicas (acks=all)
+│  └─ Timeout: 5 seconds
+└─ Response to client:
+   ├─ Success: 202 Accepted
+   └─ Failure: 500 (retry), 400 (don't retry)
+
+Kafka
+├─ Partition assignment: Hash(user_id) % num_partitions
+├─ Replication: 3 replicas, min in-sync=2
+├─ Retention: 7 days (168 hours)
+└─ Monitoring: Lag, throughput, disk usage
+```
+
+**Pattern 2: Read Path (Dashboard Queries)**
+
+```text
+Dashboard Query Flow:
+
+Dashboard UI
+├─ User selects: "Last 7 days", filter: "Country=US"
+├─ Sends query: GET /api/metrics?
+│  ├─ metric=page_views
+│  ├─ start_time=2026-01-15T00:00:00Z
+│  ├─ end_time=2026-01-22T00:00:00Z
+│  ├─ filter=country:US
+│  └─ group_by=day
+
+Query Service
+├─ Generate cache key: hash(metric+time_range+filters)
+├─ Check Redis cache:
+│  ├─ Cache hit? Return cached result (latency: 5ms)
+│  └─ Cache miss? Proceed to database query
+├─ Query optimization:
+│  ├─ Determine if pre-aggregated table available
+│  ├─ Choose table: aggregated_metrics_1hour (vs raw_events)
+│  └─ Reason: 7-day query on hourly aggregates = 168 rows vs 50M raw events
+├─ Generate SQL:
+│  └─ SELECT date_trunc('day', hour) as day, sum(count) as page_views
+│     FROM aggregated_metrics_1hour
+│     WHERE hour >= '2026-01-15' AND hour < '2026-01-22'
+│       AND country = 'US' AND metric_name = 'page_views'
+│     GROUP BY day
+│     ORDER BY day
+├─ Execute on ClickHouse:
+│  ├─ Query routing: Use replica for read
+│  ├─ Execution time: 87ms (scan 168 rows)
+│  └─ Result: 7 rows (one per day)
+├─ Post-processing:
+│  ├─ Format timestamps
+│  ├─ Calculate growth rates (day-over-day)
+│  └─ Add metadata (total_rows, query_time)
+├─ Cache result:
+│  ├─ Write to Redis
+│  ├─ TTL: 5 minutes (recent data changes frequently)
+│  └─ Key expires automatically
+└─ Return JSON to dashboard
+
+Dashboard UI
+├─ Receives data
+├─ Renders chart (D3.js)
+├─ Shows: 45K, 48K, 52K, 49K, 51K, 53K, 55K views
+└─ Adds interactivity (hover tooltips, drill-down buttons)
+```
+
+**Pattern 3: Aggregation Flow (Flink Processing)**
+
+```text
+Flink Stream Processing:
+
+Kafka Consumer
+├─ Subscribe to topics: page_views, clicks, purchases
+├─ Consumer group: analytics-aggregator
+├─ Parallelism: 8 (one per Kafka partition)
+└─ Commit offset: Every 100 events or 5 seconds
+
+Event Time Assignment
+├─ Extract timestamp from event.timestamp field
+├─ Watermark strategy: BoundedOutOfOrderness
+│  ├─ Max out-of-order: 30 seconds
+│  └─ Means: Wait up to 30s for late events
+└─ Late events policy: Accept up to 2 minutes late, then drop
+
+Windowing
+├─ Window type: Tumbling (non-overlapping)
+├─ Window size: 1 minute
+├─ Example windows:
+│  ├─ [14:00:00, 14:01:00)
+│  ├─ [14:01:00, 14:02:00)
+│  └─ [14:02:00, 14:03:00)
+└─ Window trigger: When watermark passes end of window
+
+Aggregation Functions
+├─ COUNT(*): Number of events
+├─ COUNT(DISTINCT user_id): Unique users
+├─ SUM(revenue): Total revenue
+├─ AVG(session_duration): Average duration
+├─ PERCENTILE(page_load_time, 0.50, 0.90, 0.99)
+└─ GROUP BY: country, product_category, device_type
+
+State Management
+├─ State backend: RocksDB (disk-based, handles large state)
+├─ Checkpointing: Every 60 seconds
+├─ Checkpoint storage: S3 (persistent)
+├─ State TTL: 24 hours (old state cleaned up)
+└─ State size: ~2GB per task manager
+
+Output Sink
+├─ Batch writes to ClickHouse (every 10 seconds or 1000 rows)
+├─ Insert into: aggregated_metrics_1min
+├─ Idempotency: Use event_time + window + dimensions as unique key
+├─ Error handling: Retry 3 times, then write to dead-letter queue
+└─ Monitoring: Track write latency, error rate
+
+Exactly-Once Guarantee
+├─ Kafka offsets stored in Flink checkpoint
+├─ Two-phase commit: Checkpoint succeeds → Commit Kafka offsets
+├─ Failure recovery: Restore from last checkpoint, replay events
+└─ Result: Each event processed exactly once (no duplicates)
+```
+
+---
+
+🔴 **ADVANCED: Complex Data Flow Scenarios**
+
+**Scenario 1: Handling Out-of-Order Events**
+
+Real-world problem: Mobile apps often send events in batches when network reconnects, causing events from hours ago to arrive now.
+
+```text
+Example Timeline:
+
+10:00 AM: User performs action on mobile app (offline)
+10:05 AM: User performs another action (still offline)
+11:30 AM: Mobile app reconnects to network
+11:30 AM: Both events sent with original timestamps
+
+Challenge: 11:30 AM Flink window for "11:30-11:31" already processed and closed
+
+Solution: Watermarking + Allowed Lateness
+
+Watermark Configuration:
+├─ Max out-of-order: 5 minutes
+├─ Allowed lateness: 30 minutes
+└─ Late event storage: 2 hours in side output
+
+Processing Flow:
+1. Event arrives at 11:30 AM with timestamp 10:00 AM
+2. Flink checks: Is window [10:00-10:01] still open?
+   ├─ Current watermark: 11:25 AM (current time - 5 min max out-of-order)
+   ├─ Window closed at: 10:01 AM + 30 min allowed lateness = 10:31 AM
+   ├─ 11:25 > 10:31: Window is closed, event is "too late"
+   └─ Action: Send to side output (late events table)
+3. Late events table:
+   ├─ Stores events for manual reprocessing
+   ├─ Dashboard shows: "2 late events (0.001%)"
+   ├─ Options: Reprocess with batch job, or ignore
+   └─ Typically: <0.1% of events are "too late"
+
+Cost-Benefit Analysis:
+├─ Allowing 30 min lateness costs: +15% memory (hold state longer)
+├─ Benefit: Capture 99.9% of late events
+└─ Alternative: No lateness allowed, lose 1-2% of mobile events
+```
+
+**Scenario 2: Flash Traffic Spike (10x Normal Load)**
+
+Real scenario: Black Friday sale starts, traffic jumps from 100 events/sec to 1,000 events/sec
+
+```text
+System Response (Auto-Scaling):
+
+t=0: Sale starts, events spike
+
+t=30s: API Gateway
+├─ Detects: Request rate exceeds 80% capacity
+├─ Action: Trigger auto-scaling group
+├─ Result: Add 4 new ingestion service instances
+└─ Time to ready: 90 seconds (container startup)
+
+t=1min: Kafka
+├─ Detects: High producer load
+├─ Action: Partitions already exist, increase replication throughput
+├─ Result: Kafka handles spike (designed for 3x capacity)
+└─ Lag: Increases from 1s to 8s (acceptable)
+
+t=2min: Flink
+├─ Detects: Checkpoint duration increasing (30s → 120s)
+├─ Problem: More events per window, larger state
+├─ Action: Task manager auto-scaling (8 → 16 instances)
+├─ Result: Parallelism doubles, checkpoint time back to 40s
+└─ Cost: +$50/hour during spike
+
+t=5min: ClickHouse
+├─ Detects: Write throughput at 90% capacity
+├─ Action: Use write-ahead buffer (memory)
+├─ Result: Batch larger writes (10K rows instead of 1K)
+├─ Trade-off: Slightly higher end-to-end latency (90s → 120s)
+└─ User impact: Minimal (still under 2-minute SLA)
+
+t=10min: Steady State
+├─ All systems scaled up
+├─ Processing 1,000 events/sec smoothly
+├─ End-to-end latency: 120 seconds (vs 90s normally)
+├─ Cost: 2.5x normal ($120/hour vs $48/hour)
+└─ Revenue impact: $50K/hour in sales, scaling cost negligible
+
+t=2hours: Sale ends, traffic normalizes
+├─ Auto-scaling: Gradually scales down over 30 minutes
+├─ Result: Back to baseline capacity
+└─ Total spike cost: $144 extra for 2-hour event
+```
+
+**Scenario 3: Database Node Failure**
+
+```text
+Failure Scenario: One ClickHouse node crashes
+
+Detection (5 seconds):
+├─ Health check fails: Node 3 not responding
+├─ ZooKeeper: Detects node 3 offline
+└─ Load balancer: Removes node 3 from pool
+
+Immediate Impact:
+├─ Node 3 was: 1 of 6 nodes (shard 2, replica 1)
+├─ Data availability: ✓ Still available (replica 2 on node 4)
+├─ Query impact: 16% slower (5 nodes instead of 6)
+├─ Write impact: Shard 2 writes now go only to node 4
+└─ Alert: PagerDuty notification sent
+
+Automatic Recovery:
+├─ ClickHouse: Promotes node 4 as primary for shard 2
+├─ Queries: Automatically route around failed node
+├─ Writes: Continue to available replica
+└─ Data loss: 0 (replication saved us!)
+
+Manual Recovery (30 minutes):
+├─ Engineer investigates: Disk failure on node 3
+├─ Action: Provision new node, restore from replica
+├─ New node catches up: Sync 2 hours of data (5 minutes)
+├─ Verification: Run test queries, check data consistency
+└─ System: Back to full capacity
+
+Lessons:
+├─ Replication prevented data loss
+├─ Query impact was minimal (16% slower briefly)
+├─ Automated failover worked (no manual intervention needed immediately)
+└─ Cost of redundancy: 2x storage, worth it for reliability
+```
+
+**Performance Optimization: Query Plan Analysis**
+
+```text
+Example: Complex Dashboard Query
+
+User Request: "Show P99 page load time by country, last 30 days"
+
+Naive Query (Slow):
+SELECT country, 
+       PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY page_load_time) as p99
+FROM raw_events
+WHERE event_type = 'page_load'
+  AND timestamp >= now() - INTERVAL 30 DAY
+GROUP BY country
+
+Execution Plan:
+├─ Scan: 1.5B raw events (30 days × 50M events/day)
+├─ Filter: Keep 500M page_load events (33%)
+├─ Sort: 500M events for percentile calculation
+├─ Group: By ~200 countries
+├─ Memory: 50GB (500M rows × 100 bytes avg)
+├─ Time: 45 seconds
+└─ Cost: $0.50 per query (compute time)
+
+Optimized Query (Fast):
+SELECT country, 
+       quantile(0.99)(page_load_time) as p99
+FROM aggregated_page_loads_1hour
+WHERE hour >= now() - INTERVAL 30 DAY
+GROUP BY country
+
+Execution Plan:
+├─ Scan: 14.4K pre-aggregated rows (30 days × 24 hours × 20 countries)
+├─ ClickHouse quantile function: Pre-computed sketch
+├─ Group: By ~200 countries
+├─ Memory: 2MB (14K rows)
+├─ Time: 120ms
+├─ Cost: $0.001 per query
+└─ Accuracy: 99.5% (sketch-based, acceptable trade-off)
+
+Optimization Results:
+├─ Speedup: 375x faster (45s → 120ms)
+├─ Cost reduction: 500x cheaper
+├─ Memory: 2,500x less
+└─ Trade-off: 0.5% accuracy loss (acceptable for dashboards)
+
+How Pre-Aggregation Works:
+1. Flink maintains "t-digest" sketch per country per hour
+2. Sketch stores approximate distribution (uses 1KB per country)
+3. Percentiles calculated from sketch (P50, P90, P99 all from same sketch)
+4. ClickHouse stores sketches, can merge them for longer time ranges
+5. Result: Accurate enough for business decisions, massively faster
+```
+
+---
+
+### Component Responsibilities
+
+🟢 **BEGINNER: Who Does What?**
+
+```text
+Component Roles (Simple Analogy: Restaurant Kitchen)
+
+API Gateway = Restaurant Host
+├─ Greets customers (accepts requests)
+├─ Checks reservations (API key validation)
+├─ Manages waiting list (rate limiting)
+└─ Assigns tables (routes to servers)
+
+Ingestion Service = Order Taker
+├─ Takes orders (receives events)
+├─ Writes order clearly (validates data)
+├─ Adds details (enriches with timestamp, location)
+└─ Sends to kitchen (writes to Kafka)
+
+Kafka = Order Queue
+├─ Holds all orders in sequence
+├─ Multiple cooks can grab orders (parallel processing)
+├─ Orders don't get lost (persistent storage)
+└─ Can replay if cook makes mistake
+
+Flink = Chef
+├─ Cooks food (processes events)
+├─ Combines ingredients (aggregates data)
+├─ Times dishes perfectly (windowing)
+└─ Prepares plates (outputs results)
+
+ClickHouse = Storage Pantry
+├─ Stores prepared dishes (aggregated metrics)
+├─ Organized by date and type (partitioned)
+├─ Quick to find items (indexed)
+└─ Preserves food (compressed storage)
+
+Query Service = Waiter
+├─ Takes requests from diners (dashboard queries)
+├─ Fetches from pantry (queries database)
+├─ Remembers common requests (caching)
+└─ Serves quickly (optimized responses)
+
+Dashboard = Customer's Table
+├─ Where food is enjoyed (metrics displayed)
+├─ Beautiful presentation (charts and graphs)
+├─ Can request more (drill-downs)
+└─ Satisfaction is the goal (actionable insights)
+```
+
+---
+
+🟡 **INTERMEDIATE: Detailed Responsibilities Matrix**
+
+| Component | Primary Responsibility | Secondary Responsibilities | Failure Mode | SLA |
+|-----------|----------------------|---------------------------|--------------|-----|
+| **API Gateway** | Accept/reject incoming requests | • SSL termination<br/>• Rate limiting<br/>• Request routing<br/>• DDoS protection | Return 503 if backend unhealthy | 99.99% uptime |
+| **Ingestion Service** | Validate and enrich events | • Schema validation<br/>• GeoIP lookup<br/>• Session tracking<br/>• Kafka writes | Drop invalid events, return 400 | 99.9% uptime |
+| **Kafka** | Buffer events reliably | • Partition management<br/>• Replication<br/>• Offset tracking<br/>• Log retention | Increase latency, never lose data | 99.99% durability |
+| **Flink** | Real-time aggregation | • Windowing<br/>• State management<br/>• Exactly-once processing<br/>• Late event handling | Checkpoint failure → Restart from last checkpoint | 99.9% processing |
+| **ClickHouse** | Store and query data | • Compression<br/>• Partitioning<br/>• Replication<br/>• Query optimization | Serve from replica if node fails | 99.95% availability |
+| **Query Service** | Serve dashboard queries | • Query generation<br/>• Caching<br/>• Result formatting<br/>• Access control | Return cached data if DB slow | <1s response |
+| **Redis** | Cache frequent queries | • TTL management<br/>• Eviction policy<br/>• Replication | Serve directly from DB if cache miss | 99.9% availability |
+| **Dashboard** | Display visualizations | • Real-time updates<br/>• User interactions<br/>• Export functions | Show stale data if API fails | 99% uptime |
+
+---
+
+🔴 **ADVANCED: Responsibility Boundaries & Trade-offs**
+
+**Critical Decision: Where Does Aggregation Happen?**
+
+```text
+Option 1: Aggregate in Database (ClickHouse)
+Pros:
+├─ Simpler architecture (no Flink needed)
+├─ Flexible queries (ad-hoc aggregations)
+└─ Lower operational complexity
+
+Cons:
+├─ Higher query latency (aggregate on read)
+├─ Limited throughput (100K events/sec max)
+├─ Expensive compute (query every aggregated metric)
+└─ No stream processing benefits (late events, etc.)
+
+Cost: $3K/month database, no stream processing
+Use case: <10M events/day, flexible queries more important than speed
+
+Option 2: Aggregate in Stream Processor (Flink)
+Pros:
+├─ Pre-computed aggregations (fast queries)
+├─ High throughput (millions of events/sec)
+├─ Event-time processing (handles late events)
+└─ Advanced features (sessionization, complex windows)
+
+Cons:
+├─ More complex architecture
+├─ Less flexible (must pre-define metrics)
+├─ Operational overhead (Flink cluster management)
+└─ Higher initial cost
+
+Cost: $5K/month (Flink + database)
+Use case: >10M events/day, real-time aggregations critical
+
+Option 3: Hybrid (Lambda Architecture)
+Pros:
+├─ Real-time layer: Flink for recent data (last 24 hours)
+├─ Batch layer: Spark for historical reprocessing
+└─ Best of both: Speed + flexibility
+
+Cons:
+├─ Most complex architecture
+├─ Data reconciliation challenges
+├─ Highest operational cost
+└─ Two code paths to maintain
+
+Cost: $8K/month (both systems)
+Use case: >100M events/day, need both real-time and complex historical queries
+
+Decision Matrix:
+├─ <5M events/day: Database-only (Option 1)
+├─ 5-50M events/day: Stream processor (Option 2) ← Our choice
+├─ >50M events/day: Hybrid (Option 3)
+└─ Rationale: Sweet spot between cost and capability
+```
+
+**Responsibility: Data Quality & Validation**
+
+```text
+Who Validates Events?
+
+Layer 1: Client SDK (Best Effort)
+├─ Responsibility: Basic type checking before sending
+├─ Validates: Required fields present
+├─ Why here: Save bandwidth, reduce server load
+├─ Limitation: Client-side code can be buggy/malicious
+└─ Success rate: 95% (5% still reach server invalid)
+
+Layer 2: API Gateway (Security Boundary)
+├─ Responsibility: Authentication, rate limiting
+├─ Validates: API key valid, not rate-limited
+├─ Why here: Prevent abuse, protect backend
+├─ Limitation: No deep validation (performance concern)
+└─ Rejection rate: 3% (invalid API keys, over limit)
+
+Layer 3: Ingestion Service (Detailed Validation)
+├─ Responsibility: Schema validation, business rules
+├─ Validates: 
+│  ├─ Required fields: event_type, timestamp, user_id
+│  ├─ Type checking: timestamp is ISO8601, user_id is alphanumeric
+│  ├─ Range checking: timestamp within last 24 hours
+│  ├─ Business rules: product_id exists in product catalog
+│  └─ Size limits: properties object < 10KB
+├─ Why here: After Kafka would be too late (already persisted bad data)
+├─ Action on failure: Return 400, log error, track in metrics
+└─ Rejection rate: 2% (genuinely invalid events)
+
+Layer 4: Stream Processor (Data Quality Checks)
+├─ Responsibility: Detect anomalies, late events
+├─ Validates:
+│  ├─ Late events: Timestamp too far in past
+│  ├─ Duplicate detection: Same event_id seen twice
+│  ├─ Anomalies: Event rate 10x normal (possible bot attack)
+│  └─ Data consistency: Cross-check user_id exists
+├─ Why here: Access to historical patterns, can compare
+├─ Action on failure: Side output to quarantine table, alert
+└─ Quarantine rate: 0.1% (late events, duplicates)
+
+Layer 5: Database (Integrity Constraints)
+├─ Responsibility: Final check before persisting
+├─ Validates:
+│  ├─ Unique constraints: (timestamp, user_id, event_type)
+│  ├─ Foreign keys: user_id in users table (if strict mode)
+│  └─ Data types: Enforced by schema
+├─ Why here: Last defense, ensures data integrity
+├─ Action on failure: Reject write, log error
+└─ Rejection rate: 0.01% (should be very rare)
+
+Metrics & Monitoring:
+├─ Track rejection rate at each layer
+├─ Alert if Layer 3 rejections > 5% (data quality issue)
+├─ Alert if Layer 4 quarantine > 1% (system issue)
+└─ Dashboard: Show data quality score (100% - rejection rate)
+```
+
+**Monitoring & Observability: Who Monitors What?**
+
+```text
+Distributed Tracing Example:
+
+Single Event's Trace (Request ID: req_abc123):
+
+Span 1: API Gateway (10ms)
+├─ Operation: http.server.request
+├─ Tags: api_key=key_xyz, ip=203.0.113.45
+├─ Metrics: request_size=2.3KB
+└─ Next: ingestion_service
+
+Span 2: Ingestion Service (45ms)
+├─ Operation: validate_and_enrich
+├─ Tags: event_type=page_view, user_id=user_789
+├─ Metrics: validation_time=12ms, geoip_lookup=8ms
+├─ Child Span 2.1: Kafka Write (25ms)
+│  ├─ Operation: kafka.produce
+│  ├─ Tags: topic=page_views, partition=3
+│  └─ Metrics: kafka_ack_time=22ms
+└─ Next: kafka
+
+Span 3: Flink Processing (42s)
+├─ Operation: stream.window.aggregate
+├─ Tags: window_start=14:30:00, window_end=14:31:00
+├─ Metrics: events_in_window=1247, window_wait_time=40s
+├─ State: watermark=14:30:45
+└─ Next: clickhouse_sink
+
+Span 4: ClickHouse Write (3s)
+├─ Operation: db.insert
+├─ Tags: table=aggregated_metrics_1min, shard=2
+├─ Metrics: batch_size=1KB, write_time=120ms
+└─ Persisted: Success
+
+Span 5: Query Service (150ms)
+├─ Operation: dashboard.query
+├─ Tags: dashboard_id=sales_overview, user=pm_smith
+├─ Metrics: query_time=87ms, cache=miss
+└─ Next: clickhouse_read
+
+Span 6: ClickHouse Query (87ms)
+├─ Operation: db.select
+├─ Tags: table=aggregated_metrics_1min, rows_scanned=168
+├─ Metrics: query_plan=using_index, data_scanned=2MB
+└─ Result: Success
+
+Total Journey:
+├─ Ingestion: 55ms (Spans 1-2)
+├─ Processing: 42s (Span 3)
+├─ Storage: 3s (Span 4)
+├─ Query: 237ms (Spans 5-6)
+└─ End-to-End: 45.3 seconds (ingestion to queryable)
+
+Insights from Trace:
+├─ Bottleneck: Window waiting time (40s) is expected (1-min tumbling window)
+├─ Optimization: Could reduce to 10s windows if 40s latency unacceptable
+├─ Health: All spans completed successfully
+└─ SLA: Within 2-minute target ✓
+```
+
+---
 
 
