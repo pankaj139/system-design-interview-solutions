@@ -3467,3 +3467,854 @@ How does this change your architecture? What additional components do you need?
 - What would you defer to v2?
 
 ---
+
+## Section 4: Authentication Protocols Deep Dive
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Understand and compare OAuth 2.0, OpenID Connect, SAML, and JWT
+- Explain different OAuth 2.0 flows and when to use each
+- Implement secure token-based authentication
+- Choose the right protocol for different use cases
+- Design authentication flows that meet security requirements
+
+### Why This Matters
+
+Modern authentication isn't just username and password anymore. Applications need to integrate with third parties, support Single Sign-On, and enable secure API access. Real-world example: When you click "Sign in with Google," you're using OAuth 2.0 and OpenID Connect. Understanding these protocols is essential for any authentication system!
+
+---
+
+### 🟢 For Beginners: Understanding Auth Protocols
+
+#### What is a Protocol?
+
+Think of a protocol like a recipe or set of rules that everyone agrees to follow. When baking a cake, you follow steps: mix ingredients, bake at 350°F for 30 minutes, let cool. Authentication protocols are similar - they're agreed-upon steps for proving identity safely.
+
+**Why Do We Need Standard Protocols?**
+
+Imagine if every website had its own way of handling "Sign in with Google." Chaos! Protocols ensure everyone does it the same secure way.
+
+#### Session-Based vs Token-Based Authentication
+
+**Session-Based (Traditional):**
+
+```text
+Analogy: Hotel wristband at an all-inclusive resort
+
+1. Check-in (Login): Show ID, get wristband
+2. Use Services: Show wristband to access pool, buffet, gym
+3. Server Stores: Hotel computer remembers your wristband = Room 305
+4. Check-out (Logout): Return wristband, hotel forgets you
+```
+
+**How it works:**
+- User logs in with credentials
+- Server creates session ID and stores user info in memory/database
+- Server sends session ID as cookie to browser
+- Browser sends cookie with every request
+- Server looks up session to identify user
+
+**Pros:**
+- Easy to revoke (just delete session from server)
+- Can store lots of user data server-side
+- Familiar pattern
+
+**Cons:**
+- Server must store all sessions (memory/database)
+- Hard to scale across multiple servers
+- Doesn't work well for mobile apps or APIs
+
+**Token-Based (Modern):**
+
+```text
+Analogy: Driver's license
+
+1. Get License: Pass test, DMV issues license with your photo & info
+2. Use Anywhere: Show license at bank, airport, bar - they trust it
+3. Self-Contained: All info is on the license itself
+4. No Central Database: Each place validates the license independently
+```
+
+**How it works:**
+- User logs in with credentials
+- Server creates JWT (JSON Web Token) containing user info
+- Server signs token with secret key
+- Client stores token (localStorage, memory)
+- Client sends token in Authorization header
+- Server validates signature and extracts user info from token
+
+**Pros:**
+- Stateless (server doesn't store anything)
+- Scales easily across many servers
+- Works for web, mobile, APIs
+- Can be validated without database call
+
+**Cons:**
+- Harder to revoke before expiration
+- Token size can be large
+- Need careful security handling
+
+#### JWT (JSON Web Token) - The Popular Choice
+
+A JWT is like a sealed envelope with a transparent window. You can see what's inside, but you can't change it without breaking the seal.
+
+**JWT Structure:**
+
+```text
+header.payload.signature
+
+Example:
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+```
+
+**Three Parts:**
+
+1. **Header** (Algorithm info):
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+```
+
+2. **Payload** (User data):
+```json
+{
+  "sub": "user123",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "role": "admin",
+  "exp": 1735689600
+}
+```
+
+3. **Signature** (Proof it's real):
+```text
+HMACSHA256(
+  base64UrlEncode(header) + "." +
+  base64UrlEncode(payload),
+  secret_key
+)
+```
+
+**Why JWT is Secure:**
+- If anyone changes the payload, the signature won't match
+- Only the server with the secret key can create valid signatures
+- Like a wax seal on a letter - you can see if it's been tampered with
+
+#### OAuth 2.0 - Letting Apps Act On Your Behalf
+
+**Real-World Analogy:**
+
+You want a house cleaning service to clean your home, but you don't want to give them a copy of your house key forever. Instead:
+- You give them a temporary access code that works only this week
+- The code only unlocks the front door, not your safe
+- You can cancel the code anytime
+- The code expires automatically after a week
+
+OAuth 2.0 does the same for apps!
+
+**Common Example: "Sign in with Google"**
+
+```text
+Step 1: You click "Sign in with Google" on CoolApp
+Step 2: CoolApp redirects you to Google's login page
+Step 3: You log in to Google (proving your identity to Google)
+Step 4: Google asks: "CoolApp wants to access your profile and email. Allow?"
+Step 5: You click "Allow"
+Step 6: Google gives CoolApp a temporary access token
+Step 7: CoolApp uses token to get your name and email from Google
+Step 8: CoolApp creates your account and logs you in
+```
+
+**Key Benefit:** CoolApp never sees your Google password!
+
+#### OpenID Connect (OIDC) - OAuth's Identity Layer
+
+OAuth 2.0 is for authorization ("Can I access your photos?"), but OpenID Connect adds authentication ("Who are you?").
+
+**Extension to OAuth 2.0:**
+- OAuth 2.0: Access Token (for accessing APIs)
+- OIDC: Access Token + ID Token (for identifying the user)
+
+**ID Token contains:**
+- User's unique identifier
+- User's name and email
+- When token was issued
+- When it expires
+
+#### SAML 2.0 - Enterprise SSO
+
+SAML (Security Assertion Markup Language) is the "old reliable" protocol that enterprises love. It's more complex than OAuth but very powerful for corporate environments.
+
+**Real-World Analogy:**
+
+Your company badge lets you access the building, parking garage, gym, and cafeteria. You authenticate once (badge scan at entrance), and it works everywhere.
+
+**Common Use Case: Company SSO**
+
+```text
+Employee tries to access Company App
+↓
+Company App redirects to Company Identity Provider (Okta/Azure AD)
+↓
+Employee logs in once to Identity Provider
+↓
+Identity Provider sends SAML Assertion (like a signed certificate)
+↓
+Company App trusts the assertion and logs employee in
+↓
+Employee can now access all company apps without re-logging in
+```
+
+**Why Enterprises Love SAML:**
+- Centralized user management
+- Single login for all apps
+- Strong security with digital signatures
+- Audit trail of all access
+
+---
+
+### 🟡 For Intermediate: Protocol Details
+
+#### OAuth 2.0 Flows Comparison
+
+OAuth 2.0 has different "flows" (recipes) for different situations:
+
+**1. Authorization Code Flow (Most Common)**
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App
+    participant AuthServer
+    participant ResourceServer
+    
+    User->>App: 1. Click "Login with Google"
+    App->>AuthServer: 2. Redirect to authorization page
+    AuthServer->>User: 3. Show login & consent screen
+    User->>AuthServer: 4. Login & approve
+    AuthServer->>App: 5. Redirect with auth code
+    App->>AuthServer: 6. Exchange code for tokens (with client secret)
+    AuthServer->>App: 7. Return access token + refresh token
+    App->>ResourceServer: 8. Call API with access token
+    ResourceServer->>App: 9. Return protected data
+```
+
+**When to use:** 
+- Web applications with a backend server
+- Mobile apps with PKCE extension
+- Highest security (client secret stored on server)
+
+**Security:** ⭐⭐⭐⭐⭐ (Best)
+
+**2. Client Credentials Flow**
+
+```text
+Service-to-Service Authentication
+
+Step 1: Service A has client_id and client_secret
+Step 2: Service A sends credentials to Auth Server
+Step 3: Auth Server validates and returns access token
+Step 4: Service A uses token to call Service B's API
+```
+
+**When to use:**
+- Backend services talking to each other
+- No user involved (machine-to-machine)
+- Batch jobs, scheduled tasks
+
+**Security:** ⭐⭐⭐⭐ (Very Good for M2M)
+
+**3. PKCE (Proof Key for Code Exchange)**
+
+Extension to Authorization Code Flow for public clients (mobile/SPA):
+
+```text
+Challenge: Mobile apps can't keep secrets (decompiled easily)
+
+Solution: Use a one-time secret for each login
+
+Step 1: App generates random code_verifier
+Step 2: App creates code_challenge = SHA256(code_verifier)
+Step 3: App sends code_challenge when requesting auth code
+Step 4: Auth Server stores code_challenge
+Step 5: App receives auth code
+Step 6: App exchanges code + code_verifier for token
+Step 7: Auth Server verifies: SHA256(code_verifier) == stored code_challenge
+Step 8: If match, return access token
+```
+
+**When to use:**
+- Mobile apps (iOS, Android)
+- Single Page Applications (React, Vue, Angular)
+- Any public client that can't store secrets
+
+**Security:** ⭐⭐⭐⭐ (Good for public clients)
+
+**Deprecated/Insecure Flows (DON'T USE):**
+
+❌ **Implicit Flow:** Returns token directly in URL (vulnerable to XSS)
+❌ **Resource Owner Password Flow:** App handles user's password (defeats purpose of OAuth)
+
+#### JWT Deep Dive
+
+**JWT Claims (Standard Fields):**
+
+```json
+{
+  "iss": "https://auth.example.com",     // Issuer - who created token
+  "sub": "user123",                       // Subject - who token is about
+  "aud": "https://api.example.com",       // Audience - who should accept it
+  "exp": 1735689600,                      // Expiration - when it expires (Unix timestamp)
+  "nbf": 1735686000,                      // Not Before - when it becomes valid
+  "iat": 1735686000,                      // Issued At - when it was created
+  "jti": "abc-def-ghi",                   // JWT ID - unique identifier
+  
+  // Custom claims
+  "email": "user@example.com",
+  "roles": ["user", "admin"],
+  "permissions": ["read:posts", "write:posts"]
+}
+```
+
+**Token Validation Checklist:**
+
+```text
+✓ 1. Check signature is valid (token not tampered with)
+✓ 2. Verify exp claim (token not expired)
+✓ 3. Verify iss claim (token from trusted issuer)
+✓ 4. Verify aud claim (token intended for this API)
+✓ 5. Verify nbf claim if present (token is valid now)
+✓ 6. Check token not in revocation list (if using one)
+```
+
+**JWT Security Best Practices:**
+
+| Practice | Why | How |
+|----------|-----|-----|
+| Short expiration | Limit damage if stolen | 15 min for access tokens |
+| Use refresh tokens | User stays logged in | Refresh token valid 7-30 days |
+| Signature algorithm | Prevent tampering | RS256 (asymmetric) or HS256 (symmetric) |
+| HTTPS only | Prevent interception | TLS 1.3 |
+| Don't store sensitive data | JWT can be decoded | No passwords, SSN, credit cards |
+| Validate everything | Defense in depth | Check all claims |
+
+#### OpenID Connect (OIDC) Flow
+
+OIDC extends OAuth 2.0 by adding an ID Token:
+
+```text
+Standard OAuth 2.0:
+User -> Authorization Code -> Access Token -> Call API
+
+OpenID Connect:
+User -> Authorization Code -> Access Token + ID Token -> Call API + Know User Identity
+```
+
+**ID Token (JWT) Example:**
+
+```json
+{
+  "iss": "https://accounts.google.com",
+  "sub": "10769150350006150715113082367",
+  "aud": "your-app-client-id",
+  "exp": 1735689600,
+  "iat": 1735686000,
+  "auth_time": 1735685900,
+  
+  // Standard OpenID Claims
+  "name": "John Doe",
+  "given_name": "John",
+  "family_name": "Doe",
+  "email": "john.doe@example.com",
+  "email_verified": true,
+  "picture": "https://example.com/photo.jpg",
+  "locale": "en-US"
+}
+```
+
+**OIDC Endpoints:**
+
+1. **Authorization Endpoint:** Start the login flow
+```text
+GET /authorize?
+  response_type=code&
+  client_id=your_app_id&
+  redirect_uri=https://yourapp.com/callback&
+  scope=openid profile email&
+  state=random_string
+```
+
+2. **Token Endpoint:** Exchange code for tokens
+```text
+POST /token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&
+code=auth_code_here&
+redirect_uri=https://yourapp.com/callback&
+client_id=your_app_id&
+client_secret=your_app_secret
+```
+
+3. **UserInfo Endpoint:** Get additional user claims
+```text
+GET /userinfo
+Authorization: Bearer access_token_here
+```
+
+#### SAML 2.0 Flow Details
+
+**SAML Components:**
+
+- **Identity Provider (IdP):** Authenticates users (Okta, Azure AD, Google Workspace)
+- **Service Provider (SP):** Your application that trusts the IdP
+- **SAML Assertion:** Signed XML document proving user identity
+
+**SP-Initiated SSO Flow:**
+
+```text
+1. User accesses Service Provider (your app)
+2. SP generates SAML AuthnRequest
+3. SP redirects user to IdP with AuthnRequest
+4. IdP authenticates user (if not already logged in)
+5. IdP generates SAML Response with signed assertion
+6. IdP redirects user back to SP with SAML Response
+7. SP validates signature and assertion
+8. SP creates session for user
+```
+
+**SAML Assertion Example (Simplified):**
+
+```xml
+<saml:Assertion>
+  <saml:Issuer>https://idp.example.com</saml:Issuer>
+  
+  <saml:Subject>
+    <saml:NameID>john.doe@company.com</saml:NameID>
+  </saml:Subject>
+  
+  <saml:Conditions>
+    <saml:NotBefore>2026-01-22T08:00:00Z</saml:NotBefore>
+    <saml:NotOnOrAfter>2026-01-22T09:00:00Z</saml:NotOnOrAfter>
+    <saml:AudienceRestriction>
+      <saml:Audience>https://yourapp.com</saml:Audience>
+    </saml:AudienceRestriction>
+  </saml:Conditions>
+  
+  <saml:AttributeStatement>
+    <saml:Attribute Name="email">
+      <saml:AttributeValue>john.doe@company.com</saml:AttributeValue>
+    </saml:Attribute>
+    <saml:Attribute Name="department">
+      <saml:AttributeValue>Engineering</saml:AttributeValue>
+    </saml:Attribute>
+  </saml:AttributeStatement>
+  
+  <ds:Signature>... digital signature ...</ds:Signature>
+</saml:Assertion>
+```
+
+**OAuth vs SAML - When to Use:**
+
+| Criterion | OAuth 2.0/OIDC | SAML 2.0 |
+|-----------|----------------|----------|
+| **Age** | Modern (2012+) | Older (2005) |
+| **Format** | JSON (JWT) | XML |
+| **Use Case** | API access, social login, mobile | Enterprise SSO, legacy apps |
+| **Complexity** | Simple | Complex |
+| **Mobile Support** | Excellent | Poor |
+| **Enterprise Adoption** | Growing | Dominant |
+| **Best For** | New apps, APIs, consumer apps | Enterprise apps, B2B |
+
+**Protocol Selection Decision Tree:**
+
+```text
+Need to integrate with third-party APIs? 
+  → OAuth 2.0 + OIDC
+
+Building enterprise SSO for internal apps?
+  → SAML 2.0 (unless starting fresh, then OIDC)
+
+Building consumer-facing app with social login?
+  → OAuth 2.0 + OIDC
+
+Service-to-service authentication?
+  → OAuth 2.0 Client Credentials + JWT
+
+Mobile app authentication?
+  → OAuth 2.0 Authorization Code + PKCE
+
+Traditional web app with sessions?
+  → Session-based or OAuth 2.0 Authorization Code
+```
+
+---
+
+### 🔴 For Advanced: Production Implementation
+
+#### Token Security Patterns
+
+**1. Token Binding**
+
+Cryptographically bind token to TLS connection:
+
+```text
+Problem: Stolen token can be used from any device
+Solution: Bind token to specific TLS connection
+
+Implementation:
+1. During TLS handshake, derive a unique key
+2. Include hash of key in JWT
+3. Validate token AND TLS binding on each request
+
+Result: Token only works from original device/connection
+```
+
+**2. Refresh Token Rotation**
+
+```text
+Security Risk: Long-lived refresh tokens are high-value targets
+
+Pattern: Rotate refresh tokens on each use
+
+Flow:
+1. Client uses refresh token to get new access token
+2. Server issues new access token AND new refresh token
+3. Server invalidates old refresh token
+4. If old refresh token used again → Breach detected!
+   → Revoke entire token family
+   → Force re-authentication
+
+Benefit: Limits window for stolen token abuse
+```
+
+**3. JWT with Opaque Refresh Tokens**
+
+Best of both worlds hybrid approach:
+
+```text
+Access Token: JWT (self-contained, fast validation)
+├─ Short-lived (15 minutes)
+├─ Can be validated without database
+├─ Contains user claims and permissions
+└─ Stateless
+
+Refresh Token: Opaque random string (stored in database)
+├─ Long-lived (30 days)
+├─ Requires database lookup to validate
+├─ Can be revoked immediately
+└─ Stateful
+
+Benefits:
+✓ Fast authorization checks (JWT)
+✓ Immediate revocation capability (opaque refresh token)
+✓ Limited damage if access token stolen (15 min window)
+✓ Can detect token theft (refresh token rotation)
+```
+
+#### Key Management for JWT
+
+**Asymmetric Keys (RS256 - Recommended):**
+
+```text
+Private Key (kept secret on auth server):
+├─ Used to SIGN tokens
+├─ Stored in HSM (Hardware Security Module) or secure vault
+├─ Never exposed to other services
+└─ Rotated every 90 days
+
+Public Key (distributed to all services):
+├─ Used to VERIFY token signatures
+├─ Can be publicly accessible (JWKS endpoint)
+├─ Cached by services for performance
+└─ Multiple keys supported (key rotation)
+
+Benefit: Services can validate tokens without talking to auth server
+```
+
+**JWKS (JSON Web Key Set) Endpoint:**
+
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "kid": "key-2026-01",
+      "alg": "RS256",
+      "n": "base64-encoded-modulus...",
+      "e": "AQAB"
+    },
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "kid": "key-2025-12",
+      "alg": "RS256",
+      "n": "base64-encoded-modulus...",
+      "e": "AQAB"
+    }
+  ]
+}
+```
+
+**Zero-Downtime Key Rotation:**
+
+```text
+Step 1: Generate new key pair (key-2026-02)
+Step 2: Add public key to JWKS endpoint
+Step 3: Services refresh JWKS cache (within 5 minutes)
+Step 4: Start signing new tokens with key-2026-02
+Step 5: Keep old key (key-2026-01) for validation (7 days)
+Step 6: After 7 days, remove old key from JWKS
+Step 7: Old tokens naturally expire
+
+Timeline:
+Day 0: Add new key to JWKS
+Day 0: Services cache new key
+Day 1: Start signing with new key
+Day 7: Remove old key from JWKS
+Day 8: All old tokens expired
+
+Zero downtime achieved!
+```
+
+#### Advanced OAuth 2.0 Patterns
+
+**1. Demonstrating Proof of Possession (DPoP)**
+
+```text
+Problem: Bearer tokens can be used by anyone who possesses them
+
+Solution: Bind token to a specific client
+
+How it works:
+1. Client generates public/private key pair
+2. Client includes public key proof in token request
+3. Auth server binds token to that public key
+4. When using token, client must sign request with private key
+5. Resource server validates both token and signature
+
+Result: Stolen token is useless without private key
+```
+
+**2. Pushed Authorization Requests (PAR)**
+
+```text
+Problem: Authorization parameters visible in browser URL
+
+Solution: Push parameters to server first, then reference
+
+Flow:
+1. Client POSTs authorization request directly to server (backend)
+2. Server returns request_uri (opaque identifier)
+3. Client redirects user to authorization endpoint with request_uri
+4. Server looks up parameters using request_uri
+5. Proceeds with authorization
+
+Benefits:
+✓ Parameters not visible in browser history
+✓ Prevents parameter tampering
+✓ Supports large requests (> URL length limit)
+```
+
+**3. Rich Authorization Requests (RAR)**
+
+```text
+Problem: scope parameter is too simple for fine-grained authorization
+
+Traditional: scope=read:email
+RAR: Structured authorization requests
+
+Example:
+{
+  "authorization_details": [
+    {
+      "type": "account_information",
+      "actions": ["read", "write"],
+      "locations": ["https://api.bank.com/accounts/123"],
+      "amount": {
+        "max": 1000,
+        "currency": "USD"
+      }
+    },
+    {
+      "type": "payment_initiation",
+      "creditor_account": "DE1234567890",
+      "amount": 50.00
+    }
+  ]
+}
+
+Use Case: Open Banking, Fine-grained API access
+```
+
+#### SAML Security Hardening
+
+**Critical Security Checks:**
+
+```text
+1. Signature Validation
+   ✓ Verify assertion is signed by trusted IdP
+   ✓ Check certificate is not expired
+   ✓ Validate certificate chain
+   ✓ Use strong algorithms (RSA-SHA256, not RSA-SHA1)
+
+2. Audience Restriction
+   ✓ Assertion intended for your SP (prevent token replay)
+   ✓ Check AudienceRestriction matches your entity ID
+
+3. Time Validation
+   ✓ Current time within NotBefore and NotOnOrAfter
+   ✓ Account for clock skew (allow ±5 minutes)
+   ✓ Assertion not older than reasonable (< 5 minutes)
+
+4. Recipient Validation
+   ✓ Response sent to correct ACS (Assertion Consumer Service) URL
+   ✓ Prevents token interception
+
+5. InResponseTo Validation
+   ✓ Links response to original request
+   ✓ Prevents unsolicited responses
+   ✓ Protects against CSRF
+
+6. NameID Format
+   ✓ Persistent vs transient identifier
+   ✓ Validate format matches expectations
+
+7. Attribute Validation
+   ✓ Required attributes present
+   ✓ Attribute values in expected format
+   ✓ Sanitize values (XSS prevention)
+```
+
+**SAML Vulnerabilities to Prevent:**
+
+| Vulnerability | Attack | Prevention |
+|---------------|--------|------------|
+| **XML Signature Wrapping** | Attacker wraps valid signature around malicious content | Validate signature covers entire assertion |
+| **XML External Entity (XXE)** | Inject malicious XML entities | Disable external entities in XML parser |
+| **SAML Response Replay** | Reuse valid SAML response | Check assertion ID not seen before, enforce NotOnOrAfter |
+| **Token Substitution** | Replace SubjectConfirmationData | Validate InResponseTo matches request |
+| **Comment Injection** | Hide malicious code in XML comments | Strip comments before parsing |
+
+#### Protocol Performance Optimization
+
+**JWT Validation Performance:**
+
+```text
+Without Optimization: ~50ms
+├─ Fetch public key from JWKS endpoint: 30ms
+├─ Validate signature: 15ms
+└─ Validate claims: 5ms
+
+With Optimization: ~2ms
+├─ Use cached public key: 0ms (cached)
+├─ Validate signature: 1.5ms
+└─ Validate claims: 0.5ms
+
+Optimization Techniques:
+1. Cache public keys (5-15 min TTL)
+2. Use multiple keys (kid in JWT header selects key)
+3. Pre-compute key material
+4. Use hardware acceleration for crypto
+5. Short-circuit validation on cache hit
+
+Result: 25x performance improvement
+```
+
+**SAML Response Caching:**
+
+```text
+Problem: SAML XML parsing is slow (50-100ms)
+
+Strategy: Cache parsed and validated assertions
+
+Cache Key: SAML Response ID
+Cache Value: {user_id, attributes, expiration}
+Cache TTL: Until NotOnOrAfter timestamp
+
+Performance:
+First request: 100ms (parse + validate)
+Subsequent requests: 1ms (cache hit)
+```
+
+---
+
+### 🤔 Think About It
+
+**For Beginners:**
+1. Why is OAuth 2.0 more secure than sending username/password to every app?
+2. What's the difference between an access token and an ID token?
+3. Why does JWT contain an expiration time?
+
+**For Intermediate:**
+4. When would you choose SAML over OAuth 2.0?
+5. Why is the Authorization Code flow more secure than the Implicit flow?
+6. What's the purpose of the state parameter in OAuth?
+
+**For Advanced:**
+7. How would you implement token binding for mobile apps?
+8. What's the trade-off between JWT expiration time and security?
+9. How do you handle key rotation without service disruption?
+
+---
+
+### 📝 Key Takeaways
+
+**Protocol Selection:**
+- **OAuth 2.0 + OIDC**: Modern standard for APIs and social login
+- **SAML 2.0**: Enterprise SSO for legacy systems
+- **JWT**: Stateless token format for scalability
+- **Sessions**: Still valid for simple web apps
+
+**Security Best Practices:**
+- Use Authorization Code flow with PKCE for public clients
+- Implement refresh token rotation
+- Short-lived access tokens (15 min)
+- Long-lived refresh tokens (7-30 days)
+- Always validate all token claims
+- Use asymmetric keys (RS256) for JWT
+
+**Performance Optimization:**
+- Cache public keys for JWT validation
+- Use multiple keys for rotation
+- Cache validated tokens/assertions
+- Hardware acceleration for crypto operations
+
+**Common Pitfalls:**
+- Don't use deprecated flows (Implicit, Password)
+- Never put secrets in mobile/SPA code
+- Don't skip signature validation
+- Don't trust client-provided data in tokens
+- Always use HTTPS
+
+---
+
+### 💪 Practice Exercise
+
+**Scenario:** You're designing authentication for a new mobile banking app.
+
+**Requirements:**
+- Secure login with username and password
+- Support biometric authentication (Face ID/fingerprint)
+- Enable "Log in from another device" with QR code
+- Integrate with bank's existing SSO (SAML)
+- Allow third-party apps to access account balance (with user consent)
+
+**Your Task:**
+1. Which protocols would you use for each feature?
+2. Design the OAuth 2.0 flow for third-party app access
+3. How do you handle the QR code login flow?
+4. How long should access tokens and refresh tokens last?
+5. What additional security measures would you add?
+
+**Bonus Challenge:**
+- User reports: "I lost my phone, please revoke all sessions"
+- How do you implement this with token-based auth?
+- What's the trade-off between immediate revocation and performance?
+
+---
+
