@@ -2620,3 +2620,478 @@ Insights from Trace:
 ---
 
 
+
+## 4. DEEP DIVE: EVENT INGESTION PIPELINE
+
+### Event Collection
+
+🟢 **BEGINNER: How Events Get Into the System**
+
+Think of event collection like a restaurant taking food orders through multiple channels:
+
+**Analogy: Multi-Channel Order System**
+```text
+Restaurant Order Collection Methods:
+├─ In-Person (Web App)
+│  └─ Customer tells waiter directly
+├─ Phone Call (Mobile App)
+│  └─ Customer calls to place order
+├─ Online Portal (Backend Service)
+│  └─ Restaurant automatically orders supplies
+└─ All orders go to same kitchen (our ingestion system)
+```
+
+**What is an Event?**
+
+An event is any action a user takes that we want to track:
+- **Page View**: User opens a webpage
+- **Button Click**: User clicks "Add to Cart"
+- **Form Submit**: User completes checkout
+- **Video Play**: User starts watching a video
+- **API Call**: Backend service processes a transaction
+
+**Event Structure (Simple Example):**
+```json
+{
+  "event_type": "button_click",
+  "timestamp": "2026-01-22T14:30:00.123Z",
+  "user_id": "user_12345",
+  "properties": {
+    "button_name": "add_to_cart",
+    "product_id": "prod_789",
+    "price": 29.99
+  }
+}
+```
+
+**Three Ways to Send Events:**
+
+1. **JavaScript SDK (Web Apps)**
+   - Runs in user's browser
+   - Automatically tracks page views, clicks
+   - Sends events via HTTPS to our API
+   
+2. **Mobile SDK (iOS/Android Apps)**
+   - Runs on user's phone
+   - Batches events to save battery
+   - Works offline, sends later when online
+   
+3. **Server-Side SDK (Backend Services)**
+   - Runs on company's servers
+   - Tracks server events (purchases, API calls)
+   - Higher reliability (servers don't go offline)
+
+**Why Multiple Collection Methods?**
+- Web app captures browsing behavior
+- Mobile app captures on-the-go usage
+- Server captures actual transactions (source of truth for money)
+
+---
+
+🟡 **INTERMEDIATE: SDK Implementation & Best Practices**
+
+**1. JavaScript SDK Design**
+
+**Basic Usage:**
+```javascript
+// Initialize SDK
+analytics.init({
+  apiKey: 'ak_1234567890abcdef',
+  endpoint: 'https://events.analytics.com/v1/events',
+  batchSize: 10,
+  flushInterval: 5000 // 5 seconds
+});
+
+// Track page view (automatic)
+analytics.page();
+
+// Track custom event
+analytics.track('product_viewed', {
+  product_id: 'prod_789',
+  category: 'electronics',
+  price: 299.99
+});
+
+// Track user identity
+analytics.identify('user_12345', {
+  email: 'user@example.com',
+  plan: 'premium'
+});
+```
+
+**SDK Internals:**
+```javascript
+class AnalyticsSDK {
+  constructor(config) {
+    this.apiKey = config.apiKey;
+    this.endpoint = config.endpoint;
+    this.queue = [];
+    this.batchSize = config.batchSize || 10;
+    this.flushInterval = config.flushInterval || 5000;
+    
+    // Auto-flush every N seconds
+    setInterval(() => this.flush(), this.flushInterval);
+    
+    // Flush on page unload
+    window.addEventListener('beforeunload', () => this.flush());
+  }
+  
+  track(eventType, properties) {
+    const event = {
+      event_type: eventType,
+      timestamp: new Date().toISOString(),
+      user_id: this.getUserId(),
+      session_id: this.getSessionId(),
+      properties: properties,
+      // Auto-captured context
+      context: {
+        page: {
+          url: window.location.href,
+          title: document.title,
+          referrer: document.referrer
+        },
+        user_agent: navigator.userAgent,
+        screen: {
+          width: window.screen.width,
+          height: window.screen.height
+        }
+      }
+    };
+    
+    this.queue.push(event);
+    
+    // Flush if batch size reached
+    if (this.queue.length >= this.batchSize) {
+      this.flush();
+    }
+  }
+  
+  flush() {
+    if (this.queue.length === 0) return;
+    
+    const batch = this.queue.splice(0, this.batchSize);
+    
+    // Send via fetch with retry logic
+    this.sendBatch(batch)
+      .catch(error => {
+        // Put back in queue on failure
+        this.queue.unshift(...batch);
+        console.error('Failed to send events:', error);
+      });
+  }
+  
+  async sendBatch(events) {
+    const response = await fetch(this.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.apiKey
+      },
+      body: JSON.stringify({ events }),
+      // Use beacon API for better reliability on page unload
+      keepalive: true
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    return response.json();
+  }
+  
+  getUserId() {
+    // Get from cookie or localStorage
+    return localStorage.getItem('analytics_user_id') || 'anonymous';
+  }
+  
+  getSessionId() {
+    // Session expires after 30 min of inactivity
+    const sessionKey = 'analytics_session_id';
+    const sessionTimeKey = 'analytics_session_time';
+    const sessionTimeout = 30 * 60 * 1000; // 30 minutes
+    
+    const now = Date.now();
+    const lastActivity = parseInt(localStorage.getItem(sessionTimeKey) || '0');
+    
+    if (now - lastActivity > sessionTimeout) {
+      // New session
+      const newSessionId = 'sess_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem(sessionKey, newSessionId);
+    }
+    
+    localStorage.setItem(sessionTimeKey, now.toString());
+    return localStorage.getItem(sessionKey);
+  }
+}
+```
+
+**2. Mobile SDK Considerations**
+
+**iOS Swift Example:**
+```swift
+class AnalyticsSDK {
+    private var queue: [Event] = []
+    private var timer: Timer?
+    
+    init(apiKey: String) {
+        self.apiKey = apiKey
+        
+        // Restore queue from disk on app launch
+        restoreQueue()
+        
+        // Monitor network reachability
+        startNetworkMonitoring()
+        
+        // Flush on app background
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(onBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+    }
+    
+    func track(eventType: String, properties: [String: Any]) {
+        let event = Event(
+            eventType: eventType,
+            timestamp: Date(),
+            userId: getUserId(),
+            properties: properties
+        )
+        
+        queue.append(event)
+        persistQueue() // Save to disk
+        
+        if queue.count >= 20 || hasNetworkConnection() {
+            flush()
+        }
+    }
+    
+    func flush() {
+        guard !queue.isEmpty && hasNetworkConnection() else { return }
+        
+        let batch = Array(queue.prefix(50))
+        
+        sendBatch(batch) { success in
+            if success {
+                // Remove sent events from queue
+                self.queue.removeFirst(batch.count)
+                self.persistQueue()
+            }
+        }
+    }
+    
+    @objc func onBackground() {
+        // Try to flush when app goes to background
+        flush()
+        persistQueue() // Ensure events saved
+    }
+}
+```
+
+**Mobile SDK Challenges:**
+- **Battery Efficiency**: Batch events, don't send individually
+- **Offline Support**: Persist events to disk, send when online
+- **App Crashes**: Save queue to disk frequently
+- **Background Limits**: iOS gives ~30 seconds in background
+
+**3. Server-Side SDK (Node.js Example)**
+
+```javascript
+const Analytics = require('@analytics/server-sdk');
+
+const analytics = new Analytics({
+  apiKey: process.env.ANALYTICS_API_KEY,
+  flushAt: 100, // Flush after 100 events
+  flushInterval: 10000 // Or every 10 seconds
+});
+
+// Track server-side event
+app.post('/api/checkout', async (req, res) => {
+  const order = await processOrder(req.body);
+  
+  // Track order event
+  analytics.track({
+    userId: req.user.id,
+    event: 'order_completed',
+    properties: {
+      order_id: order.id,
+      total: order.total,
+      items: order.items.length,
+      payment_method: order.payment_method
+    },
+    timestamp: new Date()
+  });
+  
+  res.json({ success: true, order_id: order.id });
+});
+
+// Graceful shutdown: flush remaining events
+process.on('SIGTERM', async () => {
+  await analytics.flush();
+  process.exit(0);
+});
+```
+
+**Server-Side Benefits:**
+- **Accurate Data**: Can't be blocked by ad-blockers
+- **Secure**: API keys not exposed to client
+- **Complete**: Always captures events (no offline users)
+
+**4. Batch API Design**
+
+**Endpoint:** `POST /v1/events/batch`
+
+**Request Format:**
+```json
+{
+  "api_key": "ak_1234567890abcdef",
+  "events": [
+    {
+      "event_type": "page_view",
+      "timestamp": "2026-01-22T14:30:00.123Z",
+      "user_id": "user_12345",
+      "properties": {
+        "page": "/products",
+        "referrer": "/home"
+      }
+    },
+    {
+      "event_type": "button_click",
+      "timestamp": "2026-01-22T14:30:05.456Z",
+      "user_id": "user_12345",
+      "properties": {
+        "button": "add_to_cart",
+        "product_id": "prod_789"
+      }
+    }
+  ]
+}
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "accepted": 2,
+  "rejected": 0,
+  "errors": []
+}
+```
+
+**API Design Principles:**
+1. **Idempotency**: Accept duplicate event IDs, deduplicate server-side
+2. **Partial Success**: Accept valid events even if some invalid
+3. **Error Details**: Return which events failed and why
+4. **Rate Limiting**: 1000 events/second per API key
+5. **Size Limits**: Max 100 events per batch, 10KB per event
+
+**Real Company Examples:**
+
+**Mixpanel SDK Evolution:**
+- **2014**: Individual event POST requests → High latency
+- **2017**: Batching (10 events) → 10x fewer requests
+- **2020**: Compression (gzip) → 70% bandwidth reduction
+- **Result**: Can handle 10x more traffic on same infrastructure
+
+**Amplitude's Data Quality Features:**
+- **Schema Enforcement**: Define required properties per event type
+- **PII Scrubbing**: Automatically detect and remove email/phone from properties
+- **Property Limits**: Max 1000 properties per event (prevent abuse)
+- **Type Checking**: Enforce property types (string, number, boolean)
+
+---
+
+🔴 **ADVANCED: Production-Grade Ingestion**
+
+**1. High-Availability Ingestion Architecture**
+
+```text
+Production Ingestion Stack:
+
+Layer 1: Global Load Balancer (Cloudflare/AWS Route53)
+├─ Purpose: Geographic routing
+├─ Configuration:
+│  ├─ US traffic → us-east-1
+│  ├─ EU traffic → eu-west-1
+│  ├─ APAC traffic → ap-southeast-1
+│  └─ Latency-based routing
+├─ DDoS protection: Cloudflare (5M requests/sec capacity)
+└─ Failover: Automatic within 30 seconds
+
+Layer 2: Regional API Gateway (AWS ALB)
+├─ Purpose: SSL termination, request routing
+├─ Configuration:
+│  ├─ SSL/TLS 1.3 (A+ SSL Labs rating)
+│  ├─ HTTP/2 support (multiplexing)
+│  ├─ Connection pooling (reduce latency)
+│  └─ Health checks every 5 seconds
+├─ Capacity: 10,000 connections/sec per AZ
+└─ Auto-scaling: Add targets at 70% CPU
+
+Layer 3: Ingestion Service (Kubernetes Pods)
+├─ Purpose: Event validation, enrichment, Kafka writes
+├─ Configuration:
+│  ├─ Replicas: 6 (2 per AZ)
+│  ├─ Resources: 2 CPU, 4GB RAM per pod
+│  ├─ HPA: Scale 6-20 based on CPU (target: 70%)
+│  └─ PDB: Min 4 pods available during updates
+├─ Capacity: 200 events/sec per pod = 1,200 events/sec total
+└─ Graceful shutdown: 30-second drain period
+
+Layer 4: Message Queue (Kafka)
+├─ Purpose: Durable event storage
+├─ Configuration:
+│  ├─ Brokers: 5 per region
+│  ├─ Replication: 3x (min in-sync: 2)
+│  ├─ Partitions: 24 per topic
+│  └─ Retention: 7 days
+├─ Capacity: 50K events/sec per broker = 250K events/sec
+└─ Monitoring: Lag, throughput, disk usage
+```
+
+**2. Circuit Breaker Pattern**
+
+```python
+from circuitbreaker import CircuitBreaker, CircuitBreakerError
+
+class KafkaProducer:
+    def __init__(self):
+        self.producer = kafka.KafkaProducer(...)
+        # Circuit breaker: Open after 5 failures, retry after 60s
+        self.circuit_breaker = CircuitBreaker(
+            failure_threshold=5,
+            recovery_timeout=60,
+            expected_exception=kafka.errors.KafkaError
+        )
+    
+    @circuit_breaker
+    def send_event(self, topic, event):
+        """Send event to Kafka with circuit breaker protection"""
+        future = self.producer.send(topic, value=event)
+        # Wait for acknowledgment (synchronous for reliability)
+        record_metadata = future.get(timeout=5)
+        return record_metadata
+    
+    def send_event_with_fallback(self, topic, event):
+        """Send event with fallback to S3 if Kafka unavailable"""
+        try:
+            return self.send_event(topic, event)
+        except CircuitBreakerError:
+            # Circuit open: Kafka is down
+            logger.warning("Circuit breaker open, writing to S3 fallback")
+            self.write_to_s3_fallback(event)
+            # Return success to client (we'll process from S3 later)
+            return {"status": "accepted", "fallback": True}
+        except Exception as e:
+            logger.error(f"Failed to send event: {e}")
+            raise
+
+    def write_to_s3_fallback(self, event):
+        """Write event to S3 for later processing"""
+        s3_key = f"fallback/{datetime.now().strftime('%Y/%m/%d/%H')}/{uuid.uuid4()}.json"
+        s3.put_object(Bucket='events-fallback', Key=s3_key, Body=json.dumps(event))
+```
+
+---
+
