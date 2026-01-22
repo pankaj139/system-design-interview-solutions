@@ -924,3 +924,1150 @@ Key Lesson: Started simple (OAuth), added complexity based on customer needs (SA
 - Break-glass procedures (emergency access)
 
 ---
+
+## Section 2: Planning for Scale
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Calculate authentication traffic estimates (login QPS and token validation QPS)
+- Estimate storage requirements for users, sessions, and audit logs
+- Determine bandwidth and resource needs for auth systems
+- Understand the massive difference between authentication and authorization loads
+- Perform back-of-the-envelope calculations for security-critical systems
+
+### Why This Matters
+
+"How many authentication requests per second?" "How large will our audit logs grow?" "How much cache do we need for token validation?" These questions are crucial for security systems because downtime means no one can access your application! Real example: Auth0 experienced a 2-hour outage in 2020 that locked out users from 15,000+ applications - poor capacity planning for a traffic spike caused cascading failures.
+
+---
+
+### 🟢 For Beginners: Understanding Auth System Scale
+
+#### What Makes Auth Systems Different?
+
+Authentication and authorization systems have unique scaling characteristics:
+
+```text
+Normal Application vs Auth System:
+
+E-commerce Site:
+├─ Users visit occasionally (few times/day)
+├─ Some browse, some buy
+├─ Traffic spread throughout day
+└─ Users directly interact with site
+
+Auth System (Supporting E-commerce):
+├─ EVERY user action needs authorization
+├─ Login: Once per session (low frequency)
+├─ Token validation: EVERY API call (extremely high frequency)
+├─ Must be fast (adds to every request!)
+└─ Downtime blocks ALL access
+```
+
+The key insight: **Authorization checks happen far more frequently than authentication!**
+
+#### Breaking Down the Numbers
+
+Let's start with a realistic scenario and work through the math:
+
+**Step 1: How many users do we have?**
+
+```text
+Our System Size:
+├─ Total registered users: 10,000,000 (10M users)
+├─ Daily Active Users (DAU): 2,000,000 (20% of total - typical for apps)
+└─ Think of this as a medium-sized social media app or SaaS platform
+```
+
+**Step 2: Authentication Load (Login Requests)**
+
+```text
+How often do users log in?
+
+Assumptions:
+├─ 2M daily active users
+├─ Users log in once per day on average
+├─ Some log in multiple times (different devices)
+└─ Multiply by 1.2× for multi-device logins
+
+Daily Logins:
+└─ 2,000,000 DAU × 1.2 = 2,400,000 logins per day
+
+Logins Per Second (QPS):
+├─ 2,400,000 logins ÷ 86,400 seconds/day
+├─ = 27.7 logins/second
+└─ ≈ 28 logins/second (average)
+
+Peak Login Traffic:
+├─ Morning rush (8-10 AM): 40% of daily logins
+├─ Peak is 5× average traffic
+└─ Peak: 28 × 5 = 140 logins/second
+
+💡 Key Insight: Authentication is relatively low volume - 
+                most users log in once and stay logged in!
+```
+
+**Step 3: Authorization Load (Token Validation)**
+
+Here's where it gets interesting:
+
+```text
+How often do we validate tokens?
+
+Each user action requires authorization check:
+├─ Viewing a page: 1-5 API calls
+├─ Posting content: 3-10 API calls
+├─ Scrolling feed: 10-20 API calls
+└─ Average: 10 API calls per user action
+
+User Activity:
+├─ Active user makes: 50 actions per day
+├─ Each action: 10 API calls average
+└─ Total API calls: 500 per user per day
+
+Daily Authorization Checks:
+├─ 2,000,000 DAU × 500 API calls
+└─ = 1,000,000,000 (1 billion!) API calls per day
+
+Authorization QPS:
+├─ 1,000,000,000 ÷ 86,400 seconds
+├─ = 11,574 authorizations/second
+└─ ≈ 12,000 auth checks/second (average)
+
+Peak Authorization Load:
+├─ Peak is 3× average (evening usage spike)
+└─ Peak: 12,000 × 3 = 36,000 auth checks/second
+
+🚨 CRITICAL INSIGHT: Authorization checks are 400× more frequent 
+                     than authentication! (12,000 vs 28 per second)
+```
+
+**Step 4: The Authorization Challenge**
+
+```text
+Why is this such a big deal?
+
+Every API Request Flow:
+1. User makes request (GET /posts/123)
+2. ⏱️ Validate JWT token (who is this?)
+3. ⏱️ Check permissions (can they access this?)
+4. Process actual request
+5. Return response
+
+Authorization adds latency to EVERY request!
+
+Target Performance:
+├─ Token validation: <10ms
+├─ Permission check: <5ms
+├─ Total auth overhead: <15ms
+└─ If 36,000 QPS, we need this consistently!
+
+Without proper design:
+├─ Database lookup per request: 50-100ms
+├─ 36,000 × 100ms = 3,600,000ms = 3,600 seconds of DB time per second!
+└─ Impossible! We need caching and optimization!
+```
+
+#### Storage Requirements
+
+**User Data Storage:**
+
+```text
+Per User Storage:
+
+User Record:
+├─ User ID: 8 bytes (UUID or long integer)
+├─ Email: 100 bytes average
+├─ Password hash (bcrypt): 60 bytes
+├─ Name: 50 bytes
+├─ Phone: 20 bytes
+├─ Created timestamp: 8 bytes
+├─ Last login: 8 bytes
+├─ Account status: 1 byte
+├─ Metadata: 50 bytes (preferences, settings)
+└─ Total: ~300 bytes per user
+
+Total User Storage:
+├─ 10,000,000 users × 300 bytes
+├─ = 3,000,000,000 bytes
+├─ = 3 GB raw data
+└─ With indexes (30%): ~4 GB
+
+💡 User data is tiny! Not our storage concern.
+```
+
+**Session Storage:**
+
+```text
+Active Session Data:
+
+Per Session:
+├─ Session ID: 32 bytes
+├─ User ID: 8 bytes
+├─ Device info: 100 bytes
+├─ IP address: 16 bytes
+├─ Refresh token: 128 bytes
+├─ Expiry timestamp: 8 bytes
+├─ Last activity: 8 bytes
+└─ Total: ~300 bytes per session
+
+Active Sessions:
+├─ 2M DAU × 1.5 devices average = 3M active sessions
+├─ 3,000,000 × 300 bytes = 900 MB
+└─ Need in fast storage (Redis/Memcached)
+
+Session History (30-day retention):
+├─ 2.4M logins/day × 30 days = 72M sessions
+├─ 72,000,000 × 300 bytes = 21.6 GB
+└─ Can store in database (cheaper)
+```
+
+**Audit Log Storage (CRITICAL!):**
+
+```text
+Security Audit Logs:
+
+Per Authentication Event:
+├─ Event ID: 8 bytes
+├─ User ID: 8 bytes
+├─ Event type: 20 bytes (LOGIN, LOGOUT, MFA, etc.)
+├─ Timestamp: 8 bytes
+├─ IP address: 16 bytes
+├─ Device fingerprint: 50 bytes
+├─ Location (city/country): 30 bytes
+├─ Success/failure: 1 byte
+├─ Failure reason: 50 bytes
+└─ Total: ~200 bytes per auth event
+
+Daily Authentication Logs:
+├─ 2.4M logins × 200 bytes = 480 MB/day
+├─ Monthly: 480 MB × 30 = 14.4 GB/month
+├─ Yearly: 14.4 GB × 12 = 173 GB/year
+└─ 5-year retention: 865 GB
+
+Per Authorization Event:
+├─ Much smaller: just user ID + resource + result
+├─ Total: ~80 bytes per check
+
+Daily Authorization Logs:
+├─ 1 billion checks × 80 bytes = 80 GB/day 😱
+├─ Monthly: 80 GB × 30 = 2.4 TB/month
+├─ Yearly: 2.4 TB × 12 = 28.8 TB/year
+└─ 2-year retention: 57.6 TB
+
+🚨 AUDIT LOGS ARE HUGE! This is the real storage challenge!
+
+Common Strategies:
+├─ Sample non-suspicious activity (log 1% of normal checks)
+├─ Always log failures and suspicious patterns
+├─ Compress old logs (10:1 compression ratio)
+├─ Move to cold storage after 90 days
+└─ Effective storage: ~10 TB (manageable)
+```
+
+**Token/Permission Cache:**
+
+```text
+Caching User Permissions:
+
+Per User Cache Entry:
+├─ User ID: 8 bytes
+├─ Roles: 50 bytes (array of role IDs)
+├─ Permissions: 200 bytes (array of permission IDs)
+├─ Group memberships: 100 bytes
+├─ Metadata: 50 bytes
+└─ Total: ~400 bytes per user
+
+Cache for Active Users:
+├─ 2M DAU × 400 bytes = 800 MB
+├─ With overhead: ~1 GB
+└─ Must be in Redis for <5ms access
+
+JWT Token Blacklist (for revoked tokens):
+├─ Store revoked token IDs until expiry
+├─ Average: 10,000 revoked tokens at any time
+├─ 10,000 × 32 bytes = 320 KB
+└─ Negligible storage
+```
+
+#### Resource Summary for Beginners
+
+```text
+📊 STORAGE SUMMARY (10M users, 2M DAU):
+
+Hot Storage (Redis/Memcached):
+├─ Active sessions: 900 MB
+├─ User permissions cache: 1 GB
+├─ Token blacklist: 1 MB
+└─ Total: ~2 GB (needs fast memory)
+
+Database Storage:
+├─ User data: 4 GB
+├─ Session history (30 days): 21 GB
+├─ Auth audit logs (1 year): 173 GB
+├─ Auth audit logs (sampled, 1 year): 3 TB
+└─ Total: ~3.2 TB with optimizations
+
+Real-World Cost:
+├─ Redis cache (2 GB): $50/month
+├─ Database (5 TB): $200/month
+├─ Backup storage: $50/month
+└─ Total storage: ~$300/month
+
+The takeaway? Storage is cheap! The challenge is SPEED.
+```
+
+---
+
+### 🟡 For Intermediate: Interview Calculation Techniques
+
+#### The Auth System Calculation Framework
+
+In interviews, follow this systematic approach for authentication systems:
+
+**Step 1: Establish Scale and Assumptions**
+
+```text
+"Let me establish our system scale:
+
+GIVEN:
+├─ Total users: 10M registered
+├─ Daily Active Users (DAU): 2M (20% - typical for SaaS)
+├─ Average session duration: 4 hours
+├─ API calls per user session: 500 calls
+└─ Multi-device factor: 1.2× (some users on phone + laptop)
+
+KEY ASSUMPTIONS:
+├─ Users log in once per session (not per API call!)
+├─ Every API call requires authorization check
+├─ Token validation must be <10ms (doesn't block user)
+└─ Audit logs required for compliance (SOC 2, ISO 27001)
+```
+
+**Step 2: Calculate Authentication Load (The Interview Script)**
+
+```text
+"Let me break down authentication traffic:
+
+AUTHENTICATION (LOGIN) CALCULATIONS:
+
+Daily Logins:
+├─ 2M DAU × 1.2 multi-device factor = 2.4M logins/day
+├─ Some users log out and back in (20% = 2 sessions/day)
+├─ Adjusted: 2.4M × 1.2 = 2.88M ≈ 3M logins/day
+└─ Simplify to: 3M logins/day
+
+Average QPS:
+├─ 3M logins ÷ 100K seconds ≈ 30 logins/second
+└─ This is manageable for most systems
+
+Peak QPS:
+├─ Morning rush (8-10 AM): 30% of daily logins in 2 hours
+├─ 3M × 0.3 = 900K logins in 7,200 seconds
+├─ Peak: 900K ÷ 7,200 = 125 logins/second
+└─ Design for 200 logins/sec (add 60% buffer)
+
+AUTHENTICATION ENDPOINTS:
+├─ POST /auth/login: 200 QPS peak
+├─ POST /auth/refresh-token: 150 QPS peak (sessions expire)
+├─ POST /auth/logout: 50 QPS peak
+├─ POST /auth/mfa-verify: 100 QPS peak (50% of logins use MFA)
+└─ Total auth endpoints: ~500 QPS peak
+```
+
+**Step 3: Calculate Authorization Load (Critical!)**
+
+```text
+"Now for authorization - this is where scale gets challenging:
+
+AUTHORIZATION (PERMISSION CHECK) CALCULATIONS:
+
+API Call Volume:
+├─ 2M DAU × 500 API calls per day = 1B API calls/day
+├─ Every API call needs authorization check
+└─ This is 100× more than authentication!
+
+Average Authorization QPS:
+├─ 1,000,000,000 ÷ 100,000 seconds ≈ 10,000 checks/second
+└─ This requires serious infrastructure
+
+Peak Authorization QPS:
+├─ Evening usage spike (7-10 PM): 35% of daily traffic
+├─ Peak multiplier: 3×
+├─ Peak: 10,000 × 3 = 30,000 checks/second
+└─ Design for 50,000 checks/sec (include headroom)
+
+LATENCY REQUIREMENTS:
+├─ Each API call already has processing time (50-200ms)
+├─ Authorization must add minimal overhead
+├─ Target: <10ms for token validation
+├─ Target: <5ms for permission check
+└─ Total auth overhead: <15ms per request
+
+AT SCALE:
+├─ 50,000 requests/sec × 15ms = 750 seconds of work per second!
+├─ Need ~800 cores just for authorization (if single-threaded)
+├─ OR use aggressive caching to reduce to ~20 cores
+└─ Caching is absolutely critical!
+```
+
+**Step 4: Storage Calculations with Audit Requirements**
+
+```text
+"Storage planning for auth systems has unique requirements:
+
+USER DATA STORAGE:
+├─ Per user: 300 bytes (credentials, profile)
+├─ 10M users × 300 bytes = 3 GB
+├─ With indexes (30%) = 4 GB
+└─ Trivial storage requirement
+
+SESSION STORAGE:
+├─ Active sessions: 2M DAU × 1.5 devices = 3M sessions
+├─ Per session: 300 bytes
+├─ Total: 3M × 300 = 900 MB in Redis
+├─ Historical (30 days): 3M × 30 = 90M sessions
+├─ 90M × 300 bytes = 27 GB in database
+└─ Session storage is manageable
+
+AUDIT LOG STORAGE (The Real Challenge):
+├─ Per auth event: 200 bytes
+├─ Per authz event: 80 bytes
+
+Authentication Logs:
+├─ 3M logins/day × 200 bytes = 600 MB/day
+├─ 1 year: 600 MB × 365 = 219 GB
+└─ 5 years: 1.1 TB (required for compliance)
+
+Authorization Logs:
+├─ 1B checks/day × 80 bytes = 80 GB/day 😱
+├─ 1 year: 80 GB × 365 = 29.2 TB
+└─ THIS IS THE BOTTLENECK!
+
+OPTIMIZATION STRATEGIES:
+├─ Sample normal activity: Log 1% = 292 GB/year
+├─ Always log: Failures, admin actions, sensitive resources
+├─ Compression: 10:1 ratio = 29 GB/year actual storage
+├─ Cold storage after 90 days: Move to S3 Glacier
+└─ Final: ~500 GB hot + 5 TB cold storage
+
+KEY INTERVIEW POINT:
+└─ 'We need intelligent audit logging - full logging isn't 
+    feasible at scale. Sample successes, log all failures.'
+```
+
+**Step 5: Cache Sizing for Performance**
+
+```text
+"Caching is critical for authorization performance:
+
+PERMISSION CACHE (Redis):
+├─ Cache user → permissions mapping
+├─ 2M DAU × 400 bytes = 800 MB
+├─ Add 50% overhead: 1.2 GB
+├─ Distribute across 3 Redis nodes: 400 MB each
+└─ TTL: 5 minutes (balance freshness vs load)
+
+TOKEN VALIDATION CACHE:
+├─ Cache valid tokens (avoid database lookup)
+├─ Average tokens: 3M active sessions × 128 bytes = 384 MB
+├─ Store: Token signature → user_id + expiry
+├─ Hit ratio target: 99% (avoids DB for 99 out of 100 checks)
+└─ This reduces database load by 100×!
+
+REVOKED TOKEN BLACKLIST:
+├─ Store revoked tokens until natural expiry
+├─ Average: 10K revoked tokens × 32 bytes = 320 KB
+├─ Check on every request: O(1) lookup in Redis
+└─ Minimal storage, critical for security
+
+CACHE EFFECTIVENESS:
+├─ Without cache: 30,000 QPS × 20ms DB lookup = 600 seconds/sec
+├─ With cache (99% hit): 30,000 × 1% × 20ms + 99% × 1ms = 6.3 seconds/sec
+└─ Cache reduces load by 95×! Absolutely essential!
+```
+
+**Step 6: Geographic Distribution**
+
+```text
+"For a global auth system, we need multi-region deployment:
+
+USER DISTRIBUTION:
+├─ North America: 40% = 800K DAU
+├─ Europe: 30% = 600K DAU
+├─ Asia: 25% = 500K DAU
+├─ Other: 5% = 100K DAU
+└─ Deploy in at least 3 regions (US, EU, APAC)
+
+PER-REGION REQUIREMENTS:
+North America:
+├─ Auth QPS: 80 logins/sec peak
+├─ Authz QPS: 12,000 checks/sec peak
+├─ Cache: 400 MB Redis
+└─ Database: Primary in US-East, replicas in US-West
+
+Europe:
+├─ Auth QPS: 60 logins/sec peak
+├─ Authz QPS: 9,000 checks/sec peak
+├─ Cache: 300 MB Redis
+└─ Database: Replica from primary (eventual consistency OK)
+
+Asia:
+├─ Auth QPS: 50 logins/sec peak
+├─ Authz QPS: 7,500 checks/sec peak
+├─ Cache: 250 MB Redis
+└─ Database: Replica from primary
+
+LATENCY TARGETS:
+├─ Same region: <10ms auth overhead
+├─ Cross-region: <50ms (acceptable for login, not for API calls)
+└─ Strategy: Validate tokens locally, sync user changes globally
+```
+
+**Step 7: Infrastructure Sizing**
+
+```text
+"Let me size the infrastructure:
+
+APPLICATION SERVERS (Auth Service):
+├─ Assume: 2,000 requests/sec per server (mixed auth/authz)
+├─ Peak: 50,000 authz + 500 auth = 50,500 QPS total
+├─ Servers needed: 50,500 ÷ 2,000 = 26 servers
+├─ With redundancy (2N): 52 servers globally
+└─ Distribution: 22 US, 18 EU, 12 APAC
+
+DATABASE SERVERS:
+├─ Primary (writes): 1 server (200 login writes/sec is light)
+├─ Read replicas: 5 servers (distribute read load)
+├─ Specs: 16 vCPU, 64 GB RAM, 1 TB SSD each
+└─ Cost: ~$500/month per server = $3,000/month
+
+CACHE SERVERS (Redis):
+├─ Total cache: 2 GB data + 50% overhead = 3 GB
+├─ Distribute: 10 Redis nodes × 300 MB each
+├─ Replication: 2× for HA = 20 Redis nodes
+├─ Specs: 4 vCPU, 8 GB RAM each
+└─ Cost: ~$100/month per node = $2,000/month
+
+MESSAGE QUEUE (Audit Logs):
+├─ Kafka for async audit log processing
+├─ 3 brokers for HA
+├─ Handle: 80 GB/day = 1 MB/sec sustained
+└─ Cost: ~$300/month
+
+LOAD BALANCERS:
+├─ 3 load balancers (1 per region)
+├─ Handle: 50,000 QPS total
+└─ Cost: ~$300/month
+
+TOTAL INFRASTRUCTURE:
+├─ Application servers: $5,200/month (52 × $100)
+├─ Database: $3,000/month
+├─ Cache: $2,000/month
+├─ Message queue: $300/month
+├─ Load balancers: $300/month
+├─ Monitoring & logging: $500/month
+└─ Total: ~$11,300/month
+
+COST PER USER:
+├─ $11,300 ÷ 10M users = $0.00113 per user/month
+└─ $0.0136 per user/year (very affordable!)
+```
+
+**Step 8: The Interview Presentation**
+
+```text
+"Let me summarize our auth system capacity planning:
+
+📊 TRAFFIC SUMMARY:
+├─ Authentication: 200 QPS peak (logins)
+├─ Authorization: 50,000 QPS peak (permission checks)
+├─ Ratio: 250:1 authorization is the real challenge!
+└─ Key: Must optimize authorization path aggressively
+
+💾 STORAGE SUMMARY:
+├─ User data: 4 GB (trivial)
+├─ Active sessions: 1 GB Redis (critical for speed)
+├─ Session history: 27 GB (30-day window)
+├─ Audit logs: 500 GB hot + 5 TB cold (compliance)
+└─ Total: ~6 TB (manageable with tiering)
+
+🖥️ INFRASTRUCTURE SUMMARY:
+├─ Auth service: 52 servers globally
+├─ Database: 6 servers (1 primary + 5 replicas)
+├─ Cache: 20 Redis nodes (with replication)
+├─ Message queue: 3 Kafka brokers
+└─ Total: ~80 servers for 10M users
+
+💰 COST SUMMARY:
+├─ Infrastructure: $11,300/month
+├─ Bandwidth: $200/month
+├─ Storage: $300/month
+└─ Total: $11,800/month = $0.00118/user/month
+
+🎯 CRITICAL DESIGN DECISIONS:
+├─ Aggressive caching (99% hit rate reduces DB load 100×)
+├─ Sampled audit logging (1% sample for normal activity)
+├─ Multi-region deployment (low latency globally)
+├─ JWT tokens (stateless validation = no DB lookup)
+└─ Async audit log processing (doesn't block requests)
+
+📈 SCALABILITY HEADROOM:
+├─ Current: 50K authz QPS
+├─ Capacity: 100K authz QPS (2× headroom)
+└─ Can handle 2× growth before major changes
+
+Questions on any of these calculations?"
+```
+
+---
+
+### 🔴 For Advanced: Production Capacity Planning
+
+#### Real-World Capacity Modeling
+
+Production auth systems face unique scaling challenges:
+
+**Multi-Tenancy Considerations:**
+
+```text
+ENTERPRISE SAAS WITH 1,000 CUSTOMERS:
+
+Tenant Distribution (Power Law):
+├─ Top 10 tenants: 60% of traffic (6K QPS each at peak)
+├─ Next 90 tenants: 30% of traffic (300 QPS each)
+├─ Remaining 900 tenants: 10% of traffic (10 QPS each)
+└─ Challenge: Prevent large tenants from starving small ones
+
+Noisy Neighbor Problem:
+├─ Tenant A: 10K QPS burst (misconfigured retry logic)
+├─ Shared infrastructure: Slows down all other tenants
+├─ Solution: Per-tenant rate limiting + quotas
+
+Isolation Strategies:
+├─ Shared database: Logical isolation (tenant_id in every query)
+├─ Shared cache: Namespace by tenant (tenant_123:user_456:perms)
+├─ Separate pools: Dedicated infrastructure for top 10 tenants
+└─ Cost vs isolation trade-off:
+    - Full isolation: $500K/month (10 dedicated stacks)
+    - Shared with limits: $50K/month (rate limiting per tenant)
+    - Hybrid: $150K/month (top 10 dedicated, others shared)
+
+Recommendation: Hybrid approach
+├─ Top 10 tenants: Dedicated auth services (predictable performance)
+├─ Next 90: Premium shared pool (higher limits, priority queue)
+├─ Remaining: Standard shared pool (lower limits, best effort)
+└─ Avoids 90% of noisy neighbor issues at 30% of full isolation cost
+```
+
+**Token Validation at Scale:**
+
+```text
+JWT VALIDATION OPTIMIZATION:
+
+Standard JWT Validation:
+├─ Parse JWT: 0.1ms
+├─ Verify signature: 2ms (RSA) or 0.5ms (HMAC)
+├─ Check expiry: 0.01ms
+├─ Fetch user permissions from DB: 20ms
+└─ Total: ~22ms per request
+
+At 50,000 QPS:
+├─ 50,000 × 22ms = 1,100,000ms = 1,100 seconds of CPU per second
+└─ Impossible without massive parallelization!
+
+OPTIMIZATION LAYERS:
+
+Layer 1 - Signature Caching:
+├─ Cache: token_signature → validated_claims
+├─ TTL: Token expiry time
+├─ Hit rate: 95% (same token reused in short window)
+├─ Cached validation: 0.2ms
+├─ Result: 50,000 × (0.95 × 0.2ms + 0.05 × 2ms) = 14.5 seconds/sec
+└─ 76× improvement!
+
+Layer 2 - Permission Caching:
+├─ Cache: user_id → permissions
+├─ TTL: 5 minutes (balance freshness vs load)
+├─ Hit rate: 99% (permissions don't change often)
+├─ Cached lookup: 0.5ms vs 20ms DB
+├─ Result: 14.5 × 0.025 = 0.36 seconds/sec
+└─ 40× additional improvement!
+
+Layer 3 - Read-Through Cache:
+├─ On cache miss: Fetch from DB + update cache
+├─ Single request triggers cache refresh
+├─ Other concurrent requests: Wait for cache (not DB)
+└─ Prevents cache stampede (100 concurrent requests → 1 DB query)
+
+Layer 4 - Token Structure Optimization:
+├─ Include basic permissions in JWT claims
+├─ "roles": ["admin", "editor"]
+├─ No DB lookup for common checks
+├─ Only fetch full permissions for complex authorization
+└─ Covers 80% of checks without DB
+
+Final Performance:
+├─ 80% checks: JWT only (2ms)
+├─ 19% checks: JWT + cached permissions (2.5ms)
+├─ 1% checks: JWT + DB lookup (22ms)
+├─ Average: 0.8 × 2 + 0.19 × 2.5 + 0.01 × 22 = 2.3ms
+├─ At 50,000 QPS: 50,000 × 2.3ms = 115 seconds/sec
+└─ Requires only ~120 CPU cores (very achievable!)
+```
+
+**Audit Log Processing at Scale:**
+
+```text
+ASYNC AUDIT LOG ARCHITECTURE:
+
+Challenge: 80 GB/day of audit logs
+├─ Can't write synchronously (adds latency to every request)
+├─ Can't lose logs (compliance requirement)
+└─ Must be searchable (security investigation)
+
+Async Pipeline Design:
+
+Request → [Auth Service] → Response to user (fast!)
+              ↓ (non-blocking)
+          [Local Buffer]
+              ↓ (batch)
+          [Kafka Topic]
+              ↓ (consume)
+          [Processor]
+              ↓ (parallel)
+        [Elasticsearch] + [S3 Archive]
+
+Component Details:
+
+1. Local Buffer (in memory):
+├─ Ring buffer: 10,000 events
+├─ Flush when: Buffer full OR every 1 second
+├─ If full: Drop low-priority events (success logs)
+└─ Never drop: Failures, admin actions, sensitive resource access
+
+2. Kafka (message queue):
+├─ Topic: auth-audit-logs
+├─ Partitions: 50 (parallel processing)
+├─ Replication: 3× (durability)
+├─ Retention: 7 days (reprocess if needed)
+├─ Throughput: 1M messages/sec capability
+└─ Cost: ~$500/month
+
+3. Processing Service:
+├─ Consumers: 50 parallel workers
+├─ Each processes: 20K events/sec
+├─ Total: 1M events/sec capacity
+├─ Actions:
+│   ├─ Enrich: Add geolocation, user metadata
+│   ├─ Classify: Normal, suspicious, critical
+│   ├─ Index: Send to Elasticsearch (searchable)
+│   └─ Archive: Send to S3 (long-term storage)
+└─ Latency: Logs searchable within 10 seconds
+
+4. Elasticsearch (searchable):
+├─ Hot data: Last 30 days (immediate search)
+├─ Storage: 2.4 TB (with replication)
+├─ Indices: Daily rotation (easy to manage retention)
+├─ Query performance: <1 second for most queries
+└─ Cost: ~$2,000/month
+
+5. S3 Archive (long-term):
+├─ All logs: Compressed Parquet format (10:1 ratio)
+├─ Storage: 3 TB/year (5-year retention = 15 TB)
+├─ Access: Rare (compliance audits, investigations)
+├─ Query: AWS Athena (serverless SQL)
+└─ Cost: $225/month ($0.023/GB × 10,000 GB)
+
+Total Audit System Cost: ~$2,700/month
+├─ Kafka: $500
+├─ Processors: $200
+├─ Elasticsearch: $2,000
+└─ S3: $225
+
+Cost per audit event: $2,700 ÷ 30B events = $0.00000009
+└─ Less than 1 millionth of a cent per event!
+```
+
+**Disaster Recovery Planning:**
+
+```text
+RTO (Recovery Time Objective) AND RPO (Recovery Point Objective):
+
+Auth System DR Requirements:
+├─ RTO: 5 minutes (auth is critical - everything depends on it)
+├─ RPO: 0 minutes (can't lose user registrations or permission changes)
+└─ Availability target: 99.99% (52 minutes downtime/year)
+
+Multi-Region Active-Active:
+
+Primary Region (US-East):
+├─ Auth services: 25 servers
+├─ Database: Primary (all writes)
+├─ Cache: Redis cluster
+└─ Audit logs: Kafka + processors
+
+Secondary Region (EU-West):
+├─ Auth services: 18 servers (lower traffic)
+├─ Database: Async replica (2-second lag)
+├─ Cache: Redis cluster (separate)
+└─ Audit logs: Kafka + processors
+
+Tertiary Region (APAC):
+├─ Auth services: 9 servers
+├─ Database: Async replica
+├─ Cache: Redis cluster
+└─ Audit logs: Kafka + processors
+
+Failover Scenarios:
+
+Scenario 1: Primary region down
+├─ Detection: Health checks fail (10 seconds)
+├─ Action: DNS failover to EU-West (30 seconds)
+├─ Impact: 40-second outage for writes
+├─ Reads: Continue serving from replicas
+└─ Data loss: Max 2 seconds of writes (RPO)
+
+Scenario 2: Database failure
+├─ Detection: 5 seconds
+├─ Action: Promote replica to primary (15 seconds)
+├─ Impact: 20-second outage for writes
+├─ Reads: Unaffected
+└─ Data loss: Possible 2 seconds of writes
+
+Scenario 3: Cache failure
+├─ Detection: Immediate (cache miss)
+├─ Action: Route to database (automatic)
+├─ Impact: Latency increases (10ms → 25ms)
+├─ Mitigation: Database can handle traffic
+└─ Data loss: None (cache is ephemeral)
+
+Scenario 4: Total region failure (earthquake)
+├─ Detection: 30 seconds (all health checks fail)
+├─ Action: Failover to secondary + tertiary
+├─ Impact: 60-second outage
+├─ Capacity: Remaining regions handle 2× traffic
+└─ Data loss: Max 2 seconds
+
+Testing DR:
+├─ Monthly: Failover drill (planned)
+├─ Quarterly: Chaos engineering (random failures)
+├─ Annually: Total region failure simulation
+└─ Track: Actual RTO/RPO vs targets, improve procedures
+```
+
+**Capacity Growth Modeling:**
+
+```text
+EXPONENTIAL GROWTH PROJECTION:
+
+Current State (Year 0):
+├─ Users: 10M
+├─ DAU: 2M
+├─ Auth QPS: 200 peak
+├─ Authz QPS: 50K peak
+└─ Cost: $11,800/month
+
+Growth Rate: 50% annually (fast-growing SaaS)
+
+Year 1:
+├─ Users: 15M (+50%)
+├─ DAU: 3M (+50%)
+├─ Auth QPS: 300 peak
+├─ Authz QPS: 75K peak
+├─ Infrastructure: Add 50% capacity = 80 → 120 servers
+├─ Cost: $17,700/month
+└─ Action: Optimize caching (defer major changes)
+
+Year 2:
+├─ Users: 22.5M (+50%)
+├─ DAU: 4.5M (+50%)
+├─ Auth QPS: 450 peak
+├─ Authz QPS: 112K peak
+├─ Infrastructure: 180 servers (approaching limits)
+├─ Cost: $26,500/month
+└─ Action: Implement database sharding (1 primary → 4 shards)
+
+Year 3:
+├─ Users: 33.8M (+50%)
+├─ DAU: 6.8M (+50%)
+├─ Auth QPS: 675 peak
+├─ Authz QPS: 170K peak
+├─ Infrastructure: 280 servers + 4 DB shards
+├─ Cost: $42,000/month
+└─ Action: Edge caching for authz checks (CDN-like)
+
+Year 4:
+├─ Users: 50.6M (+50%)
+├─ DAU: 10M (+50%)
+├─ Auth QPS: 1,000 peak
+├─ Authz QPS: 250K peak
+├─ Infrastructure: 400 servers + 8 DB shards
+├─ Cost: $65,000/month
+└─ Action: Consider service mesh for cross-region optimization
+
+Year 5:
+├─ Users: 76M (+50%)
+├─ DAU: 15M (+50%)
+├─ Auth QPS: 1,500 peak
+├─ Authz QPS: 375K peak
+├─ Infrastructure: 600 servers + 16 DB shards
+├─ Cost: $95,000/month
+└─ Action: Major architecture review (microservices for auth?)
+
+Cost Optimization Over Time:
+├─ Year 1: Basic optimization (caching) - save 20%
+├─ Year 2: Reserved instances - save 40%
+├─ Year 3: Spot instances for non-critical - save 15%
+├─ Year 4: Custom hardware (TPUs for ML fraud detection) - save 25%
+└─ Year 5: Actual cost: $50,000/month (vs $95K projected)
+
+Key Planning Insights:
+├─ Plan infrastructure changes 6 months ahead
+├─ Database sharding is most complex (plan 9 months ahead)
+├─ Don't over-optimize early (YAGNI principle)
+├─ Cost per user decreases with scale (economies of scale)
+└─ Year 0: $0.00118/user/month → Year 5: $0.00066/user/month
+```
+
+#### Performance Optimization Strategies
+
+**Token Management Optimization:**
+
+```text
+REFRESH TOKEN STRATEGY:
+
+Problem: JWT access tokens expire (15 min typical)
+├─ Users make 500 API calls per session (4 hours)
+├─ Without refresh: Force re-login every 15 min (bad UX)
+├─ With refresh: Seamless token renewal
+└─ But: Refresh adds load
+
+Naive Approach (Expensive):
+├─ Check token expiry on every API call
+├─ If expires in <2 minutes: Auto-refresh
+├─ Cost: 50,000 QPS × 2ms = 100 seconds/sec overhead
+└─ Wasteful: Most tokens are fresh
+
+Optimized Approach:
+├─ Client-side: Track token expiry locally
+├─ Client refreshes: 1 minute before expiry
+├─ Refresh endpoint: POST /auth/refresh-token
+├─ Frequency: Once per 15 min per user
+├─ Load: 2M DAU ÷ (15 min × 60 sec) = 2,222 QPS
+└─ 22× lower load!
+
+Implementation:
+1. Access token (short-lived, JWT):
+   ├─ Expiry: 15 minutes
+   ├─ Contains: user_id, roles, basic permissions
+   └─ Stateless: No DB lookup needed
+
+2. Refresh token (long-lived, opaque):
+   ├─ Expiry: 30 days
+   ├─ Stored: Database + Redis
+   ├─ Rotates: Every use (security best practice)
+   └─ Enables: Revocation (e.g., logout all devices)
+
+Refresh Flow:
+1. Client: Detects access token expires in 1 minute
+2. Client: POST /auth/refresh-token with refresh_token
+3. Server: Validates refresh token (Redis lookup: 1ms)
+4. Server: Issues new access token + new refresh token
+5. Server: Invalidates old refresh token
+6. Client: Uses new access token for subsequent calls
+
+Security Benefits:
+├─ Access token leaked: Expires in 15 min (limited damage)
+├─ Refresh token leaked: Can revoke (logout all)
+├─ Token rotation: Old refresh tokens don't work
+└─ Suspicious activity: Block refresh (force re-auth)
+```
+
+**Distributed Caching Strategy:**
+
+```text
+MULTI-TIER CACHE ARCHITECTURE:
+
+L1 Cache - In-Memory (Application Server):
+├─ Location: Each auth service instance
+├─ Technology: Local HashMap/LRU cache
+├─ Size: 100 MB per server (52 servers = 5.2 GB total)
+├─ Contents: Hot permissions (last 1,000 users accessed)
+├─ TTL: 1 minute (short - prevent stale permissions)
+├─ Hit rate: 70% (Covers most common users)
+├─ Latency: 0.01ms (nanoseconds!)
+└─ Consistency: Eventually consistent (1-min lag acceptable)
+
+L2 Cache - Distributed (Redis Cluster):
+├─ Location: Centralized per region
+├─ Technology: Redis cluster (10 shards)
+├─ Size: 2 GB total (all active user permissions)
+├─ Contents: All DAU permissions
+├─ TTL: 5 minutes
+├─ Hit rate: 29% (L1 miss → L2 hit)
+├─ Latency: 1ms (network + lookup)
+└─ Consistency: 5-min lag acceptable
+
+L3 Cache - Database Read Replicas:
+├─ Location: 5 replicas per region
+├─ Technology: PostgreSQL with read-only replicas
+├─ Size: Full dataset (10M users)
+├─ Contents: All user permissions
+├─ TTL: Real-time replication (2-sec lag)
+├─ Hit rate: 1% (L1+L2 miss → DB)
+├─ Latency: 20ms (SQL query)
+└─ Consistency: 2-sec lag (async replication)
+
+Combined Performance:
+├─ 70% requests: L1 hit (0.01ms) = 35K QPS
+├─ 29% requests: L2 hit (1ms) = 14.5K QPS
+├─ 1% requests: L3 hit (20ms) = 500 QPS
+├─ Weighted average: 0.70 × 0.01 + 0.29 × 1 + 0.01 × 20 = 0.5ms
+└─ At 50K QPS: 50,000 × 0.5ms = 25 seconds/sec (manageable!)
+
+Cache Invalidation Strategy:
+├─ Permission change: Invalidate specific user in L2
+├─ Propagation: L2 invalidation triggers L1 eviction (pubsub)
+├─ Max staleness: 1 min (L1) + 5 min (L2) = 6 min total
+└─ Critical changes: Force re-auth (logout user)
+
+Cost Analysis:
+├─ L1: Free (part of app servers)
+├─ L2: $2,000/month (Redis cluster)
+├─ L3: $3,000/month (DB replicas - needed anyway)
+└─ Total incremental cost: $2,000/month
+
+Value: Reduces DB load by 99×
+├─ Without cache: 50K QPS × 20ms = 1,000 seconds/sec
+├─ With cache: 500 QPS × 20ms = 10 seconds/sec
+└─ Enables handling 100× more traffic with same DB
+```
+
+---
+
+### Real-World Example: Auth0's Scale Evolution
+
+**2015 - Early Growth:**
+```text
+Scale:
+├─ 50K tenants
+├─ 500M authentications/month
+├─ Infrastructure: 50 servers, single region (US)
+└─ Cost: ~$20K/month
+
+Bottleneck:
+└─ MongoDB database becoming overloaded
+
+Solution:
+└─ Sharded MongoDB, added Redis caching
+```
+
+**2018 - Enterprise Adoption:**
+```text
+Scale:
+├─ 500K tenants
+├─ 4.5B authentications/month (9× growth!)
+├─ Infrastructure: 500 servers, 3 regions
+└─ Cost: ~$150K/month
+
+Bottleneck:
+└─ Authorization checks (RBAC) slowing down API calls
+
+Solution:
+├─ Edge caching for permissions (Fastly CDN)
+├─ JWT with embedded permissions
+└─ Reduced authorization latency from 25ms → 5ms
+```
+
+**2023 - Massive Scale:**
+```text
+Scale:
+├─ 8M+ tenants
+├─ 42B+ authentications/month
+├─ Infrastructure: 2,000+ servers, 10+ regions
+└─ Cost: ~$500K/month (optimized down from $1.2M)
+
+Architecture:
+├─ Multi-region active-active
+├─ Edge computing for token validation
+├─ ML-based fraud detection (real-time)
+└─ 99.99% uptime SLA
+
+Optimizations:
+├─ Custom ASICs for JWT signing (10× faster)
+├─ Intelligent audit sampling (10:1 reduction)
+├─ Tiered storage (hot/warm/cold)
+└─ Reserved instances + spot instances (40% cost savings)
+
+By The Numbers:
+├─ Cost per auth: $0.012 (2023) vs $0.40 (2015)
+├─ Latency: 5ms (2023) vs 100ms (2015)
+└─ Key lesson: Continuous optimization essential!
+```
+
+---
+
+### 🤔 Think About It
+
+1. **For Beginners:** Why is authorization traffic 400× higher than authentication traffic in our calculations? Can you think of a scenario where this ratio would be different?
+
+2. **For Intermediate:** If you had to choose between reducing authentication latency from 200ms to 100ms OR reducing authorization latency from 20ms to 10ms, which would have a bigger impact on user experience? Why?
+
+3. **For Advanced:** Your audit logs are growing 80 GB/day. Your CFO says "We can't afford this storage cost." What's your response? What trade-offs would you present between compliance, cost, and security?
+
+---
+
+### ✅ Key Takeaways
+
+- **Authentication vs Authorization**: Auth happens once, authz happens on every API call (100-400× more frequent)
+- **Caching is critical**: Without 99% cache hit rate, authorization becomes a bottleneck
+- **Audit logs dominate storage**: Authorization logs can be 100× larger than user data
+- **Sample intelligently**: Log all failures and sensitive actions, sample routine successes
+- **Multi-tier caching**: L1 (local) + L2 (Redis) + L3 (DB) = 99%+ hit rate
+- **Global deployment**: Multi-region for latency, not just redundancy
+- **Plan for 2× growth**: Before hitting capacity limits, not after
+- **JWT enables scale**: Stateless validation = no DB lookup on every request
+- **Cost per user decreases**: Economies of scale (Year 0: $0.00118/user → Year 5: $0.00066/user)
+- **DR is non-negotiable**: Auth system down = entire application down (RTO: 5 min)
+
+---
+
+### 🎯 Practice Exercise
+
+**Scenario:** You're planning an authentication system for a video streaming service (like Netflix).
+
+**Given Information:**
+- 100M registered users globally
+- 40M daily active users (40% DAU)
+- Each user streams 3 videos/day average
+- Each video: 20 API calls (quality changes, progress tracking, recommendations)
+- Geography: 35% Americas, 30% Europe, 25% Asia, 10% Other
+- Each user logs in on 2.5 devices on average (phone, TV, laptop)
+- Peak hours: 8 PM - 11 PM in each timezone (4× average traffic)
+
+**Your Task:**
+1. Calculate authentication load (login QPS average and peak)
+2. Calculate authorization load (API call QPS average and peak)
+3. Calculate storage requirements:
+   - User data
+   - Active sessions
+   - Audit logs (1-year retention with intelligent sampling)
+4. Size the infrastructure:
+   - How many auth service servers?
+   - How much Redis cache?
+   - How many database servers?
+5. Multi-region strategy:
+   - How many regions?
+   - How to distribute traffic?
+   - Latency targets per region?
+6. Estimate monthly cost (research AWS/GCP pricing)
+7. What happens if a major region goes down? (Calculate RTO/RPO)
+
+**Bonus Challenge:**
+- Device authentication: Each user has 2.5 devices. Should they share sessions or have separate tokens? Why?
+- Family accounts: 4 users share one account. How does this change your calculations?
+- Offline viewing: Users download videos to watch offline. How do you handle authorization checks without internet?
+
+---
