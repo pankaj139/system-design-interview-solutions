@@ -4318,3 +4318,823 @@ Subsequent requests: 1ms (cache hit)
 
 ---
 
+
+## Section 5: Authorization Models
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Understand different authorization models (RBAC, ABAC, ReBAC, ACL)
+- Design permission systems that scale
+- Implement fine-grained access control
+- Choose the right model for your use case
+- Handle complex authorization scenarios
+
+### Why This Matters
+
+Authorization determines what users can do after they're authenticated. Get it wrong, and users either can't do their jobs (too restrictive) or can access data they shouldn't (security breach). Real-world example: Facebook's Privacy Settings are a complex ReBAC system managing billions of authorization decisions per day!
+
+---
+
+### 🟢 For Beginners: Understanding Authorization
+
+#### What is Authorization?
+
+**Remember:** Authentication = "Who are you?" | Authorization = "What can you do?"
+
+Think of authorization like permissions in your phone:
+- Camera app can access camera (allowed)
+- Random game can't access contacts (denied)
+- You control these permissions in settings
+
+In business applications:
+- Employee can view their own salary (allowed)
+- Employee can't view CEO's salary (denied)
+- HR Manager can view all salaries (allowed)
+
+#### Access Control List (ACL) - The Simplest Model
+
+**Real-World Analogy:** Your phone's contact list privacy settings
+
+```text
+Photo Album: "Summer Vacation"
+├─ Alice: Can view and edit
+├─ Bob: Can view only
+├─ Charlie: No access
+└─ Everyone else: No access
+```
+
+**How it works:**
+- Each resource (file, photo, document) has a list
+- List says who can access it and what they can do
+- Direct mapping: Resource → Users → Permissions
+
+**Example: File Permissions**
+
+```text
+Document: "Q4_Financial_Report.pdf"
+ACL:
+├─ john@company.com: read, write, share
+├─ finance-team@company.com: read
+└─ ceo@company.com: read, write, delete
+```
+
+**Pros:**
+- Simple to understand
+- Easy to implement
+- Fine-grained control per resource
+
+**Cons:**
+- Doesn't scale (imagine 1M files × 100 users each)
+- Hard to manage (update permissions on thousands of resources?)
+- No role abstraction
+
+#### Role-Based Access Control (RBAC) - The Most Popular
+
+**Real-World Analogy:** Job titles in a company
+
+```text
+Instead of: "Alice can edit invoices"
+Use: "Accountants can edit invoices" + "Alice is an Accountant"
+```
+
+**Three Concepts:**
+
+1. **Users:** People using the system (Alice, Bob, Charlie)
+2. **Roles:** Job functions (Admin, Editor, Viewer)
+3. **Permissions:** Specific actions (create:post, delete:user, read:reports)
+
+**Relationship:**
+```text
+Users → assigned to → Roles → granted → Permissions
+```
+
+**Example: Blog Platform**
+
+```text
+Roles:
+├─ Admin
+│   ├─ create:post
+│   ├─ edit:any_post
+│   ├─ delete:any_post
+│   └─ manage:users
+│
+├─ Editor
+│   ├─ create:post
+│   ├─ edit:own_post
+│   └─ delete:own_post
+│
+└─ Viewer
+    └─ read:post
+
+Users:
+├─ Alice → Admin role
+├─ Bob → Editor role
+└─ Charlie → Viewer role
+```
+
+**How it works:**
+1. User logs in (Bob)
+2. System loads Bob's roles (Editor)
+3. System loads Editor's permissions (create:post, edit:own_post, delete:own_post)
+4. Bob tries to delete a post
+5. System checks: Does Bob have delete:own_post? Is this his own post? → Allow or Deny
+
+**Pros:**
+- Scales well (manage roles, not individual user permissions)
+- Easy to understand (roles match real-world jobs)
+- Reduces errors (change role once, affects all users)
+- Audit-friendly (who has what role?)
+
+**Cons:**
+- Role explosion (need specific role for every permission combination)
+- Can't handle contextual rules ("only edit your own posts")
+- Inflexible for dynamic scenarios
+
+#### Attribute-Based Access Control (ABAC) - The Flexible One
+
+**Real-World Analogy:** Dynamic rules instead of fixed roles
+
+```text
+RBAC: "Managers can approve expenses"
+ABAC: "Users can approve expenses if:
+       - User's department = Expense's department AND
+       - Expense amount < User's approval limit AND
+       - Current time is business hours"
+```
+
+**Four Attributes:**
+
+1. **Subject Attributes:** About the user (department, seniority, clearance level)
+2. **Object Attributes:** About the resource (classification, owner, creation date)
+3. **Action Attributes:** What they're trying to do (read, write, delete)
+4. **Environment Attributes:** Context (time, location, IP address, device security)
+
+**Example: Healthcare System**
+
+```text
+Policy: "Allow access to patient record if:
+  - User is a Doctor AND
+  - User's specialty matches patient's condition AND
+  - User is assigned to patient's case AND
+  - Access is from hospital network AND
+  - Access is during user's shift hours"
+
+Attributes:
+User (Dr. Smith):
+├─ role: doctor
+├─ specialty: cardiology
+├─ assigned_patients: [patient_123, patient_456]
+└─ shift: 7am-3pm
+
+Patient Record (patient_123):
+├─ owner: patient_123
+├─ condition: heart_disease
+└─ classification: highly_sensitive
+
+Environment:
+├─ ip_address: 10.0.hospital.net
+└─ current_time: 9:30am
+
+Result: ALLOW (all conditions met)
+```
+
+**Pros:**
+- Extremely flexible
+- Handles complex, dynamic scenarios
+- Fine-grained control
+- Fewer policies than RBAC roles
+
+**Cons:**
+- Complex to design and implement
+- Harder to debug ("why was I denied?")
+- Performance overhead (evaluate policies on each request)
+- Difficult to audit ("who has access?")
+
+#### Relationship-Based Access Control (ReBAC) - For Social Networks
+
+**Real-World Analogy:** Facebook privacy settings
+
+```text
+"Friends can see my photos"
+"Friends of friends can see my public posts"
+"Only me can see my birthdate"
+```
+
+**Based on relationships (graph-based):**
+
+```text
+Alice --- friend ---> Bob
+Alice --- blocks ---> Charlie
+Alice --- owns ---> Photo_1
+
+Rules:
+- Alice's friends can view Photo_1
+- Blocked users can't view Photo_1
+```
+
+**Example: Google Docs Sharing**
+
+```text
+Relationships:
+├─ Document_123 owned_by Alice
+├─ Document_123 shared_with Bob (permission: edit)
+├─ Document_123 shared_with charlie@company.com (permission: comment)
+└─ Document_123 shared_with anyone_at_company.com (permission: view)
+
+Query: "Can Dave (dave@company.com) access Document_123?"
+Answer: Yes, via anyone_at_company.com rule (view permission)
+```
+
+**Famous Implementation: Google Zanzibar**
+
+Used by Google Drive, Calendar, Cloud, YouTube, etc.
+
+```text
+Tuples (relationship facts):
+├─ doc:doc_123#owner@alice
+├─ doc:doc_123#editor@bob
+├─ doc:doc_123#viewer@group:company#member
+└─ group:company#member@dave
+
+Query: "Is Dave a viewer of doc_123?"
+Path: dave → member of company → viewer of doc_123 → Yes!
+```
+
+**Pros:**
+- Natural for social and collaborative apps
+- Handles inheritance (groups, organizations)
+- Flexible sharing models
+- Scales horizontally
+
+**Cons:**
+- Complex graph traversal
+- Consistency challenges (eventual consistency)
+- Harder to reason about than RBAC
+- Requires specialized database (graph DB or specialized system)
+
+---
+
+### 🟡 For Intermediate: Implementation Patterns
+
+#### RBAC Implementation
+
+**Database Schema:**
+
+```sql
+-- Users table
+CREATE TABLE users (
+  id BIGINT PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Roles table
+CREATE TABLE roles (
+  id BIGINT PRIMARY KEY,
+  name VARCHAR(50) UNIQUE NOT NULL,
+  description TEXT
+);
+
+-- Permissions table
+CREATE TABLE permissions (
+  id BIGINT PRIMARY KEY,
+  resource VARCHAR(50) NOT NULL,  -- e.g., 'post', 'user'
+  action VARCHAR(50) NOT NULL,    -- e.g., 'create', 'read', 'update', 'delete'
+  UNIQUE(resource, action)
+);
+
+-- User-Role assignment (many-to-many)
+CREATE TABLE user_roles (
+  user_id BIGINT REFERENCES users(id),
+  role_id BIGINT REFERENCES roles(id),
+  PRIMARY KEY (user_id, role_id)
+);
+
+-- Role-Permission assignment (many-to-many)
+CREATE TABLE role_permissions (
+  role_id BIGINT REFERENCES roles(id),
+  permission_id BIGINT REFERENCES permissions(id),
+  PRIMARY KEY (role_id, permission_id)
+);
+
+-- Indexes for fast lookups
+CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
+CREATE INDEX idx_role_permissions_role_id ON role_permissions(role_id);
+```
+
+**Permission Check Algorithm:**
+
+```text
+Input: user_id, required_permission (e.g., "update:post")
+
+Step 1: Get user's roles
+SELECT role_id FROM user_roles WHERE user_id = ?
+
+Step 2: Get permissions for those roles
+SELECT p.resource, p.action 
+FROM permissions p
+JOIN role_permissions rp ON p.id = rp.permission_id
+WHERE rp.role_id IN (user_roles)
+
+Step 3: Check if required_permission is in the list
+IF "update:post" IN permissions THEN
+  ALLOW
+ELSE
+  DENY
+END IF
+
+Optimization: Cache this for 5-15 minutes
+```
+
+**Role Hierarchy:**
+
+```text
+Admin (inherits from Editor)
+  ├─ All Editor permissions
+  ├─ Plus: manage:users, delete:any_post
+  
+Editor (inherits from Viewer)
+  ├─ All Viewer permissions
+  ├─ Plus: create:post, update:own_post
+  
+Viewer (base role)
+  └─ read:post
+```
+
+**Database Schema for Hierarchy:**
+
+```sql
+CREATE TABLE role_hierarchy (
+  parent_role_id BIGINT REFERENCES roles(id),
+  child_role_id BIGINT REFERENCES roles(id),
+  PRIMARY KEY (parent_role_id, child_role_id)
+);
+
+-- Admin inherits from Editor
+INSERT INTO role_hierarchy VALUES (admin_role_id, editor_role_id);
+-- Editor inherits from Viewer
+INSERT INTO role_hierarchy VALUES (editor_role_id, viewer_role_id);
+```
+
+#### ABAC Policy Language
+
+**Example: AWS IAM Policy Format**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::company-bucket/*",
+      "Condition": {
+        "IpAddress": {
+          "aws:SourceIp": ["10.0.0.0/16"]
+        },
+        "DateGreaterThan": {
+          "aws:CurrentTime": "2026-01-01T00:00:00Z"
+        },
+        "DateLessThan": {
+          "aws:CurrentTime": "2026-12-31T23:59:59Z"
+        },
+        "StringEquals": {
+          "aws:PrincipalOrgID": "o-123456789"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Policy Decision Point (PDP):**
+
+```text
+Request: {
+  subject: {user_id: "user123", department: "engineering", level: "senior"},
+  action: "read",
+  resource: {document_id: "doc456", classification: "confidential", owner: "user789"},
+  environment: {time: "2026-01-22T14:30:00Z", ip: "10.0.1.50"}
+}
+
+Policy:
+IF subject.department == resource.owner.department AND
+   subject.level IN ["senior", "lead", "manager"] AND
+   resource.classification != "top_secret" AND
+   environment.ip STARTS_WITH "10.0."
+THEN ALLOW
+ELSE DENY
+
+Evaluation:
+✓ Same department: True (both engineering)
+✓ Appropriate level: True (senior)
+✓ Not too sensitive: True (confidential < top_secret)
+✓ Internal network: True (10.0.1.50)
+Result: ALLOW
+```
+
+#### ReBAC with Zanzibar Pattern
+
+**Tuple Format:**
+
+```text
+<namespace:object_id#relation@subject_id>
+
+Examples:
+doc:doc_123#owner@user:alice
+doc:doc_123#viewer@user:bob
+doc:doc_123#viewer@group:engineering#member
+group:engineering#member@user:charlie
+```
+
+**Relation Definitions:**
+
+```text
+namespace doc {
+  relation owner: user
+  relation editor: user
+  relation viewer: user | group#member
+  
+  permission can_view = viewer | editor | owner
+  permission can_edit = editor | owner
+  permission can_delete = owner
+  permission can_share = owner
+}
+
+namespace group {
+  relation member: user
+  relation admin: user
+  
+  permission can_invite = admin
+}
+```
+
+**Check Algorithm (Simplified):**
+
+```text
+Check: Can user:charlie view doc:doc_123?
+
+Step 1: Expand doc:doc_123#viewer
+  ├─ Direct: user:bob
+  └─ Via group: group:engineering#member
+
+Step 2: Check if charlie is in group:engineering#member
+  ├─ Query: group:engineering#member@user:charlie?
+  └─ Result: Yes (tuple exists)
+
+Step 3: Permission granted through group membership
+
+Answer: Yes, charlie can view doc_123
+```
+
+**Caching Strategy:**
+
+```text
+Cache positive results for 5 minutes
+Cache negative results for 1 minute
+Invalidate on relation change
+
+Example:
+1. Check: Can Alice edit Doc1? → Query DB → Yes → Cache 5min
+2. Check: Can Alice edit Doc1? → Cache hit → Yes (instant)
+3. Admin removes Alice's editor role → Invalidate cache
+4. Check: Can Alice edit Doc1? → Query DB → No
+```
+
+---
+
+### 🔴 For Advanced: Enterprise Patterns
+
+#### Combining Models (Hybrid Approach)
+
+Most real systems use a combination:
+
+```text
+Layer 1: RBAC for coarse-grained permissions
+├─ Admin role: Access to admin panel
+├─ User role: Access to user features
+
+Layer 2: ABAC for fine-grained rules
+├─ Can edit document if owner OR in shared_editors
+├─ Can approve expense if amount < approval_limit
+
+Layer 3: ReBAC for sharing and collaboration
+├─ Can view file if in shared_with relationship
+├─ Transitive permissions through group membership
+
+Decision: Evaluate all three, must pass all applicable checks
+```
+
+**Example: Enterprise Document System**
+
+```text
+Alice wants to edit Document_123
+
+Check 1 (RBAC): Does Alice have edit:documents permission?
+├─ Alice has "Employee" role
+├─ Employee role has "edit:documents"
+└─ ✓ Pass
+
+Check 2 (ABAC): Does Alice meet contextual requirements?
+├─ Document classification: Internal (OK for Employee)
+├─ Access from: Corporate network (OK)
+├─ Time: Business hours (OK)
+└─ ✓ Pass
+
+Check 3 (ReBAC): Does Alice have relationship to document?
+├─ Document owned_by Bob
+├─ Document shared_with Alice (editor permission)
+└─ ✓ Pass
+
+Result: ALLOW (all three checks passed)
+```
+
+#### Permission at Scale: Patterns
+
+**1. Lazy Evaluation**
+
+```text
+Problem: Evaluating all permissions is slow
+
+Solution: Check permissions only when needed
+
+Anti-pattern:
+Load all user permissions at login → Store in JWT → 10KB token
+
+Better:
+Store only user_id and roles in JWT → Check specific permission on-demand
+
+Example:
+JWT contains: {user_id, roles: ["editor"]}
+User tries to delete post → Check "delete:post" permission → Query cache/DB
+```
+
+**2. Permission Aggregation**
+
+```text
+Problem: User is in 50 groups, each group has permissions
+
+Solution: Pre-compute aggregated permissions
+
+Background job (every 5 minutes):
+1. For each user, compute all permissions (from roles + groups)
+2. Store aggregated list in cache
+3. Cache key: user:{user_id}:permissions
+
+Permission check:
+1. Get user's aggregated permissions from cache
+2. Check if required permission is in list
+3. Fast lookup: O(1) hash lookup
+
+Trade-off: Eventual consistency (up to 5 min delay)
+```
+
+**3. Permission Scoping**
+
+```text
+Problem: Need different permissions per resource instance
+
+Pattern: Hierarchical permissions with scopes
+
+Global scope: admin:users (can manage all users)
+Org scope: admin:users:org_123 (can manage users in org 123)
+Team scope: admin:users:org_123:team_456 (can manage users in team 456)
+
+Check algorithm (most specific wins):
+1. Check team-level permission
+2. If not found, check org-level permission
+3. If not found, check global permission
+4. If not found, deny
+
+Example:
+User: {permissions: ["admin:users:org_123"]}
+Check: Can admin user_999 in org_123? → Yes
+Check: Can admin user_888 in org_456? → No
+```
+
+**4. Policy as Code**
+
+```text
+Define policies in code for version control and testing
+
+Example: Rego (Open Policy Agent)
+
+package authz
+
+default allow = false
+
+# Allow if user is admin
+allow {
+  input.user.role == "admin"
+}
+
+# Allow if user is owner of resource
+allow {
+  input.user.id == input.resource.owner_id
+}
+
+# Allow if user's department matches
+allow {
+  input.user.department == input.resource.department
+  input.user.level >= input.resource.required_level
+}
+
+# Deny if resource is archived
+deny {
+  input.resource.status == "archived"
+}
+
+# Final decision
+decision = "allow" {
+  allow
+  not deny
+} else = "deny"
+```
+
+#### Audit and Compliance
+
+**Authorization Audit Log:**
+
+```text
+Every authorization decision should be logged:
+
+{
+  "timestamp": "2026-01-22T14:30:00Z",
+  "user_id": "user123",
+  "user_roles": ["editor"],
+  "action": "delete",
+  "resource_type": "post",
+  "resource_id": "post456",
+  "decision": "denied",
+  "reason": "missing_permission:delete:any_post",
+  "context": {
+    "ip_address": "10.0.1.50",
+    "user_agent": "Mozilla/5.0...",
+    "session_id": "session_abc"
+  }
+}
+
+Use cases:
+- Compliance audits (who accessed what?)
+- Security investigations (unauthorized access attempts)
+- User support (why was I denied?)
+- Policy debugging (which rule denied access?)
+```
+
+**Permission Review Workflows:**
+
+```text
+Regulatory requirements (SOC 2, ISO 27001):
+- Quarterly access reviews
+- Recertification of elevated permissions
+- Automated alerts for unused permissions
+
+Implementation:
+1. Generate report: Users with high-privilege roles
+2. Send to managers: "Confirm these users need these permissions"
+3. Auto-revoke unconfirmed permissions
+4. Log all decisions for audit trail
+
+Example automation:
+- User hasn't used admin permission in 90 days → Flag for review
+- User changed departments → Auto-remove old department permissions
+- User promoted → Require approval for new elevated permissions
+```
+
+#### Performance at Scale
+
+**Caching Strategy:**
+
+```text
+L1 Cache (in-memory, per server): 1-5 sec TTL
+├─ Recently checked permissions
+├─ 10,000 entries per server
+└─ <1ms lookup
+
+L2 Cache (Redis cluster): 5-15 min TTL
+├─ User roles and permissions
+├─ Policy evaluation results
+└─ 2-5ms lookup
+
+L3 Cache (Database query cache): 1-5 min TTL
+├─ Role definitions
+├─ Permission mappings
+└─ 10-20ms lookup
+
+Database (source of truth): No cache
+├─ Authoritative data
+├─ Invalidation triggers cache clear
+└─ 20-50ms query
+```
+
+**Bulk Authorization Checks:**
+
+```text
+Problem: Loading list of 100 documents, need to check permissions for each
+
+Anti-pattern:
+FOR EACH document:
+  IF user_can_view(user, document) THEN
+    include in results
+  END IF
+END FOR
+// Result: 100 database queries
+
+Better:
+// Single query with JOIN
+SELECT d.* FROM documents d
+WHERE EXISTS (
+  SELECT 1 FROM document_permissions dp
+  WHERE dp.document_id = d.id
+  AND dp.user_id = :user_id
+  AND dp.permission = 'view'
+)
+
+// Or: Batch check
+permissions = check_permissions_batch(user_id, document_ids, 'view')
+filtered_docs = [doc for doc in documents if permissions[doc.id]]
+
+Result: 1-2 database queries instead of 100
+```
+
+---
+
+### 🤔 Think About It
+
+**For Beginners:**
+1. When would you use ACL instead of RBAC?
+2. What's the difference between a role and a permission?
+3. Why is RBAC more scalable than ACL?
+
+**For Intermediate:**
+4. How would you implement "edit own post" permission in RBAC?
+5. When should you choose ABAC over RBAC?
+6. What's the trade-off between fine-grained and coarse-grained permissions?
+
+**For Advanced:**
+7. How do you handle permission inheritance in a deep hierarchy?
+8. What's the consistency model for distributed permission checks?
+9. How do you optimize authorization for a billion permission checks per day?
+
+---
+
+### 📝 Key Takeaways
+
+**Model Selection:**
+- **ACL**: Small scale, simple needs (< 1000 resources)
+- **RBAC**: Most common, good for 80% of use cases
+- **ABAC**: Complex rules, dynamic policies
+- **ReBAC**: Social networks, collaborative apps
+- **Hybrid**: Combine models for best results
+
+**Implementation Best Practices:**
+- Cache aggressively (roles, permissions, decisions)
+- Use lazy evaluation (check only when needed)
+- Implement hierarchical permissions (global > org > team)
+- Audit all decisions (compliance and debugging)
+- Test policies thoroughly (unit tests for permission logic)
+
+**Performance:**
+- Multi-tier caching (in-memory, Redis, database)
+- Bulk permission checks (avoid N+1 queries)
+- Pre-computed permission aggregations
+- Deny-by-default (fail secure)
+
+**Common Mistakes:**
+- Role explosion (too many specific roles)
+- Permission in JWT (token too large, can't revoke)
+- No audit logging (can't debug or prove compliance)
+- Synchronous permission checks (blocking operations)
+- Not caching (every check hits database)
+
+---
+
+### 💪 Practice Exercise
+
+**Scenario:** Design authorization for a project management tool like Jira.
+
+**Requirements:**
+- Organization → Projects → Issues hierarchy
+- Roles: Org Admin, Project Admin, Developer, Reporter, Viewer
+- Permissions: create/edit/delete issues, manage project, manage users
+- Sharing: Issues can be shared with specific users
+- Rules: Developers can only edit issues assigned to them
+
+**Your Task:**
+1. Choose authorization model(s) to use
+2. Design the database schema
+3. Define roles and their permissions
+4. Explain how to check: "Can user123 delete issue456?"
+5. How do you handle: "Share this issue with external consultant"?
+
+**Bonus Challenge:**
+- How do you implement: "Viewers can see issues but not sensitive fields like salary"?
+- What's the caching strategy for 10,000 permission checks per second?
+- How do you audit who accessed confidential issues?
+
+---
+
