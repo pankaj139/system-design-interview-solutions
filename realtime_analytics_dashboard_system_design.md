@@ -3095,3 +3095,3171 @@ class KafkaProducer:
 
 ---
 
+## 5. DEEP DIVE: STREAM PROCESSING
+
+Stream processing is the heart of the real-time analytics dashboard. This section explores how we process millions of events per second with sub-second latency, handle late-arriving data, and maintain consistent state across distributed systems.
+
+### 🟢 Beginner Level: Stream Processing Fundamentals
+
+**What is Stream Processing?**
+
+Think of stream processing like a factory assembly line that never stops:
+- **Traditional Batch Processing**: Like baking 1,000 cookies at once, waiting for them all to finish, then packaging them
+- **Stream Processing**: Like a conveyor belt where each cookie is processed immediately as it comes off the line
+
+**Real-World Analogy**: Airport Security Line
+```
+Passengers (Events) → Security Scanner (Stream Processor) → Real-time Dashboard
+    ↓                         ↓                                      ↓
+Continuous flow      Process each person        Update "Wait Time: 12 min"
+Not batches          as they arrive             immediately
+```
+
+**Key Stream Processing Concepts:**
+
+```
+1. Event Stream
+   ├─ Ordered sequence of events
+   ├─ Events have timestamps
+   └─ Unbounded (never-ending) data
+
+2. Stream Processing
+   ├─ Filter: Remove irrelevant events
+   ├─ Transform: Convert event format
+   ├─ Aggregate: Calculate metrics (count, sum, avg)
+   └─ Join: Combine multiple streams
+
+3. Output
+   ├─ Real-time dashboards
+   ├─ Alerts/notifications
+   └─ Stored aggregations
+```
+
+**Simple Stream Processing Example:**
+
+```python
+# Counting page views per minute
+def process_stream():
+    window = {}  # {minute: count}
+    
+    for event in event_stream:
+        minute = event.timestamp.floor_to_minute()
+        window[minute] = window.get(minute, 0) + 1
+        
+        # Update dashboard every 1000 events
+        if event.count % 1000 == 0:
+            update_dashboard(window)
+```
+
+**Why Stream Processing for Analytics?**
+
+```
+Traditional Approach (Batch):
+Event → Database → Run query every 5 minutes → Dashboard
+Result: 0-5 minute delay ❌
+
+Stream Processing:
+Event → Process immediately → Dashboard
+Result: Sub-second latency ✅
+```
+
+---
+
+### 🟡 Intermediate Level: Stream Processing Frameworks
+
+**Framework Comparison: Apache Flink vs Spark Streaming**
+
+```
+Apache Flink:
+├─ True stream processing (event-at-a-time)
+├─ Event-time processing with watermarks
+├─ Exactly-once semantics
+├─ Low latency: 10-100ms
+└─ Used by: Uber, Netflix, Alibaba
+
+Spark Streaming:
+├─ Micro-batch processing (small batches)
+├─ Good for mixed batch/stream workloads
+├─ At-least-once by default
+├─ Higher latency: 500ms-2s
+└─ Used by: Pinterest, Databricks customers
+
+Kafka Streams:
+├─ Library (not framework)
+├─ Runs embedded in application
+├─ Simpler deployment
+├─ Limited scalability vs Flink
+└─ Used by: LinkedIn, Airbnb
+```
+
+**For Real-time Analytics Dashboard: Apache Flink**
+
+Why Flink?
+- True event-time processing (critical for late events)
+- Low latency required for dashboards
+- Exactly-once state guarantees
+- Complex event processing (CEP) capabilities
+
+**Flink Architecture for Analytics:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Apache Flink Cluster                    │
+├─────────────────────────────────────────────────────────────┤
+│  Job Manager (Coordination)                                  │
+│  ├─ Schedule tasks                                           │
+│  ├─ Coordinate checkpoints                                   │
+│  └─ Manage failures                                          │
+├─────────────────────────────────────────────────────────────┤
+│  Task Manager 1      Task Manager 2      Task Manager N      │
+│  ├─ Process events   ├─ Process events   ├─ Process events  │
+│  ├─ Local state      ├─ Local state      ├─ Local state     │
+│  └─ Checkpointing    └─ Checkpointing    └─ Checkpointing   │
+└─────────────────────────────────────────────────────────────┘
+         ↑                                         ↓
+    Kafka Topics                          ClickHouse/Redis
+```
+
+**Event-Time vs Processing-Time:**
+
+```
+Event-Time:
+├─ When event actually happened
+├─ Embedded in event: {"timestamp": "2024-01-15T10:30:00Z"}
+├─ Handles late events correctly
+└─ Use for: Analytics (accurate counts)
+
+Processing-Time:
+├─ When event processed by system
+├─ System time: System.currentTimeMillis()
+├─ Ignores late events
+└─ Use for: Monitoring (system health)
+
+Example Problem:
+┌─────────────────────────────────────────────────────────┐
+│ Mobile app loses connection                             │
+│ User clicks at 10:00 AM (event-time)                    │
+│ Event arrives at 10:15 AM (processing-time)             │
+│                                                          │
+│ Processing-Time: Count in 10:15 window ❌               │
+│ Event-Time: Count in 10:00 window ✅                    │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Watermarks: Handling Late Events**
+
+Watermark = "All events with timestamp < T have arrived"
+
+```
+Timeline:
+09:00 ──────── 09:05 ──────── 09:10 ──────── 09:15
+  │              │              │              │
+  Events         Events         Events         Late Event!
+  arrive         arrive         arrive         (09:03)
+
+Watermark Strategy:
+Current Time: 09:15
+Max Event Time Seen: 09:14
+Watermark: 09:14 - 5 minutes = 09:09
+
+Late Event (09:03) < Watermark (09:09)
+→ Too late! Discard or send to late data stream
+```
+
+**Watermark Configuration:**
+
+```java
+// Flink Watermark Strategy
+WatermarkStrategy<Event> watermarkStrategy = 
+    WatermarkStrategy
+        .<Event>forBoundedOutOfOrderness(Duration.ofMinutes(5))
+        .withTimestampAssigner((event, timestamp) -> event.getTimestamp());
+
+DataStream<Event> events = kafkaSource
+    .assignTimestampsAndWatermarks(watermarkStrategy);
+
+// Allow 5 minutes of lateness
+// Events arriving >5 min late are dropped
+// Trade-off: Longer wait = more accurate but higher latency
+```
+
+**Watermark Trade-offs:**
+
+```
+Short Watermark (1 minute):
+├─ Faster results
+├─ More dropped events
+└─ Use for: High-volume, low-value events
+
+Long Watermark (1 hour):
+├─ Fewer dropped events
+├─ Slower results
+└─ Use for: Critical business metrics
+
+Dynamic Watermark:
+├─ Adjust based on data patterns
+├─ Short during business hours
+└─ Long during off-hours
+```
+
+**Windowing Techniques:**
+
+```
+1. Tumbling Window (Fixed, Non-overlapping)
+   ├─ Size: 1 minute
+   ├─ Windows: [09:00-09:01), [09:01-09:02), [09:02-09:03)
+   ├─ Each event in exactly ONE window
+   └─ Use: Hourly/daily aggregations
+
+   Example: Page views per minute
+   09:00-09:01: 1,523 views
+   09:01-09:02: 1,847 views
+   09:02-09:03: 1,392 views
+
+2. Sliding Window (Overlapping)
+   ├─ Size: 5 minutes
+   ├─ Slide: 1 minute
+   ├─ Windows: [09:00-09:05), [09:01-09:06), [09:02-09:07)
+   ├─ Each event in MULTIPLE windows
+   └─ Use: Moving averages, trend analysis
+
+   Example: 5-minute moving average response time
+   09:00-09:05: 143ms avg
+   09:01-09:06: 156ms avg
+   09:02-09:07: 128ms avg
+
+3. Session Window (Activity-based)
+   ├─ Gap: 30 minutes inactivity
+   ├─ Windows: Variable size based on user activity
+   ├─ New window after 30 min of no events
+   └─ Use: User sessions, engagement analysis
+
+   Example: User session duration
+   User123: 09:00 → 09:25 (25 min session)
+   User456: 10:15 → 11:02 (47 min session)
+
+4. Global Window (All time)
+   ├─ Single window for all events
+   ├─ Custom triggers needed
+   └─ Use: Cumulative counts, unique visitors
+```
+
+**Window Implementation in Flink:**
+
+```java
+// Tumbling Window: Count events per minute
+DataStream<Event> events = ...;
+
+DataStream<WindowResult> results = events
+    .keyBy(event -> event.getTenantId())
+    .window(TumblingEventTimeWindows.of(Time.minutes(1)))
+    .aggregate(new CountAggregateFunction());
+
+// Sliding Window: 5-minute average, updated every minute
+DataStream<WindowResult> movingAvg = events
+    .keyBy(event -> event.getMetricName())
+    .window(SlidingEventTimeWindows.of(
+        Time.minutes(5),  // window size
+        Time.minutes(1)   // slide interval
+    ))
+    .aggregate(new AverageAggregateFunction());
+
+// Session Window: User sessions with 30-min gap
+DataStream<SessionResult> sessions = events
+    .keyBy(event -> event.getUserId())
+    .window(EventTimeSessionWindows.withGap(Time.minutes(30)))
+    .aggregate(new SessionAggregateFunction());
+```
+
+**State Management:**
+
+```
+Why State Needed:
+├─ Remember counts across events
+├─ Store intermediate aggregations
+├─ Handle duplicate detection
+└─ Maintain session information
+
+State Types in Flink:
+1. ValueState<T>
+   └─ Single value (e.g., current count)
+
+2. ListState<T>
+   └─ List of values (e.g., recent events)
+
+3. MapState<K, V>
+   └─ Key-value pairs (e.g., user sessions)
+
+4. ReducingState<T>
+   └─ Aggregated value (e.g., sum, max)
+```
+
+**Checkpointing: Fault Tolerance**
+
+```
+Checkpoint Process:
+1. Job Manager: "Save state now!"
+2. Task Managers: Pause processing
+3. Save state to distributed storage (S3, HDFS)
+4. Resume processing
+
+Checkpoint Configuration:
+├─ Interval: Every 60 seconds
+├─ Storage: S3 (durable)
+├─ Timeout: 10 minutes
+└─ Concurrent Checkpoints: 1
+
+Recovery After Failure:
+1. Task Manager crashes
+2. Job Manager detects failure
+3. Restore from last checkpoint
+4. Replay events from Kafka (from checkpoint offset)
+5. Resume processing
+```
+
+---
+
+### 🔴 Advanced Level: Production Stream Processing
+
+**Complex Stream Processing Pipeline:**
+
+```java
+// Real-world Flink job for analytics dashboard
+public class AnalyticsPipeline {
+    
+    public static void main(String[] args) throws Exception {
+        StreamExecutionEnvironment env = 
+            StreamExecutionEnvironment.getExecutionEnvironment();
+        
+        // Checkpointing configuration
+        env.enableCheckpointing(60000); // 1 minute
+        env.getCheckpointConfig().setCheckpointStorage("s3://checkpoints/");
+        env.getCheckpointConfig().setMinPauseBetweenCheckpoints(30000);
+        env.getCheckpointConfig().setCheckpointTimeout(600000);
+        
+        // Kafka source
+        KafkaSource<Event> kafkaSource = KafkaSource.<Event>builder()
+            .setBootstrapServers("kafka:9092")
+            .setTopics("raw-events")
+            .setGroupId("analytics-processor")
+            .setStartingOffsets(OffsetsInitializer.earliest())
+            .setDeserializer(new EventDeserializationSchema())
+            .build();
+        
+        // Watermark strategy: 5-minute out-of-orderness
+        WatermarkStrategy<Event> watermarkStrategy = 
+            WatermarkStrategy
+                .<Event>forBoundedOutOfOrderness(Duration.ofMinutes(5))
+                .withTimestampAssigner((event, ts) -> event.getEventTime())
+                .withIdleness(Duration.ofMinutes(1)); // Handle idle partitions
+        
+        DataStream<Event> events = env
+            .fromSource(kafkaSource, watermarkStrategy, "Kafka Source")
+            .setParallelism(20); // Match Kafka partition count
+        
+        // 1. Real-time aggregations (1-minute tumbling windows)
+        DataStream<MetricResult> realtimeMetrics = events
+            .filter(event -> event.isValid())
+            .keyBy(event -> new MetricKey(
+                event.getTenantId(), 
+                event.getMetricName()
+            ))
+            .window(TumblingEventTimeWindows.of(Time.minutes(1)))
+            .allowedLateness(Time.minutes(5)) // Process late events
+            .sideOutputLateData(lateDataTag) // Capture very late events
+            .aggregate(
+                new MetricAggregateFunction(),
+                new MetricWindowFunction()
+            )
+            .setParallelism(40);
+        
+        // 2. Session windows for user engagement
+        DataStream<SessionResult> userSessions = events
+            .filter(event -> event.getEventType().equals("user_action"))
+            .keyBy(event -> event.getUserId())
+            .window(EventTimeSessionWindows.withGap(Time.minutes(30)))
+            .aggregate(new SessionAggregateFunction())
+            .setParallelism(20);
+        
+        // 3. Complex event processing: Funnel analysis
+        Pattern<Event, ?> funnelPattern = Pattern
+            .<Event>begin("page_view")
+                .where(evt -> evt.getEventType().equals("page_view"))
+            .followedBy("add_to_cart")
+                .where(evt -> evt.getEventType().equals("add_to_cart"))
+                .within(Time.hours(1))
+            .followedBy("purchase")
+                .where(evt -> evt.getEventType().equals("purchase"))
+                .within(Time.hours(24));
+        
+        PatternStream<Event> funnelStream = CEP.pattern(
+            events.keyBy(Event::getUserId),
+            funnelPattern
+        );
+        
+        DataStream<FunnelResult> funnelResults = funnelStream
+            .select(new FunnelSelectFunction())
+            .setParallelism(10);
+        
+        // 4. Write to ClickHouse
+        realtimeMetrics
+            .addSink(new ClickHouseSink<>(
+                ClickHouseConfig.builder()
+                    .host("clickhouse:8123")
+                    .database("analytics")
+                    .table("realtime_metrics")
+                    .batchSize(10000)
+                    .flushInterval(Duration.ofSeconds(5))
+                    .build()
+            ))
+            .name("ClickHouse Sink")
+            .setParallelism(10);
+        
+        // 5. Write to Redis for low-latency queries
+        realtimeMetrics
+            .addSink(new RedisSink<>(
+                new RedisConfig("redis:6379"),
+                new MetricRedisMapper()
+            ))
+            .name("Redis Sink")
+            .setParallelism(5);
+        
+        // 6. Side output: Late events monitoring
+        realtimeMetrics
+            .getSideOutput(lateDataTag)
+            .addSink(new KafkaSink<>("late-events-topic"))
+            .name("Late Events Sink");
+        
+        env.execute("Real-time Analytics Pipeline");
+    }
+}
+```
+
+**Advanced Aggregation Function:**
+
+```java
+// Custom aggregate function with state
+public class MetricAggregateFunction 
+    implements AggregateFunction<Event, MetricAccumulator, MetricResult> {
+    
+    @Override
+    public MetricAccumulator createAccumulator() {
+        return new MetricAccumulator();
+    }
+    
+    @Override
+    public MetricAccumulator add(Event event, MetricAccumulator acc) {
+        acc.count++;
+        acc.sum += event.getValue();
+        acc.sumOfSquares += event.getValue() * event.getValue();
+        acc.min = Math.min(acc.min, event.getValue());
+        acc.max = Math.max(acc.max, event.getValue());
+        
+        // T-Digest for percentile calculation
+        acc.tdigest.add(event.getValue());
+        
+        // HyperLogLog for unique counts
+        acc.hll.offer(event.getUserId());
+        
+        return acc;
+    }
+    
+    @Override
+    public MetricResult getResult(MetricAccumulator acc) {
+        double avg = acc.sum / acc.count;
+        double stddev = Math.sqrt(
+            (acc.sumOfSquares / acc.count) - (avg * avg)
+        );
+        
+        return MetricResult.builder()
+            .count(acc.count)
+            .sum(acc.sum)
+            .avg(avg)
+            .min(acc.min)
+            .max(acc.max)
+            .stddev(stddev)
+            .p50(acc.tdigest.quantile(0.5))
+            .p95(acc.tdigest.quantile(0.95))
+            .p99(acc.tdigest.quantile(0.99))
+            .uniqueUsers(acc.hll.cardinality())
+            .build();
+    }
+    
+    @Override
+    public MetricAccumulator merge(MetricAccumulator a, MetricAccumulator b) {
+        a.count += b.count;
+        a.sum += b.sum;
+        a.sumOfSquares += b.sumOfSquares;
+        a.min = Math.min(a.min, b.min);
+        a.max = Math.max(a.max, b.max);
+        a.tdigest.add(b.tdigest);
+        a.hll.addAll(b.hll);
+        return a;
+    }
+}
+```
+
+**State Backend Configuration:**
+
+```java
+// Production state backend: RocksDB
+StateBackend stateBackend = new EmbeddedRocksDBStateBackend(true);
+env.setStateBackend(stateBackend);
+
+// RocksDB configuration for high throughput
+RocksDBStateBackend rocksDBStateBackend = new RocksDBStateBackend(
+    "s3://flink-state/checkpoints",
+    true // enable incremental checkpoints
+);
+
+// Tune RocksDB for analytics workload
+rocksDBStateBackend.setPredefinedOptions(
+    PredefinedOptions.SPINNING_DISK_OPTIMIZED_HIGH_MEM
+);
+
+// Custom RocksDB options
+rocksDBStateBackend.setOptions(new OptionsFactory() {
+    @Override
+    public DBOptions createDBOptions(DBOptions currentOptions) {
+        return currentOptions
+            .setMaxBackgroundJobs(4)
+            .setMaxOpenFiles(-1);
+    }
+    
+    @Override
+    public ColumnFamilyOptions createColumnOptions(
+        ColumnFamilyOptions currentOptions
+    ) {
+        return currentOptions
+            .setCompactionStyle(CompactionStyle.LEVEL)
+            .setLevelCompactionDynamicLevelBytes(true)
+            .setTargetFileSizeBase(256 * 1024 * 1024); // 256 MB
+    }
+});
+```
+
+**Handling Backpressure:**
+
+```
+Backpressure Symptoms:
+├─ Increasing event lag
+├─ Growing checkpoint duration
+├─ High CPU on task managers
+└─ Network buffer saturation
+
+Solutions:
+1. Increase Parallelism
+   └─ More task slots to distribute load
+
+2. Optimize Aggregations
+   └─ Pre-aggregate before shuffle
+
+3. Tune Network Buffers
+   taskmanager.network.memory.fraction: 0.2
+   taskmanager.network.memory.max: 2gb
+
+4. Async I/O for External Calls
+   └─ Don't block on database writes
+
+5. Operator Chaining
+   └─ Combine operators to reduce shuffles
+```
+
+**Company Examples:**
+
+**Uber's Real-time Analytics (Flink):**
+- 10 trillion events/day
+- 4,000 Flink jobs
+- Sub-second latency for trip metrics
+- Handles 2-hour late events from offline drivers
+
+**Netflix's Stream Processing (Flink):**
+- 8 million events/second
+- Real-time quality metrics during streaming
+- Auto-scaling based on event rate
+- 99.99% accuracy with 5-minute watermarks
+
+**Alibaba's Transaction Monitoring (Flink):**
+- 500,000 orders/second during Singles' Day
+- Real-time fraud detection
+- 100ms p99 latency
+- Exactly-once processing guarantees
+
+---
+
+
+## 6. DEEP DIVE: DATA STORAGE
+
+Choosing the right database is critical for a real-time analytics dashboard. This section explores why ClickHouse dominates the OLAP space, how to design storage tiers, and strategies for managing petabytes of time-series data.
+
+### 🟢 Beginner Level: Database Selection for Analytics
+
+**Why Not Traditional Databases?**
+
+Think of databases like different types of filing systems:
+
+```
+Traditional Database (PostgreSQL):
+├─ Like a library card catalog
+├─ Organized for finding ONE specific book quickly
+├─ Slow when counting ALL books from year 2020
+└─ OLTP (Online Transaction Processing)
+
+Analytics Database (ClickHouse):
+├─ Like a warehouse inventory system
+├─ Organized for counting/summing groups of items
+├─ Fast for "How many items sold last month?"
+└─ OLAP (Online Analytical Processing)
+```
+
+**Real-World Analogy**: Grocery Store vs Warehouse
+
+```
+Grocery Store (OLTP - PostgreSQL):
+├─ Find: "Where is milk?" → Aisle 3, Shelf 2
+├─ Optimized: Individual item lookups
+├─ Transaction: Buy 3 items, update inventory
+└─ Query Time: Milliseconds
+
+Warehouse (OLAP - ClickHouse):
+├─ Find: "Total sales of dairy products this month?"
+├─ Optimized: Aggregate across millions of transactions
+├─ Analysis: Sum all dairy sales, group by week
+└─ Query Time: Sub-second even with billions of rows
+```
+
+**Database Comparison for Analytics:**
+
+```
+PostgreSQL (OLTP):
+├─ Row-oriented storage
+├─ ACID transactions
+├─ Good for: Individual record updates
+├─ Bad for: Scanning millions of rows
+└─ Analytics Query: 30 seconds ❌
+
+ClickHouse (OLAP):
+├─ Column-oriented storage
+├─ Immutable data
+├─ Good for: Scanning/aggregating billions of rows
+├─ Bad for: Individual row updates
+└─ Analytics Query: 200ms ✅
+
+Cassandra (NoSQL):
+├─ Wide-column store
+├─ Good for: Time-series writes
+├─ Bad for: Complex aggregations, joins
+└─ Analytics Query: Slow, requires Spark ❌
+```
+
+**Why Column-Oriented Storage Wins:**
+
+```
+Row-Oriented (PostgreSQL):
+┌─────────────────────────────────────────────┐
+│ Row 1: [user_id, page, timestamp, duration] │
+│ Row 2: [user_id, page, timestamp, duration] │
+│ Row 3: [user_id, page, timestamp, duration] │
+└─────────────────────────────────────────────┘
+Query: "SELECT AVG(duration) FROM events"
+Must read: ALL 4 columns for ALL rows ❌
+
+Column-Oriented (ClickHouse):
+┌──────────────┬──────────┬───────────┬──────────┐
+│ user_id      │ page     │ timestamp │ duration │
+│ [values...]  │ [vals...] │ [vals...] │ [vals...] │
+└──────────────┴──────────┴───────────┴──────────┘
+Query: "SELECT AVG(duration) FROM events"
+Must read: ONLY duration column ✅
+
+Compression Bonus:
+Same values together → Better compression
+[1, 1, 1, 2, 2, 3] → "1×3, 2×2, 3×1"
+Storage reduction: 80-90%
+```
+
+---
+
+### 🟡 Intermediate Level: ClickHouse Deep Dive
+
+**ClickHouse Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    ClickHouse Cluster                    │
+├─────────────────────────────────────────────────────────┤
+│  Shard 1          Shard 2          Shard 3              │
+│  ├─ Primary       ├─ Primary       ├─ Primary           │
+│  └─ Replica       └─ Replica       └─ Replica           │
+├─────────────────────────────────────────────────────────┤
+│  Data Distribution: Consistent Hashing by tenant_id      │
+│  Replication: 2x (each shard has 1 replica)             │
+│  Query Distribution: Load balanced across all nodes      │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Why ClickHouse Over Alternatives:**
+
+```
+ClickHouse vs PostgreSQL:
+├─ Query Speed: 100-1000x faster for aggregations
+├─ Storage: 10x more compression (columnar)
+├─ Scalability: Horizontal sharding built-in
+└─ Use Case: Real-time analytics dashboards
+
+ClickHouse vs Cassandra:
+├─ Query Flexibility: Complex SQL, joins, subqueries
+├─ Aggregations: Native COUNT, SUM, AVG, percentiles
+├─ Learning Curve: SQL vs CQL
+└─ Use Case: When you need rich analytics queries
+
+ClickHouse vs Druid:
+├─ SQL Support: Full SQL vs limited
+├─ Deployment: Simpler (fewer components)
+├─ Real-time Ingestion: Both excellent
+└─ Use Case: When SQL flexibility matters
+
+ClickHouse vs Pinot:
+├─ Maturity: More mature ecosystem
+├─ Query Language: Standard SQL
+├─ Performance: Similar, ClickHouse slightly faster
+└─ Use Case: General-purpose analytics
+```
+
+**ClickHouse Table Engines:**
+
+```
+1. MergeTree (Default for Analytics)
+   ├─ Sorted by primary key
+   ├─ Automatic background merges
+   ├─ Excellent compression
+   └─ Use: General time-series data
+
+2. ReplacingMergeTree
+   ├─ Deduplication by primary key
+   ├─ Keeps latest version
+   └─ Use: Events with potential duplicates
+
+3. SummingMergeTree
+   ├─ Pre-aggregates numeric columns
+   ├─ Reduces storage for counts/sums
+   └─ Use: Pre-aggregated metrics
+
+4. AggregatingMergeTree
+   ├─ Stores intermediate aggregation states
+   ├─ Combine results from multiple shards
+   └─ Use: Complex aggregations (percentiles, uniq)
+
+5. Distributed
+   ├─ Virtual table across shards
+   ├─ Query routing and aggregation
+   └─ Use: Cluster-wide queries
+```
+
+**Storage Tiers: Hot/Warm/Cold**
+
+```
+Hot Storage (SSD - Last 7 days):
+├─ Access Pattern: High frequency (dashboard queries)
+├─ Storage: NVMe SSD
+├─ Query Time: <100ms
+├─ Cost: $200/TB/month
+└─ Data: Recent metrics, live dashboards
+
+Warm Storage (HDD - 8-90 days):
+├─ Access Pattern: Medium frequency (historical analysis)
+├─ Storage: SATA HDD
+├─ Query Time: <1 second
+├─ Cost: $30/TB/month
+└─ Data: Historical reports, trends
+
+Cold Storage (S3 - >90 days):
+├─ Access Pattern: Low frequency (compliance, rare queries)
+├─ Storage: Object storage (S3, GCS)
+├─ Query Time: 5-30 seconds
+├─ Cost: $5/TB/month
+└─ Data: Archived events, regulatory retention
+
+Automatic Tiering:
+┌────────────────────────────────────────────────┐
+│ Day 0-7:   SSD  (100ms queries)                │
+│ Day 8-90:  HDD  (1s queries) ← Auto-moved      │
+│ Day 91+:   S3   (30s queries) ← Auto-archived  │
+└────────────────────────────────────────────────┘
+```
+
+**Partitioning Strategies:**
+
+```
+1. Time-based Partitioning (Most Common)
+   ├─ Partition by day: toYYYYMMDD(timestamp)
+   ├─ Benefits: Easy to drop old partitions
+   ├─ Query optimization: Partition pruning
+   └─ Example: events_20240115, events_20240116
+
+2. Multi-dimensional Partitioning
+   ├─ Partition by (tenant_id, toYYYYMMDD(timestamp))
+   ├─ Benefits: Tenant isolation, parallel queries
+   ├─ Data locality: Each tenant's data together
+   └─ Example: tenant_123_20240115
+
+3. Hybrid Partitioning
+   ├─ Hot data: Hourly partitions (more granular)
+   ├─ Warm data: Daily partitions (coarser)
+   └─ Optimize: Query patterns vs partition overhead
+```
+
+**Partition Management:**
+
+```sql
+-- Drop old partitions (GDPR compliance, cost savings)
+ALTER TABLE events 
+DROP PARTITION '20231201';
+
+-- Move partition to cold storage
+ALTER TABLE events 
+MOVE PARTITION '20231215' TO VOLUME 'cold';
+
+-- Freeze partition (backup)
+ALTER TABLE events 
+FREEZE PARTITION '20240115';
+
+-- Automated TTL (Time To Live)
+ALTER TABLE events 
+MODIFY TTL timestamp + INTERVAL 90 DAY;
+```
+
+**Data Retention and TTL:**
+
+```
+Retention Policy Example:
+├─ Raw Events: 7 days (detailed, high cardinality)
+├─ 1-minute Aggregates: 30 days
+├─ 1-hour Aggregates: 90 days
+├─ 1-day Aggregates: 2 years
+└─ Monthly Aggregates: Forever
+
+TTL Configuration:
+┌───────────────────────────────────────────────────┐
+│ Table: raw_events                                  │
+│ TTL: timestamp + INTERVAL 7 DAY                    │
+│ Action: DELETE                                     │
+│                                                    │
+│ Table: hourly_aggregates                          │
+│ TTL: timestamp + INTERVAL 90 DAY TO DISK 'cold'   │
+│ Then: timestamp + INTERVAL 180 DAY DELETE         │
+└───────────────────────────────────────────────────┘
+```
+
+**Indexing Strategies:**
+
+```
+Primary Key (Sorting Key):
+├─ Determines physical data order
+├─ Enables skip indexes
+├─ Choose based on query patterns
+└─ Example: PRIMARY KEY (tenant_id, timestamp)
+
+Skip Indexes (Secondary):
+├─ Bloom filter: High-cardinality columns (user_id)
+├─ MinMax: Numeric ranges (price, duration)
+├─ Set: Low-cardinality columns (status, type)
+└─ NGram: Text search
+
+Example:
+CREATE TABLE events (
+    tenant_id UInt32,
+    timestamp DateTime,
+    user_id String,
+    event_type String,
+    value Float64
+)
+ENGINE = MergeTree()
+PARTITION BY toYYYYMMDD(timestamp)
+ORDER BY (tenant_id, timestamp, event_type)
+INDEX user_bloom_idx user_id TYPE bloom_filter GRANULARITY 4
+INDEX event_set_idx event_type TYPE set(100) GRANULARITY 1;
+```
+
+---
+
+### 🔴 Advanced Level: Production ClickHouse Configuration
+
+**Complete Table Schema with Optimizations:**
+
+```sql
+-- Raw events table (hot storage)
+CREATE TABLE analytics.events_local ON CLUSTER main_cluster
+(
+    tenant_id UInt32,
+    event_id UUID,
+    timestamp DateTime64(3),
+    event_time DateTime64(3),  -- Original event time (not ingestion time)
+    event_type LowCardinality(String),
+    user_id String,
+    session_id String,
+    page_url String,
+    referrer String,
+    user_agent String,
+    ip_address IPv4,
+    country LowCardinality(String),
+    device_type LowCardinality(String),
+    
+    -- Metrics
+    duration_ms UInt32,
+    value Float64,
+    
+    -- Metadata (JSON for flexibility)
+    properties String,  -- JSON string
+    
+    -- Computed columns
+    date Date MATERIALIZED toDate(event_time),
+    hour UInt8 MATERIALIZED toHour(event_time),
+    
+    -- Deduplication
+    _version UInt64
+)
+ENGINE = ReplicatedReplacingMergeTree(
+    '/clickhouse/tables/{shard}/events_local',
+    '{replica}',
+    _version
+)
+PARTITION BY (tenant_id, toYYYYMMDD(event_time))
+ORDER BY (tenant_id, event_time, event_type, user_id)
+SAMPLE BY sipHash64(user_id)
+TTL event_time + INTERVAL 7 DAY TO VOLUME 'warm',
+    event_time + INTERVAL 90 DAY TO VOLUME 'cold',
+    event_time + INTERVAL 365 DAY DELETE
+SETTINGS
+    index_granularity = 8192,
+    merge_with_ttl_timeout = 3600;
+
+-- Skip indexes for performance
+ALTER TABLE analytics.events_local 
+ADD INDEX user_id_bloom user_id TYPE bloom_filter GRANULARITY 4;
+
+ALTER TABLE analytics.events_local 
+ADD INDEX event_type_set event_type TYPE set(1000) GRANULARITY 1;
+
+ALTER TABLE analytics.events_local 
+ADD INDEX page_url_tokenbf page_url TYPE tokenbf_v1(10240, 3, 0) GRANULARITY 4;
+
+-- Distributed table (query interface)
+CREATE TABLE analytics.events ON CLUSTER main_cluster
+AS analytics.events_local
+ENGINE = Distributed(
+    main_cluster,
+    analytics,
+    events_local,
+    sipHash64(user_id)
+);
+```
+
+**Pre-aggregated Metrics Table:**
+
+```sql
+-- Materialized view for real-time aggregations
+CREATE MATERIALIZED VIEW analytics.metrics_1min_mv
+TO analytics.metrics_1min
+AS SELECT
+    tenant_id,
+    toStartOfMinute(event_time) AS minute,
+    event_type,
+    country,
+    device_type,
+    
+    -- Aggregations
+    count() AS event_count,
+    uniq(user_id) AS unique_users,
+    uniq(session_id) AS unique_sessions,
+    
+    -- Percentiles (using quantile state)
+    quantileState(0.50)(duration_ms) AS p50_state,
+    quantileState(0.95)(duration_ms) AS p95_state,
+    quantileState(0.99)(duration_ms) AS p99_state,
+    
+    -- Basic stats
+    sum(value) AS total_value,
+    avg(value) AS avg_value,
+    min(value) AS min_value,
+    max(value) AS max_value
+FROM analytics.events_local
+GROUP BY
+    tenant_id,
+    minute,
+    event_type,
+    country,
+    device_type;
+
+-- Metrics storage table
+CREATE TABLE analytics.metrics_1min_local ON CLUSTER main_cluster
+(
+    tenant_id UInt32,
+    minute DateTime,
+    event_type LowCardinality(String),
+    country LowCardinality(String),
+    device_type LowCardinality(String),
+    
+    event_count UInt64,
+    unique_users UInt64,
+    unique_sessions UInt64,
+    
+    p50_state AggregateFunction(quantile(0.50), UInt32),
+    p95_state AggregateFunction(quantile(0.95), UInt32),
+    p99_state AggregateFunction(quantile(0.99), UInt32),
+    
+    total_value Float64,
+    avg_value Float64,
+    min_value Float64,
+    max_value Float64
+)
+ENGINE = ReplicatedSummingMergeTree(
+    '/clickhouse/tables/{shard}/metrics_1min_local',
+    '{replica}'
+)
+PARTITION BY toYYYYMM(minute)
+ORDER BY (tenant_id, minute, event_type, country, device_type)
+TTL minute + INTERVAL 30 DAY
+SETTINGS index_granularity = 8192;
+
+-- Query example using pre-aggregated data
+SELECT
+    minute,
+    sum(event_count) AS total_events,
+    sum(unique_users) AS total_users,
+    quantileMerge(0.50)(p50_state) AS p50,
+    quantileMerge(0.95)(p95_state) AS p95,
+    quantileMerge(0.99)(p99_state) AS p99
+FROM analytics.metrics_1min
+WHERE
+    tenant_id = 123
+    AND minute >= now() - INTERVAL 1 HOUR
+GROUP BY minute
+ORDER BY minute;
+```
+
+**Multi-tier Storage Configuration:**
+
+```xml
+<!-- config.xml -->
+<yandex>
+    <storage_configuration>
+        <disks>
+            <!-- Hot storage: NVMe SSD -->
+            <hot>
+                <type>local</type>
+                <path>/mnt/nvme/clickhouse/</path>
+            </hot>
+            
+            <!-- Warm storage: SATA HDD -->
+            <warm>
+                <type>local</type>
+                <path>/mnt/hdd/clickhouse/</path>
+            </warm>
+            
+            <!-- Cold storage: S3 -->
+            <cold>
+                <type>s3</type>
+                <endpoint>https://s3.amazonaws.com/analytics-cold/</endpoint>
+                <access_key_id>ACCESS_KEY</access_key_id>
+                <secret_access_key>SECRET</secret_access_key>
+                <region>us-east-1</region>
+            </cold>
+        </disks>
+        
+        <policies>
+            <tiered>
+                <volumes>
+                    <hot>
+                        <disk>hot</disk>
+                        <max_data_part_size_bytes>1073741824</max_data_part_size_bytes>
+                    </hot>
+                    <warm>
+                        <disk>warm</disk>
+                        <max_data_part_size_bytes>10737418240</max_data_part_size_bytes>
+                    </warm>
+                    <cold>
+                        <disk>cold</disk>
+                    </cold>
+                </volumes>
+                <move_factor>0.1</move_factor>
+            </tiered>
+        </policies>
+    </storage_configuration>
+</yandex>
+```
+
+**Replication and Sharding:**
+
+```xml
+<!-- Cluster configuration -->
+<yandex>
+    <remote_servers>
+        <main_cluster>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>ch-node-1</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>ch-node-2</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>ch-node-3</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>ch-node-4</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>ch-node-5</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>ch-node-6</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </main_cluster>
+    </remote_servers>
+</yandex>
+```
+
+**Query Optimization Techniques:**
+
+```sql
+-- 1. PREWHERE: Filter before reading all columns
+SELECT
+    user_id,
+    event_type,
+    duration_ms,
+    properties
+FROM events
+PREWHERE tenant_id = 123 AND date = today()
+WHERE event_type IN ('click', 'view');
+
+-- 2. SAMPLE: Query subset for approximation
+SELECT
+    country,
+    avg(duration_ms) AS avg_duration
+FROM events
+SAMPLE 0.1  -- Query 10% of data
+WHERE date >= today() - 30
+GROUP BY country;
+
+-- 3. JOIN optimization: Right table is small
+SELECT
+    e.event_type,
+    u.user_segment,
+    count() AS cnt
+FROM events AS e
+INNER JOIN user_segments AS u ON e.user_id = u.user_id
+WHERE e.date = today()
+GROUP BY e.event_type, u.user_segment;
+
+-- 4. Distributed queries: Use _shard_num for debugging
+SELECT
+    _shard_num AS shard,
+    count() AS events_per_shard
+FROM events
+WHERE date = today()
+GROUP BY _shard_num;
+```
+
+**Performance Tuning:**
+
+```xml
+<!-- users.xml -->
+<yandex>
+    <profiles>
+        <default>
+            <!-- Memory limits -->
+            <max_memory_usage>10000000000</max_memory_usage>
+            <max_bytes_before_external_group_by>8000000000</max_bytes_before_external_group_by>
+            
+            <!-- Query complexity limits -->
+            <max_rows_to_read>1000000000</max_rows_to_read>
+            <max_execution_time>300</max_execution_time>
+            
+            <!-- Parallelism -->
+            <max_threads>8</max_threads>
+            
+            <!-- Insert optimization -->
+            <async_insert>1</async_insert>
+            <wait_for_async_insert>0</wait_for_async_insert>
+            <async_insert_max_data_size>10000000</async_insert_max_data_size>
+            <async_insert_busy_timeout_ms>1000</async_insert_busy_timeout_ms>
+        </default>
+    </profiles>
+</yandex>
+```
+
+**Company Examples:**
+
+**Cloudflare's Analytics (ClickHouse):**
+- 6 million HTTP requests/second
+- 25+ PB stored
+- 2-second query response for 1 billion rows
+- 144-node ClickHouse cluster
+
+**Spotify's Event Analytics (ClickHouse):**
+- 500 billion events/day
+- 99th percentile queries <1 second
+- Multi-region deployment (US, EU)
+- 90-day retention with hourly aggregates
+
+**Uber's Marketplace Analytics (ClickHouse):**
+- 100+ TB new data daily
+- 10,000+ queries per second
+- Real-time driver metrics
+- 3-tier storage (SSD/HDD/S3)
+
+---
+
+
+## 7. DEEP DIVE: AGGREGATIONS & METRICS
+
+Aggregations transform raw events into actionable insights. This section covers real-time aggregation techniques, percentile calculations, and funnel analysis implementation.
+
+### 🟢 Beginner Level: Understanding Aggregations
+
+**What Are Aggregations?**
+
+Think of aggregations like summarizing a long report into key bullet points:
+
+```
+Raw Events (Details):
+├─ User123 clicked at 10:00:01
+├─ User456 clicked at 10:00:03
+├─ User789 clicked at 10:00:07
+├─ User123 clicked at 10:00:12
+└─ ... millions more ...
+
+Aggregation (Summary):
+└─ 10:00-10:01: 1,543 clicks from 892 unique users
+```
+
+**Common Aggregation Types:**
+
+```
+1. COUNT
+   ├─ Question: "How many events happened?"
+   ├─ Example: 1,543 page views
+   └─ Use: Traffic volume, error counts
+
+2. SUM
+   ├─ Question: "What's the total value?"
+   ├─ Example: $12,450 in sales
+   └─ Use: Revenue, data transferred
+
+3. AVG (Average)
+   ├─ Question: "What's the typical value?"
+   ├─ Example: 234ms average response time
+   └─ Use: Performance metrics, ratings
+
+4. MIN/MAX
+   ├─ Question: "What are the extremes?"
+   ├─ Example: Min: 45ms, Max: 3,200ms
+   └─ Use: Performance bounds, price ranges
+
+5. UNIQUE COUNT
+   ├─ Question: "How many distinct items?"
+   ├─ Example: 892 unique users
+   └─ Use: Unique visitors, unique products viewed
+```
+
+**Real-World Analogy**: Restaurant Analytics
+
+```
+Raw Data (Each Order):
+├─ Order #1: $25.00, Table 5, 12:05 PM
+├─ Order #2: $18.50, Table 3, 12:07 PM
+├─ Order #3: $32.00, Table 5, 12:45 PM
+└─ ... more orders ...
+
+Dashboard Aggregations:
+├─ Total Orders: 145 (COUNT)
+├─ Total Revenue: $3,450 (SUM)
+├─ Average Order: $23.79 (AVG)
+├─ Unique Tables Served: 28 (UNIQUE COUNT)
+└─ Busiest Hour: 12:00-1:00 PM (GROUP BY hour)
+```
+
+**Simple Aggregation Example:**
+
+```python
+# Calculate metrics from event stream
+def aggregate_events(events):
+    metrics = {
+        'count': 0,
+        'sum': 0,
+        'unique_users': set()
+    }
+    
+    for event in events:
+        metrics['count'] += 1
+        metrics['sum'] += event.value
+        metrics['unique_users'].add(event.user_id)
+    
+    metrics['avg'] = metrics['sum'] / metrics['count']
+    metrics['unique_count'] = len(metrics['unique_users'])
+    
+    return metrics
+
+# Result:
+# {
+#   'count': 1543,
+#   'sum': 45230.50,
+#   'avg': 29.32,
+#   'unique_count': 892
+# }
+```
+
+---
+
+### 🟡 Intermediate Level: Advanced Aggregation Techniques
+
+**Percentiles: Better Than Averages**
+
+```
+Why Percentiles Matter:
+
+Response Times: [10ms, 12ms, 11ms, 15ms, 14ms, 13ms, 2000ms]
+Average: 296ms ❌ Misleading! One slow request skews it
+Median (P50): 13ms ✅ Typical user experience
+P95: 15ms ✅ 95% of users have better response
+P99: 2000ms ✅ Worst-case for 1% of users
+
+Rule of Thumb:
+├─ P50 (Median): Typical experience
+├─ P95: Most users' worst experience
+├─ P99: Edge cases, but still important
+└─ P99.9: Extreme cases, capacity planning
+```
+
+**T-Digest Algorithm for Percentiles:**
+
+```
+Problem: Exact percentiles require sorting ALL data
+Solution: T-Digest approximates with small memory
+
+How T-Digest Works:
+1. Compress data into ~100 "centroids"
+2. Store: (centroid_value, weight)
+3. Merge centroids while maintaining accuracy
+4. Trade-off: 99%+ accuracy with 1KB memory vs 100MB for exact
+
+Example:
+1 million values → T-Digest (1 KB) → P99 estimate
+Error: <0.1% (accurate enough for dashboards)
+
+Memory Comparison:
+├─ Exact: Store all values (8 MB for 1M doubles)
+├─ T-Digest: Store ~100 centroids (1 KB)
+└─ Savings: 8,000x compression!
+```
+
+**T-Digest Implementation:**
+
+```python
+from tdigest import TDigest
+
+class PercentileAggregator:
+    def __init__(self):
+        self.digest = TDigest()
+    
+    def add(self, value):
+        self.digest.update(value)
+    
+    def get_percentiles(self):
+        return {
+            'p50': self.digest.percentile(50),
+            'p90': self.digest.percentile(90),
+            'p95': self.digest.percentile(95),
+            'p99': self.digest.percentile(99)
+        }
+    
+    def merge(self, other_digest):
+        """Merge from multiple servers"""
+        self.digest += other_digest
+
+# Usage in stream processing
+aggregator = PercentileAggregator()
+for event in events:
+    aggregator.add(event.response_time_ms)
+
+percentiles = aggregator.get_percentiles()
+# {'p50': 125, 'p90': 234, 'p95': 345, 'p99': 892}
+```
+
+**HyperLogLog for Unique Counts:**
+
+```
+Problem: Counting unique users requires storing ALL user IDs
+Solution: HyperLogLog estimates with ~2% error using 1-2 KB
+
+How HyperLogLog Works:
+1. Hash user_id → 64-bit number
+2. Count leading zeros in hash
+3. Use ~2048 "registers" for different hash prefixes
+4. Estimate cardinality from register values
+
+Example:
+1 billion unique users → HyperLogLog (1.5 KB) → Count estimate
+Error: ~2% (close enough for dashboards!)
+
+Memory Comparison:
+├─ Exact: Store all IDs (16 GB for 1B UUIDs)
+├─ HyperLogLog: Fixed size (1.5 KB)
+└─ Savings: 10,000,000x compression!
+```
+
+**Funnel Analysis Implementation:**
+
+```
+E-commerce Funnel:
+Step 1: Product View    (1,000,000 users) 100%
+Step 2: Add to Cart     (150,000 users)   15%  ← 85% drop
+Step 3: Checkout        (75,000 users)    7.5% ← 50% drop
+Step 4: Purchase        (60,000 users)    6%   ← 20% drop
+
+Conversion Rate: 6% (60K / 1M)
+```
+
+**Funnel Query in SQL:**
+
+```sql
+-- Funnel analysis: View → Cart → Purchase
+WITH funnel_steps AS (
+    SELECT
+        user_id,
+        countIf(event_type = 'product_view') AS has_view,
+        countIf(event_type = 'add_to_cart') AS has_cart,
+        countIf(event_type = 'purchase') AS has_purchase
+    FROM events
+    WHERE
+        tenant_id = 123
+        AND date >= today() - 7
+    GROUP BY user_id
+)
+SELECT
+    countIf(has_view > 0) AS step1_users,
+    countIf(has_view > 0 AND has_cart > 0) AS step2_users,
+    countIf(has_view > 0 AND has_cart > 0 AND has_purchase > 0) AS step3_users,
+    
+    step2_users / step1_users AS step1_to_step2_rate,
+    step3_users / step2_users AS step2_to_step3_rate,
+    step3_users / step1_users AS overall_conversion_rate
+FROM funnel_steps;
+```
+
+**Pre-aggregation Strategies:**
+
+```
+Strategy 1: Real-time Aggregation
+├─ Aggregate in stream processor (Flink)
+├─ Write aggregated results to database
+├─ Pro: Query time always fast
+└─ Con: Must pre-define all dimensions
+
+Strategy 2: Query-time Aggregation
+├─ Store raw events
+├─ Aggregate during query
+├─ Pro: Flexible, any dimension
+└─ Con: Slower for large datasets
+
+Strategy 3: Hybrid (Best)
+├─ Pre-aggregate common queries
+├─ Store raw events for ad-hoc queries
+├─ Use materialized views
+└─ Balance: Speed vs flexibility
+```
+
+**Materialized Views in ClickHouse:**
+
+```sql
+-- Create materialized view for hourly metrics
+CREATE MATERIALIZED VIEW hourly_metrics_mv
+ENGINE = SummingMergeTree()
+PARTITION BY toYYYYMMDD(hour)
+ORDER BY (tenant_id, hour, event_type)
+AS SELECT
+    tenant_id,
+    toStartOfHour(event_time) AS hour,
+    event_type,
+    country,
+    
+    -- Pre-aggregated metrics
+    count() AS event_count,
+    uniqExact(user_id) AS unique_users,
+    sum(value) AS total_value,
+    avg(duration_ms) AS avg_duration
+FROM events
+GROUP BY
+    tenant_id,
+    hour,
+    event_type,
+    country;
+
+-- Query is instant (reads pre-aggregated data)
+SELECT
+    hour,
+    sum(event_count) AS total_events,
+    sum(unique_users) AS total_users
+FROM hourly_metrics_mv
+WHERE
+    tenant_id = 123
+    AND hour >= now() - INTERVAL 24 HOUR
+GROUP BY hour
+ORDER BY hour;
+```
+
+**Rollup Aggregations:**
+
+```
+Multi-level Aggregation Pyramid:
+
+Raw Events (7 days retention):
+└─ 1 billion events/day
+   ↓ Aggregate every 1 minute
+1-Minute Aggregates (30 days retention):
+└─ 1,440 rows/day (24 hours × 60 minutes)
+   ↓ Aggregate every 1 hour
+1-Hour Aggregates (90 days retention):
+└─ 24 rows/day
+   ↓ Aggregate every 1 day
+1-Day Aggregates (2 years retention):
+└─ 1 row/day
+
+Query Strategy:
+├─ Last 1 hour: Use raw events (most detail)
+├─ Last 24 hours: Use 1-minute aggregates
+├─ Last 7 days: Use 1-hour aggregates
+└─ Last 90 days: Use 1-day aggregates
+
+Storage Savings:
+Raw: 1B events/day × 7 days = 7B rows
+Aggregated: 1,440 + 24 + 1 = 1,465 rows
+Reduction: 4,778,000x compression!
+```
+
+---
+
+### 🔴 Advanced Level: Production Aggregation Patterns
+
+**Complete Aggregation Pipeline:**
+
+```sql
+-- 1-minute aggregation with all metrics
+CREATE MATERIALIZED VIEW metrics_1min_mv TO metrics_1min AS
+SELECT
+    tenant_id,
+    toStartOfMinute(event_time) AS minute,
+    event_type,
+    
+    -- Dimensions (group by)
+    country,
+    device_type,
+    page_url,
+    
+    -- COUNT aggregations
+    count() AS event_count,
+    
+    -- UNIQUE aggregations (HyperLogLog)
+    uniq(user_id) AS unique_users,
+    uniq(session_id) AS unique_sessions,
+    uniqExact(user_id) AS exact_unique_users,  -- For comparison
+    
+    -- SUM aggregations
+    sum(value) AS total_value,
+    sum(duration_ms) AS total_duration,
+    
+    -- MIN/MAX aggregations
+    min(value) AS min_value,
+    max(value) AS max_value,
+    min(duration_ms) AS min_duration,
+    max(duration_ms) AS max_duration,
+    
+    -- AVG aggregations (compute from sum/count)
+    avg(value) AS avg_value,
+    avg(duration_ms) AS avg_duration,
+    
+    -- PERCENTILE aggregations (T-Digest)
+    quantile(0.50)(duration_ms) AS p50_duration,
+    quantile(0.90)(duration_ms) AS p90_duration,
+    quantile(0.95)(duration_ms) AS p95_duration,
+    quantile(0.99)(duration_ms) AS p99_duration,
+    quantile(0.999)(duration_ms) AS p999_duration,
+    
+    -- Quantile states (for merging across shards)
+    quantileState(0.50)(duration_ms) AS p50_state,
+    quantileState(0.95)(duration_ms) AS p95_state,
+    quantileState(0.99)(duration_ms) AS p99_state,
+    
+    -- HyperLogLog states (for merging)
+    uniqState(user_id) AS unique_users_state,
+    
+    -- TOP-K aggregations
+    topK(10)(page_url) AS top_10_pages,
+    
+    -- STDDEV aggregation
+    stddevPop(duration_ms) AS stddev_duration,
+    
+    -- First/Last values
+    any(user_agent) AS sample_user_agent,
+    argMin(value, event_time) AS first_value,
+    argMax(value, event_time) AS last_value
+    
+FROM events
+GROUP BY
+    tenant_id,
+    minute,
+    event_type,
+    country,
+    device_type,
+    page_url;
+```
+
+**Funnel Analysis with Window Functions:**
+
+```sql
+-- Advanced funnel with time-to-convert
+WITH user_events AS (
+    SELECT
+        user_id,
+        event_time,
+        event_type,
+        
+        -- Mark each funnel step
+        countIf(event_type = 'product_view') OVER (
+            PARTITION BY user_id 
+            ORDER BY event_time
+        ) AS view_count,
+        
+        countIf(event_type = 'add_to_cart') OVER (
+            PARTITION BY user_id 
+            ORDER BY event_time
+        ) AS cart_count,
+        
+        countIf(event_type = 'purchase') OVER (
+            PARTITION BY user_id 
+            ORDER BY event_time
+        ) AS purchase_count
+    FROM events
+    WHERE
+        tenant_id = 123
+        AND date >= today() - 7
+),
+funnel_metrics AS (
+    SELECT
+        user_id,
+        min(if(view_count > 0, event_time, NULL)) AS first_view_time,
+        min(if(cart_count > 0, event_time, NULL)) AS first_cart_time,
+        min(if(purchase_count > 0, event_time, NULL)) AS first_purchase_time
+    FROM user_events
+    GROUP BY user_id
+)
+SELECT
+    -- Funnel counts
+    count() AS total_users,
+    countIf(first_view_time IS NOT NULL) AS step1_view,
+    countIf(first_cart_time IS NOT NULL) AS step2_cart,
+    countIf(first_purchase_time IS NOT NULL) AS step3_purchase,
+    
+    -- Conversion rates
+    step2_cart / step1_view AS view_to_cart_rate,
+    step3_purchase / step2_cart AS cart_to_purchase_rate,
+    step3_purchase / step1_view AS overall_conversion,
+    
+    -- Time to convert (median)
+    median(dateDiff('second', first_view_time, first_cart_time)) AS median_time_to_cart,
+    median(dateDiff('second', first_cart_time, first_purchase_time)) AS median_time_to_purchase,
+    median(dateDiff('second', first_view_time, first_purchase_time)) AS median_time_to_convert,
+    
+    -- Percentiles of conversion time
+    quantile(0.90)(dateDiff('second', first_view_time, first_purchase_time)) AS p90_time_to_convert
+FROM funnel_metrics;
+```
+
+**Retention Cohort Analysis:**
+
+```sql
+-- User retention by signup week
+WITH user_cohorts AS (
+    SELECT
+        user_id,
+        toStartOfWeek(min(event_time)) AS cohort_week
+    FROM events
+    WHERE event_type = 'signup'
+    GROUP BY user_id
+),
+user_activity AS (
+    SELECT
+        uc.user_id,
+        uc.cohort_week,
+        toStartOfWeek(e.event_time) AS activity_week,
+        dateDiff('week', uc.cohort_week, toStartOfWeek(e.event_time)) AS weeks_since_signup
+    FROM user_cohorts uc
+    INNER JOIN events e ON uc.user_id = e.user_id
+    WHERE e.date >= today() - 90
+)
+SELECT
+    cohort_week,
+    countDistinct(user_id) AS cohort_size,
+    
+    -- Retention by week
+    countDistinctIf(user_id, weeks_since_signup = 0) / cohort_size AS week0_retention,
+    countDistinctIf(user_id, weeks_since_signup = 1) / cohort_size AS week1_retention,
+    countDistinctIf(user_id, weeks_since_signup = 2) / cohort_size AS week2_retention,
+    countDistinctIf(user_id, weeks_since_signup = 4) / cohort_size AS week4_retention,
+    countDistinctIf(user_id, weeks_since_signup = 8) / cohort_size AS week8_retention,
+    countDistinctIf(user_id, weeks_since_signup = 12) / cohort_size AS week12_retention
+FROM user_activity
+GROUP BY cohort_week
+ORDER BY cohort_week DESC;
+```
+
+**Real-time Anomaly Detection:**
+
+```sql
+-- Detect anomalies using z-score
+WITH baseline AS (
+    SELECT
+        event_type,
+        avg(event_count) AS avg_count,
+        stddevPop(event_count) AS stddev_count
+    FROM metrics_1min
+    WHERE
+        tenant_id = 123
+        AND minute >= now() - INTERVAL 1 DAY
+        AND minute < now() - INTERVAL 1 HOUR  -- Exclude recent data
+    GROUP BY event_type
+),
+recent_metrics AS (
+    SELECT
+        minute,
+        event_type,
+        event_count
+    FROM metrics_1min
+    WHERE
+        tenant_id = 123
+        AND minute >= now() - INTERVAL 1 HOUR
+)
+SELECT
+    r.minute,
+    r.event_type,
+    r.event_count,
+    b.avg_count AS expected_count,
+    
+    -- Z-score: How many standard deviations from mean?
+    (r.event_count - b.avg_count) / b.stddev_count AS z_score,
+    
+    -- Flag anomalies (|z-score| > 3)
+    if(abs(z_score) > 3, 'ANOMALY', 'NORMAL') AS status
+FROM recent_metrics r
+INNER JOIN baseline b ON r.event_type = b.event_type
+WHERE abs(z_score) > 3
+ORDER BY abs(z_score) DESC;
+```
+
+**Approximate Query Acceleration with Sampling:**
+
+```sql
+-- Fast approximate query using 10% sample
+SELECT
+    country,
+    count() * 10 AS approx_event_count,  -- Scale up
+    uniq(user_id) * 10 AS approx_unique_users,
+    avg(duration_ms) AS avg_duration  -- Average doesn't need scaling
+FROM events
+SAMPLE 0.1  -- Query only 10% of data
+WHERE
+    tenant_id = 123
+    AND date >= today() - 30
+GROUP BY country
+ORDER BY approx_event_count DESC;
+
+-- Query time: 0.2s vs 2.0s (10x faster)
+-- Accuracy: ±5% (good enough for exploration)
+```
+
+**Company Examples:**
+
+**Pinterest's Aggregation Pipeline:**
+- 20,000+ metrics computed in real-time
+- 1-minute granularity for dashboards
+- Hourly rollups for historical analysis
+- T-Digest for percentiles, HLL for uniques
+- 99.5% accuracy with 100x compression
+
+**Datadog's Metrics Aggregation:**
+- 2 million metrics/second
+- 10-second aggregation windows
+- Distributed percentile calculation
+- 15-month retention with rollups
+- Query response <100ms for 1TB scans
+
+**Amplitude's Funnel Analytics:**
+- 30+ step funnels
+- Real-time conversion tracking
+- Segment by 50+ dimensions
+- Time-to-convert percentiles
+- Handles 2 billion events/day
+
+---
+
+
+## 8. API DESIGN
+
+APIs are the gateway to the analytics dashboard. This section covers event ingestion, query APIs, rate limiting, and error handling patterns.
+
+### 🟢 Beginner Level: API Basics
+
+**Two Main API Categories:**
+
+```
+1. Event Ingestion API (Write)
+   ├─ Purpose: Receive events from applications
+   ├─ Volume: High (millions/second)
+   ├─ Latency: Must be fast (<50ms)
+   └─ Examples: POST /events, POST /batch
+
+2. Dashboard Query API (Read)
+   ├─ Purpose: Retrieve metrics for dashboards
+   ├─ Volume: Lower (thousands/second)
+   ├─ Latency: Sub-second preferred
+   └─ Examples: GET /metrics, POST /query
+```
+
+**Real-World Analogy**: Post Office
+
+```
+Ingestion API = Mail Drop-off:
+├─ Accept package (event)
+├─ Give receipt (acknowledgment)
+├─ Don't wait for sorting/delivery
+└─ Fast: 30 seconds per customer
+
+Query API = Package Tracking:
+├─ Look up status
+├─ Return current information
+├─ More complex processing
+└─ Slower: 2 minutes per inquiry
+```
+
+**Simple Event Ingestion:**
+
+```json
+POST /api/v1/events
+Content-Type: application/json
+X-API-Key: sk_test_abc123
+
+{
+  "event_type": "page_view",
+  "user_id": "user_789",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "properties": {
+    "page_url": "/products/shoes",
+    "referrer": "google.com",
+    "device": "mobile"
+  }
+}
+
+Response 202 Accepted:
+{
+  "status": "accepted",
+  "event_id": "evt_xyz789"
+}
+```
+
+**Simple Metrics Query:**
+
+```json
+GET /api/v1/metrics?
+  metric=page_views&
+  start=2024-01-15T00:00:00Z&
+  end=2024-01-15T23:59:59Z&
+  granularity=hour
+
+Response 200 OK:
+{
+  "metric": "page_views",
+  "data": [
+    {"timestamp": "2024-01-15T00:00:00Z", "value": 1523},
+    {"timestamp": "2024-01-15T01:00:00Z", "value": 1847},
+    {"timestamp": "2024-01-15T02:00:00Z", "value": 1392}
+  ]
+}
+```
+
+---
+
+### 🟡 Intermediate Level: Complete API Specifications
+
+**Event Ingestion API:**
+
+**1. Single Event Endpoint:**
+
+```
+POST /api/v1/events
+Content-Type: application/json
+X-API-Key: {api_key}
+X-Request-ID: {idempotency_key}
+
+Request Body:
+{
+  "event_type": "string (required, max 64 chars)",
+  "user_id": "string (optional, max 128 chars)",
+  "session_id": "string (optional, max 128 chars)",
+  "timestamp": "ISO8601 datetime (optional, defaults to now)",
+  "properties": {
+    "key": "value",
+    // Max 50 properties, each value max 1KB
+  }
+}
+
+Response Codes:
+├─ 202 Accepted: Event queued for processing
+├─ 400 Bad Request: Invalid event format
+├─ 401 Unauthorized: Invalid API key
+├─ 429 Too Many Requests: Rate limit exceeded
+└─ 503 Service Unavailable: System overloaded
+
+Response Body:
+{
+  "status": "accepted",
+  "event_id": "evt_xyz789",
+  "timestamp": "2024-01-15T10:30:00.123Z"
+}
+```
+
+**2. Batch Event Endpoint:**
+
+```
+POST /api/v1/events/batch
+Content-Type: application/json
+X-API-Key: {api_key}
+
+Request Body:
+{
+  "events": [
+    {
+      "event_type": "page_view",
+      "user_id": "user_123",
+      "timestamp": "2024-01-15T10:30:00Z",
+      "properties": {...}
+    },
+    // Up to 1000 events per batch
+  ]
+}
+
+Response 202 Accepted:
+{
+  "status": "accepted",
+  "batch_id": "batch_abc123",
+  "accepted_count": 998,
+  "rejected_count": 2,
+  "rejected_events": [
+    {
+      "index": 5,
+      "reason": "invalid_timestamp"
+    },
+    {
+      "index": 23,
+      "reason": "missing_event_type"
+    }
+  ]
+}
+
+Rate Limit:
+├─ Per API Key: 10,000 events/second
+├─ Per Batch: Max 1000 events
+├─ Batch Size: Max 1 MB
+└─ Header: X-RateLimit-Remaining: 8534
+```
+
+**Dashboard Query API:**
+
+**3. Metrics Query Endpoint:**
+
+```
+GET /api/v1/metrics
+X-API-Key: {api_key}
+
+Query Parameters:
+├─ metric: Metric name (required)
+│   Examples: page_views, unique_users, avg_duration
+├─ start: Start time (required, ISO8601)
+├─ end: End time (required, ISO8601)
+├─ granularity: Time bucket (optional, default: auto)
+│   Values: minute, hour, day, week, month
+├─ filters: JSON-encoded filters (optional)
+│   Example: {"country": "US", "device": "mobile"}
+├─ group_by: Dimension to group by (optional)
+│   Examples: country, device_type, event_type
+└─ limit: Max results (optional, default: 1000, max: 10000)
+
+Example Request:
+GET /api/v1/metrics?
+  metric=page_views&
+  start=2024-01-15T00:00:00Z&
+  end=2024-01-15T23:59:59Z&
+  granularity=hour&
+  filters={"country":"US"}&
+  group_by=device_type
+
+Response 200 OK:
+{
+  "metric": "page_views",
+  "start": "2024-01-15T00:00:00Z",
+  "end": "2024-01-15T23:59:59Z",
+  "granularity": "hour",
+  "filters": {"country": "US"},
+  "group_by": "device_type",
+  "data": [
+    {
+      "timestamp": "2024-01-15T00:00:00Z",
+      "dimensions": {"device_type": "mobile"},
+      "value": 892
+    },
+    {
+      "timestamp": "2024-01-15T00:00:00Z",
+      "dimensions": {"device_type": "desktop"},
+      "value": 631
+    }
+  ],
+  "query_time_ms": 145,
+  "cached": false
+}
+```
+
+**4. Advanced Query Endpoint (SQL-like):**
+
+```
+POST /api/v1/query
+Content-Type: application/json
+X-API-Key: {api_key}
+
+Request Body:
+{
+  "query": {
+    "metric": "page_views",
+    "aggregation": "sum",
+    "dimensions": ["country", "device_type"],
+    "filters": [
+      {
+        "field": "event_type",
+        "operator": "in",
+        "value": ["page_view", "click"]
+      },
+      {
+        "field": "timestamp",
+        "operator": ">=",
+        "value": "2024-01-15T00:00:00Z"
+      }
+    ],
+    "group_by": ["country"],
+    "order_by": [
+      {"field": "value", "direction": "desc"}
+    ],
+    "limit": 10
+  }
+}
+
+Response 200 OK:
+{
+  "results": [
+    {
+      "dimensions": {"country": "US"},
+      "metrics": {
+        "page_views": 1523456,
+        "unique_users": 89234
+      }
+    },
+    {
+      "dimensions": {"country": "UK"},
+      "metrics": {
+        "page_views": 892341,
+        "unique_users": 45123
+      }
+    }
+  ],
+  "total_rows": 52,
+  "query_time_ms": 234,
+  "cached": false
+}
+```
+
+**5. Funnel Query Endpoint:**
+
+```
+POST /api/v1/funnels
+Content-Type: application/json
+X-API-Key: {api_key}
+
+Request Body:
+{
+  "funnel": {
+    "steps": [
+      {
+        "name": "Product View",
+        "event_type": "product_view"
+      },
+      {
+        "name": "Add to Cart",
+        "event_type": "add_to_cart",
+        "within": "1 hour"
+      },
+      {
+        "name": "Purchase",
+        "event_type": "purchase",
+        "within": "24 hours"
+      }
+    ],
+    "start": "2024-01-15T00:00:00Z",
+    "end": "2024-01-15T23:59:59Z",
+    "filters": {
+      "country": "US"
+    }
+  }
+}
+
+Response 200 OK:
+{
+  "funnel": {
+    "steps": [
+      {
+        "name": "Product View",
+        "user_count": 100000,
+        "percentage": 100.0,
+        "drop_off": 0
+      },
+      {
+        "name": "Add to Cart",
+        "user_count": 15000,
+        "percentage": 15.0,
+        "drop_off": 85000,
+        "median_time_from_previous": "5m 23s"
+      },
+      {
+        "name": "Purchase",
+        "user_count": 6000,
+        "percentage": 6.0,
+        "drop_off": 9000,
+        "median_time_from_previous": "12m 45s"
+      }
+    ],
+    "overall_conversion": 6.0,
+    "query_time_ms": 567
+  }
+}
+```
+
+**Rate Limiting Design:**
+
+```
+Rate Limit Strategy:
+├─ Token Bucket Algorithm
+├─ Per API Key
+├─ Different limits for different endpoints
+└─ Graceful degradation
+
+Rate Limits:
+1. Event Ingestion:
+   ├─ Single: 1,000 events/second
+   ├─ Batch: 10,000 events/second
+   └─ Burst: 2x for 10 seconds
+
+2. Query API:
+   ├─ Simple queries: 100/second
+   ├─ Complex queries: 10/second
+   └─ Export queries: 1/second
+
+Rate Limit Headers:
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 856
+X-RateLimit-Reset: 1705318200
+Retry-After: 30
+```
+
+**Error Handling:**
+
+```json
+Error Response Format:
+{
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "Missing required field: event_type",
+    "details": {
+      "field": "event_type",
+      "expected": "string",
+      "received": null
+    },
+    "request_id": "req_xyz789",
+    "documentation_url": "https://docs.analytics.com/errors/invalid-request"
+  }
+}
+
+Error Codes:
+├─ INVALID_REQUEST (400)
+├─ UNAUTHORIZED (401)
+├─ FORBIDDEN (403)
+├─ NOT_FOUND (404)
+├─ RATE_LIMIT_EXCEEDED (429)
+├─ INTERNAL_ERROR (500)
+└─ SERVICE_UNAVAILABLE (503)
+```
+
+---
+
+### 🔴 Advanced Level: Production API Patterns
+
+**API Authentication & Authorization:**
+
+```python
+# Multi-tier API key structure
+class APIKey:
+    """
+    Format: sk_{environment}_{random}_{checksum}
+    Example: sk_prod_abc123xyz789_ch3k
+    """
+    
+    def __init__(self, key_string):
+        self.environment = self.parse_env(key_string)
+        self.tenant_id = self.lookup_tenant(key_string)
+        self.permissions = self.get_permissions(key_string)
+    
+    def has_permission(self, action):
+        """Check if key has permission for action"""
+        return action in self.permissions
+
+# Permission levels
+PERMISSIONS = {
+    'read_only': ['metrics:read', 'query:execute'],
+    'write_only': ['events:write'],
+    'full_access': ['events:write', 'metrics:read', 'query:execute'],
+    'admin': ['*']
+}
+
+# Rate limit by permission level
+RATE_LIMITS = {
+    'read_only': {'queries': 100},
+    'write_only': {'events': 10000},
+    'full_access': {'events': 50000, 'queries': 500},
+    'admin': {'events': 100000, 'queries': 1000}
+}
+```
+
+**Idempotency for Event Ingestion:**
+
+```python
+from hashlib import sha256
+import redis
+
+class IdempotencyHandler:
+    def __init__(self, redis_client):
+        self.redis = redis_client
+        self.ttl = 86400  # 24 hours
+    
+    def check_duplicate(self, request_id, event_data):
+        """Check if event was already processed"""
+        # Create idempotency key
+        key = f"idempotency:{request_id}"
+        
+        # Check if key exists
+        if self.redis.exists(key):
+            # Return cached response
+            return self.redis.get(key), True
+        
+        return None, False
+    
+    def store_result(self, request_id, result):
+        """Store result for future duplicate requests"""
+        key = f"idempotency:{request_id}"
+        self.redis.setex(key, self.ttl, result)
+
+# Usage in API endpoint
+@app.post("/events")
+async def ingest_event(request: Request, event: Event):
+    request_id = request.headers.get("X-Request-ID")
+    
+    # Check for duplicate
+    cached_result, is_duplicate = idempotency.check_duplicate(
+        request_id, 
+        event
+    )
+    
+    if is_duplicate:
+        return JSONResponse(
+            status_code=202,
+            content=cached_result
+        )
+    
+    # Process event
+    result = await process_event(event)
+    
+    # Store result
+    idempotency.store_result(request_id, result)
+    
+    return JSONResponse(status_code=202, content=result)
+```
+
+**Query Result Caching:**
+
+```python
+import hashlib
+import json
+
+class QueryCache:
+    def __init__(self, redis_client):
+        self.redis = redis_client
+        self.default_ttl = 300  # 5 minutes
+    
+    def cache_key(self, query):
+        """Generate cache key from query parameters"""
+        query_str = json.dumps(query, sort_keys=True)
+        return f"query_cache:{hashlib.sha256(query_str.encode()).hexdigest()}"
+    
+    def get(self, query):
+        """Get cached query result"""
+        key = self.cache_key(query)
+        cached = self.redis.get(key)
+        
+        if cached:
+            return json.loads(cached)
+        return None
+    
+    def set(self, query, result, ttl=None):
+        """Cache query result"""
+        key = self.cache_key(query)
+        ttl = ttl or self.default_ttl
+        
+        self.redis.setex(
+            key,
+            ttl,
+            json.dumps(result)
+        )
+    
+    def invalidate_pattern(self, pattern):
+        """Invalidate cache entries matching pattern"""
+        # When new data arrives, invalidate affected queries
+        keys = self.redis.keys(f"query_cache:*{pattern}*")
+        if keys:
+            self.redis.delete(*keys)
+
+# Cache TTL strategy
+CACHE_TTL = {
+    'realtime': 10,      # 10 seconds for live dashboards
+    'recent': 60,        # 1 minute for last hour
+    'historical': 300,   # 5 minutes for older data
+    'aggregated': 3600   # 1 hour for daily/monthly aggregates
+}
+```
+
+**API Request Validation:**
+
+```python
+from pydantic import BaseModel, Field, validator
+from datetime import datetime
+from typing import Optional, Dict, Any
+
+class Event(BaseModel):
+    event_type: str = Field(..., min_length=1, max_length=64)
+    user_id: Optional[str] = Field(None, max_length=128)
+    session_id: Optional[str] = Field(None, max_length=128)
+    timestamp: Optional[datetime] = None
+    properties: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    
+    @validator('event_type')
+    def validate_event_type(cls, v):
+        # Only alphanumeric and underscores
+        if not v.replace('_', '').isalnum():
+            raise ValueError('event_type must be alphanumeric')
+        return v
+    
+    @validator('timestamp')
+    def validate_timestamp(cls, v):
+        if v is None:
+            return datetime.utcnow()
+        
+        # Reject events too far in past or future
+        now = datetime.utcnow()
+        if v < now - timedelta(days=7):
+            raise ValueError('timestamp too old (>7 days)')
+        if v > now + timedelta(hours=1):
+            raise ValueError('timestamp in future (>1 hour)')
+        
+        return v
+    
+    @validator('properties')
+    def validate_properties(cls, v):
+        if v is None:
+            return {}
+        
+        # Max 50 properties
+        if len(v) > 50:
+            raise ValueError('Max 50 properties allowed')
+        
+        # Check each property value size
+        for key, value in v.items():
+            value_str = json.dumps(value)
+            if len(value_str) > 1024:  # 1 KB
+                raise ValueError(f'Property {key} exceeds 1KB')
+        
+        return v
+
+class MetricsQuery(BaseModel):
+    metric: str
+    start: datetime
+    end: datetime
+    granularity: Optional[str] = 'auto'
+    filters: Optional[Dict[str, Any]] = None
+    group_by: Optional[str] = None
+    limit: int = Field(default=1000, ge=1, le=10000)
+    
+    @validator('end')
+    def validate_time_range(cls, v, values):
+        if 'start' in values and v <= values['start']:
+            raise ValueError('end must be after start')
+        
+        # Max 90-day range for detailed queries
+        if 'start' in values:
+            days = (v - values['start']).days
+            if days > 90:
+                raise ValueError('Max 90-day range allowed')
+        
+        return v
+```
+
+**Drill-down API with Filters:**
+
+```python
+@app.post("/api/v1/drilldown")
+async def drilldown(query: DrilldownQuery, api_key: str):
+    """
+    Drill down into metrics with multiple dimensions
+    """
+    
+    # Example: Start with country-level data
+    # User clicks "US" → drill down to state
+    # User clicks "California" → drill down to city
+    
+    result = await execute_query(f"""
+        SELECT
+            {query.dimension} AS dimension,
+            count() AS event_count,
+            uniq(user_id) AS unique_users,
+            avg(duration_ms) AS avg_duration
+        FROM events
+        WHERE
+            tenant_id = {api_key.tenant_id}
+            AND event_time >= '{query.start}'
+            AND event_time < '{query.end}'
+            {build_filters(query.filters)}
+        GROUP BY dimension
+        ORDER BY event_count DESC
+        LIMIT {query.limit}
+    """)
+    
+    return {
+        "dimension": query.dimension,
+        "filters": query.filters,
+        "data": result,
+        "drill_down_options": get_drill_down_options(query.dimension)
+    }
+
+def get_drill_down_options(current_dimension):
+    """Return valid drill-down dimensions"""
+    DRILL_DOWN_HIERARCHY = {
+        'country': ['state', 'city'],
+        'state': ['city', 'zip_code'],
+        'device_type': ['browser', 'os'],
+        'event_type': ['page_url', 'referrer']
+    }
+    return DRILL_DOWN_HIERARCHY.get(current_dimension, [])
+```
+
+**Company Examples:**
+
+**Segment's Event API:**
+- 50,000 events/second per customer
+- 99.9% uptime SLA
+- <50ms p99 ingestion latency
+- Automatic batching & retry
+- Idempotency with 24-hour window
+
+**Mixpanel's Query API:**
+- Sub-second query response for 1B events
+- 30-day query result caching
+- Automatic query optimization
+- GraphQL + REST APIs
+- Rate limiting: 100 queries/hour (free), unlimited (paid)
+
+**Amplitude's Analytics API:**
+- Batch ingestion: 1,000 events per request
+- Real-time query API: <200ms p95
+- SQL-like query language
+- Funnel API: 30-step funnels
+- Export API: Full data export capability
+
+---
+
+
+## 9. DATABASE DESIGN
+
+Database schema design is critical for query performance and storage efficiency. This section covers complete table schemas, indexing strategies, and partitioning for a production analytics system.
+
+### 🟢 Beginner Level: Schema Fundamentals
+
+**Basic Schema Structure:**
+
+Think of database schema like organizing a filing cabinet:
+
+```
+Filing Cabinet (Database):
+├─ Drawer 1: Raw Events (every detail)
+│  └─ Folder: Today's events
+├─ Drawer 2: Hourly Summaries (aggregated)
+│  └─ Folder: This month's summaries
+└─ Drawer 3: Metadata (reference data)
+   └─ Folder: Event types, user info
+```
+
+**Three Main Tables:**
+
+```
+1. Raw Events Table
+   ├─ Stores: Every individual event
+   ├─ Retention: 7 days (then archived or deleted)
+   ├─ Size: Largest table (billions of rows)
+   └─ Use: Detailed analysis, debugging
+
+2. Aggregated Metrics Table
+   ├─ Stores: Pre-calculated summaries
+   ├─ Retention: 90 days to 2 years
+   ├─ Size: Much smaller (millions of rows)
+   └─ Use: Fast dashboard queries
+
+3. Metadata Tables
+   ├─ Stores: Reference data
+   ├─ Examples: Event types, dimensions
+   ├─ Size: Very small (thousands of rows)
+   └─ Use: Configuration, validation
+```
+
+**Simple Events Schema:**
+
+```sql
+CREATE TABLE events (
+    event_id UUID PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    user_id VARCHAR(128),
+    event_type VARCHAR(64) NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    properties JSON
+);
+
+-- Index for fast queries
+CREATE INDEX idx_events_tenant_time 
+ON events(tenant_id, timestamp);
+```
+
+---
+
+### 🟡 Intermediate Level: Production Schema Design
+
+**Complete Raw Events Schema:**
+
+```sql
+-- Raw events table with optimized data types
+CREATE TABLE analytics.events (
+    -- Identity
+    event_id UUID DEFAULT gen_random_uuid(),
+    tenant_id INTEGER NOT NULL,
+    
+    -- User identification
+    user_id VARCHAR(128),
+    session_id VARCHAR(128),
+    anonymous_id VARCHAR(128),
+    
+    -- Event details
+    event_type VARCHAR(64) NOT NULL,
+    event_time TIMESTAMP NOT NULL,
+    ingestion_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Context
+    page_url TEXT,
+    page_title VARCHAR(512),
+    referrer TEXT,
+    
+    -- User agent
+    user_agent TEXT,
+    device_type VARCHAR(32),
+    browser VARCHAR(64),
+    os VARCHAR(64),
+    
+    -- Location
+    ip_address INET,
+    country VARCHAR(2),    -- ISO country code
+    region VARCHAR(64),
+    city VARCHAR(128),
+    latitude DECIMAL(9,6),
+    longitude DECIMAL(9,6),
+    
+    -- Metrics
+    duration_ms INTEGER,
+    value DECIMAL(18,4),
+    
+    -- Flexible properties
+    properties JSONB,
+    
+    -- Metadata
+    sdk_version VARCHAR(32),
+    
+    -- Partitioning key
+    date DATE GENERATED ALWAYS AS (event_time::DATE) STORED
+)
+PARTITION BY RANGE (date);
+
+-- Create partitions for current and future dates
+CREATE TABLE events_2024_01_15 PARTITION OF events
+    FOR VALUES FROM ('2024-01-15') TO ('2024-01-16');
+
+CREATE TABLE events_2024_01_16 PARTITION OF events
+    FOR VALUES FROM ('2024-01-16') TO ('2024-01-17');
+-- ... create more partitions ...
+```
+
+**Indexes for Query Optimization:**
+
+```sql
+-- Primary index: tenant + time (most common query pattern)
+CREATE INDEX idx_events_tenant_time 
+ON events(tenant_id, event_time DESC);
+
+-- User-based queries
+CREATE INDEX idx_events_user 
+ON events(tenant_id, user_id, event_time DESC);
+
+-- Session-based queries
+CREATE INDEX idx_events_session 
+ON events(tenant_id, session_id, event_time DESC);
+
+-- Event type filtering
+CREATE INDEX idx_events_type 
+ON events(tenant_id, event_type, event_time DESC);
+
+-- Geographic queries
+CREATE INDEX idx_events_country 
+ON events(tenant_id, country, event_time DESC);
+
+-- JSONB properties (GIN index for flexible querying)
+CREATE INDEX idx_events_properties 
+ON events USING GIN(properties);
+
+-- Composite index for common filters
+CREATE INDEX idx_events_composite 
+ON events(tenant_id, event_type, country, event_time DESC);
+```
+
+**Aggregated Metrics Schema:**
+
+```sql
+-- 1-minute aggregations
+CREATE TABLE analytics.metrics_1min (
+    tenant_id INTEGER NOT NULL,
+    minute TIMESTAMP NOT NULL,
+    event_type VARCHAR(64) NOT NULL,
+    
+    -- Dimensions (what we group by)
+    country VARCHAR(2),
+    device_type VARCHAR(32),
+    page_url TEXT,
+    
+    -- Aggregated metrics
+    event_count BIGINT NOT NULL,
+    unique_users INTEGER NOT NULL,
+    unique_sessions INTEGER NOT NULL,
+    
+    -- Value aggregations
+    total_value DECIMAL(18,4),
+    avg_value DECIMAL(18,4),
+    min_value DECIMAL(18,4),
+    max_value DECIMAL(18,4),
+    
+    -- Duration aggregations
+    total_duration_ms BIGINT,
+    avg_duration_ms INTEGER,
+    p50_duration_ms INTEGER,
+    p95_duration_ms INTEGER,
+    p99_duration_ms INTEGER,
+    
+    -- Metadata
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    PRIMARY KEY (tenant_id, minute, event_type, country, device_type, page_url)
+)
+PARTITION BY RANGE (minute);
+
+-- Indexes for aggregated metrics
+CREATE INDEX idx_metrics_1min_lookup 
+ON metrics_1min(tenant_id, minute DESC, event_type);
+
+-- Hourly aggregations (less granular, longer retention)
+CREATE TABLE analytics.metrics_1hour (
+    tenant_id INTEGER NOT NULL,
+    hour TIMESTAMP NOT NULL,
+    event_type VARCHAR(64) NOT NULL,
+    country VARCHAR(2),
+    device_type VARCHAR(32),
+    
+    event_count BIGINT NOT NULL,
+    unique_users INTEGER NOT NULL,
+    total_value DECIMAL(18,4),
+    avg_duration_ms INTEGER,
+    p95_duration_ms INTEGER,
+    
+    PRIMARY KEY (tenant_id, hour, event_type, country, device_type)
+)
+PARTITION BY RANGE (hour);
+
+-- Daily aggregations (even less granular, very long retention)
+CREATE TABLE analytics.metrics_1day (
+    tenant_id INTEGER NOT NULL,
+    day DATE NOT NULL,
+    event_type VARCHAR(64) NOT NULL,
+    
+    event_count BIGINT NOT NULL,
+    unique_users INTEGER NOT NULL,
+    total_value DECIMAL(18,4),
+    
+    PRIMARY KEY (tenant_id, day, event_type)
+);
+```
+
+**Metadata Tables:**
+
+```sql
+-- Event type definitions
+CREATE TABLE analytics.event_types (
+    event_type_id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL,
+    event_type VARCHAR(64) NOT NULL,
+    display_name VARCHAR(128),
+    description TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(tenant_id, event_type)
+);
+
+-- User segments (for filtering)
+CREATE TABLE analytics.user_segments (
+    segment_id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL,
+    user_id VARCHAR(128) NOT NULL,
+    segment_name VARCHAR(64) NOT NULL,
+    segment_value VARCHAR(128),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_user_segments_lookup (tenant_id, user_id)
+);
+
+-- Dashboard definitions
+CREATE TABLE analytics.dashboards (
+    dashboard_id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL,
+    name VARCHAR(128) NOT NULL,
+    description TEXT,
+    config JSONB,
+    created_by INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+### 🔴 Advanced Level: ClickHouse Production Schema
+
+**ClickHouse Events Table (Complete):**
+
+```sql
+-- Local table (on each shard)
+CREATE TABLE analytics.events_local ON CLUSTER main_cluster
+(
+    -- Identifiers
+    tenant_id UInt32,
+    event_id UUID,
+    
+    -- User identity
+    user_id String,
+    session_id String,
+    anonymous_id String,
+    
+    -- Event data
+    event_type LowCardinality(String),
+    event_time DateTime64(3, 'UTC'),
+    ingestion_time DateTime64(3, 'UTC') DEFAULT now64(3),
+    
+    -- Page data
+    page_url String,
+    page_title String,
+    referrer String,
+    
+    -- User agent parsing
+    user_agent String,
+    device_type LowCardinality(String),
+    device_brand LowCardinality(String),
+    browser LowCardinality(String),
+    browser_version LowCardinality(String),
+    os LowCardinality(String),
+    os_version LowCardinality(String),
+    
+    -- Geographic data
+    ip_address IPv4,
+    country FixedString(2),
+    region String,
+    city String,
+    latitude Float32,
+    longitude Float32,
+    timezone LowCardinality(String),
+    
+    -- Metrics
+    duration_ms UInt32,
+    value Decimal(18, 4),
+    
+    -- Custom properties (flexible schema)
+    properties String,  -- JSON as string for flexibility
+    
+    -- Parsed property columns (for common properties)
+    prop_campaign_id LowCardinality(String),
+    prop_ab_test LowCardinality(String),
+    prop_product_id String,
+    
+    -- SDK metadata
+    sdk_name LowCardinality(String),
+    sdk_version LowCardinality(String),
+    
+    -- Computed columns (not stored, computed on read)
+    date Date MATERIALIZED toDate(event_time),
+    hour UInt8 MATERIALIZED toHour(event_time),
+    day_of_week UInt8 MATERIALIZED toDayOfWeek(event_time),
+    
+    -- Version for deduplication
+    _version UInt64 DEFAULT 1
+)
+ENGINE = ReplicatedReplacingMergeTree(
+    '/clickhouse/tables/{shard}/events_local',
+    '{replica}',
+    _version
+)
+PARTITION BY (tenant_id, toYYYYMMDD(event_time))
+ORDER BY (tenant_id, event_time, event_type, user_id)
+PRIMARY KEY (tenant_id, event_time)
+SAMPLE BY sipHash64(user_id)
+TTL 
+    event_time + INTERVAL 7 DAY TO VOLUME 'warm',
+    event_time + INTERVAL 90 DAY TO VOLUME 'cold',
+    event_time + INTERVAL 365 DAY DELETE
+SETTINGS 
+    index_granularity = 8192,
+    merge_with_ttl_timeout = 3600,
+    min_bytes_for_wide_part = 0;
+
+-- Skip indexes for better performance
+ALTER TABLE analytics.events_local 
+ADD INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 4;
+
+ALTER TABLE analytics.events_local 
+ADD INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 4;
+
+ALTER TABLE analytics.events_local 
+ADD INDEX idx_event_type event_type TYPE set(1000) GRANULARITY 1;
+
+ALTER TABLE analytics.events_local 
+ADD INDEX idx_country country TYPE set(500) GRANULARITY 1;
+
+ALTER TABLE analytics.events_local 
+ADD INDEX idx_page_url page_url TYPE tokenbf_v1(10240, 3, 0) GRANULARITY 4;
+
+-- Projection for user-centric queries
+ALTER TABLE analytics.events_local 
+ADD PROJECTION projection_by_user (
+    SELECT 
+        tenant_id,
+        user_id,
+        event_time,
+        event_type,
+        duration_ms,
+        value
+    ORDER BY (tenant_id, user_id, event_time)
+);
+
+-- Distributed table (query interface)
+CREATE TABLE analytics.events ON CLUSTER main_cluster
+AS analytics.events_local
+ENGINE = Distributed(
+    main_cluster,
+    analytics,
+    events_local,
+    sipHash64(user_id)
+);
+```
+
+**Materialized Views for Real-time Aggregations:**
+
+```sql
+-- 1-minute aggregation materialized view
+CREATE MATERIALIZED VIEW analytics.metrics_1min_mv 
+TO analytics.metrics_1min_local
+AS SELECT
+    tenant_id,
+    toStartOfMinute(event_time) AS minute,
+    event_type,
+    country,
+    device_type,
+    
+    -- Count aggregations
+    count() AS event_count,
+    uniq(user_id) AS unique_users,
+    uniq(session_id) AS unique_sessions,
+    
+    -- HyperLogLog states (for merging)
+    uniqState(user_id) AS unique_users_state,
+    uniqState(session_id) AS unique_sessions_state,
+    
+    -- Value aggregations
+    sum(value) AS total_value,
+    avg(value) AS avg_value,
+    min(value) AS min_value,
+    max(value) AS max_value,
+    
+    -- Duration aggregations
+    sum(duration_ms) AS total_duration_ms,
+    avg(duration_ms) AS avg_duration_ms,
+    
+    -- Percentile states (T-Digest)
+    quantileState(0.50)(duration_ms) AS p50_state,
+    quantileState(0.90)(duration_ms) AS p90_state,
+    quantileState(0.95)(duration_ms) AS p95_state,
+    quantileState(0.99)(duration_ms) AS p99_state,
+    
+    -- Standard deviation
+    stddevPop(duration_ms) AS stddev_duration_ms,
+    
+    -- Top-K aggregations
+    topK(10)(page_url) AS top_10_pages
+    
+FROM analytics.events_local
+GROUP BY
+    tenant_id,
+    minute,
+    event_type,
+    country,
+    device_type;
+
+-- Target table for materialized view
+CREATE TABLE analytics.metrics_1min_local ON CLUSTER main_cluster
+(
+    tenant_id UInt32,
+    minute DateTime,
+    event_type LowCardinality(String),
+    country FixedString(2),
+    device_type LowCardinality(String),
+    
+    event_count UInt64,
+    unique_users UInt64,
+    unique_sessions UInt64,
+    
+    -- States for distributed merging
+    unique_users_state AggregateFunction(uniq, String),
+    unique_sessions_state AggregateFunction(uniq, String),
+    
+    total_value Decimal(18, 4),
+    avg_value Decimal(18, 4),
+    min_value Decimal(18, 4),
+    max_value Decimal(18, 4),
+    
+    total_duration_ms UInt64,
+    avg_duration_ms UInt32,
+    
+    p50_state AggregateFunction(quantile(0.50), UInt32),
+    p90_state AggregateFunction(quantile(0.90), UInt32),
+    p95_state AggregateFunction(quantile(0.95), UInt32),
+    p99_state AggregateFunction(quantile(0.99), UInt32),
+    
+    stddev_duration_ms Float64,
+    
+    top_10_pages Array(String)
+)
+ENGINE = ReplicatedSummingMergeTree(
+    '/clickhouse/tables/{shard}/metrics_1min_local',
+    '{replica}'
+)
+PARTITION BY toYYYYMM(minute)
+ORDER BY (tenant_id, minute, event_type, country, device_type)
+TTL minute + INTERVAL 30 DAY DELETE
+SETTINGS index_granularity = 8192;
+
+-- Distributed table for queries
+CREATE TABLE analytics.metrics_1min ON CLUSTER main_cluster
+AS analytics.metrics_1min_local
+ENGINE = Distributed(
+    main_cluster,
+    analytics,
+    metrics_1min_local,
+    sipHash64(toString(tenant_id))
+);
+```
+
+**Session Table (Denormalized for Fast Queries):**
+
+```sql
+-- Sessions table (updated as events arrive)
+CREATE TABLE analytics.sessions_local ON CLUSTER main_cluster
+(
+    tenant_id UInt32,
+    session_id String,
+    user_id String,
+    
+    -- Session timing
+    session_start DateTime,
+    session_end DateTime,
+    session_duration_seconds UInt32,
+    
+    -- Session attributes
+    first_page_url String,
+    last_page_url String,
+    landing_referrer String,
+    country FixedString(2),
+    device_type LowCardinality(String),
+    
+    -- Session metrics
+    event_count UInt32,
+    page_view_count UInt32,
+    total_duration_ms UInt64,
+    
+    -- Conversion flags
+    has_signup UInt8,
+    has_purchase UInt8,
+    total_purchase_value Decimal(18, 4),
+    
+    -- Last update
+    updated_at DateTime DEFAULT now()
+)
+ENGINE = ReplicatedReplacingMergeTree(
+    '/clickhouse/tables/{shard}/sessions_local',
+    '{replica}',
+    updated_at
+)
+PARTITION BY toYYYYMM(session_start)
+ORDER BY (tenant_id, session_id)
+TTL session_start + INTERVAL 90 DAY DELETE;
+```
+
+**User Profile Table (Slowly Changing Dimension):**
+
+```sql
+-- User profiles (aggregated user data)
+CREATE TABLE analytics.user_profiles_local ON CLUSTER main_cluster
+(
+    tenant_id UInt32,
+    user_id String,
+    
+    -- First/last seen
+    first_seen DateTime,
+    last_seen DateTime,
+    
+    -- Activity metrics
+    total_events UInt64,
+    total_sessions UInt32,
+    total_duration_seconds UInt64,
+    
+    -- User attributes (latest values)
+    country FixedString(2),
+    device_type LowCardinality(String),
+    
+    -- Conversion data
+    has_signed_up UInt8,
+    has_purchased UInt8,
+    total_purchase_value Decimal(18, 4),
+    purchase_count UInt32,
+    
+    -- Engagement scores
+    engagement_score Float32,
+    
+    -- Last update
+    updated_at DateTime DEFAULT now()
+)
+ENGINE = ReplicatedReplacingMergeTree(
+    '/clickhouse/tables/{shard}/user_profiles_local',
+    '{replica}',
+    updated_at
+)
+ORDER BY (tenant_id, user_id)
+SETTINGS index_granularity = 8192;
+```
+
+**Partitioning Strategy:**
+
+```sql
+-- Automatic partition management
+-- Create partitions for next 7 days
+SELECT 
+    'CREATE TABLE IF NOT EXISTS events_' || 
+    formatDateTime(today() + number, '%Y_%m_%d') || 
+    ' PARTITION OF events FOR VALUES FROM (\'' ||
+    formatDateTime(today() + number, '%Y-%m-%d') || 
+    '\') TO (\'' ||
+    formatDateTime(today() + number + 1, '%Y-%m-%d') || 
+    '\');'
+FROM numbers(7);
+
+-- Drop old partitions (>7 days)
+ALTER TABLE analytics.events_local 
+DROP PARTITION '20240108';
+
+-- Detach partition for archival
+ALTER TABLE analytics.events_local 
+DETACH PARTITION '20240108';
+
+-- Archive to S3
+SELECT * FROM events_20240108
+INTO OUTFILE 's3://analytics-archive/events/2024/01/08/data.parquet'
+FORMAT Parquet;
+```
+
+**Company Examples:**
+
+**Cloudflare's Schema:**
+- 25+ PB in ClickHouse
+- Partition by day + customer_id
+- 90-day hot retention on SSD
+- Automatic tiering to S3
+- Skip indexes reduce query time by 10x
+
+**Uber's Event Schema:**
+- 100+ TB ingested daily
+- Multi-level partitioning (tenant + date)
+- Materialized views for all dashboards
+- Query response: P95 < 1 second
+- 10,000+ queries/second
+
+**Segment's Schema Design:**
+- Flexible schema (JSONB properties)
+- Automatic schema evolution
+- 2-year retention
+- Partition pruning reduces scans by 95%
+- Indexes tuned per customer
+
+---
