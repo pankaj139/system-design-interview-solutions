@@ -2,7 +2,7 @@
 
 **Repository Purpose:** This repository contains comprehensive, production-ready system design solutions for the most commonly asked interview questions at top tech companies. Each design follows a structured framework covering requirements, calculations, architecture, APIs, databases, trade-offs, and scalability considerations.
 
-**Last Updated:** October 2, 2025
+**Last Updated:** November 14, 2025
 
 ---
 
@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (25/52)
+## ✅ Completed Designs (22/52 - 42.3%)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -183,9 +183,9 @@ Highly available distributed key-value store for e-commerce with multi-datacente
 
 ### 8. [Pub/Sub Messaging System (like Kafka)](./pubsub_messaging_system_design.md)
 
-**Status:** ✅ Complete
+**Status:** ✅ Complete (Educational Template Format - 18,248 lines)
 
-Distributed message queue for event streaming across microservices with high throughput and durability.
+Distributed message queue for event streaming across microservices with high throughput and durability. **Now features comprehensive educational content with beginner/intermediate/advanced learning paths.**
 
 **Key Features:**
 
@@ -197,36 +197,17 @@ Distributed message queue for event streaming across microservices with high thr
 - Producer batching, compression (gzip, snappy, lz4, zstd), and partitioning
 - Back-pressure and flow control mechanisms
 - Compacted topics for changelog streams
+- **Educational Template:** Welcome section with 40+ term glossary, multi-level content (🟢🟡🔴), comprehensive resources
 
-**Scale:** 10M messages/sec, 100+ topics, 1000+ partitions, 30 days retention (10 PB), 10K+ producers/consumers
-
----
-
-### 9. [Social Media Platform System Design (Instagram/Twitter)](./social_media_platform_system_design.md)
-
-**Status:** ✅ Complete
-
-Large-scale social media platform with photo/video sharing, feed generation, and real-time engagement features.
-
-**Key Features:**
-
-- Hybrid fanout strategy (fan-out on write for regular users, fan-out on read for celebrities)
-- Multi-database approach (PostgreSQL, Cassandra, Neo4j, Redis, Elasticsearch, ClickHouse)
-- Media processing pipeline with 100K workers (FFmpeg-based)
-- ML-based feed ranking algorithm with personalization
-- Real-time updates via WebSocket and Redis Pub/Sub
-- Comprehensive API design (30+ endpoints)
-- Celebrity problem solution for accounts with 100M+ followers
-
-**Scale:** 500M DAU, 200M posts/day, 10B feed impressions/day, 99.9% uptime
+**Scale:** 10M messages/sec, 100+ topics, 1000+ partitions, 30 days retention (78 PB with replication), 10K+ producers/consumers
 
 ---
 
-### 10. [Chat Application System Design (WhatsApp)](./chat_application_system_design.md)
+### 9. [Chat Application System Design (WhatsApp/Signal)](./chat_application_system_design.md)
 
-**Status:** ✅ Complete
+**Status:** ✅ Complete (Educational Template Format)
 
-Real-time messaging application with end-to-end encryption, multimedia support, and global scale.
+Real-time messaging application with end-to-end encryption, multimedia support, and global scale. **Now features comprehensive educational content with beginner/intermediate/advanced learning paths.**
 
 **Key Features:**
 
@@ -238,16 +219,17 @@ Real-time messaging application with end-to-end encryption, multimedia support, 
 - Hot/warm/cold storage strategy for message retention
 - Push notifications for offline users
 - Cross-platform support (iOS, Android, Web)
+- **Educational Template:** Welcome section, multi-level content (🟢🟡🔴), Putting It All Together
 
 **Scale:** 500M DAU, 50B messages/day, <100ms delivery latency, 99.9% delivery guarantee
 
 ---
 
-### 11. [Text Storage Service System Design (Pastebin)](./text_storage_service_system_design.md)
+### 10. [Text Storage Service System Design (Pastebin)](./text_storage_service_system_design.md)
 
-**Status:** ✅ Complete
+**Status:** ✅ Complete (Educational Template Format)
 
-Text snippet storage and sharing service with expiration, syntax highlighting, and access control.
+Text snippet storage and sharing service with expiration, syntax highlighting, and access control. **Now features comprehensive educational content with beginner/intermediate/advanced learning paths.**
 
 **Key Features:**
 
@@ -259,53 +241,15 @@ Text snippet storage and sharing service with expiration, syntax highlighting, a
 - Private/public/unlisted paste support with access keys
 - Rate limiting with token bucket algorithm
 - Geographic distribution with multi-region deployment
+- **Educational Template:** Welcome section, multi-level content (🟢🟡🔴), Putting It All Together
 
 **Scale:** 10M pastes/day, 1B reads/day, <100ms creation, <50ms retrieval, 100K concurrent users
 
 ---
 
-### 12. [File Storage Service System Design (Dropbox)](./file_storage_system_design.md)
+### 11. [File Storage Service System Design (Dropbox)](./file_storage_system_design.md)
 
-**Status:** ✅ Complete
-
-Cloud file storage and synchronization service with real-time sync, versioning, and conflict resolution.
-
-**Key Features:**
-
-- File chunking (4 MB) with deduplication for storage efficiency
-- Delta sync algorithm for bandwidth optimization (90% reduction)
-- Hybrid database architecture (PostgreSQL + Cassandra)
-- Version history (30 days) with efficient storage
-- Conflict detection and resolution strategies
-- Client-side encryption for end-to-end privacy
-- Real-time sync via WebSocket with <1 second latency
-- File sharing with granular permissions
-- S3 integration with multi-tier storage optimization
-
-**Scale:** 100M users, 100 PB data, <1s sync latency, 99.9% uptime
-
-### 13. [Newsfeed System Design (Facebook/LinkedIn Feed)](./newsfeed_system_design.md)
-
-**Status:** ✅ Complete
-
-Personalized newsfeed system for social media platforms with real-time updates and ML-based ranking.
-
-**Key Features:**
-
-- Hybrid fan-out strategy (write vs read optimization for different user tiers)
-- ML-powered personalization with engagement prediction models
-- Multi-level caching (CDN, Redis, database) for sub-300ms load times
-- Real-time updates via WebSocket with polling fallback
-- Celebrity user handling (>1M followers) with specialized fan-out
-- Comprehensive pagination with cursor-based infinite scroll
-- Privacy filtering and content moderation pipeline
-- Geographic distribution with multi-region deployment
-
-**Scale:** 300M DAU, 100M posts/day, <300ms feed load time, 99.9% uptime
-
-### 13. [File Storage Service System Design (Dropbox)](./file_storage_system_design.md)
-
-**Status:** ✅ Complete
+**Status:** ✅ Complete (Educational Template Format)
 
 Cloud file storage and synchronization service with real-time sync, versioning, and conflict resolution.
 
@@ -323,7 +267,9 @@ Cloud file storage and synchronization service with real-time sync, versioning, 
 
 **Scale:** 100M users, 100 PB data, <1s sync latency, 99.9% uptime
 
-### 14. [Google Photos System Design](./google_photos_system_design.md)
+---
+
+### 12. [Google Photos System Design](./google_photos_system_design.md)
 
 **Status:** ✅ Complete
 
@@ -392,7 +338,7 @@ Cloud-based photo storage and management platform with ML-powered features.
 
 ### On-Demand Services
 
-- [ ] **Design a ride-sharing service** (like Uber)
+- [x] **Design a ride-sharing service** (like Uber) — 🚧 Template Conversion Required
 - [ ] **Design a food delivery system** (like Swiggy/Zomato)
 - [ ] **Design a registration system for a restaurant**
 - [ ] **Design a system for finding shortest delivery routes**
@@ -430,45 +376,151 @@ Cloud-based photo storage and management platform with ML-powered features.
 
 ---
 
-### 14. [Distributed Stream Processing System (Flink/Storm)](./distributed_stream_processing_system_design.md)
+### 13. [Proximity Service (Yelp)](./proximity_service_system_design.md)
 
-**Status:** ✅ Complete
+**Status:** ✅ Complete (Educational Template Format)
 
-Real-time stream processing platform for fraud detection with exactly-once semantics, complex event processing, and fault tolerance.
-
-**Key Features:**
-
-- Exactly-once processing guarantees with two-phase commit
-- Stateful operations with distributed state management (RocksDB)
-- Multiple windowing strategies (tumbling, sliding, session)
-- Watermark-based late event handling
-- Complex Event Processing (CEP) with pattern matching
-- Automatic checkpointing and fault recovery
-- Dynamic scaling and backpressure handling
-- Stream joins and aggregations
-
-**Scale:** 1M events/sec, 1TB state, 500 task managers, <1s latency (p99)
-
-### 15. [Ride-Sharing Service (Uber)](./ride_sharing_system_design.md)
-
-**Status:** ✅ Complete
-
-Real-time ride-sharing platform with geospatial driver matching and dynamic pricing.
+Location-based business search service with advanced geospatial indexing and ML-powered ranking. **Now features comprehensive educational content with beginner/intermediate/advanced learning paths.**
 
 **Key Features:**
 
-- Geospatial driver matching using Redis GeoHash
-- Real-time location tracking with 1-second updates
-- Dynamic pricing (surge) algorithm
-- WebSocket-based trip state management
-- Payment processing with commission calculation
-- Comprehensive API design (15+ endpoints)
+- Hybrid geospatial indexing (Geohash + PostGIS R-tree + QuadTree)
+- Multi-tier geospatial caching with Redis GEOADD (95% hit rate)
+- ML-powered ranking and personalization (collaborative filtering + GBT + neural networks)
+- High-density area optimization (handles 10K+ businesses/km²)
+- Database sharding by geohash prefix
+- Near real-time Elasticsearch indexing with CDC pipeline
+- Sub-100ms response time for complex geospatial queries
+- Advanced filtering (category, rating, price, hours, features)
+- **Educational Template:** Welcome section, multi-level content (🟢🟡🔴), Putting It All Together
 
-**Scale:** 10M daily rides, 500K active drivers, 100+ cities globally
+**Scale:** 100M businesses, 500M users, 50K QPS, 100M searches/day, 99.99% availability
 
-### 16. [Music Streaming Service (Spotify)](./music_streaming_system_design.md)
+---
 
-**Status:** ✅ Complete
+### 14. [Social Media Platform System Design](./social_media_platform_system_design.md)
+
+**Status:** ✅ Complete (Educational Template Format - 6,567 lines)
+
+Large-scale social media platform with photo/video sharing, feed generation, and real-time engagement features. **Now features comprehensive educational content with beginner/intermediate/advanced learning paths.**
+
+**Key Features:**
+
+- Hybrid fan-out strategy (write for regular users, read for celebrities)
+- Multi-database architecture (PostgreSQL, Cassandra, Neo4j, Redis, Elasticsearch, ClickHouse)
+- Media processing pipeline with 100K workers (FFmpeg-based)
+- ML-powered feed ranking algorithms with personalization
+- Real-time updates via WebSocket and Redis Pub/Sub (100M+ connections)
+- CDN distribution for global low latency
+- Celebrity problem solution for accounts with 100M+ followers
+- Comprehensive API design (30+ endpoints)
+- **Educational Template:** Welcome section, multi-level content (🟢🟡🔴), Putting It All Together, Resources, Congratulations
+
+**Scale:** 500M DAU, 200M posts/day, 10B feed impressions/day, 12 exabytes storage, 99.9% uptime
+
+**Reading Time:** 🟢 10-12h (full depth) | 🟡 7-9h (focused) | 🔴 5-6h (advanced topics)
+
+---
+
+### 15. [Newsfeed System Design](./newsfeed_system_design.md)
+
+**Status:** ✅ Complete (Educational Template Format - 6,608 lines)
+
+Personalized newsfeed system for social media platforms with real-time updates and ML-based ranking. **Now features comprehensive educational content with beginner/intermediate/advanced learning paths.**
+
+**Key Features:**
+
+- Hybrid fan-out strategy (write for <10K followers, read for >10K followers)
+- ML-powered ranking with XGBoost (200+ features, daily retraining)
+- Multi-tier caching (CDN 99%, Redis 95%, DB 80%) for <50ms latency
+- Real-time updates via WebSocket with 50M concurrent connections
+- Redis Pub/Sub for instant notifications
+- Database sharding (64 shards with consistent hashing)
+- Horizontal scaling architecture (20,000+ servers)
+- Multi-region deployment (US, Europe, Asia, South America)
+- **Educational Template:** 11 comprehensive sections (🟢🟡🔴), 22+ interview questions, 11 practice exercises
+
+**Scale:** 300M DAU, 100M posts/day, <300ms feed load time, 99.9% uptime, 35K QPS average (105K peak)
+
+**Reading Time:** 🟢 12-15h (full depth) | 🟡 8-10h (focused) | 🔴 5-7h (advanced topics)
+
+---
+
+### 16. [Distributed Stream Processing System (Flink/Storm)](./distributed_stream_processing_system_design.md)
+
+**Status:** ✅ Complete (Educational Template Format - 10,052 lines)
+
+Real-time stream processing platform for fraud detection with exactly-once semantics, complex event processing, and fault tolerance. **Now features comprehensive educational content with beginner/intermediate/advanced learning paths.**
+
+**Key Features:**
+
+- Exactly-once processing guarantees with two-phase commit and Chandy-Lamport checkpointing
+- Stateful operations with distributed state management (RocksDB, 1TB state)
+- Multiple windowing strategies (tumbling, sliding, session, global) with watermark-based late event handling
+- Complex Event Processing (CEP) with pattern matching (MATCH_RECOGNIZE, WITHIN clause)
+- Automatic checkpointing (every 5 minutes) and fault recovery (2-minute RTO)
+- Dynamic scaling (100 → 200 task managers) and backpressure handling
+- Stream joins (temporal joins, windowed joins, interval joins) and aggregations
+- Kafka integration (64 partitions, 3x replication, 7-day retention)
+- Multi-region deployment (US-East primary, US-West standby) with automated failover
+- **Educational Template:** 15 comprehensive sections (🟢🟡🔴), 100+ interview questions, 15+ practice exercises
+
+**Scale:** 1M events/sec (180K average), 1TB state, 100 task managers, <100ms P99 latency, 99.95% uptime, $92K/month infrastructure
+
+**Reading Time:** 🟢 20-24h (full depth) | 🟡 12-16h (focused) | 🔴 8-12h (advanced review)
+
+---
+
+### 17. [Ride-Sharing Service (Uber)](./ride_sharing_system_design.md)
+
+**Status:** ✅ Complete (Educational Template Format - 7,052 lines)  
+**Completion Date:** November 14, 2025  
+**Template Compliant:** ✅ Yes
+
+Real-time ride-sharing platform with geospatial driver matching, dynamic pricing, and distributed transactions. **Now features comprehensive educational content with beginner/intermediate/advanced learning paths.**
+
+**Key Features:**
+
+- **Geospatial Matching:** Redis GEORADIUS with Geohash encoding (precision 5-7 characters), <100ms matching queries
+- **Real-Time Location Tracking:** WebSocket architecture supporting 500K concurrent connections, 1-second GPS updates, sticky sessions
+- **Dynamic Pricing (Surge):** Supply-demand algorithm with zone-based surge (1x-5x multiplier), ML-based predictive pricing
+- **Trip State Machine:** 8-state FSM (REQUESTED → COMPLETED), cancellation fees, race condition handling with database-level locking
+- **Payment Processing:** Stripe integration, idempotency keys, distributed sagas, 25/75 commission split
+- **Database Design:** PostgreSQL with 64 shards (by rider_id), Cassandra for location history (500K writes/sec), tiered storage (hot/warm/cold)
+- **API Design:** 15+ RESTful endpoints, WebSocket APIs, rate limiting (100 req/min), JWT authentication
+- **Scalability:** Horizontal scaling, 80% cache hit ratio (Redis), CDN for static assets, auto-scaling policies
+- **Multi-Region Deployment:** Active-active setup, cross-region failover, service mesh (Istio), chaos engineering
+- **Interview Framework:** Step-by-step approach for "Design Uber" interviews with 45-minute timeline
+
+**Educational Content:**
+
+- **12 comprehensive sections** covering requirements, capacity planning, architecture, geospatial matching, location tracking, dynamic pricing, state machines, payments, database design, API design, scalability, and integration
+- **Multi-level learning:** Beginner analogies (GPS treasure hunt), Intermediate production patterns, Advanced distributed systems (CAP theorem, consistency models)
+- **Interview questions:** 20+ HLD interview questions with detailed answer frameworks
+- **Practice exercises:** Design food delivery, package delivery, ride pooling, flight booking systems
+- **Real-world insights:** Uber's architecture evolution, H3 hexagonal grid, Schemaless datastore
+- **Resources:** Books (DDIA, System Design Interview), videos (QCon talks), Uber Engineering blog posts, academic papers
+
+**Scale:** 10M rides/day (278 rides/sec peak), 500K active drivers, 50M users, 500K location updates/sec, 1.8 PB data (3-tier storage)
+
+**Performance Metrics:**
+- Matching: <5 seconds (P99)
+- Location updates: <100ms (P99)
+- Payment processing: <3 seconds (P99)
+- API latency: <200ms (P99)
+- Uptime: 99.99% (52 min/year downtime)
+
+**Cost:** $3.13M/year infrastructure ($0.87 per ride), 76% profit margin
+
+**Reading Time:** 🟢 8-10h (full depth) | 🟡 5-7h (focused) | 🔴 3-5h (advanced review)
+
+---
+
+## 🚧 In Progress (Template Conversion Required)
+
+### 1. [Music Streaming Service (Spotify)](./music_streaming_system_design.md)
+
+**Status:** 🚧 Template Conversion Required
 
 Global music streaming platform with personalized recommendations and cross-device sync.
 
@@ -483,97 +535,9 @@ Global music streaming platform with personalized recommendations and cross-devi
 
 **Scale:** 500M users, 100M DAU, 100M songs catalog, 50M streams/day
 
-### 17. [Web Crawler (Googlebot)](./web_crawler_system_design.md)
+### 2. [E-commerce Website (Amazon)](./ecommerce_website_system_design.md)
 
-**Status:** ✅ Complete
-
-Distributed web crawler for indexing 10B web pages with politeness policies and fault tolerance.
-
-**Key Features:**
-
-- Distributed master-worker architecture across 100+ machines
-- URL frontier with priority queues and domain-based scheduling
-- Robots.txt compliance and politeness policies
-- Bloom filter deduplication and URL normalization
-- Content parsing with BeautifulSoup and link extraction
-- Fault tolerance with retry mechanisms and circuit breaker
-- Comprehensive API design (15+ endpoints)
-
-**Scale:** 10B web pages, 1000 pages/second, 100+ crawler machines, 1M+ domains
-
-### 18. [Autocomplete/Typeahead System (Principal Engineer Level)](./autocomplete_system_design.md)
-
-**Status:** ✅ Complete
-
-Production-grade autocomplete system with advanced ML personalization and real-time trending detection.
-
-**Key Features:**
-
-- Advanced Trie implementation (Double-Array Trie with compression)
-- ML-powered personalization engine (collaborative filtering + neural networks)
-- Real-time trending detection with statistical significance testing
-- Multi-tier caching with predictive preloading
-- Comprehensive A/B testing framework for algorithm optimization
-- Advanced database optimization (sharding, partitioning, async writes)
-- Cross-region synchronization with conflict resolution
-- Sub-50ms p95 response time with 99.99% availability
-
-**Scale:** 100M users, 100K QPS, 10M phrases, 50+ languages, 99.99% availability
-
-### 19. [Proximity Service (Yelp)](./proximity_service_system_design.md)
-
-**Status:** ✅ Complete
-
-Location-based business search service with advanced geospatial indexing and ML-powered ranking.
-
-**Key Features:**
-
-- Hybrid geospatial indexing (Geohash + PostGIS R-tree + QuadTree)
-- Multi-tier geospatial caching with Redis GEOADD (95% hit rate)
-- ML-powered ranking and personalization (collaborative filtering + GBT + neural networks)
-- High-density area optimization (handles 10K+ businesses/km²)
-- Database sharding by geohash prefix
-- Near real-time Elasticsearch indexing with CDC pipeline
-- Sub-100ms response time for complex geospatial queries
-- Advanced filtering (category, rating, price, hours, features)
-
-**Scale:** 100M businesses, 500M users, 50K QPS, 100M searches/day, 99.99% availability
-
-### 20. [Video Streaming Service (Netflix/YouTube)](./video_streaming_system_design.md)
-
-**Status:** ✅ Complete
-
-Scalable video streaming platform with adaptive bitrate streaming and global CDN distribution.
-
-**Key Features:**
-
-- Adaptive bitrate streaming with ML-powered quality selection
-- GPU-accelerated transcoding pipeline (NVIDIA T4)
-- Global CDN with 99% cache hit ratio
-- Real-time analytics with Kafka + Flink + ClickHouse
-- Progressive transcoding strategy and multi-origin distribution
-
-**Scale:** 100M concurrent viewers, 100 PB storage, 50M uploads/day, 10B views/day, 300 Tbps peak bandwidth
-
-### 21. [Search Engine (Google)](./search_engine_system_design.md)
-
-**Status:** ✅ Complete
-
-Distributed search engine with inverted index and ML-powered ranking.
-
-**Key Features:**
-
-- Inverted index with advanced optimizations (delta encoding, skip lists)
-- ML-powered ranking with LambdaMART (200+ features)
-- Distributed PageRank calculation with Apache Spark GraphX
-- Real-time index updates with Lambda architecture
-- Sub-200ms p99 latency
-
-**Scale:** 10B pages indexed, 100K QPS, 1.7 PB storage, 10M updates/day
-
-### 22. [E-commerce Website (Amazon)](./ecommerce_website_system_design.md)
-
-**Status:** ✅ Complete
+**Status:** 🚧 Template Conversion Required
 
 Full-featured e-commerce platform with inventory management, payment processing, and ML recommendations.
 
@@ -589,9 +553,9 @@ Full-featured e-commerce platform with inventory management, payment processing,
 
 **Scale:** 500M users, 100M products, 1M orders/day (10M during flash sales), 263 TB storage
 
-### 23. [Payment Gateway](./payment_gateway_system_design.md)
+### 3. [Payment Gateway](./payment_gateway_system_design.md)
 
-**Status:** ✅ Complete
+**Status:** 🚧 Template Conversion Required
 
 High-availability payment processing system with fraud detection and PCI DSS compliance.
 
@@ -610,7 +574,7 @@ High-availability payment processing system with fraud detection and PCI DSS com
 
 ---
 
-## 📋 Upcoming Designs (28)
+## 📋 Upcoming Designs (27)
 
 ### Core Infrastructure & Storage
 
@@ -857,12 +821,13 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 25/52 (48.1%)
+**Completion Status:** 22/52 (42.3%) - Educational Template Compliant
 
-**Last Design Completed:** Google Photos System Design
+**Last Design Completed:** Ride-Sharing Service System Design (Uber) - November 14, 2025
 
-**Next Up:** Notification System, Web Crawler
-**Current Work:** Principal Engineer Level designs
+**Next Up:** Music Streaming Service System Design (Spotify) (Template Conversion)
+**Current Work:** Converting existing designs to educational template format
+**Milestone Achievement:** 🎉 22 Designs Complete! (Q1 2026 goal: 25 designs - 88% progress towards milestone)
 
 ---
 
