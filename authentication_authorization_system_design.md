@@ -10103,3 +10103,1687 @@ Scale Numbers (2024):
 - Design token binding to prevent use of stolen tokens from different locations
 
 ---
+
+## Section 9: Multi-Factor Authentication (MFA)
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+
+- Understand what Multi-Factor Authentication is and why it's critical for modern security
+- Design MFA enrollment and verification flows for different factor types
+- Implement TOTP (Time-based One-Time Password) authentication
+- Compare and choose between different MFA methods (SMS, email, push, hardware tokens, biometric)
+- Handle MFA recovery scenarios when users lose access to their devices
+- Design risk-based (adaptive) authentication systems
+- Implement "remember this device" functionality securely
+- Build step-up authentication for sensitive operations
+
+### Why This Matters
+
+**The Real-World Impact:**
+
+According to Microsoft's 2023 security report, **99.9% of compromised accounts did NOT have MFA enabled**. When Google mandated MFA for all employee accounts, account takeovers dropped by **50%** within the first year. MFA is the single most effective security control you can implement!
+
+Here's why MFA is critical:
+
+- **Password breaches are inevitable**: 15 billion stolen credentials are available on the dark web
+- **Phishing is everywhere**: 90% of breaches start with phishing attacks that steal passwords
+- **Credential stuffing attacks**: Attackers try millions of stolen username/password combinations
+- **Regulatory requirements**: PCI DSS, HIPAA, SOC 2, and GDPR increasingly require MFA
+- **Zero Trust architecture**: Modern security assumes "breach by default" - MFA is foundational
+
+Think about it: Your password might be "MySecureP@ssw0rd123!", but if it's leaked in a data breach, attackers have it. With MFA, they also need your phone, fingerprint, or hardware key - which they DON'T have!
+
+This section teaches you how to design production-grade MFA systems that balance security with user experience, just like Auth0, Okta, and AWS Cognito do.
+
+---
+
+### 🟢 For Beginners: Understanding MFA
+
+#### The Bank Vault Analogy
+
+Imagine a high-security bank vault:
+
+```text
+Single-Factor Security (Password Only):
+├─ One lock on the vault
+├─ Anyone with the key can enter
+├─ Problem: If key is copied, vault compromised!
+└─ Like: Password-only login
+
+Multi-Factor Security (MFA):
+├─ Vault door has THREE locks:
+│   ├─ Lock 1: Physical key (something you have)
+│   ├─ Lock 2: Combination code (something you know)
+│   └─ Lock 3: Fingerprint scanner (something you are)
+├─ ALL THREE needed to open vault
+├─ Security: Even if one is stolen, vault stays locked
+└─ Like: Password + Phone + Fingerprint
+
+Bank's Security Logic:
+"We want to be SURE it's really you. One proof isn't enough!"
+```
+
+#### The Three Types of Authentication Factors
+
+```text
+Factor 1: SOMETHING YOU KNOW (Knowledge)
+├─ Password
+├─ PIN code
+├─ Security question answer
+└─ Pattern lock
+
+Factor 2: SOMETHING YOU HAVE (Possession)
+├─ Phone (SMS codes)
+├─ Authenticator app
+├─ Hardware security key (YubiKey)
+├─ Smart card
+└─ Email access
+
+Factor 3: SOMETHING YOU ARE (Inherence)
+├─ Fingerprint
+├─ Face recognition
+├─ Voice recognition
+└─ Retina scan
+
+Multi-Factor = Use factors from DIFFERENT categories!
+✅ Password + Phone = MFA (knowledge + possession)
+✅ Password + Fingerprint = MFA (knowledge + inherence)
+❌ Password + Security Question = NOT MFA (both knowledge!)
+```
+
+#### How MFA Works: Simple Flow
+
+Let me walk you through what happens when you log in with MFA:
+
+```text
+Step 1: Enter Username & Password
+├─ You type: username@email.com + password
+├─ System checks: Password correct? ✓
+└─ But wait! System says: "We need to verify it's really you"
+
+Step 2: System Sends Verification Code
+├─ System generates: Random 6-digit code (e.g., 482751)
+├─ Sends code to: Your phone (SMS) or authenticator app
+├─ Code expires in: 5 minutes
+└─ Attacker doesn't have your phone → Can't get code!
+
+Step 3: Enter Verification Code
+├─ You receive code: 482751
+├─ You enter code: 482751
+├─ System checks: Code correct? ✓
+└─ System says: "Success! It's really you!"
+
+Step 4: You're Logged In
+├─ System creates secure session
+├─ You can access your account
+└─ Attacker can't log in (even with your password!)
+
+Why This Works:
+└─ Attacker needs BOTH:
+    ├─ Your password (something you know)
+    └─ Your phone (something you have)
+    └─ Having just ONE isn't enough!
+```
+
+#### Common MFA Methods Explained
+
+**Method 1: SMS Text Message**
+
+```text
+How It Works:
+1. Enter password
+2. Receive: "Your code is 582934" via SMS
+3. Enter: 582934
+4. Logged in!
+
+Pros:
+✅ Everyone has a phone
+✅ Easy to understand
+✅ No app installation needed
+
+Cons:
+❌ SIM swapping attacks (attacker gets your number)
+❌ SMS interception
+❌ Doesn't work without cell signal
+❌ Costs money (SMS fees)
+
+When To Use: Basic security, low-risk applications
+When NOT To Use: Banking, healthcare, high-security systems
+```
+
+**Method 2: Authenticator App (Google Authenticator, Authy)**
+
+```text
+How It Works:
+1. Setup: Scan QR code with app
+2. App generates: New 6-digit code every 30 seconds
+   ├─ 14:30:00 → Code: 482751
+   ├─ 14:30:30 → Code: 193847 (new!)
+   └─ 14:31:00 → Code: 774521 (new again!)
+3. Enter current code: 193847
+4. Logged in!
+
+Magic Behind It:
+├─ Your phone + Server share SECRET KEY (from QR code)
+├─ Both calculate same code using:
+│   └─ SECRET KEY + CURRENT TIME → CODE
+├─ Codes match? → You're verified!
+└─ No internet needed! (Time-based math)
+
+Pros:
+✅ Works offline (no cell signal needed)
+✅ No SMS costs
+✅ Can't be SIM-swapped
+✅ Industry standard (RFC 6238)
+
+Cons:
+❌ Requires app installation
+❌ Lost phone = Lost access (need backup codes)
+❌ Time sync required
+
+When To Use: Recommended for most applications!
+Real Examples: GitHub, AWS, Google, Microsoft
+```
+
+**Method 3: Email Verification**
+
+```text
+How It Works:
+1. Enter password
+2. Check email: "Click this link to verify" or "Use code: 482751"
+3. Click link or enter code
+4. Logged in!
+
+Pros:
+✅ Everyone has email
+✅ Easy setup
+✅ Can include detailed security info
+
+Cons:
+❌ Weak if email is compromised
+❌ Requires internet
+❌ Delayed delivery sometimes
+
+When To Use: Secondary verification, password resets
+When NOT To Use: Primary MFA (email often less secure than main account)
+```
+
+**Method 4: Hardware Security Key (YubiKey)**
+
+```text
+How It Works:
+1. Enter password
+2. Insert USB key (or tap NFC)
+3. Press button on key
+4. Logged in!
+
+Behind The Scenes:
+├─ Key contains cryptographic chip
+├─ Server sends challenge: "Prove you have the key"
+├─ Key signs challenge (can't be forged)
+└─ Server verifies signature → Authenticated!
+
+Pros:
+✅ Most secure method available
+✅ Phishing-resistant (cryptographic proof)
+✅ Can't be intercepted or copied
+✅ Supports multiple accounts
+
+Cons:
+❌ Costs $25-$60 per key
+❌ Can be lost/damaged
+❌ Requires physical possession
+
+When To Use: High-security environments, privileged access
+Real Examples: Google employee access, Facebook, government
+```
+
+#### MFA Setup Flow (First-Time Enrollment)
+
+```text
+User's Journey to Enable MFA:
+
+Step 1: User Decides to Enable MFA
+├─ Logs in with username/password
+├─ Goes to: Security Settings
+└─ Clicks: "Enable Two-Factor Authentication"
+
+Step 2: Choose MFA Method
+├─ System shows options:
+│   ├─ 📱 Authenticator App (recommended)
+│   ├─ 📧 Email Code
+│   ├─ 💬 SMS Text Message
+│   └─ 🔑 Hardware Security Key
+└─ User selects: Authenticator App
+
+Step 3: Setup Authenticator App
+├─ System displays:
+│   ├─ QR Code (contains secret key)
+│   └─ Manual entry code: "JBSWY3DPEHPK3PXP"
+├─ User opens: Google Authenticator app
+├─ User scans: QR code
+├─ App displays: 6-digit code (e.g., 482751)
+└─ Secret key now shared between app and server!
+
+Step 4: Verify It Works
+├─ System asks: "Enter code from app to confirm"
+├─ User enters: 482751
+├─ System checks: Code valid? ✓
+└─ System says: "MFA enabled successfully!"
+
+Step 5: Save Backup Codes
+├─ System generates 10 backup codes:
+│   ├─ 4827-5193
+│   ├─ 8473-9201
+│   ├─ 7392-1847
+│   └─ ... (7 more)
+├─ System warns: "Save these! You'll need them if you lose your phone"
+└─ User saves codes in safe place
+
+Step 6: Done!
+├─ MFA now required on every login
+├─ Account security increased by 99.9%!
+└─ User protected against password theft
+```
+
+---
+
+### 🟡 For Intermediate: MFA Implementation and Flows
+
+#### TOTP Algorithm Deep Dive (RFC 6238)
+
+TOTP (Time-based One-Time Password) is the industry standard for authenticator apps. Let's understand how it works:
+
+```text
+Mathematical Foundation:
+
+TOTP = HOTP(K, T)
+
+Where:
+├─ K = Shared secret key (from QR code)
+├─ T = Current time counter = floor(Unix timestamp / 30)
+├─ HOTP = HMAC-based OTP (RFC 4226)
+└─ Output = 6-digit code
+
+Step-by-Step Calculation:
+
+1. Time Counter:
+   ├─ Current Unix timestamp: 1737639000 (seconds since 1970)
+   ├─ Time step: 30 seconds
+   └─ T = floor(1737639000 / 30) = 57921300
+
+2. HMAC-SHA1:
+   ├─ Key: K (shared secret)
+   ├─ Message: T (time counter as 8-byte big-endian)
+   └─ HMAC = HMAC-SHA1(K, T)
+       └─ Result: 20-byte hash (e.g., 1f8698690e02ca16618550ef7f19da8e945b555a)
+
+3. Dynamic Truncation:
+   ├─ Take last byte: 0x5a
+   ├─ Use lower 4 bits as offset: 0x5a & 0x0f = 0x0a (10)
+   ├─ Extract 4 bytes starting at offset 10:
+   │   └─ Bytes [10-13]: ef7f19da
+   └─ Convert to 31-bit integer: 4023486938
+
+4. Generate 6-digit code:
+   ├─ Take modulo 10^6: 4023486938 % 1000000 = 486938
+   └─ Final code: 486938
+
+Time Window Synchronization:
+├─ Codes change every 30 seconds
+├─ Accept codes from: T-1, T, T+1 (90-second window)
+├─ Prevents: Clock drift issues
+└─ Balance: Security vs usability
+```
+
+**Interview Framework: Explain TOTP Algorithm**
+
+```text
+Q: "How does Google Authenticator generate codes without internet?"
+
+Your Answer:
+"TOTP uses shared secret + time synchronization. During setup, 
+both phone and server store the same secret key. Every 30 seconds, 
+both independently calculate: HMAC(secret, current_time_block). 
+Because they use the same inputs, they generate matching codes. 
+No communication needed after setup!"
+
+Key Advantages:
+├─ Offline operation (no network required)
+├─ Standardized (RFC 6238 - works across all apps)
+├─ Cryptographically secure
+└─ Resistant to replay attacks (codes expire)
+```
+
+#### MFA Enrollment Flow (Production Implementation)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant AuthAPI
+    participant Database
+    participant QRCodeGen
+
+    User->>Frontend: Click "Enable MFA"
+    Frontend->>AuthAPI: POST /api/v1/mfa/enroll/start
+    AuthAPI->>AuthAPI: Generate secret key (base32, 32 chars)
+    AuthAPI->>Database: Store secret (encrypted, status: PENDING)
+    AuthAPI->>QRCodeGen: Generate QR code
+    QRCodeGen-->>AuthAPI: QR code image (base64)
+    AuthAPI->>AuthAPI: Generate 10 backup codes
+    AuthAPI->>Database: Store backup codes (hashed)
+    AuthAPI-->>Frontend: {secret, qr_code, backup_codes}
+    Frontend-->>User: Display QR code + backup codes
+    
+    User->>User: Scan QR with authenticator app
+    User->>Frontend: Enter verification code
+    Frontend->>AuthAPI: POST /api/v1/mfa/enroll/verify<br/>{code: "482751"}
+    AuthAPI->>AuthAPI: Validate code: TOTP(secret, current_time)
+    
+    alt Code Valid
+        AuthAPI->>Database: Update status: ACTIVE
+        AuthAPI-->>Frontend: {success: true, message: "MFA enabled"}
+        Frontend-->>User: "MFA activated! Save backup codes"
+    else Code Invalid
+        AuthAPI-->>Frontend: {error: "Invalid code, try again"}
+        Frontend-->>User: "Code incorrect, please retry"
+    end
+```
+
+**Enrollment API Design:**
+
+```json
+POST /api/v1/mfa/enroll/start
+Authorization: Bearer <access_token>
+
+Response:
+{
+  "mfa_enrollment_id": "enroll_k3j2h1k3j2h1",
+  "secret": "JBSWY3DPEHPK3PXP",
+  "qr_code_data_url": "data:image/png;base64,iVBORw0KG...",
+  "backup_codes": [
+    "4827-5193",
+    "8473-9201",
+    "7392-1847",
+    "5629-3847",
+    "9182-7463",
+    "3847-2910",
+    "7463-8291",
+    "2910-5738",
+    "5738-9201",
+    "9201-3847"
+  ],
+  "issuer": "YourApp",
+  "account": "user@example.com",
+  "expires_at": "2025-01-15T14:15:00Z"
+}
+
+POST /api/v1/mfa/enroll/verify
+Authorization: Bearer <access_token>
+{
+  "mfa_enrollment_id": "enroll_k3j2h1k3j2h1",
+  "code": "482751"
+}
+
+Response:
+{
+  "success": true,
+  "mfa_enabled": true,
+  "recovery_codes_count": 10,
+  "message": "Multi-factor authentication has been enabled"
+}
+```
+
+#### MFA Login Flow (Verification)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant AuthAPI
+    participant Database
+    participant RiskEngine
+
+    User->>Frontend: Enter username + password
+    Frontend->>AuthAPI: POST /api/v1/auth/login<br/>{username, password}
+    AuthAPI->>Database: Verify credentials
+    
+    alt Credentials Valid
+        AuthAPI->>Database: Check MFA status
+        
+        alt MFA Enabled
+            AuthAPI->>RiskEngine: Evaluate login risk<br/>(IP, device, location, behavior)
+            RiskEngine-->>AuthAPI: Risk score: 65/100 (medium)
+            
+            AuthAPI->>AuthAPI: Generate MFA challenge token
+            AuthAPI->>Database: Store challenge session (5 min TTL)
+            AuthAPI-->>Frontend: {<br/>  requires_mfa: true,<br/>  challenge_token: "ch_abc123",<br/>  mfa_methods: ["totp", "sms", "backup"]<br/>}
+            Frontend-->>User: "Enter verification code"
+            
+            User->>User: Check authenticator app
+            User->>Frontend: Enter code: 482751
+            Frontend->>AuthAPI: POST /api/v1/auth/mfa/verify<br/>{challenge_token, code}
+            AuthAPI->>Database: Get user's MFA secret
+            AuthAPI->>AuthAPI: Validate: TOTP(secret, time)
+            
+            alt Code Valid
+                AuthAPI->>Database: Log successful MFA
+                AuthAPI->>AuthAPI: Generate access + refresh tokens
+                AuthAPI-->>Frontend: {tokens, session}
+                Frontend-->>User: Logged in successfully!
+            else Code Invalid
+                AuthAPI->>Database: Log failed attempt
+                AuthAPI-->>Frontend: {error: "Invalid code"}
+                Frontend-->>User: "Code incorrect, try again"
+            end
+        else MFA Not Enabled
+            AuthAPI-->>Frontend: {tokens, session}
+            Frontend-->>User: Logged in (without MFA)
+        end
+    else Credentials Invalid
+        AuthAPI-->>Frontend: {error: "Invalid credentials"}
+        Frontend-->>User: "Username or password incorrect"
+    end
+```
+
+**Login with MFA API Design:**
+
+```json
+POST /api/v1/auth/login
+{
+  "username": "user@example.com",
+  "password": "MySecurePassword123!",
+  "device_id": "device_abc123",
+  "device_name": "iPhone 15 Pro"
+}
+
+Response (MFA Required):
+{
+  "requires_mfa": true,
+  "challenge_token": "ch_k3j2h1k3j2h1k3j2",
+  "mfa_methods": [
+    {
+      "type": "totp",
+      "display_name": "Authenticator App",
+      "preferred": true
+    },
+    {
+      "type": "sms",
+      "display_name": "SMS to +1 (***) ***-1234",
+      "preferred": false
+    },
+    {
+      "type": "backup_code",
+      "display_name": "Backup Code",
+      "preferred": false
+    }
+  ],
+  "challenge_expires_at": "2025-01-15T14:10:00Z",
+  "trusted_device": false
+}
+
+POST /api/v1/auth/mfa/verify
+{
+  "challenge_token": "ch_k3j2h1k3j2h1k3j2",
+  "code": "482751",
+  "remember_device": true
+}
+
+Response (Success):
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "rt_k3j2h1k3j2h1k3j2h1...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "user": {
+    "id": "user_123",
+    "email": "user@example.com"
+  },
+  "device_remembered": true
+}
+```
+
+#### Multiple MFA Methods Support
+
+Users should be able to configure multiple MFA methods for flexibility:
+
+```text
+MFA Methods Priority:
+
+Primary Methods:
+├─ 1. TOTP (Authenticator App)
+│   ├─ Most secure + convenient
+│   ├─ Works offline
+│   └─ Recommended default
+│
+├─ 2. Push Notification (Duo, Auth0 Guardian)
+│   ├─ Sends push to mobile app
+│   ├─ User approves/denies
+│   └─ Great UX, but requires internet
+│
+├─ 3. Hardware Token (YubiKey, FIDO2)
+│   ├─ Highest security
+│   ├─ Phishing-resistant
+│   └─ Best for privileged accounts
+│
+├─ 4. SMS (Legacy, less secure)
+│   ├─ Fallback option only
+│   ├─ Vulnerable to SIM swapping
+│   └─ Should discourage use
+│
+└─ 5. Email
+    ├─ Weakest MFA method
+    ├─ Use for account recovery only
+    └─ Not recommended as primary
+
+Backup Methods:
+└─ Recovery Codes (one-time use)
+    ├─ 10 codes generated at enrollment
+    ├─ Each code used once
+    └─ Emergency access only
+
+Database Schema:
+
+CREATE TABLE user_mfa_methods (
+    id UUID PRIMARY KEY,
+    user_id BIGINT REFERENCES users(id),
+    method_type VARCHAR(20) NOT NULL,  -- 'totp', 'sms', 'push', 'hardware'
+    
+    -- Method-specific data (encrypted)
+    secret_key_encrypted TEXT,  -- For TOTP
+    phone_number_encrypted TEXT,  -- For SMS
+    device_token_encrypted TEXT,  -- For push
+    hardware_key_id TEXT,  -- For FIDO2
+    
+    -- Metadata
+    display_name VARCHAR(100),  -- "iPhone Authenticator"
+    is_primary BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    verified_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP,
+    use_count INTEGER DEFAULT 0,
+    
+    -- Indexes
+    INDEX idx_user_methods (user_id, is_active),
+    UNIQUE KEY unique_primary (user_id, method_type, is_primary)
+);
+
+CREATE TABLE user_backup_codes (
+    id UUID PRIMARY KEY,
+    user_id BIGINT REFERENCES users(id),
+    code_hash VARCHAR(64) NOT NULL,  -- SHA-256 hash of code
+    is_used BOOLEAN DEFAULT FALSE,
+    used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_user_codes (user_id, is_used)
+);
+```
+
+#### Remember This Device Feature
+
+Allow users to skip MFA on trusted devices for convenience:
+
+```text
+How "Remember This Device" Works:
+
+Step 1: User Logs In with MFA
+├─ Enters password: ✓
+├─ Enters MFA code: ✓
+└─ Checks box: "Remember this device for 30 days"
+
+Step 2: Generate Device Token
+├─ Create unique device identifier:
+│   └─ device_id = hash(user_id + device_fingerprint + random_salt)
+├─ Generate secure token:
+│   └─ device_token = cryptographically_secure_random(32 bytes)
+├─ Store in database:
+│   └─ {user_id, device_id, token_hash, expires: now + 30 days}
+└─ Send to client:
+    └─ Set secure cookie: device_token=abc123xyz (HttpOnly, Secure, SameSite)
+
+Step 3: Next Login from Same Device
+├─ User enters password: ✓
+├─ System checks: Device token present? ✓
+├─ System validates:
+│   ├─ Token exists in database? ✓
+│   ├─ Not expired? ✓
+│   ├─ User ID matches? ✓
+│   └─ Device fingerprint matches? ✓
+└─ Result: Skip MFA, log in directly!
+
+Step 4: Security Measures
+├─ Device fingerprint includes:
+│   ├─ User agent
+│   ├─ Screen resolution
+│   ├─ Timezone
+│   ├─ Language
+│   ├─ Installed fonts (hash)
+│   └─ Canvas fingerprint
+├─ Token rotation: New token on each use
+├─ Suspicious activity: Require MFA anyway
+└─ User can revoke: "Forget this device"
+
+Database Schema:
+
+CREATE TABLE trusted_devices (
+    id UUID PRIMARY KEY,
+    user_id BIGINT REFERENCES users(id),
+    device_token_hash VARCHAR(64) NOT NULL,  -- SHA-256 of token
+    device_fingerprint_hash VARCHAR(64) NOT NULL,
+    
+    -- Device information
+    device_name VARCHAR(100),  -- "Chrome on MacBook Pro"
+    user_agent TEXT,
+    ip_address INET,
+    location VARCHAR(100),  -- "San Francisco, CA"
+    
+    -- Status
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    last_used_at TIMESTAMP,
+    
+    -- Security
+    login_count INTEGER DEFAULT 0,
+    revoked_at TIMESTAMP,
+    revoked_reason VARCHAR(255),
+    
+    INDEX idx_user_devices (user_id, is_active),
+    UNIQUE KEY unique_device (user_id, device_token_hash)
+);
+
+API Design:
+
+POST /api/v1/auth/devices/remember
+Authorization: Bearer <access_token>
+{
+  "device_fingerprint": "fp_abc123...",
+  "device_name": "Chrome on MacBook Pro",
+  "remember_days": 30
+}
+
+Response:
+{
+  "device_id": "dev_k3j2h1k3j2h1",
+  "device_token": "dt_abc123xyz...",  -- Store in secure cookie
+  "expires_at": "2025-02-14T14:30:00Z"
+}
+
+GET /api/v1/auth/devices
+Authorization: Bearer <access_token>
+
+Response:
+{
+  "devices": [
+    {
+      "id": "dev_k3j2h1k3j2h1",
+      "name": "Chrome on MacBook Pro",
+      "location": "San Francisco, CA",
+      "last_used": "2025-01-15T14:30:00Z",
+      "created": "2025-01-01T10:00:00Z",
+      "is_current": true
+    },
+    {
+      "id": "dev_x7y8z9a0b1c2",
+      "name": "Safari on iPhone",
+      "location": "New York, NY",
+      "last_used": "2025-01-14T09:15:00Z",
+      "created": "2024-12-15T08:00:00Z",
+      "is_current": false
+    }
+  ]
+}
+
+DELETE /api/v1/auth/devices/{device_id}
+Authorization: Bearer <access_token>
+
+Response:
+{
+  "success": true,
+  "message": "Device removed from trusted list"
+}
+```
+
+#### Step-Up Authentication for Sensitive Operations
+
+Require MFA again for high-risk actions, even if user already logged in:
+
+```text
+What is Step-Up Authentication?
+
+Regular Actions (No Extra Auth):
+├─ View profile
+├─ Read documents
+├─ Browse content
+└─ Search
+
+Sensitive Actions (Require Step-Up):
+├─ Change password
+├─ Add/remove MFA methods
+├─ Delete account
+├─ Transfer money
+├─ Access sensitive data
+└─ Change email address
+
+Flow Example - Change Password:
+
+User clicks "Change Password"
+├─ System checks: Last MFA verification
+│   └─ If > 5 minutes ago: Require MFA again
+├─ System shows: "Confirm your identity"
+├─ User enters: MFA code
+├─ System verifies: Code correct? ✓
+├─ System allows: Password change
+└─ System logs: "Stepped-up auth for password change"
+
+Implementation:
+
+// Add to access token claims
+{
+  "user_id": "123",
+  "auth_time": 1737639000,  -- When authenticated
+  "mfa_verified_at": 1737639000,  -- When MFA last verified
+  "auth_level": "mfa"  -- or "password_only"
+}
+
+// Middleware for sensitive endpoints
+function requireStepUp(req, res, next) {
+  const token = verifyToken(req.headers.authorization);
+  const mfaAge = Date.now()/1000 - token.mfa_verified_at;
+  
+  if (mfaAge > 300) {  // 5 minutes
+    return res.status(403).json({
+      error: "step_up_required",
+      message: "Please verify your identity again",
+      challenge_url: "/api/v1/auth/step-up"
+    });
+  }
+  
+  next();
+}
+
+// Protected endpoint
+app.post('/api/v1/user/password', 
+  authenticateUser,
+  requireStepUp,  // <-- Require recent MFA
+  changePassword
+);
+
+API Flow:
+
+POST /api/v1/user/password
+Authorization: Bearer <access_token>
+{
+  "current_password": "OldPass123!",
+  "new_password": "NewPass456!"
+}
+
+Response (Step-Up Required):
+{
+  "error": "step_up_required",
+  "message": "This action requires recent authentication",
+  "challenge_token": "ch_abc123",
+  "mfa_methods": ["totp", "sms"],
+  "expires_at": "2025-01-15T14:10:00Z"
+}
+
+POST /api/v1/auth/step-up/verify
+{
+  "challenge_token": "ch_abc123",
+  "mfa_code": "482751"
+}
+
+Response (Success):
+{
+  "success": true,
+  "elevated_token": "eyJhbGciOiJIUzI1NiIs...",  -- New token with fresh mfa_verified_at
+  "expires_in": 300  -- 5 minutes
+}
+
+// Retry original request with elevated token
+POST /api/v1/user/password
+Authorization: Bearer <elevated_token>
+{
+  "current_password": "OldPass123!",
+  "new_password": "NewPass456!"
+}
+
+Response:
+{
+  "success": true,
+  "message": "Password changed successfully"
+}
+```
+
+#### MFA Recovery Flow
+
+Handle scenarios when users lose access to their MFA devices:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant AuthAPI
+    participant Database
+    participant Support
+
+    User->>Frontend: "I lost my phone!"
+    Frontend->>Frontend: Show recovery options
+    
+    alt Option 1: Backup Code
+        User->>Frontend: Enter backup code: "4827-5193"
+        Frontend->>AuthAPI: POST /api/v1/auth/mfa/recover/backup
+        AuthAPI->>Database: Verify code (unhashed)
+        
+        alt Code Valid & Not Used
+            AuthAPI->>Database: Mark code as used
+            AuthAPI->>AuthAPI: Generate session token
+            AuthAPI-->>Frontend: {success: true, token}
+            Frontend-->>User: "Logged in! Please re-setup MFA"
+            User->>Frontend: Setup new MFA
+        else Code Invalid/Used
+            AuthAPI-->>Frontend: {error: "Invalid backup code"}
+        end
+    
+    else Option 2: Alternative MFA Method
+        User->>Frontend: "Use SMS instead"
+        Frontend->>AuthAPI: POST /api/v1/auth/mfa/send-sms
+        AuthAPI->>Database: Check if SMS configured
+        
+        alt SMS Configured
+            AuthAPI->>AuthAPI: Generate SMS code
+            AuthAPI->>User: Send SMS: "Code: 582934"
+            User->>Frontend: Enter SMS code
+            Frontend->>AuthAPI: Verify SMS code
+            AuthAPI-->>Frontend: {success: true, token}
+        else No SMS Configured
+            AuthAPI-->>Frontend: {error: "No alternative method"}
+        end
+    
+    else Option 3: Account Recovery
+        User->>Frontend: "I need help from support"
+        Frontend->>AuthAPI: POST /api/v1/auth/mfa/recover/request
+        AuthAPI->>Database: Create recovery request
+        AuthAPI->>Support: Notify support team
+        AuthAPI-->>Frontend: {ticket_id: "TKT-12345"}
+        Frontend-->>User: "Ticket created: TKT-12345<br/>Support will contact you"
+        
+        Support->>Support: Verify identity (ID, security questions, etc.)
+        Support->>AuthAPI: POST /api/v1/support/mfa/reset
+        AuthAPI->>Database: Disable user's MFA
+        AuthAPI->>User: Email: "MFA has been reset"
+        User->>Frontend: Login with password only
+        User->>Frontend: Setup MFA again
+    end
+```
+
+**Recovery API Design:**
+
+```json
+POST /api/v1/auth/mfa/recover/backup
+{
+  "username": "user@example.com",
+  "backup_code": "4827-5193"
+}
+
+Response (Success):
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "rt_k3j2h1k3j2h1k3j2h1...",
+  "remaining_backup_codes": 9,
+  "warning": "Please setup MFA again as soon as possible",
+  "setup_mfa_url": "/settings/mfa"
+}
+
+POST /api/v1/auth/mfa/recover/request
+{
+  "username": "user@example.com",
+  "recovery_email": "alternate@email.com",
+  "reason": "Lost phone, no backup codes available",
+  "identity_verification": {
+    "security_answer_1": "...",
+    "security_answer_2": "...",
+    "last_4_ssn": "1234"
+  }
+}
+
+Response:
+{
+  "ticket_id": "TKT-12345",
+  "status": "pending_review",
+  "estimated_resolution": "24-48 hours",
+  "message": "Our support team will review your request and contact you at alternate@email.com"
+}
+```
+
+---
+
+### 🔴 For Advanced: Production MFA at Scale
+
+#### Risk-Based (Adaptive) Authentication
+
+Modern systems use risk scoring to decide when to require MFA:
+
+```text
+Adaptive MFA Decision Engine:
+
+Risk Factors:
+├─ 1. Location
+│   ├─ Known location (home, office): Low risk
+│   ├─ New city: Medium risk
+│   ├─ New country: High risk
+│   └─ Impossible travel: Critical risk
+│       └─ Example: Login from US, then China 1 hour later
+│
+├─ 2. Device
+│   ├─ Known device: Low risk
+│   ├─ Device fingerprint changed: Medium risk
+│   ├─ New device: High risk
+│   └─ Suspicious device: Critical risk
+│
+├─ 3. Behavior
+│   ├─ Normal login time: Low risk
+│   ├─ Unusual time (3 AM): Medium risk
+│   ├─ Rapid login attempts: High risk
+│   └─ Bot-like behavior: Critical risk
+│
+├─ 4. Network
+│   ├─ Known IP: Low risk
+│   ├─ VPN/Proxy: Medium risk
+│   ├─ TOR network: High risk
+│   └─ Known malicious IP: Critical risk
+│
+└─ 5. Historical Patterns
+    ├─ Consistent behavior: Low risk
+    ├─ Minor deviation: Medium risk
+    ├─ Major deviation: High risk
+    └─ Matches breach pattern: Critical risk
+
+Risk Scoring Algorithm:
+
+function calculateRiskScore(loginAttempt) {
+  let score = 0;
+  
+  // Location risk (0-30 points)
+  if (loginAttempt.country !== user.usualCountry) {
+    score += 20;
+  }
+  if (isImpossibleTravel(user.lastLogin, loginAttempt)) {
+    score += 30;  // Override
+  }
+  
+  // Device risk (0-25 points)
+  if (!isTrustedDevice(loginAttempt.deviceId)) {
+    score += 15;
+  }
+  if (loginAttempt.deviceFingerprint !== stored) {
+    score += 10;
+  }
+  
+  // Time risk (0-15 points)
+  const hour = loginAttempt.time.getHours();
+  if (hour < 6 || hour > 23) {
+    score += 10;
+  }
+  
+  // Network risk (0-20 points)
+  if (isVPN(loginAttempt.ip)) {
+    score += 10;
+  }
+  if (isTOR(loginAttempt.ip)) {
+    score += 20;
+  }
+  if (isMaliciousIP(loginAttempt.ip)) {
+    score += 20;
+  }
+  
+  // Historical risk (0-10 points)
+  if (recentFailedAttempts(user.id) > 3) {
+    score += 10;
+  }
+  
+  return Math.min(score, 100);
+}
+
+Risk-Based Actions:
+
+Score 0-20 (Low Risk):
+└─ Action: Allow login without MFA if "remember device" active
+
+Score 21-50 (Medium Risk):
+└─ Action: Require MFA, allow trusted methods (TOTP, push)
+
+Score 51-75 (High Risk):
+├─ Action: Require MFA (all methods)
+├─ Send alert email: "New login from [location]"
+└─ Require step-up for sensitive operations
+
+Score 76-100 (Critical Risk):
+├─ Action: Block login temporarily
+├─ Require account verification
+├─ Send alert: "Suspicious login attempt blocked"
+└─ May require support intervention
+
+Implementation:
+
+CREATE TABLE login_risk_scores (
+    id UUID PRIMARY KEY,
+    user_id BIGINT REFERENCES users(id),
+    login_attempt_id UUID,
+    
+    -- Risk factors
+    location_risk INTEGER DEFAULT 0,
+    device_risk INTEGER DEFAULT 0,
+    time_risk INTEGER DEFAULT 0,
+    network_risk INTEGER DEFAULT 0,
+    behavior_risk INTEGER DEFAULT 0,
+    total_risk_score INTEGER NOT NULL,
+    
+    -- Context
+    ip_address INET,
+    country_code CHAR(2),
+    device_fingerprint VARCHAR(64),
+    user_agent TEXT,
+    
+    -- Decision
+    action_taken VARCHAR(50),  -- 'allowed', 'mfa_required', 'blocked'
+    mfa_required BOOLEAN DEFAULT FALSE,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_user_scores (user_id, created_at DESC),
+    INDEX idx_high_risk (total_risk_score) WHERE total_risk_score > 75
+);
+
+Real-World Examples:
+
+Google:
+├─ Uses 50+ signals for risk scoring
+├─ Machine learning models trained on billions of login attempts
+├─ Blocks 99.9% of automated attacks
+└─ Reduces user friction by 25% (fewer unnecessary MFA prompts)
+
+Microsoft:
+├─ Azure AD "Conditional Access" policies
+├─ Risk-based MFA for Office 365
+├─ Blocks logins from risky locations automatically
+└─ Saved enterprises 1M+ hours by reducing false positives
+
+Auth0:
+├─ "Adaptive MFA" feature
+├─ Customizable risk rules
+├─ Integrates with threat intelligence feeds
+└─ Real-time risk assessment (<50ms)
+```
+
+#### MFA Performance Optimization
+
+At scale, MFA verification must be extremely fast:
+
+```text
+Performance Requirements:
+
+├─ TOTP Verification: <10ms
+├─ SMS Send: <500ms
+├─ Push Notification: <200ms
+├─ Database Lookup: <5ms
+└─ Total MFA Flow: <2 seconds
+
+Optimization Strategies:
+
+1. Cache MFA Secrets
+├─ Problem: Database lookup per verification (20ms)
+├─ Solution: Cache encrypted secrets in Redis
+├─ Result: Lookup time reduced to <1ms
+└─ Implementation:
+    Key: "mfa:secret:{user_id}"
+    Value: {encrypted_secret, method_type}
+    TTL: 1 hour
+
+2. Pre-generate TOTP Windows
+├─ Problem: Calculate TOTP for T-1, T, T+1 on every request
+├─ Solution: Pre-calculate and cache valid codes
+├─ Result: Verification is just a hash lookup
+└─ Implementation:
+    Key: "mfa:valid_codes:{user_id}"
+    Value: Set["482751", "193847", "774521"]
+    TTL: 30 seconds (refresh every time window)
+
+3. Batch SMS Sending
+├─ Problem: Sending SMS one-by-one is slow
+├─ Solution: Queue SMS requests, send in batches
+├─ Result: 10x throughput improvement
+└─ Implementation: Kafka queue → Batch worker → Twilio API
+
+4. Push Notification Optimization
+├─ Problem: FCM/APNS can be slow (500ms+)
+├─ Solution: Pre-warm connections, use connection pooling
+├─ Result: Reduced latency to <200ms
+└─ Implementation: Persistent HTTP/2 connections
+
+5. Rate Limiting
+├─ Problem: Brute force attacks slow down system
+├─ Solution: Rate limit per user + per IP
+├─ Result: Block attacks early, protect resources
+└─ Implementation:
+    Per User: 5 attempts per 5 minutes
+    Per IP: 20 attempts per minute
+    Exponential backoff: 1s, 2s, 4s, 8s, 16s
+
+Database Optimizations:
+
+-- Index for fast MFA method lookup
+CREATE INDEX idx_user_mfa_active 
+ON user_mfa_methods(user_id, is_active) 
+WHERE is_active = TRUE;
+
+-- Partition backup codes table by user_id range
+CREATE TABLE user_backup_codes_partition_1 
+PARTITION OF user_backup_codes
+FOR VALUES FROM (0) TO (1000000);
+
+-- Materialized view for MFA statistics
+CREATE MATERIALIZED VIEW mfa_stats_daily AS
+SELECT 
+    DATE(created_at) as date,
+    COUNT(*) as total_verifications,
+    COUNT(*) FILTER (WHERE success = TRUE) as successful,
+    COUNT(*) FILTER (WHERE success = FALSE) as failed,
+    AVG(duration_ms) as avg_duration_ms
+FROM mfa_verification_logs
+GROUP BY DATE(created_at);
+
+Monitoring Metrics:
+
+Key Performance Indicators (KPIs):
+├─ TOTP Verification Latency: P50, P95, P99
+├─ SMS Delivery Success Rate: Target >99%
+├─ Push Notification Delivery Time: Target <200ms
+├─ MFA Enrollment Completion Rate: Target >95%
+├─ Backup Code Usage Rate: Monitor for anomalies
+├─ Failed MFA Attempts: Alert if >10% of attempts
+└─ Device Trust Rate: % of logins skipping MFA
+
+Alerts:
+├─ TOTP verification latency >100ms for 5 minutes
+├─ SMS delivery failure rate >5%
+├─ Spike in failed MFA attempts (possible attack)
+├─ Backup code usage spike (possible account takeover wave)
+└─ MFA enrollment drop-off (UX issue)
+```
+
+#### Security Considerations for Production MFA
+
+```text
+1. SMS Security (Why It's Problematic):
+
+SIM Swapping Attack:
+├─ Attacker calls telecom pretending to be victim
+├─ Social engineers new SIM card for victim's number
+├─ Receives all SMS to victim's number
+├─ Gets MFA codes → Account takeover
+└─ Prevention:
+    ├─ Add telecom account PIN
+    ├─ Use TOTP instead of SMS
+    └─ Require additional verification for SMS changes
+
+SMS Interception:
+├─ SS7 protocol vulnerabilities
+├─ Malware on phone
+├─ IMSI catchers (Stingray devices)
+└─ Prevention:
+    └─ Avoid SMS for high-value accounts
+
+Recommendation: Deprecate SMS MFA
+├─ NIST deprecated SMS in 2016
+├─ Many companies still use it (user convenience)
+└─ If you must support SMS:
+    ├─ Warn users it's less secure
+    ├─ Encourage TOTP migration
+    └─ Use SMS only as fallback
+
+2. TOTP Time Synchronization:
+
+Clock Drift Problem:
+├─ User's phone clock: 14:30:00
+├─ Server clock: 14:29:45
+├─ Different time blocks → Different codes!
+└─ Solution:
+    ├─ Accept codes from T-1, T, T+1 (90-second window)
+    ├─ Track which offset worked
+    └─ Adjust future validations accordingly
+
+Implementation:
+
+function verifyTOTP(userSecret, userCode) {
+  const currentTime = Math.floor(Date.now() / 1000);
+  
+  // Try current time block and ±1
+  for (let offset = -1; offset <= 1; offset++) {
+    const timeBlock = Math.floor((currentTime + (offset * 30)) / 30);
+    const expectedCode = generateTOTP(userSecret, timeBlock);
+    
+    if (userCode === expectedCode) {
+      // Track successful offset for this user
+      updateUserTimeOffset(userId, offset);
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+3. Backup Code Security:
+
+Storage:
+├─ ❌ NEVER store plain text
+├─ ✅ Store: SHA-256 hash
+├─ ✅ Add salt per user
+└─ ✅ Use bcrypt/scrypt for additional protection
+
+Generation:
+├─ Use cryptographically secure random
+├─ Format: 4-digit groups for readability (4827-5193)
+├─ Length: 8-10 characters minimum
+└─ Uniqueness: Check against existing codes
+
+Usage:
+├─ Mark code as used immediately
+├─ Alert user when code is used
+├─ Generate new codes after recovery
+└─ Limit backup code attempts (5 per hour)
+
+4. Phishing-Resistant MFA:
+
+Problem: TOTP vulnerable to real-time phishing
+├─ Attacker creates fake login page
+├─ User enters credentials + TOTP code
+├─ Attacker immediately uses code on real site
+└─ Attacker gains access!
+
+Solutions:
+
+A. WebAuthn / FIDO2 (Best Solution):
+├─ Cryptographic proof of origin
+├─ Tied to specific domain
+├─ Can't be phished (browser verifies domain)
+└─ Example: YubiKey
+
+B. Push Notifications with Context:
+├─ Show: "Login attempt from Chrome in London"
+├─ User must approve specific session
+├─ Can't be replayed
+└─ Example: Duo Push
+
+C. Time-bound TOTP with device binding:
+├─ Bind TOTP to device fingerprint
+├─ Verify device hasn't changed
+├─ Limit code validity to 30 seconds
+└─ Additional friction, but more secure
+
+5. Replay Attack Prevention:
+
+Problem: Attacker captures valid MFA code, uses it again
+
+Prevention:
+├─ Code expires after first use (for backup codes)
+├─ Time-based expiration (TOTP auto-expires)
+├─ Session binding: Code only valid for specific session
+└─ Nonce tracking: Each code has unique nonce
+
+Implementation:
+
+CREATE TABLE mfa_code_usage (
+    id UUID PRIMARY KEY,
+    user_id BIGINT REFERENCES users(id),
+    code_hash VARCHAR(64) NOT NULL,
+    used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    session_id UUID,
+    ip_address INET,
+    
+    -- Prevent reuse
+    UNIQUE KEY unique_code_usage (code_hash, user_id)
+);
+
+-- Before accepting code
+function verifyCodeNotUsed(userId, code) {
+  const codeHash = sha256(code);
+  
+  // Check if code already used
+  const existing = db.query(
+    'SELECT id FROM mfa_code_usage WHERE user_id = ? AND code_hash = ?',
+    [userId, codeHash]
+  );
+  
+  if (existing) {
+    // Alert: Possible replay attack!
+    alertSecurityTeam({
+      type: 'mfa_replay_attempt',
+      userId: userId,
+      timestamp: Date.now()
+    });
+    return false;
+  }
+  
+  // Mark as used
+  db.insert('mfa_code_usage', {
+    user_id: userId,
+    code_hash: codeHash,
+    session_id: currentSessionId
+  });
+  
+  return true;
+}
+
+6. Account Enumeration Prevention:
+
+Problem: Attacker discovers which accounts have MFA enabled
+
+Bad Implementation:
+├─ Login: "Username/password correct, enter MFA code"
+└─ Attacker learns: Account exists + has MFA
+
+Good Implementation:
+├─ Login: "If credentials are correct, check your device"
+├─ Always show same message
+└─ Prevents enumeration
+
+Timing Attack Prevention:
+├─ Always take same time to respond
+├─ Even if user doesn't exist
+└─ Use constant-time comparison for codes
+
+function constantTimeCompare(a, b) {
+  if (a.length !== b.length) {
+    return false;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  
+  return result === 0;
+}
+```
+
+#### Enterprise MFA Features
+
+```text
+Features Required for Enterprise Customers:
+
+1. MFA Enforcement Policies:
+├─ Require MFA for all users
+├─ Require MFA for admin users only
+├─ Require MFA from untrusted networks
+├─ Require MFA for sensitive operations
+└─ Grace period before enforcement (30 days)
+
+2. Approved MFA Methods:
+├─ Allow/block specific methods per organization
+├─ Example: Healthcare - TOTP + Hardware keys only, no SMS
+└─ Compliance requirements (HIPAA, PCI DSS)
+
+3. Emergency Access Procedures:
+├─ Break-glass accounts (bypass MFA in emergency)
+├─ Require multiple approvers
+├─ Automatic audit and review
+└─ Time-limited emergency access
+
+4. Reporting and Compliance:
+├─ MFA adoption rate per department
+├─ List of users without MFA
+├─ MFA verification logs (who, when, how)
+├─ Failed MFA attempt reports
+└─ Export for compliance audits
+
+5. Self-Service Management:
+├─ Users can add/remove MFA methods
+├─ Reset MFA without IT support
+├─ Backup code regeneration
+└─ Trusted device management
+
+6. Admin Controls:
+├─ Force MFA reset for specific users
+├─ Disable compromised MFA methods
+├─ Bulk MFA enrollment
+└─ Delegate MFA management to managers
+
+API Design for Enterprise Features:
+
+POST /api/v1/admin/org/{org_id}/mfa/policies
+{
+  "enforce_mfa": true,
+  "grace_period_days": 30,
+  "allowed_methods": ["totp", "hardware_key"],
+  "require_for_roles": ["admin", "developer"],
+  "require_from_networks": ["untrusted"],
+  "exempt_users": ["emergency_user@example.com"]
+}
+
+GET /api/v1/admin/org/{org_id}/mfa/report
+Response:
+{
+  "total_users": 500,
+  "mfa_enabled": 425,
+  "mfa_adoption_rate": 0.85,
+  "breakdown": {
+    "totp": 350,
+    "sms": 50,
+    "hardware_key": 25
+  },
+  "users_without_mfa": [
+    {
+      "user_id": "123",
+      "email": "user@example.com",
+      "last_login": "2025-01-10T14:30:00Z"
+    }
+  ],
+  "failed_attempts_last_30_days": 127
+}
+```
+
+---
+
+### 🎯 Key Takeaways - MFA
+
+**For Everyone:**
+- **MFA prevents 99.9% of account takeovers** - It's the single most effective security control
+- **Three factor types**: Knowledge (password), Possession (phone), Inherence (fingerprint)
+- **Authenticator apps (TOTP) are recommended** - More secure than SMS, works offline
+- **Always generate backup codes** - Users need recovery method when device is lost
+- **Seamless UX is critical** - Balance security with usability to ensure adoption
+
+**For Intermediate:**
+- **TOTP uses time + shared secret** - Both sides independently calculate same code
+- **Accept T-1, T, T+1 time windows** - Handles clock drift gracefully
+- **Separate enrollment and verification flows** - Clear state machine design
+- **Support multiple MFA methods** - Users need flexibility (primary + fallback)
+- **"Remember device" feature** - Reduces MFA friction for trusted devices
+
+**For Advanced:**
+- **Risk-based authentication** - Use context (location, device, behavior) to decide MFA requirement
+- **SMS is deprecated by NIST** - Vulnerable to SIM swapping, use only as last resort
+- **WebAuthn/FIDO2 is phishing-resistant** - Cryptographic proof prevents real-time phishing
+- **Replay attack prevention** - Track code usage, time-based expiration
+- **Performance optimization** - Cache secrets, pre-generate codes, batch operations
+- **Enterprise features required** - Policies, reporting, bulk management, compliance
+
+**Production Considerations:**
+- TOTP verification latency: <10ms (cache secrets in Redis)
+- SMS delivery: <500ms, >99% success rate (use reliable provider like Twilio)
+- Push notifications: <200ms (persistent HTTP/2 connections)
+- Backup code storage: SHA-256 hashed, never plain text
+- Rate limiting: 5 attempts per 5 minutes per user
+- Audit logging: Every MFA verification logged for compliance
+
+**Common Pitfalls:**
+- ❌ Storing backup codes in plain text → Always hash
+- ❌ SMS as primary MFA for high-security apps → Use TOTP or hardware keys
+- ❌ No recovery mechanism → Users get locked out forever
+- ❌ Not supporting multiple devices → Users need flexibility
+- ❌ Requiring MFA too often → User fatigue, adoption drops
+- ❌ No adaptive authentication → Unnecessary friction for low-risk logins
+
+**Real-World Examples:**
+- **Google**: Reduced account takeovers by 50% after enforcing MFA
+- **Microsoft**: Azure AD blocks 300M+ fraudulent login attempts daily with risk-based MFA
+- **GitHub**: Requires MFA for all code contributors, supports TOTP and hardware keys
+- **Stripe**: Requires MFA for all dashboard access, uses risk scoring to prevent fraud
+- **Coinbase**: Uses multiple MFA layers (TOTP + hardware key + SMS) for high-value transactions
+
+---
+
+### 🎯 Practice Exercise
+
+**Scenario:** You're designing the MFA system for "SecureBank," an online banking platform with 5 million customers handling $50 billion in daily transactions.
+
+**Requirements:**
+1. **High Security**: Banking regulations require strong authentication
+2. **Compliance**: Must meet PCI DSS, SOC 2, and federal banking regulations
+3. **User Experience**: Customers expect seamless experience, minimal friction
+4. **Mobile-First**: 80% of transactions happen on mobile devices
+5. **Fraud Prevention**: Must detect and prevent account takeovers in real-time
+6. **Elderly Users**: 30% of users are 60+, need simple UX
+7. **Emergency Access**: Customers need access during emergencies (lost phone)
+
+**Your Task:**
+
+#### Part 1: MFA Strategy (Beginner)
+
+```text
+Design the MFA enrollment flow:
+
+Questions:
+1. Which MFA methods would you support? (TOTP, SMS, email, hardware key?)
+2. Should MFA be optional or mandatory? For everyone or just high-value accounts?
+3. How would you handle users who refuse to enable MFA?
+4. What's your backup/recovery strategy?
+5. How would you communicate MFA benefits to elderly users?
+
+Constraints:
+- Must have >95% MFA adoption within 6 months
+- Support phone call verification for elderly users
+- Balance security with usability
+```
+
+#### Part 2: Risk-Based MFA (Intermediate)
+
+```text
+Design adaptive authentication system:
+
+Scenarios to handle:
+1. User logs in from home (known location, known device)
+   → Should you require MFA? Why?
+
+2. User logs in from new country while on vacation
+   → What risk score? What actions?
+
+3. User tries to transfer $50,000 (10x normal transaction)
+   → What additional verification?
+
+4. Multiple failed login attempts from different IPs
+   → How to detect and respond?
+
+5. User lost phone, needs to access account urgently
+   → What's your emergency access flow?
+
+Design:
+- Define risk scoring algorithm (0-100)
+- Map risk scores to actions
+- Consider both security and user experience
+- Account for false positives
+```
+
+#### Part 3: Scale and Performance (Advanced)
+
+```text
+Handle 5M customers, 50M authentications per day:
+
+Calculate:
+1. Peak QPS for MFA verifications (assume 10 AM peak = 3x average)
+2. Database storage for MFA secrets (encrypted, per user)
+3. Redis cache size for secret caching
+4. SMS costs (if 20% use SMS, $0.01 per SMS)
+5. Expected TOTP verification latency at P99
+
+Design:
+- Multi-region deployment strategy
+- Caching strategy for MFA secrets
+- Rate limiting to prevent abuse
+- Monitoring and alerting thresholds
+- Disaster recovery (if MFA system goes down)
+
+Bonus:
+- How would you A/B test new MFA methods?
+- Design gradual rollout plan (1% → 10% → 50% → 100%)
+- Cost optimization strategy
+```
+
+#### Part 4: Security Edge Cases
+
+```text
+Handle these security scenarios:
+
+1. **Sophisticated Phishing Attack:**
+   - Attacker creates fake SecureBank login page
+   - User enters password + TOTP code
+   - Attacker uses credentials immediately
+   - How do you prevent/detect this?
+
+2. **SIM Swap Attack:**
+   - Attacker socially engineers user's phone number
+   - Receives all SMS codes
+   - How do you detect and block?
+
+3. **Backup Code Leak:**
+   - User posts screenshot with backup codes visible
+   - Attacker finds it on social media
+   - What's your defense strategy?
+
+4. **Insider Threat:**
+   - Rogue employee has database access
+   - Tries to disable MFA for specific accounts
+   - How do you detect and prevent?
+
+5. **Account Recovery Fraud:**
+   - Attacker impersonates user to support
+   - Requests MFA reset
+   - How do you verify true identity?
+
+Design comprehensive defenses for each scenario!
+```
+
+#### Part 5: Code Challenge
+
+```text
+[HLD Note: Detailed implementation removed for interview focus]
+
+High-Level Architecture:
+├─ Component: MFA Verification Service
+├─ Purpose: Validate TOTP codes at scale with <10ms latency
+├─ Key Algorithms: TOTP (RFC 6238), caching strategy, rate limiting
+└─ Key concept: How to design, not how to code
+
+For interviews, explain:
+1. TOTP algorithm at high level
+2. Caching strategy to achieve <10ms latency
+3. Rate limiting to prevent brute force
+4. Monitoring for failed attempts
+5. Graceful degradation if cache fails
+```
+
+**Discussion Points:**
+
+- How would MFA strategy differ for banking vs social media?
+- Is biometric authentication (Face ID, fingerprint) sufficient as single factor?
+- When would you require hardware keys instead of TOTP?
+- How do you balance security (more MFA checks) vs usability (fewer checks)?
+- What's your stance on MFA for password resets?
+
+---
