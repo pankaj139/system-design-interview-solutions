@@ -7044,3 +7044,1619 @@ When asked about Auth API design:
 
 ---
 
+
+
+## Section 7: Storing Our Data
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Design a comprehensive database schema for authentication and authorization
+- Choose between SQL and NoSQL for different data types (users, sessions, tokens, permissions)
+- Understand indexing strategies for fast lookups and security queries
+- Design for data durability, consistency, and compliance (GDPR, SOC 2)
+- Handle sensitive data storage with encryption and security best practices
+
+### Why This Matters
+
+Your database is the most critical component of your authentication system - it stores every user's identity, credentials, permissions, and security tokens. A bad schema can lead to slow login times, security vulnerabilities, or compliance violations. Real example: LinkedIn suffered a massive breach in 2012 when 6.5 million password hashes were stolen because they used weak hashing (unsalted SHA-1) and inadequate database security. This section teaches you how to avoid such catastrophic failures!
+
+---
+
+### 🟢 For Beginners: Understanding Authentication Data Storage
+
+#### What Information Do We Need to Store?
+
+Think of your authentication database like a highly secure filing cabinet in a bank's vault. Each user is a folder, and we need several pieces of information:
+
+```text
+Imagine this as a secure Excel sheet:
+
+| User ID | Email          | Password Hash      | Status | Created Date | Last Login |
+|---------|----------------|--------------------|--------|--------------|------------|
+| 1       | alice@ex.com   | $2b$12$kX9...     | Active | 2025-01-15   | 2025-01-20 |
+| 2       | bob@ex.com     | $2b$12$pL2...     | Active | 2025-01-16   | 2025-01-21 |
+| 3       | charlie@ex.com | $2b$12$mN8...     | Locked | 2025-01-17   | 2025-01-18 |
+
+This is essentially what our database stores!
+```
+
+#### Breaking Down Each Piece of Information
+
+Let's understand WHY we store each piece:
+
+**1. User ID (The Unique Identifier)**
+```text
+Example: 12345
+├─ Why we store it: Unique identifier for each user
+├─ Never changes: Even if user changes email
+├─ Used everywhere: Links to sessions, tokens, permissions
+└─ Like a: Social Security Number (unique and permanent)
+
+Technical term: "Primary Key"
+```
+
+**2. Email (The Username)**
+```text
+Example: "alice@example.com"
+├─ Why we store it: How users log in
+├─ Must be unique: No two users with same email
+├─ Validated: Must be a valid email format
+└─ Like a: Your login ID at the bank
+
+Security note: Store in lowercase for case-insensitive lookups
+```
+
+**3. Password Hash (Never Store Plain Passwords!)**
+```text
+Example: "$2b$12$kX9LmN3pQr5..." (Bcrypt hash)
+├─ Why we hash: If database is stolen, passwords are useless
+├─ One-way: Can't reverse hash to get password
+├─ Slow by design: Takes 100ms to hash (prevents brute force)
+└─ Like a: Shredding a document - can't unshred it
+
+⚠️ NEVER EVER store "password123" - always store hashes!
+```
+
+**4. Account Status**
+```text
+Example: "Active" / "Suspended" / "Locked" / "Pending"
+├─ Active: User can log in normally
+├─ Suspended: Admin temporarily disabled account
+├─ Locked: Too many failed login attempts
+├─ Pending: Email not verified yet
+└─ Like a: Status on your credit card (active/frozen/closed)
+```
+
+**5. Created Timestamp**
+```text
+Example: "2025-01-15 14:30:22"
+├─ Why we store it: Audit trail and analytics
+├─ Never changes: Account age matters for security
+└─ Like a: Date you opened your bank account
+```
+
+**6. Last Login Timestamp**
+```text
+Example: "2025-01-20 09:15:43"
+├─ Why we store it: Detect inactive accounts
+├─ Updated on each login: Shows user activity
+├─ Security: Alert if login from unusual location
+└─ Like a: Last time you visited your bank branch
+```
+
+#### What Are Sessions?
+
+Think of sessions like numbered ticket stubs at a coat check:
+
+```text
+At a Restaurant Coat Check:
+├─ You arrive: Give coat to attendant
+├─ Attendant gives you: Ticket #42 (session ID)
+├─ You keep ticket: Show it when you want coat back
+├─ Attendant checks: "Ticket #42? Here's your coat!"
+└─ Ticket expires: After restaurant closes
+
+In Our System:
+├─ User logs in: Provides username/password
+├─ System gives: Session ID "abc123xyz"
+├─ User keeps in cookie: Sends with each request
+├─ System checks: "Session abc123xyz belongs to Alice"
+└─ Session expires: After 30 minutes of inactivity
+
+Session Storage:
+| Session ID  | User ID | Created    | Expires    | Device      |
+|-------------|---------|------------|------------|-------------|
+| abc123xyz   | 1       | 10:00 AM   | 10:30 AM   | Chrome/Mac  |
+| def456uvw   | 2       | 10:05 AM   | 10:35 AM   | Safari/iOS  |
+```
+
+#### What Are Refresh Tokens?
+
+Refresh tokens are like a VIP pass that lets you get new tickets without going through security again:
+
+```text
+Airport Security Analogy:
+├─ Access Token: Boarding pass (expires in 1 hour)
+│  ├─ Short-lived: Must be recent
+│  ├─ Shows: "Alice, Flight 123, Gate 5"
+│  └─ Gets you: Through gate onto plane
+│
+└─ Refresh Token: TSA PreCheck card (expires in 1 year)
+   ├─ Long-lived: Valid for months
+   ├─ Shows: "Alice is trusted traveler"
+   └─ Gets you: New boarding passes without full security
+
+In Our System:
+├─ Access Token (JWT): Valid 15 minutes
+│  └─ User sends with each API request
+│
+└─ Refresh Token: Valid 30 days
+   └─ User sends only to get new access token
+```
+
+#### What Are Roles and Permissions?
+
+Think of roles like job titles and permissions like keys to different rooms:
+
+```text
+In an Office Building:
+├─ Employee: Can enter office, use printer
+├─ Manager: Can enter office, use printer, access HR files
+├─ Admin: Can enter anywhere, change door codes
+└─ Visitor: Can only enter lobby with escort
+
+In Our System:
+Roles Table:
+| Role ID | Name    | Description           |
+|---------|---------|----------------------|
+| 1       | User    | Basic account access |
+| 2       | Manager | Team management      |
+| 3       | Admin   | Full system access   |
+
+Permissions Table:
+| Permission ID | Resource | Action | Description        |
+|---------------|----------|--------|--------------------|
+| 1             | profile  | read   | View own profile   |
+| 2             | profile  | write  | Edit own profile   |
+| 3             | users    | read   | View all users     |
+| 4             | users    | write  | Edit any user      |
+
+Role-Permission Mapping:
+| Role ID | Permission ID |
+|---------|---------------|
+| 1       | 1             | User can: View own profile
+| 1       | 2             | User can: Edit own profile
+| 2       | 1             | Manager can: View own profile
+| 2       | 2             | Manager can: Edit own profile
+| 2       | 3             | Manager can: View all users
+| 3       | 1-4           | Admin can: Everything
+```
+
+#### Why We Need Multiple Tables
+
+```text
+Bad Design (Everything in One Table):
+Users Table:
+| ID | Email | Password | Role | Permissions    | Sessions     |
+|----|-------|----------|------|----------------|--------------|
+| 1  | alice | hash123  | User | read,write     | session1,...|
+└─ Problems: Hard to query, wastes space, inflexible
+
+Good Design (Separate Tables):
+Users Table: Just user info
+├─ Sessions Table: Just session data
+├─ Roles Table: Just role definitions
+├─ Permissions Table: Just permission definitions
+└─ Junction Tables: Connect users to roles and roles to permissions
+
+Benefits:
+✅ Easy to query: "Show all admins" = simple query
+✅ No duplication: Permission defined once, used many times
+✅ Flexible: Add new roles without changing user records
+✅ Fast: Indexes work better on smaller tables
+```
+
+#### What is Encryption?
+
+Think of encryption like a safe deposit box:
+
+```text
+Hashing (One-Way):
+Password "pass123" → Hash "$2b$12$kX9..."
+├─ Can't reverse: Hash → Password (impossible!)
+├─ Same input → Same hash (always)
+└─ Use for: Passwords, API keys
+
+Encryption (Two-Way):
+Plain text "Alice's SSN: 123-45-6789" 
+└─→ Encrypt → "AES256:kL9mN3pQr8..."
+   └─→ Decrypt → "Alice's SSN: 123-45-6789"
+├─ Can reverse: With the right key
+├─ Different each time: Adds random "salt"
+└─ Use for: Sensitive data that you need to read later
+
+In Our Database:
+├─ Passwords: HASHED (bcrypt)
+├─ MFA secrets: ENCRYPTED (AES-256)
+├─ API keys: HASHED (SHA-256)
+└─ PII (SSN, etc.): ENCRYPTED (AES-256)
+```
+
+💡 **Pro Tip:** Always hash passwords with bcrypt or Argon2 - never use MD5 or SHA-1, they're broken!
+
+---
+
+### 🟡 For Intermediate: Complete Schema Design
+
+#### Complete Database Schema
+
+Let's design a production-ready authentication schema with all security features:
+
+**Table 1: users (Core Identity)**
+
+```sql
+CREATE TABLE users (
+    -- Primary identifier
+    user_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    
+    -- Login credentials
+    email VARCHAR(255) UNIQUE NOT NULL,
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    password_hash VARCHAR(255) NOT NULL,  -- bcrypt: $2b$12$...
+    
+    -- Account status
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        -- Values: 'pending', 'active', 'suspended', 'locked', 'deleted'
+    failed_login_attempts INT NOT NULL DEFAULT 0,
+    locked_until TIMESTAMP NULL,
+    
+    -- Timestamps
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_login_at TIMESTAMP NULL,
+    password_changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Security metadata
+    require_password_change BOOLEAN NOT NULL DEFAULT FALSE,
+    mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    
+    -- Constraints
+    CONSTRAINT chk_email_format CHECK (email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
+    CONSTRAINT chk_status CHECK (status IN ('pending', 'active', 'suspended', 'locked', 'deleted'))
+);
+
+-- Indexes for common queries
+CREATE INDEX idx_email ON users(email);
+CREATE INDEX idx_status ON users(status);
+CREATE INDEX idx_last_login ON users(last_login_at DESC);
+CREATE INDEX idx_locked_accounts ON users(locked_until) WHERE locked_until IS NOT NULL;
+```
+
+**Why Each Field?**
+
+```text
+email_verified:
+Purpose: Ensure user owns the email
+Impact: Can't use features until verified
+Example: Sign up → Receive email → Click link → Verified
+
+failed_login_attempts:
+Purpose: Track brute force attempts
+Impact: Lock account after 5 failures
+Example: Wrong password 3x → Counter = 3 → 2 more tries left
+
+locked_until:
+Purpose: Temporary account lockout
+Impact: User can't login until this time
+Example: Too many failed attempts → Locked for 30 minutes
+
+password_changed_at:
+Purpose: Force periodic password changes
+Impact: "Password is 90 days old, please change"
+Example: Enterprise policy: Change every 60 days
+```
+
+**Table 2: sessions (Active User Sessions)**
+
+```sql
+CREATE TABLE sessions (
+    -- Session identifier (random, unpredictable)
+    session_id VARCHAR(128) PRIMARY KEY,
+    
+    -- Who does this session belong to
+    user_id BIGINT NOT NULL,
+    
+    -- Session lifecycle
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_accessed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    
+    -- Device & security context
+    ip_address VARCHAR(45) NOT NULL,  -- IPv6 support
+    user_agent TEXT,
+    device_fingerprint VARCHAR(64),
+    
+    -- Session metadata
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    logout_reason VARCHAR(50),  -- 'user_logout', 'timeout', 'admin_revoke'
+    
+    -- Foreign key
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    
+    -- Indexes
+    INDEX idx_user_sessions (user_id, is_active),
+    INDEX idx_expires (expires_at),
+    INDEX idx_ip_address (ip_address)
+);
+
+-- Partition by month for performance
+ALTER TABLE sessions PARTITION BY RANGE (YEAR(created_at) * 100 + MONTH(created_at)) (
+    PARTITION p202501 VALUES LESS THAN (202502),
+    PARTITION p202502 VALUES LESS THAN (202503),
+    PARTITION p202503 VALUES LESS THAN (202504)
+);
+```
+
+**Session Management Queries:**
+
+```sql
+-- Create new session
+INSERT INTO sessions (session_id, user_id, expires_at, ip_address, user_agent)
+VALUES ('abc123xyz', 42, NOW() + INTERVAL 30 MINUTE, '192.168.1.1', 'Chrome/120');
+
+-- Validate session
+SELECT user_id, expires_at 
+FROM sessions 
+WHERE session_id = 'abc123xyz' 
+  AND is_active = TRUE 
+  AND expires_at > NOW();
+
+-- Update last access (extend session)
+UPDATE sessions 
+SET last_accessed_at = NOW(), 
+    expires_at = NOW() + INTERVAL 30 MINUTE
+WHERE session_id = 'abc123xyz';
+
+-- Logout (invalidate session)
+UPDATE sessions 
+SET is_active = FALSE, 
+    logout_reason = 'user_logout'
+WHERE session_id = 'abc123xyz';
+
+-- Cleanup expired sessions (cron job)
+DELETE FROM sessions 
+WHERE expires_at < NOW() - INTERVAL 7 DAY;
+```
+
+**Table 3: refresh_tokens (Long-Lived Tokens)**
+
+```sql
+CREATE TABLE refresh_tokens (
+    -- Token identifier
+    token_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    token_hash VARCHAR(64) UNIQUE NOT NULL,  -- SHA-256 hash
+    
+    -- Ownership
+    user_id BIGINT NOT NULL,
+    
+    -- Token lifecycle
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    last_used_at TIMESTAMP,
+    
+    -- Token rotation (security feature)
+    family_id VARCHAR(36) NOT NULL,  -- UUID for token family
+    is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
+    revoked_at TIMESTAMP,
+    revoked_reason VARCHAR(100),
+    
+    -- Device binding
+    device_id VARCHAR(64),
+    ip_address VARCHAR(45),
+    
+    -- Foreign key
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    
+    -- Indexes
+    INDEX idx_token_hash (token_hash),
+    INDEX idx_user_tokens (user_id, is_revoked, expires_at),
+    INDEX idx_family (family_id),
+    INDEX idx_expires (expires_at)
+);
+```
+
+**Token Rotation Strategy:**
+
+```text
+Problem: Stolen refresh token can be used indefinitely
+Solution: Automatic token rotation
+
+Flow:
+1. User logs in → Refresh token RT1 (family: F1)
+2. Use RT1 → Get new access token + RT2 (family: F1)
+   └─ RT1 is revoked
+3. Use RT2 → Get new access token + RT3 (family: F1)
+   └─ RT2 is revoked
+4. Someone tries RT1 (already revoked) → Security alert!
+   └─ Revoke entire family F1 (all tokens)
+   └─ User must re-authenticate
+
+Detection of token theft:
+└─ If revoked token is used → Assume compromise
+└─ Revoke all tokens in that family
+└─ Alert user via email
+```
+
+**Table 4: roles (Role Definitions)**
+
+```sql
+CREATE TABLE roles (
+    role_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    is_system_role BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT chk_role_name CHECK (name REGEXP '^[A-Z_]+$')  -- ADMIN, USER_MANAGER
+);
+
+-- Seed system roles
+INSERT INTO roles (name, description, is_system_role) VALUES
+('SUPER_ADMIN', 'Full system access', TRUE),
+('ADMIN', 'Administrative access', TRUE),
+('USER_MANAGER', 'Can manage users', TRUE),
+('USER', 'Standard user access', TRUE),
+('GUEST', 'Limited read-only access', TRUE);
+```
+
+**Table 5: permissions (Permission Definitions)**
+
+```sql
+CREATE TABLE permissions (
+    permission_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) UNIQUE NOT NULL,
+    resource VARCHAR(50) NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT chk_action CHECK (action IN ('create', 'read', 'update', 'delete', 'list', 'admin')),
+    CONSTRAINT uniq_resource_action UNIQUE (resource, action)
+);
+
+-- Seed permissions
+INSERT INTO permissions (name, resource, action, description) VALUES
+('users:read', 'users', 'read', 'View user details'),
+('users:write', 'users', 'update', 'Edit user details'),
+('users:delete', 'users', 'delete', 'Delete users'),
+('users:list', 'users', 'list', 'List all users'),
+('roles:admin', 'roles', 'admin', 'Manage roles'),
+('permissions:admin', 'permissions', 'admin', 'Manage permissions');
+```
+
+**Table 6: role_permissions (Junction Table)**
+
+```sql
+CREATE TABLE role_permissions (
+    role_id INT NOT NULL,
+    permission_id INT NOT NULL,
+    granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    granted_by BIGINT,  -- Which admin granted this
+    
+    PRIMARY KEY (role_id, permission_id),
+    FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE,
+    FOREIGN KEY (permission_id) REFERENCES permissions(permission_id) ON DELETE CASCADE,
+    FOREIGN KEY (granted_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    
+    INDEX idx_role (role_id),
+    INDEX idx_permission (permission_id)
+);
+
+-- Grant permissions to roles
+INSERT INTO role_permissions (role_id, permission_id) VALUES
+(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6),  -- SUPER_ADMIN: all
+(4, 1), (4, 2);  -- USER: read and write own profile
+```
+
+**Table 7: user_roles (Junction Table)**
+
+```sql
+CREATE TABLE user_roles (
+    user_id BIGINT NOT NULL,
+    role_id INT NOT NULL,
+    assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    assigned_by BIGINT,  -- Which admin assigned this
+    expires_at TIMESTAMP,  -- Temporary role grant
+    
+    PRIMARY KEY (user_id, role_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE,
+    FOREIGN KEY (assigned_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    
+    INDEX idx_user (user_id),
+    INDEX idx_role (role_id),
+    INDEX idx_expires (expires_at)
+);
+```
+
+**Permission Check Query (Optimized):**
+
+```sql
+-- Check if user has specific permission
+SELECT COUNT(*) > 0 as has_permission
+FROM user_roles ur
+JOIN role_permissions rp ON ur.role_id = rp.role_id
+JOIN permissions p ON rp.permission_id = p.permission_id
+WHERE ur.user_id = 42
+  AND p.resource = 'users'
+  AND p.action = 'delete'
+  AND (ur.expires_at IS NULL OR ur.expires_at > NOW());
+
+-- Get all user permissions (for caching)
+SELECT p.name, p.resource, p.action
+FROM user_roles ur
+JOIN role_permissions rp ON ur.role_id = rp.role_id
+JOIN permissions p ON rp.permission_id = p.permission_id
+WHERE ur.user_id = 42
+  AND (ur.expires_at IS NULL OR ur.expires_at > NOW());
+```
+
+**Table 8: oauth_clients (Third-Party Applications)**
+
+```sql
+CREATE TABLE oauth_clients (
+    client_id VARCHAR(64) PRIMARY KEY,
+    client_secret_hash VARCHAR(64) NOT NULL,  -- Hashed
+    
+    -- Client metadata
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    logo_url TEXT,
+    website_url TEXT,
+    
+    -- OAuth configuration
+    redirect_uris TEXT NOT NULL,  -- JSON array
+    allowed_scopes TEXT NOT NULL,  -- JSON array: ["profile", "email"]
+    grant_types TEXT NOT NULL,  -- JSON array: ["authorization_code", "refresh_token"]
+    
+    -- Security
+    is_confidential BOOLEAN NOT NULL DEFAULT TRUE,
+    is_approved BOOLEAN NOT NULL DEFAULT FALSE,
+    owner_user_id BIGINT NOT NULL,
+    
+    -- Timestamps
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (owner_user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    INDEX idx_owner (owner_user_id)
+);
+```
+
+**Table 9: oauth_authorization_codes (Short-Lived Codes)**
+
+```sql
+CREATE TABLE oauth_authorization_codes (
+    code VARCHAR(128) PRIMARY KEY,
+    client_id VARCHAR(64) NOT NULL,
+    user_id BIGINT NOT NULL,
+    
+    -- Authorization details
+    redirect_uri TEXT NOT NULL,
+    scopes TEXT,  -- JSON array
+    
+    -- PKCE (Proof Key for Code Exchange)
+    code_challenge VARCHAR(128),
+    code_challenge_method VARCHAR(10),  -- 'plain' or 'S256'
+    
+    -- Lifecycle
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    
+    FOREIGN KEY (client_id) REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    
+    INDEX idx_expires (expires_at)
+);
+
+-- Authorization codes expire in 10 minutes
+-- Cleanup job: DELETE FROM oauth_authorization_codes WHERE expires_at < NOW() - INTERVAL 1 HOUR;
+```
+
+**Table 10: oauth_access_tokens (Access Tokens for OAuth)**
+
+```sql
+CREATE TABLE oauth_access_tokens (
+    token_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    token_hash VARCHAR(64) UNIQUE NOT NULL,
+    
+    -- Token ownership
+    client_id VARCHAR(64) NOT NULL,
+    user_id BIGINT NOT NULL,
+    
+    -- Token metadata
+    scopes TEXT,  -- JSON array
+    token_type VARCHAR(20) NOT NULL DEFAULT 'Bearer',
+    
+    -- Lifecycle
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    revoked_at TIMESTAMP,
+    
+    FOREIGN KEY (client_id) REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    
+    INDEX idx_token_hash (token_hash),
+    INDEX idx_user (user_id),
+    INDEX idx_client (client_id),
+    INDEX idx_expires (expires_at)
+);
+```
+
+**Table 11: mfa_settings (Multi-Factor Authentication)**
+
+```sql
+CREATE TABLE mfa_settings (
+    user_id BIGINT PRIMARY KEY,
+    
+    -- TOTP (Authenticator app)
+    totp_secret_encrypted VARCHAR(255),  -- AES-256 encrypted
+    totp_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    totp_verified_at TIMESTAMP,
+    
+    -- SMS
+    phone_number_encrypted VARCHAR(255),  -- AES-256 encrypted
+    phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    sms_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    
+    -- Backup codes (one-time use)
+    backup_codes_encrypted TEXT,  -- JSON array of hashed codes
+    
+    -- Recovery
+    recovery_email_encrypted VARCHAR(255),
+    
+    -- Timestamps
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+```
+
+**MFA Backup Codes Structure:**
+
+```json
+{
+  "codes": [
+    {
+      "code_hash": "$2b$12$...",
+      "used": false,
+      "used_at": null
+    },
+    {
+      "code_hash": "$2b$12$...",
+      "used": true,
+      "used_at": "2025-01-15T10:30:00Z"
+    }
+  ],
+  "generated_at": "2025-01-01T00:00:00Z"
+}
+```
+
+**Table 12: audit_logs (Security Audit Trail)**
+
+```sql
+CREATE TABLE audit_logs (
+    log_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    
+    -- Who and what
+    user_id BIGINT,
+    action VARCHAR(100) NOT NULL,
+    resource_type VARCHAR(50),
+    resource_id VARCHAR(100),
+    
+    -- Context
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    
+    -- Result
+    status VARCHAR(20) NOT NULL,  -- 'success', 'failure', 'denied'
+    error_message TEXT,
+    
+    -- Additional data
+    metadata JSON,
+    
+    -- Timestamp
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    
+    -- Indexes
+    INDEX idx_user_actions (user_id, created_at DESC),
+    INDEX idx_action (action, created_at DESC),
+    INDEX idx_ip (ip_address),
+    INDEX idx_created (created_at DESC)
+) PARTITION BY RANGE (YEAR(created_at) * 100 + MONTH(created_at));
+```
+
+**Audit Log Examples:**
+
+```sql
+-- Log successful login
+INSERT INTO audit_logs (user_id, action, status, ip_address, metadata)
+VALUES (42, 'login', 'success', '192.168.1.1', '{"method": "password"}');
+
+-- Log failed login
+INSERT INTO audit_logs (user_id, action, status, ip_address, error_message)
+VALUES (42, 'login', 'failure', '192.168.1.1', 'Invalid password');
+
+-- Log permission denied
+INSERT INTO audit_logs (user_id, action, resource_type, resource_id, status, error_message)
+VALUES (42, 'delete', 'user', '123', 'denied', 'Insufficient permissions');
+
+-- Query: Find suspicious activity
+SELECT user_id, ip_address, COUNT(*) as failed_attempts
+FROM audit_logs
+WHERE action = 'login'
+  AND status = 'failure'
+  AND created_at > NOW() - INTERVAL 1 HOUR
+GROUP BY user_id, ip_address
+HAVING failed_attempts >= 5;
+```
+
+**Table 13: failed_login_attempts (Rate Limiting)**
+
+```sql
+CREATE TABLE failed_login_attempts (
+    attempt_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    
+    -- Identifier (could be user_id, email, or IP)
+    user_id BIGINT,
+    email VARCHAR(255),
+    ip_address VARCHAR(45) NOT NULL,
+    
+    -- Attempt details
+    attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_agent TEXT,
+    
+    INDEX idx_user_recent (user_id, attempted_at DESC),
+    INDEX idx_email_recent (email, attempted_at DESC),
+    INDEX idx_ip_recent (ip_address, attempted_at DESC),
+    INDEX idx_cleanup (attempted_at)
+);
+
+-- Rate limiting query
+SELECT COUNT(*) as recent_failures
+FROM failed_login_attempts
+WHERE email = 'alice@example.com'
+  AND attempted_at > NOW() - INTERVAL 15 MINUTE;
+
+-- Cleanup old attempts (older than 24 hours)
+DELETE FROM failed_login_attempts 
+WHERE attempted_at < NOW() - INTERVAL 24 HOUR;
+```
+
+**Table 14: password_history (Prevent Reuse)**
+
+```sql
+CREATE TABLE password_history (
+    history_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    
+    INDEX idx_user_history (user_id, changed_at DESC)
+);
+
+-- Check if new password was used before
+SELECT COUNT(*) > 0 as password_reused
+FROM password_history
+WHERE user_id = 42
+ORDER BY changed_at DESC
+LIMIT 5;  -- Check last 5 passwords
+```
+
+#### Database Technology Choices
+
+**PostgreSQL (Primary Database):**
+
+```text
+✅ Use PostgreSQL for:
+├─ Users table (ACID critical)
+├─ Roles and permissions (complex queries)
+├─ OAuth clients
+└─ MFA settings
+
+Why PostgreSQL:
+├─ ACID compliance (strong consistency)
+├─ JSON support (flexible metadata)
+├─ Full-text search (user search)
+├─ Row-level security (multi-tenant)
+├─ Mature replication
+└─ Excellent performance for <100M users
+
+Scale limits:
+├─ Single instance: 10M users comfortably
+├─ With read replicas: 50M users
+├─ With sharding: 500M+ users
+```
+
+**Redis (Session Store):**
+
+```text
+✅ Use Redis for:
+├─ Active sessions (fast lookups)
+├─ Rate limiting counters
+├─ Permission cache
+└─ Token blacklist
+
+Why Redis:
+├─ In-memory (sub-millisecond latency)
+├─ TTL support (auto-expire sessions)
+├─ Atomic operations (rate limiting)
+└─ Pub/sub (logout all devices)
+
+Example session storage:
+SET session:abc123xyz "{user_id:42,expires:...}" EX 1800
+GET session:abc123xyz  # <1ms latency
+
+PostgreSQL vs Redis for sessions:
+├─ PostgreSQL: 10-50ms per lookup
+├─ Redis: <1ms per lookup
+└─ Winner: Redis (50x faster)
+```
+
+**Cassandra (Audit Logs):**
+
+```text
+✅ Use Cassandra for:
+├─ Audit logs (high write volume)
+├─ Login history
+└─ Security events
+
+Why Cassandra:
+├─ Scales horizontally
+├─ High write throughput (100K writes/sec)
+├─ Time-series optimized
+└─ Never delete (append-only)
+
+Schema design:
+PRIMARY KEY ((user_id), created_at)
+└─ Partition by user_id
+└─ Sort by created_at (DESC)
+└─ Query: "Show user's last 100 actions" = fast
+```
+
+#### ER Diagram (Entity Relationships)
+
+```text
+users
+  │
+  ├──< sessions (one user, many sessions)
+  ├──< refresh_tokens (one user, many tokens)
+  ├──< audit_logs (one user, many log entries)
+  ├──< mfa_settings (one-to-one)
+  ├──< password_history (one user, many old passwords)
+  └──< user_roles (many-to-many with roles)
+       │
+       └──> roles
+             └──< role_permissions (many-to-many with permissions)
+                  │
+                  └──> permissions
+
+oauth_clients
+  ├──< oauth_authorization_codes
+  └──< oauth_access_tokens
+
+Relationships:
+├─ User ─[1:N]─> Sessions (user can have multiple active sessions)
+├─ User ─[M:N]─> Roles (user can have multiple roles)
+├─ Role ─[M:N]─> Permissions (role can have multiple permissions)
+└─ OAuth Client ─[1:N]─> Access Tokens
+```
+
+---
+
+### 🔴 For Advanced: Sharding, Encryption, and Compliance
+
+#### When to Shard Authentication Database
+
+**Vertical Scaling Limits:**
+
+```text
+Single PostgreSQL Server Limits:
+├─ Users: 10-50M users (with optimization)
+├─ Sessions: 1M active sessions
+├─ Write QPS: 5,000-10,000
+└─ Read QPS: 50,000-100,000 (with read replicas)
+
+For Authentication System:
+├─ We estimated 10M users, 100K auth requests/sec
+├─ With caching: 95% cache hit → 5K DB queries/sec
+└─ Verdict: Single server + replicas sufficient
+
+When you DO need sharding:
+├─ Users > 50M
+├─ Auth requests > 200K/sec (even with cache)
+├─ Geographic distribution required (GDPR data residency)
+└─ Multi-tenant isolation requirements
+```
+
+#### Sharding Strategy: Hash-Based by User ID
+
+```python
+"""
+Sharding Strategy for Authentication System
+Purpose: Distributes users across N database shards
+Constraint: User and all related data (sessions, tokens) on same shard
+"""
+
+def get_shard_for_user(user_id, num_shards=64):
+    """
+    Consistent hashing for user sharding
+    
+    Args:
+        user_id: Integer user ID
+        num_shards: Total database shards (must be power of 2)
+    
+    Returns:
+        shard_id: 0 to num_shards-1
+    
+    Properties:
+        - All user data on one shard (no distributed transactions)
+        - Even distribution
+        - User always routes to same shard
+    """
+    return user_id % num_shards
+
+# Example usage
+user_id = 123456789
+shard = get_shard_for_user(user_id, num_shards=64)  # Returns 21
+
+# All user's data on same shard
+db = connect_to_shard(shard)
+db.query("SELECT * FROM users WHERE user_id = %s", user_id)
+db.query("SELECT * FROM sessions WHERE user_id = %s", user_id)
+db.query("SELECT * FROM refresh_tokens WHERE user_id = %s", user_id)
+```
+
+**Shard Mapping:**
+
+```text
+64 Shards Configuration:
+
+Shard 0:  user_id % 64 == 0  (users: 0, 64, 128, ...)
+Shard 1:  user_id % 64 == 1  (users: 1, 65, 129, ...)
+...
+Shard 63: user_id % 64 == 63 (users: 63, 127, 191, ...)
+
+Each shard:
+├─ Independent PostgreSQL instance
+├─ Contains: users, sessions, tokens, roles assignments
+├─ Handles: ~1/64th of traffic
+└─ Size: ~1TB (for 50M total users)
+
+Global tables (replicated to all shards):
+├─ roles (small, read-heavy)
+├─ permissions (small, read-heavy)
+├─ oauth_clients (small, read-heavy)
+└─ Reasoning: Avoid cross-shard JOINs
+```
+
+**Challenges with Sharding:**
+
+```text
+Challenge 1: User Lookup by Email
+Problem: Email not in shard key, must check all shards
+├─ "Login with alice@example.com" → Which shard?
+├─ Naive: Query all 64 shards (slow!)
+└─ Solution: Separate email→user_id lookup service
+
+Solution: Email Lookup Table
+├─ Separate database: email_to_user_id
+├─ Schema: (email → user_id, shard_id)
+├─ Flow: 
+   1. Lookup: "alice@example.com" → user_id=42, shard=21
+   2. Query shard 21: SELECT * FROM users WHERE user_id=42
+
+email_lookup table:
+CREATE TABLE email_lookup (
+    email VARCHAR(255) PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    shard_id INT NOT NULL,
+    INDEX idx_user (user_id)
+);
+
+Challenge 2: Counting Total Users
+Problem: "How many total users?" requires querying all shards
+├─ Must aggregate across 64 databases
+├─ Slow and expensive
+└─ Solution: Periodic aggregation to metrics database
+
+Solution: Pre-computed Metrics
+├─ Background job runs every 5 minutes
+├─ Query each shard: SELECT COUNT(*) FROM users
+├─ Store in metrics DB: total_users = sum(all_shards)
+└─ Dashboard queries metrics DB (fast!)
+
+Challenge 3: Global User ID Generation
+Problem: Auto-increment doesn't work across shards
+├─ Shard 0: user_id=1, 2, 3...
+├─ Shard 1: user_id=1, 2, 3... (collision!)
+└─ Need globally unique IDs
+
+Solution: Snowflake ID (Twitter's approach)
+├─ 64-bit ID structure:
+│  ├─ 41 bits: Timestamp (milliseconds since epoch)
+│  ├─ 10 bits: Shard ID (up to 1024 shards)
+│  └─ 12 bits: Sequence (4096 IDs per millisecond per shard)
+│
+└─ Guarantees:
+   ├─ Globally unique
+   ├─ Time-sortable
+   └─ No coordination needed
+
+Python implementation:
+def generate_user_id(shard_id):
+    timestamp = int(time.time() * 1000) - EPOCH
+    sequence = get_next_sequence()  # 0-4095
+    user_id = (timestamp << 22) | (shard_id << 12) | sequence
+    return user_id
+```
+
+#### Data Encryption Strategy
+
+**Encryption at Rest:**
+
+```sql
+-- Database-level encryption (Transparent Data Encryption)
+-- PostgreSQL 14+ with pgcrypto extension
+
+-- Enable encryption
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Encrypt sensitive fields
+CREATE TABLE users_encrypted (
+    user_id BIGINT PRIMARY KEY,
+    email VARCHAR(255),
+    
+    -- Encrypted fields (AES-256-GCM)
+    ssn_encrypted BYTEA,  -- Social Security Number
+    phone_encrypted BYTEA,  -- Phone number
+    address_encrypted BYTEA,  -- Home address
+    
+    -- Encryption metadata
+    encryption_key_id INT NOT NULL,  -- Which key encrypted this
+    encrypted_at TIMESTAMP NOT NULL
+);
+
+-- Encrypt data
+INSERT INTO users_encrypted (user_id, ssn_encrypted, encryption_key_id)
+VALUES (
+    42,
+    pgp_sym_encrypt('123-45-6789', 'encryption_key_from_kms'),
+    1
+);
+
+-- Decrypt data
+SELECT 
+    user_id,
+    pgp_sym_decrypt(ssn_encrypted, 'encryption_key_from_kms') as ssn
+FROM users_encrypted
+WHERE user_id = 42;
+```
+
+**Key Management (KMS):**
+
+```text
+Encryption Key Hierarchy:
+
+Level 1: Master Key (AWS KMS, Google Cloud KMS)
+├─ Stored in: Hardware Security Module (HSM)
+├─ Rotated: Annually
+├─ Used to: Encrypt Data Encryption Keys (DEKs)
+└─ Never leaves KMS
+
+Level 2: Data Encryption Keys (DEK)
+├─ Generated: Per table or per tenant
+├─ Rotated: Quarterly
+├─ Used to: Encrypt actual data
+├─ Stored encrypted: DEK encrypted by Master Key
+└─ Cached: In application memory (30 min TTL)
+
+Encryption Flow:
+1. App requests DEK from KMS (cached)
+2. KMS decrypts DEK with Master Key
+3. App uses DEK to encrypt/decrypt data
+4. DEK never stored in plain text
+
+Key Rotation:
+1. Generate new DEK (v2)
+2. Re-encrypt data with new DEK
+3. Keep old DEK (v1) for backward compatibility
+4. Background job: Migrate all data to v2
+5. Retire v1 after 30 days
+```
+
+**Application-Level Encryption:**
+
+```python
+"""
+Application-layer encryption for maximum security
+Even DBA can't read encrypted data without key
+"""
+
+from cryptography.fernet import Fernet
+import base64
+
+class EncryptionService:
+    def __init__(self, kms_client):
+        self.kms = kms_client
+        self.key_cache = {}  # Cache keys for 30 minutes
+    
+    def get_encryption_key(self, key_id):
+        """Get DEK from KMS (with caching)"""
+        if key_id in self.key_cache:
+            return self.key_cache[key_id]
+        
+        # Fetch from KMS
+        encrypted_dek = self.kms.get_data_key(key_id)
+        dek = self.kms.decrypt(encrypted_dek)
+        
+        # Cache for 30 minutes
+        self.key_cache[key_id] = dek
+        return dek
+    
+    def encrypt_field(self, plaintext, key_id=1):
+        """Encrypt sensitive field"""
+        key = self.get_encryption_key(key_id)
+        cipher = Fernet(key)
+        ciphertext = cipher.encrypt(plaintext.encode())
+        return base64.b64encode(ciphertext).decode()
+    
+    def decrypt_field(self, ciphertext, key_id=1):
+        """Decrypt sensitive field"""
+        key = self.get_encryption_key(key_id)
+        cipher = Fernet(key)
+        decoded = base64.b64decode(ciphertext)
+        plaintext = cipher.decrypt(decoded)
+        return plaintext.decode()
+
+# Usage
+enc = EncryptionService(kms_client)
+
+# Encrypt before storing in DB
+ssn_encrypted = enc.encrypt_field("123-45-6789")
+db.execute(
+    "INSERT INTO users (user_id, ssn_encrypted) VALUES (%s, %s)",
+    (42, ssn_encrypted)
+)
+
+# Decrypt after reading from DB
+row = db.query("SELECT ssn_encrypted FROM users WHERE user_id = 42")
+ssn_plaintext = enc.decrypt_field(row['ssn_encrypted'])
+```
+
+#### GDPR Compliance Requirements
+
+**Right to Access (Subject Access Request):**
+
+```sql
+-- Export all user data
+CREATE OR REPLACE FUNCTION export_user_data(p_user_id BIGINT)
+RETURNS JSON AS $$
+DECLARE
+    result JSON;
+BEGIN
+    SELECT json_build_object(
+        'user', (SELECT row_to_json(u) FROM users u WHERE user_id = p_user_id),
+        'sessions', (SELECT json_agg(s) FROM sessions s WHERE user_id = p_user_id),
+        'roles', (SELECT json_agg(r) FROM user_roles ur 
+                  JOIN roles r ON ur.role_id = r.role_id 
+                  WHERE ur.user_id = p_user_id),
+        'audit_logs', (SELECT json_agg(a) FROM audit_logs a WHERE user_id = p_user_id),
+        'mfa_settings', (SELECT row_to_json(m) FROM mfa_settings m WHERE user_id = p_user_id)
+    ) INTO result;
+    
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Usage: SELECT export_user_data(42);
+```
+
+**Right to be Forgotten (Data Deletion):**
+
+```sql
+-- Pseudonymize user (soft delete with data retention)
+CREATE OR REPLACE FUNCTION anonymize_user(p_user_id BIGINT)
+RETURNS VOID AS $$
+BEGIN
+    -- Update user record
+    UPDATE users SET
+        email = CONCAT('deleted_', user_id, '@deleted.local'),
+        password_hash = 'DELETED',
+        status = 'deleted',
+        updated_at = NOW()
+    WHERE user_id = p_user_id;
+    
+    -- Delete sensitive data
+    DELETE FROM sessions WHERE user_id = p_user_id;
+    DELETE FROM refresh_tokens WHERE user_id = p_user_id;
+    DELETE FROM mfa_settings WHERE user_id = p_user_id;
+    
+    -- Keep audit logs (anonymized)
+    UPDATE audit_logs SET
+        ip_address = '0.0.0.0',
+        user_agent = 'DELETED',
+        metadata = '{}'
+    WHERE user_id = p_user_id;
+    
+    -- Log deletion
+    INSERT INTO audit_logs (user_id, action, status)
+    VALUES (p_user_id, 'account_deleted', 'success');
+END;
+$$ LANGUAGE plpgsql;
+```
+
+**Data Residency (EU users in EU, US users in US):**
+
+```text
+Geographic Sharding Strategy:
+
+Primary shard key: (region, user_id)
+├─ EU users: Shards 0-31 (Frankfurt datacenter)
+├─ US users: Shards 32-47 (Virginia datacenter)
+└─ APAC users: Shards 48-63 (Singapore datacenter)
+
+Region detection:
+1. User signs up from IP: 185.x.x.x (Germany)
+2. Assign region: 'EU'
+3. Generate user_id: Snowflake with region prefix
+4. Route to: EU shards only
+
+Constraints:
+├─ User data never leaves region
+├─ Backups stay in region
+├─ Logs stay in region
+└─ Cross-region queries prohibited
+
+Compliance:
+✅ GDPR (EU): Data stays in EU
+✅ CCPA (California): Data stays in US
+✅ PDPA (Singapore): Data stays in APAC
+```
+
+#### High Availability and Replication
+
+**Multi-Region Active-Active Setup:**
+
+```text
+Topology:
+
+US-EAST-1 (Primary):
+[Primary DB] ──────────> [Replica 1]
+     │                        │
+     │                        │
+     └────> [Replica 2]       └────> Redis Cache
+                │
+                └────────────────────────┐
+                                         │
+                                         ▼
+EU-WEST-1 (Secondary):                   │
+[Primary DB] <──────────────────────────┘
+     │            (Async replication, 200ms lag)
+     ├────> [Replica 1]
+     └────> [Replica 2]
+
+Routing Logic:
+├─ EU users → EU region (low latency)
+├─ US users → US region (low latency)
+└─ Cross-region reads tolerate 200ms lag
+
+Write Strategy:
+├─ User writes to closest region (Primary)
+├─ Async replication to other regions
+├─ Conflict resolution: Last-write-wins
+└─ Acceptable: 99.9% no conflicts (user accesses from one location)
+```
+
+**Backup and Recovery Strategy:**
+
+```sql
+-- Continuous WAL archiving (PostgreSQL)
+archive_mode = on
+archive_command = 'aws s3 cp %p s3://auth-db-backups/wal/%f'
+
+-- Point-in-time recovery enabled
+-- Can restore to any second in past 30 days
+
+-- Backup schedule
+├─ Continuous: WAL logs to S3 (real-time)
+├─ Hourly: Incremental snapshots (1-hour RPO)
+├─ Daily: Full backup to S3 (24-hour RPO)
+├─ Weekly: Full backup to Glacier (compliance)
+└─ Monthly: Long-term archive (7-year retention)
+
+-- Disaster recovery test (quarterly)
+1. Restore from backup to staging
+2. Validate data integrity
+3. Test application connectivity
+4. Measure recovery time (RTO < 4 hours)
+```
+
+---
+
+### Real-World Example: Auth0's Database Evolution
+
+**2013 - MongoDB Single Cluster:**
+```text
+Setup:
+├─ MongoDB 3-node replica set
+├─ Users, sessions, tokens in one database
+├─ Simple, fast to develop
+└─ Handled 100K users
+
+Problems at scale:
+❌ MongoDB eventual consistency issues
+❌ Hard to do complex queries (no joins)
+❌ Difficult to maintain data integrity
+❌ Token validation slow (200ms)
+```
+
+**2016 - Hybrid PostgreSQL + Redis:**
+```text
+Setup:
+├─ PostgreSQL: Users, roles, OAuth clients
+├─ Redis: Sessions, rate limiting
+├─ Still MongoDB: Audit logs
+└─ 32 PostgreSQL shards
+
+Benefits:
+✅ PostgreSQL ACID for critical data
+✅ Redis 50x faster for sessions (<5ms)
+✅ MongoDB perfect for logs (write-heavy)
+✅ Handled 10M users
+
+Challenges:
+├─ Operational complexity (3 databases!)
+├─ Data sync issues
+└─ Higher costs
+```
+
+**2020 - PostgreSQL + Redis + Elasticsearch:**
+```text
+Setup:
+├─ PostgreSQL (128 shards): Core auth data
+├─ Redis (256 nodes): Sessions, cache
+├─ Elasticsearch (40 nodes): Search, analytics
+├─ Cassandra (60 nodes): Audit logs
+└─ S3: Backup and archival
+
+Architecture principles:
+├─ PostgreSQL: Source of truth
+├─ Redis: Performance layer
+├─ Elasticsearch: Search and analytics
+└─ Cassandra: Append-only logs
+
+Results:
+├─ 100M+ users supported
+├─ 200K auth requests/sec
+├─ <50ms token validation (p99)
+├─ 99.99% uptime
+└─ GDPR and SOC 2 compliant
+
+Key lesson: Right database for each workload!
+```
+
+---
+
+### 🤔 Think About It
+
+1. **For Beginners:** Why do we store password *hashes* instead of passwords? What happens if someone steals our database?
+
+2. **For Intermediate:** Your PM asks: "Can we store user's social security numbers in the database for verification?" What security measures must you implement? What compliance requirements apply?
+
+3. **For Advanced:** You wake up to an alert: "User 42 had 50 failed login attempts in 1 minute from 50 different IPs". Your `failed_login_attempts` table is growing fast. How do you efficiently query and block this attack without impacting legitimate users?
+
+---
+
+### 🎯 Interview Questions: Authentication Database Design
+
+#### Question 1: How do you store passwords securely?
+
+**What the interviewer wants to know:**
+- Do you understand hashing vs encryption?
+- Can you explain why certain algorithms are better?
+
+**Answer Framework:**
+
+```text
+❌ NEVER do this:
+├─ Store plaintext: "password123"
+├─ Use MD5: Broken, fast to crack
+├─ Use SHA-1: Also broken
+└─ Encrypt passwords: Reversible defeats the purpose
+
+✅ DO this:
+├─ Use bcrypt (adaptive, salted)
+├─ Use Argon2 (modern, memory-hard)
+└─ Use scrypt (alternative to Argon2)
+
+Why bcrypt:
+├─ Adaptive: Can increase "cost" as CPUs get faster
+├─ Salted: Same password → Different hash
+├─ Slow: Takes ~100ms to hash (prevents brute force)
+└─ Industry standard: Used by Auth0, Okta, AWS
+
+Storage format:
+$2b$12$kX9LmN3pQr5sT6vU8wY0ZuABcDeFgHiJkLmNoPqRsTuVwXyZa1234
+ │  │  │                                            │
+ │  │  └─ Salt (random)                             └─ Hash
+ │  └─ Cost factor (12 = 2^12 iterations ≈ 100ms)
+ └─ Algorithm identifier (bcrypt)
+
+Code example:
+import bcrypt
+
+# Registration
+password = "user_password"
+hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
+# Store hashed in database
+
+# Login verification
+stored_hash = db.get_password_hash(user_id)
+if bcrypt.checkpw(password.encode(), stored_hash):
+    # Correct password
+```
+
+#### Question 2: How do you design the session management system?
+
+**Answer Framework:**
+
+```text
+Session Storage Options:
+
+Option 1: Database Sessions (PostgreSQL)
+├─ Pros: Persistent, survives server restart, multi-server
+├─ Cons: Slower (10-50ms), DB load
+└─ Use when: Strong consistency needed
+
+Option 2: In-Memory Sessions (Redis)
+├─ Pros: Fast (<1ms), auto-expiration (TTL)
+├─ Cons: Lost if Redis crashes (unless persisted)
+└─ Use when: Speed critical, can tolerate rare loss
+
+Option 3: Stateless Tokens (JWT)
+├─ Pros: No storage needed, scales infinitely
+├─ Cons: Can't revoke, larger size
+└─ Use when: Microservices, API-first
+
+Recommended: Redis + PostgreSQL
+├─ Redis: Primary session store (fast)
+├─ PostgreSQL: Backup session store (durable)
+├─ Write to both: Async write to PostgreSQL
+├─ Read from Redis: Fall back to PostgreSQL if miss
+└─ Best of both worlds: Speed + durability
+
+Schema design:
+Redis:
+  Key: "session:{session_id}"
+  Value: JSON { user_id, created_at, expires_at, ... }
+  TTL: 1800 seconds (30 minutes)
+
+PostgreSQL:
+  Table: sessions
+  Columns: session_id, user_id, created_at, expires_at, ...
+  Purpose: Long-term storage and analytics
+```
+
+#### Question 3: How do you shard an authentication database?
+
+**Answer Framework:**
+
+```text
+Sharding Key Decision:
+
+Option 1: Shard by user_id
+✅ Pros: All user data on one shard (no joins)
+✅ Pros: Even distribution
+❌ Cons: Email login requires lookup table
+└─ Verdict: Best choice
+
+Option 2: Shard by email
+✅ Pros: Login by email is fast
+❌ Cons: Uneven distribution (gmail.com users)
+❌ Cons: User can change email
+└─ Verdict: Not recommended
+
+Option 3: Shard by geography
+✅ Pros: Data residency (GDPR)
+✅ Pros: Low latency
+❌ Cons: User travels (which shard?)
+└─ Verdict: Good for global apps
+
+Implementation:
+├─ Primary shard key: user_id % 64
+├─ Global lookup service: email → user_id, shard_id
+├─ Co-locate related data: User + sessions + tokens on same shard
+└─ Global tables: Roles and permissions replicated to all shards
+
+Challenges:
+├─ Cross-shard queries: Avoid with good design
+├─ Global transactions: Use saga pattern
+└─ Shard rebalancing: Virtual shards (1024 virtual → 64 physical)
+```
+
+---
+
+### ✅ Key Takeaways
+
+- **Never store plaintext passwords**: Always use bcrypt or Argon2 with high cost factor
+- **Separate concerns**: PostgreSQL for consistency, Redis for speed, Cassandra for logs
+- **Index strategically**: Every auth query should use an index (<10ms)
+- **Encryption in layers**: Database encryption + application encryption + KMS
+- **GDPR requires design**: Right to access, right to be forgotten, data residency
+- **Audit everything**: Every login, permission check, and security event
+- **Sharding is geography**: User data stays in their region for compliance
+- **Backup for disaster**: PITR, cross-region replication, quarterly DR tests
+
+---
+
+### 🎯 Practice Exercise
+
+**Scenario:** You're designing the database for "SecureAuth," an authentication service specifically for healthcare providers with strict HIPAA compliance:
+
+**Requirements:**
+1. **PHI Storage**: Store patient health information (encrypted)
+2. **Audit Trail**: Must track every access to patient data (who, when, what)
+3. **Role-Based Access**: Doctors, nurses, admins have different permissions
+4. **Consent Management**: Track patient consent for data access
+5. **Emergency Access**: Break-glass access for emergencies (with audit)
+6. **Data Retention**: Keep audit logs for 7 years (HIPAA requirement)
+7. **Geographic Compliance**: US patient data stays in US
+
+**Your Task:**
+
+1. **Design the Complete Schema:**
+   ```sql
+   -- Design tables for:
+   -- 1. users (with encrypted PHI)
+   -- 2. patient_consent (granular permissions)
+   -- 3. emergency_access_log
+   -- 4. audit_trail (7-year retention)
+   -- 5. roles_permissions (healthcare-specific)
+   ```
+
+2. **Data Encryption Strategy:**
+   - Which fields need encryption?
+   - How do you manage encryption keys?
+   - How do you handle key rotation with patient data?
+
+3. **Compliance Queries:**
+   - "Show all accesses to patient 123's data in last 30 days"
+   - "Which users have emergency access privileges?"
+   - "Export all patient data for patient 456 (HIPAA access request)"
+
+4. **Scaling Strategy:**
+   - 100K healthcare providers
+   - 10M patients
+   - 1B audit log entries per year
+   - How do you shard? What challenges arise?
+
+5. **Disaster Recovery:**
+   - RPO (Recovery Point Objective): <1 hour
+   - RTO (Recovery Time Objective): <4 hours
+   - Design backup and replication strategy
+
+**Bonus Challenge:**
+- How do you implement "break-glass" emergency access that bypasses normal permissions but leaves a clear audit trail?
+- Design a system to detect abnormal access patterns (e.g., doctor accessing 100 patient records in 5 minutes)
+- How do you handle a security breach where encryption keys are compromised?
+
+---
