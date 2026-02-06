@@ -8660,3 +8660,1446 @@ Challenges:
 - How do you handle a security breach where encryption keys are compromised?
 
 ---
+
+## Section 8: Token Management & Session Handling
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Explain JWT structure (header, payload, signature) and validation process
+- Compare access tokens vs refresh tokens and their security lifecycles
+- Design token storage strategies across different client types
+- Implement token rotation and secure refresh flows
+- Choose between stateless (JWT) and stateful (session) authentication
+- Protect against token theft, XSS, and CSRF attacks
+- Design token revocation strategies at scale
+- Implement key rotation for JWT signing keys
+
+### Why This Matters
+
+Token management is the heart of modern authentication systems. A poorly designed token system can lead to:
+- **Security breaches**: Auth0 reported that 43% of security incidents involve token theft
+- **Scalability issues**: Stateful sessions can become a bottleneck at scale
+- **Poor user experience**: Frequent re-logins frustrate users
+- **Compliance violations**: GDPR requires secure token handling and user data protection
+
+Real-world impact:
+- **Okta** handles 15 billion authentications per month using sophisticated token management
+- **GitHub** uses short-lived access tokens (15 min) with refresh tokens for security
+- **Zoom** experienced a 2020 breach partly due to improper token handling, leading to complete redesign
+
+---
+
+### 🟢 For Beginners: Token Fundamentals
+
+#### What is a Token?
+
+Think of a token like a **wristband at an amusement park**:
+
+```text
+Your Experience at "FunPark":
+├─ Step 1: Buy ticket at entrance (authenticate with username/password)
+├─ Step 2: Receive wristband (get token)
+├─ Step 3: Show wristband at rides (use token to access resources)
+└─ Step 4: Wristband expires at midnight (token expiration)
+
+Benefits:
+✅ Don't need ticket office at every ride (no need to check password every time)
+✅ Wristband shows what you're allowed to do (VIP, regular, child)
+✅ Can't easily copy wristband (cryptographic signature)
+✅ Park can revoke wristband if needed (token revocation)
+```
+
+#### Understanding JWT (JSON Web Tokens)
+
+JWT is like a **sealed letter with three parts**:
+
+```text
+JWT Structure:
+┌─────────────────────────────────────────────────────────┐
+│ HEADER.PAYLOAD.SIGNATURE                                │
+├─────────────────────────────────────────────────────────┤
+│ eyJhbGc.eyJ1c2VyX2lkIjox.SflKxwRJSMeKKF2Q               │
+└─────────────────────────────────────────────────────────┘
+     │          │              │
+     │          │              └── Signature (seal)
+     │          └── Payload (your information)
+     └── Header (type of seal)
+```
+
+**Real JWT Example:**
+
+```json
+// HEADER (Algorithm and token type)
+{
+  "alg": "RS256",        // RSA encryption
+  "typ": "JWT"           // Token type
+}
+
+// PAYLOAD (Your data - called "claims")
+{
+  "user_id": "12345",
+  "email": "alice@example.com",
+  "roles": ["user", "premium"],
+  "iss": "auth.myapp.com",     // Issuer (who created token)
+  "iat": 1705929600,           // Issued at (timestamp)
+  "exp": 1705933200            // Expires (1 hour later)
+}
+
+// SIGNATURE (Cryptographic seal)
+HMACSHA256(
+  base64UrlEncode(header) + "." + base64UrlEncode(payload),
+  secret_key
+)
+
+// Complete JWT:
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMTIzNDUiLCJlbWFpbCI6ImFsaWNlQGV4YW1wbGUuY29tIiwicm9sZXMiOlsidXNlciIsInByZW1pdW0iXSwiaXNzIjoiYXV0aC5teWFwcC5jb20iLCJpYXQiOjE3MDU5Mjk2MDAsImV4cCI6MTcwNTkzMzIwMH0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+```
+
+#### How Token Validation Works
+
+**The Restaurant Analogy:**
+
+```text
+You go to fancy restaurant:
+
+1. Hostess gives you a table number card (token)
+2. Card has:
+   ├─ Table number (user_id)
+   ├─ VIP status (roles)
+   ├─ Valid until 10 PM (expiration)
+   └─ Restaurant stamp (signature)
+
+3. When waiter serves you, they check:
+   ├─ Is stamp genuine? (verify signature)
+   ├─ Is card still valid? (check expiration)
+   └─ Does table match? (verify claims)
+
+4. If all checks pass → You get service
+   If any fails → Back to hostess!
+```
+
+**Technical Flow:**
+
+```text
+User Accesses Protected Resource:
+
+[User] → "GET /api/profile" + Token → [API Server]
+                                            ↓
+                                    Validation Steps:
+                                            ↓
+                        ┌───────────────────────────────┐
+                        │ 1. Decode token without verify│
+                        │    (Read header, payload)     │
+                        └───────────┬───────────────────┘
+                                    ↓
+                        ┌───────────────────────────────┐
+                        │ 2. Verify signature           │
+                        │    Use public key to check    │
+                        │    token hasn't been tampered │
+                        └───────────┬───────────────────┘
+                                    ↓
+                        ┌───────────────────────────────┐
+                        │ 3. Check expiration           │
+                        │    exp > current_time?        │
+                        └───────────┬───────────────────┘
+                                    ↓
+                        ┌───────────────────────────────┐
+                        │ 4. Verify issuer              │
+                        │    iss == "auth.myapp.com"?   │
+                        └───────────┬───────────────────┘
+                                    ↓
+                        ┌───────────────────────────────┐
+                        │ 5. Check audience (optional)  │
+                        │    aud == "api.myapp.com"?    │
+                        └───────────┬───────────────────┘
+                                    ↓
+                            ✅ Valid Token
+                                    ↓
+                        Extract user_id, roles from payload
+                                    ↓
+                            Process Request
+```
+
+#### Access Tokens vs Refresh Tokens
+
+**The Hotel Key Card Analogy:**
+
+```text
+Two Types of Keys:
+
+ACCESS TOKEN (Room Key Card):
+├─ Opens your room (access resources)
+├─ Valid for 1 hour
+├─ If lost, expires quickly (limited damage)
+└─ Use this 100 times per day
+
+REFRESH TOKEN (Master Key at Front Desk):
+├─ Can't open rooms directly
+├─ Used to get new room key cards
+├─ Valid for 30 days
+├─ Stored securely at front desk (not in pocket)
+└─ Use this 1-2 times per day
+
+Why Both?
+├─ Short access token lifetime = Less theft risk
+├─ Long refresh token lifetime = Better UX (no constant login)
+└─ Compromise: Security + Convenience
+```
+
+**Typical Lifetimes:**
+
+```text
+Access Token:
+├─ Lifetime: 15 minutes - 1 hour
+├─ Use: Every API request
+├─ Storage: Memory (best) or localStorage
+└─ If stolen: Expires quickly
+
+Refresh Token:
+├─ Lifetime: 7 days - 90 days
+├─ Use: Only when access token expires
+├─ Storage: HTTP-only cookie (secure)
+└─ If stolen: Can be detected and revoked
+```
+
+#### Token Storage: Where to Keep Tokens?
+
+**The Wallet Analogy:**
+
+```text
+Where do you keep your money?
+
+Option 1: IN YOUR HAND (JavaScript memory)
+├─ Pros: Lost if you close your hand (tab closes)
+├─ Pros: Nobody can pickpocket while you sleep (XSS can't steal)
+├─ Cons: Have to get money again if you put hand down (refresh on reload)
+└─ Best for: Access tokens
+
+Option 2: IN YOUR WALLET (localStorage)
+├─ Pros: Keep money even if you close hand
+├─ Cons: Pickpocket can steal (XSS attacks)
+├─ Cons: Anyone looking over shoulder can see (accessible to all scripts)
+└─ Best for: Nothing sensitive (use with caution!)
+
+Option 3: IN HOTEL SAFE (HTTP-only cookies)
+├─ Pros: Can't be stolen by pickpocket (XSS can't access)
+├─ Pros: Hotel gives you money when needed (browser sends automatically)
+├─ Cons: Need CSRF protection (fake hotel key)
+└─ Best for: Refresh tokens
+```
+
+**Storage Comparison Table:**
+
+```text
+╔══════════════════╦═══════════════╦═══════════════╦════════════════╗
+║ Storage Type     ║ XSS Safe?     ║ CSRF Safe?    ║ Best For       ║
+╠══════════════════╬═══════════════╬═══════════════╬════════════════╣
+║ Memory           ║ ✅ Yes        ║ ✅ Yes        ║ Access tokens  ║
+║ localStorage     ║ ❌ No         ║ ✅ Yes        ║ ⚠️ Avoid       ║
+║ sessionStorage   ║ ❌ No         ║ ✅ Yes        ║ ⚠️ Avoid       ║
+║ HTTP-only Cookie ║ ✅ Yes        ║ ❌ No*        ║ Refresh tokens ║
+╚══════════════════╩═══════════════╩═══════════════╩════════════════╝
+*Use SameSite=Strict to protect against CSRF
+```
+
+#### Simple Token Flow Example
+
+**Login and Access Flow:**
+
+```text
+Step-by-Step Token Journey:
+
+1. USER LOGS IN:
+   [User] → POST /login {username, password} → [Auth Server]
+                                                      ↓
+                                                  Verify
+                                                      ↓
+   [User] ← access_token (15 min)              ← [Auth Server]
+            refresh_token (30 days)
+
+2. USER ACCESSES RESOURCE:
+   [User] → GET /api/profile
+            Header: Authorization: Bearer <access_token>
+                                                      ↓
+   [API Server] → Validate token (fast, no database)
+                                                      ↓
+   [User] ← {user: "alice", email: "alice@example.com"}
+
+3. ACCESS TOKEN EXPIRES (after 15 min):
+   [User] → GET /api/profile
+            Header: Authorization: Bearer <expired_token>
+                                                      ↓
+   [API Server] → Token expired!
+                                                      ↓
+   [User] ← 401 Unauthorized {error: "Token expired"}
+
+4. USER REFRESHES TOKEN:
+   [User] → POST /refresh
+            Body: {refresh_token}
+                                                      ↓
+   [Auth Server] → Validate refresh token (check database)
+                 → Check if revoked
+                 → Generate new access token
+                                                      ↓
+   [User] ← new_access_token (fresh 15 min)
+
+5. REPEAT STEP 2 with new token
+```
+
+---
+
+### 🟡 For Intermediate: Production Token Management
+
+#### JWT Deep Dive: Claims and Best Practices
+
+**Standard Claims (Registered Claims):**
+
+```json
+{
+  // Who issued this token
+  "iss": "auth.myapp.com",          // Issuer
+  
+  // Who is this token for
+  "sub": "user:12345",              // Subject (user identifier)
+  "aud": "api.myapp.com",           // Audience (which service)
+  
+  // Time-based claims
+  "iat": 1705929600,                // Issued at (Unix timestamp)
+  "exp": 1705933200,                // Expires at (1 hour later)
+  "nbf": 1705929600,                // Not before (can't use until this time)
+  
+  // Security
+  "jti": "a3f2b1c9-...",            // JWT ID (unique identifier, prevent replay)
+  
+  // Custom claims (your application data)
+  "user_id": "12345",
+  "email": "alice@example.com",
+  "roles": ["user", "premium"],
+  "tenant_id": "acme-corp",
+  
+  // Token metadata
+  "token_type": "access",
+  "scope": "read:profile write:posts"
+}
+```
+
+**Best Practices for Claims:**
+
+```text
+DO:
+✅ Keep payload small (<1KB) - sent with every request
+✅ Use short expiration for access tokens (15-60 min)
+✅ Include minimum necessary information
+✅ Use 'jti' for token revocation tracking
+✅ Add 'aud' to prevent token misuse across services
+
+DON'T:
+❌ Store sensitive data (SSN, passwords, credit cards)
+❌ Make tokens too long (>2KB causes issues)
+❌ Use long expiration (>1 hour for access tokens)
+❌ Include data that changes frequently
+❌ Forget to validate all claims during verification
+```
+
+#### Token Rotation: The Interview-Winning Strategy
+
+**Why Token Rotation?**
+
+```text
+Problem: Refresh token stolen
+├─ Without rotation: Attacker uses token for 30 days
+├─ With rotation: Attacker's next use gets detected
+└─ Benefit: Limits damage from theft
+
+Rotation Strategy:
+└─ Every time refresh token is used, issue new one
+  └─ Old refresh token becomes invalid
+    └─ If old token used again → Theft detected!
+```
+
+**Implementation Flow:**
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App
+    participant AuthServer
+    participant Redis
+    
+    Note over User,Redis: Initial Login
+    User->>AuthServer: POST /login (credentials)
+    AuthServer->>Redis: Store refresh_token_v1 (RT1)
+    AuthServer->>User: access_token + RT1
+    
+    Note over User,Redis: Access Token Expires
+    User->>AuthServer: POST /refresh (RT1)
+    AuthServer->>Redis: Check RT1 valid?
+    Redis->>AuthServer: Valid
+    AuthServer->>Redis: Invalidate RT1, Store RT2
+    AuthServer->>User: new_access_token + RT2
+    
+    Note over User,Redis: Token Theft Detected
+    User->>AuthServer: POST /refresh (RT2)
+    AuthServer->>Redis: Invalidate RT2, Store RT3
+    AuthServer->>User: new_access_token + RT3
+    
+    Note over User,Redis: Attacker Uses Old Token
+    User->>AuthServer: POST /refresh (RT1) [stolen token]
+    AuthServer->>Redis: RT1 already used!
+    AuthServer->>Redis: Revoke entire token family (RT1,RT2,RT3)
+    AuthServer->>User: 401 + Security Alert
+    AuthServer->>User: Email: "Suspicious activity detected"
+```
+
+**Token Rotation Implementation:**
+
+```json
+// Refresh token structure in Redis
+{
+  "token_family_id": "fam_abc123",     // Links all rotations
+  "token_version": 3,                   // Current version
+  "user_id": "12345",
+  "issued_at": 1705929600,
+  "expires_at": 1708521600,             // 30 days
+  "last_used_at": 1705932000,
+  "previous_tokens": [
+    "rt_v1_hash",                       // Used at 2025-01-15 10:00
+    "rt_v2_hash"                        // Used at 2025-01-15 14:00
+  ],
+  "device_id": "device_xyz",
+  "ip_address": "192.168.1.100"
+}
+
+// When refresh token is used:
+1. Verify token hasn't been used before
+2. If already used → SECURITY BREACH
+   └─ Revoke entire token_family_id
+   └─ Force user re-login
+   └─ Send security alert
+3. If valid → Issue new token
+   └─ Increment token_version
+   └─ Invalidate current token
+   └─ Add current token to previous_tokens
+```
+
+#### Stateless vs Stateful: The Critical Decision
+
+**Decision Matrix:**
+
+```text
+STATELESS TOKENS (JWT):
+┌────────────────────────────────────────────────────────┐
+│ Token contains all information (self-contained)        │
+│ No database lookup on every request                    │
+└────────────────────────────────────────────────────────┘
+
+Pros:
+✅ Fast validation (<1ms, no DB query)
+✅ Scales horizontally (no shared state)
+✅ Works across microservices
+✅ Reduces database load (10K→0 queries/sec)
+
+Cons:
+❌ Can't revoke immediately (must wait for expiration)
+❌ Payload visible (base64 decoded easily)
+❌ Size larger (1-2KB) than session ID (16 bytes)
+❌ Logout doesn't work (token valid until expiration)
+
+Best For:
+├─ Microservices architecture
+├─ High-scale read-heavy systems
+├─ Short-lived tokens (15-60 min)
+└─ API-to-API communication
+
+STATEFUL SESSIONS (Session ID + Redis):
+┌────────────────────────────────────────────────────────┐
+│ Token is random ID, data stored server-side            │
+│ Database lookup on every request                       │
+└────────────────────────────────────────────────────────┘
+
+Pros:
+✅ Instant revocation (delete from Redis)
+✅ Smaller token size (16 bytes)
+✅ No data exposure (everything server-side)
+✅ True logout (delete session immediately)
+
+Cons:
+❌ Requires database lookup (adds ~2-5ms latency)
+❌ Harder to scale (sticky sessions or shared Redis)
+❌ Single point of failure (Redis down = auth down)
+❌ Not suitable for microservices (shared state)
+
+Best For:
+├─ Monolithic applications
+├─ Security-critical systems
+├─ Need instant logout/revocation
+└─ Long-lived sessions
+```
+
+**Hybrid Approach (Best of Both Worlds):**
+
+```text
+RECOMMENDED: Use BOTH
+
+Access Token (JWT):
+├─ Lifetime: 15 minutes
+├─ Stateless validation
+├─ No database lookup
+└─ Fast, scales well
+
+Refresh Token (Stateful):
+├─ Lifetime: 30 days
+├─ Stored in Redis with metadata
+├─ Can be revoked instantly
+└─ Used rarely (once per 15 min)
+
+Result:
+├─ 99.9% of requests use JWT (fast, stateless)
+├─ 0.1% of requests use Redis (refresh)
+├─ Can revoke user by invalidating refresh token
+└─ Best security + performance balance
+```
+
+#### Token Revocation Strategies
+
+**Challenge: How to Revoke Stateless JWT?**
+
+```text
+Problem:
+├─ User logs out at 10:00 AM
+├─ JWT valid until 10:15 AM (15 min expiration)
+├─ JWT is stateless (no database check)
+└─ How to prevent use between 10:00-10:15?
+```
+
+**Strategy 1: Token Blacklist (Simple but Costly)**
+
+```text
+Implementation:
+├─ Store revoked tokens in Redis
+├─ On every request: Check if token in blacklist
+└─ If in blacklist → Reject
+
+Data Structure:
+Key: "blacklist:<jti>"
+Value: {"revoked_at": 1705929600, "user_id": "12345"}
+TTL: Match token expiration (auto-cleanup)
+
+Redis Storage:
+blacklist:a3f2b1c9 → expires in 900 seconds
+
+Pros:
+✅ Works with existing JWT system
+✅ Precise control (individual token revocation)
+
+Cons:
+❌ Requires Redis lookup on EVERY request (defeats stateless purpose)
+❌ Blacklist grows large (10M active tokens = 10M Redis keys)
+❌ Adds latency (2-5ms per request)
+
+When to Use:
+└─ Small scale (<10K concurrent users)
+└─ Already doing Redis lookup for other reasons
+```
+
+**Strategy 2: Short-Lived Tokens with Refresh (Recommended)**
+
+```text
+Implementation:
+├─ Access token: 15 minutes (stateless)
+├─ Refresh token: 30 days (stateful in Redis)
+├─ Revoke by deleting refresh token
+└─ Access token expires naturally (max 15 min exposure)
+
+Flow:
+User logs out at 10:00:
+├─ Delete refresh token from Redis (instant)
+├─ Access token valid until 10:15 (acceptable risk)
+└─ User can't get new access token (refresh revoked)
+
+Pros:
+✅ No database lookup for access tokens (scales!)
+✅ Limited exposure window (15 min max)
+✅ Simple implementation
+
+Cons:
+❌ 15-minute window where token still works
+❌ Not suitable for high-security scenarios
+
+When to Use:
+└─ Most production systems (OAuth 2.0 standard)
+└─ Acceptable security trade-off
+```
+
+**Strategy 3: Token Version Number (Granular Control)**
+
+```text
+Implementation:
+├─ Store token_version in database (one per user)
+├─ Include token_version in JWT payload
+├─ On critical operations: Verify token_version matches DB
+└─ To revoke: Increment user's token_version in DB
+
+JWT Payload:
+{
+  "user_id": "12345",
+  "token_version": 5,  // Must match DB
+  "exp": 1705933200
+}
+
+Database:
+users table:
+user_id  | token_version | email
+---------|---------------|-------------------
+12345    | 5             | alice@example.com
+
+Revocation:
+UPDATE users SET token_version = 6 WHERE user_id = 12345;
+-- All tokens with version 5 now invalid
+
+Pros:
+✅ Revoke all user tokens with one DB update
+✅ No blacklist maintenance
+✅ Only check DB on critical operations (not every request)
+
+Cons:
+❌ Revokes ALL user tokens (all devices)
+❌ Still requires DB check for full validation
+
+When to Use:
+└─ Password change (revoke all sessions)
+└─ Security incident (terminate user access)
+└─ Permission changes (force re-authentication)
+```
+
+**Strategy 4: Bloom Filter (Advanced Optimization)**
+
+```text
+Implementation:
+├─ Use Bloom filter for blacklist (probabilistic data structure)
+├─ 10M tokens → 12 MB memory (99.9% accuracy)
+├─ Check Bloom filter first (fast)
+├─ If "maybe in blacklist" → Check Redis
+└─ If "definitely not in blacklist" → Skip Redis
+
+Memory Comparison:
+Standard Redis blacklist: 10M keys × 200 bytes = 2 GB
+Bloom filter: 10M elements × 10 bits = 12 MB
+└─ 166x memory reduction!
+
+Pros:
+✅ Massive memory savings
+✅ Very fast checks (~1μs)
+✅ Scales to billions of tokens
+
+Cons:
+❌ False positives possible (1 in 1000)
+❌ Can't remove from Bloom filter (use time-based partitions)
+❌ Complex implementation
+
+When to Use:
+└─ Massive scale (100M+ tokens)
+└─ Memory constrained
+```
+
+**Comparison Table:**
+
+```text
+╔═══════════════════════╦══════════╦═════════╦════════════╦═════════════╗
+║ Strategy              ║ Latency  ║ Memory  ║ Accuracy   ║ Complexity  ║
+╠═══════════════════════╬══════════╬═════════╬════════════╬═════════════╣
+║ Blacklist (Redis)     ║ 2-5ms    ║ High    ║ 100%       ║ Low         ║
+║ Short-lived + Refresh ║ <1ms     ║ Low     ║ ~98%*      ║ Low         ║
+║ Token Version         ║ Variable ║ Minimal ║ 100%       ║ Medium      ║
+║ Bloom Filter          ║ <1ms     ║ Very Low║ 99.9%      ║ High        ║
+╚═══════════════════════╩══════════╩═════════╩════════════╩═════════════╝
+*15-minute exposure window after revocation
+```
+
+#### Token Storage in Different Client Types
+
+**Web Browser (SPA):**
+
+```javascript
+// OPTION 1: Memory Storage (Most Secure for Access Token)
+class TokenManager {
+  constructor() {
+    this.accessToken = null;  // In-memory only
+  }
+  
+  setAccessToken(token) {
+    this.accessToken = token;
+  }
+  
+  getAccessToken() {
+    return this.accessToken;
+  }
+  
+  clearTokens() {
+    this.accessToken = null;
+  }
+}
+
+// OPTION 2: HTTP-only Cookie (Best for Refresh Token)
+// Set by server response:
+Set-Cookie: refresh_token=abc123; HttpOnly; Secure; SameSite=Strict; Path=/auth/refresh; Max-Age=2592000
+
+// Flags explained:
+HttpOnly    → JavaScript can't access (XSS protection)
+Secure      → Only sent over HTTPS
+SameSite    → Prevents CSRF attacks
+Path        → Only sent to /auth/refresh endpoint
+Max-Age     → Expires in 30 days
+
+// Client-side (automatic):
+// Browser automatically sends cookie with requests to /auth/refresh
+fetch('/auth/refresh', {
+  method: 'POST',
+  credentials: 'include'  // Include cookies
+});
+```
+
+**Mobile App (iOS/Android):**
+
+```text
+Secure Storage Options:
+
+iOS: Keychain
+├─ Hardware-backed encryption
+├─ Survives app reinstall
+└─ Protected by device passcode
+
+Android: KeyStore
+├─ Hardware-backed encryption (on supported devices)
+├─ Biometric protected
+└─ Per-app isolated
+
+Implementation:
+├─ Store access token in KeyStore/Keychain
+├─ Store refresh token in KeyStore/Keychain
+├─ Never store in SharedPreferences (Android) or UserDefaults (iOS)
+└─ Use encrypted database if KeyStore unavailable
+
+Token Refresh Strategy:
+├─ Check token expiration before each request
+├─ Refresh proactively (5 min before expiration)
+├─ Queue requests during refresh
+└─ Handle offline scenarios (cache valid token)
+```
+
+**Server-to-Server:**
+
+```text
+Service Accounts:
+
+Option 1: Long-lived API Keys
+├─ Store in environment variables
+├─ Rotate quarterly
+├─ Use KMS for encryption at rest
+└─ Audit all usage
+
+Option 2: Short-lived JWTs
+├─ Generate token on startup
+├─ Refresh every hour
+├─ Use service account credentials
+└─ Scope to minimum permissions
+
+Option 3: mTLS (Mutual TLS)
+├─ Certificate-based authentication
+├─ No tokens needed
+├─ Hardware-backed security
+└─ Best for high-security environments
+```
+
+---
+
+### 🔴 For Advanced: Enterprise Token Security
+
+#### Multi-Factor Authentication with Tokens
+
+**Step-Up Authentication Flow:**
+
+```text
+Scenario: User wants to change password (high-risk operation)
+
+Standard Flow:
+1. User authenticated with regular token
+2. Requests password change
+3. System requires additional verification (MFA)
+
+Implementation:
+┌─────────────────────────────────────────────────────────┐
+│ Regular Access Token (Low Assurance)                    │
+│ {                                                        │
+│   "user_id": "12345",                                   │
+│   "auth_level": "single-factor",   // Only password    │
+│   "exp": 1705933200                                     │
+│ }                                                        │
+│ → Can access: Profile, read posts                       │
+│ → Cannot access: Change password, billing               │
+└─────────────────────────────────────────────────────────┘
+
+After MFA Challenge:
+┌─────────────────────────────────────────────────────────┐
+│ Elevated Access Token (High Assurance)                  │
+│ {                                                        │
+│   "user_id": "12345",                                   │
+│   "auth_level": "multi-factor",    // Password + OTP   │
+│   "mfa_verified_at": 1705930000,                        │
+│   "exp": 1705930900                // 15 min only!     │
+│ }                                                        │
+│ → Can access: Everything, including sensitive ops       │
+└─────────────────────────────────────────────────────────┘
+
+Backend Validation:
+def require_mfa(request):
+    token = verify_token(request.headers['Authorization'])
+    
+    if token['auth_level'] != 'multi-factor':
+        return {
+            "error": "MFA required",
+            "mfa_challenge": {
+                "methods": ["totp", "sms", "push"],
+                "challenge_id": "chall_abc123"
+            }
+        }, 403
+    
+    # Check MFA verification time (must be recent)
+    mfa_age = current_time() - token['mfa_verified_at']
+    if mfa_age > 900:  # 15 minutes
+        return {"error": "MFA verification expired"}, 403
+    
+    # Proceed with sensitive operation
+    return perform_sensitive_operation()
+```
+
+#### Token Binding: Preventing Token Theft
+
+**Challenge:** Stolen token can be used by attacker from different device/location.
+
+**Solution: Token Binding**
+
+```text
+Concept: Bind token to specific device/browser characteristics
+
+Option 1: Device Fingerprint Binding
+┌─────────────────────────────────────────────────────────┐
+│ Generate device fingerprint:                             │
+│ - User agent                                             │
+│ - Screen resolution                                      │
+│ - Timezone                                               │
+│ - Canvas fingerprint                                     │
+│ - WebGL renderer                                         │
+│ Hash → device_id: "fp_abc123"                           │
+└─────────────────────────────────────────────────────────┘
+
+JWT Payload:
+{
+  "user_id": "12345",
+  "device_id": "fp_abc123",  // Bound to device
+  "exp": 1705933200
+}
+
+Validation:
+1. User makes request with token
+2. Calculate device fingerprint from request
+3. Compare with device_id in token
+4. If mismatch → Reject token
+
+Limitations:
+❌ Browser updates change fingerprint
+❌ VPN/proxy changes fingerprint
+❌ Privacy concerns (tracking)
+⚠️ Use with caution
+```
+
+**Option 2: TLS Certificate Binding (Most Secure)**
+
+```text
+Concept: Bind token to TLS client certificate
+
+Flow:
+1. Client authenticates with mTLS certificate
+2. Extract certificate thumbprint
+3. Include thumbprint in JWT
+
+JWT Payload:
+{
+  "user_id": "12345",
+  "cnf": {  // Confirmation claim (RFC 8705)
+    "x5t#S256": "bwcK0esc3ACC3DB"  // Cert thumbprint
+  },
+  "exp": 1705933200
+}
+
+Validation:
+1. Extract client certificate from TLS handshake
+2. Calculate thumbprint
+3. Compare with cnf.x5t#S256 in token
+4. If mismatch → Token stolen/replayed
+
+Benefits:
+✅ Cryptographically secure binding
+✅ Prevents token replay attacks
+✅ Industry standard (OAuth 2.0 mTLS)
+
+Use Cases:
+└─ Banking applications
+└─ Healthcare (HIPAA)
+└─ Government systems
+```
+
+**Option 3: IP Address Binding (Simple but Limited)**
+
+```text
+JWT Payload:
+{
+  "user_id": "12345",
+  "ip_address": "192.168.1.100",
+  "ip_hash": "hash of IP + secret",
+  "exp": 1705933200
+}
+
+Validation:
+if request.ip != token.ip_address:
+    if security_level == "high":
+        reject_token()
+    else:
+        send_security_alert()
+        allow_with_warning()
+
+Limitations:
+❌ Mobile users change IPs frequently
+❌ Corporate NAT (many users, same IP)
+❌ VPN changes IP legitimately
+└─ Only use as additional signal, not primary security
+```
+
+#### Key Rotation for JWT Signing
+
+**Why Rotate Keys?**
+
+```text
+Security Risks of Static Keys:
+├─ Key compromise goes undetected
+├─ All historical tokens compromised
+├─ Can't revoke without breaking all tokens
+└─ Compliance requirements (PCI DSS, SOC 2)
+
+Industry Standards:
+├─ Auth0: Rotates every 90 days
+├─ Okta: Rotates every 90 days
+├─ Google: Rotates monthly
+└─ Recommendation: 90 days or less
+```
+
+**Implementation: Graceful Key Rotation**
+
+```text
+Multi-Key Architecture:
+
+Key States:
+├─ ACTIVE: Signs new tokens
+├─ EXPIRED: Validates old tokens, doesn't sign new
+└─ REVOKED: Rejects all tokens
+
+Key Lifecycle:
+Day 0:   KEY_1 (ACTIVE)
+Day 90:  KEY_2 (ACTIVE), KEY_1 (EXPIRED, validates for 15 min)
+Day 90+: KEY_2 (ACTIVE), KEY_1 (REVOKED)
+Day 180: KEY_3 (ACTIVE), KEY_2 (EXPIRED), KEY_1 (deleted)
+```
+
+**JWKS (JSON Web Key Set) Endpoint:**
+
+```json
+// Public endpoint: https://auth.myapp.com/.well-known/jwks.json
+{
+  "keys": [
+    {
+      "kid": "key-2025-01",      // Key ID
+      "kty": "RSA",               // Key type
+      "use": "sig",               // Usage: signature
+      "alg": "RS256",
+      "n": "0vx7agoebGcQ...",    // Public key (modulus)
+      "e": "AQAB",                // Public key (exponent)
+      "x5c": ["MIIDQjCC..."],    // X.509 certificate chain
+      "x5t": "dGhpcyBpc...",     // X.509 thumbprint
+      "status": "active"
+    },
+    {
+      "kid": "key-2024-10",
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "xjlSKLSDFsd...",
+      "e": "AQAB",
+      "status": "expired",        // Still validates tokens
+      "expires_at": 1705929600
+    }
+  ]
+}
+```
+
+**Rotation Implementation:**
+
+```text
+[HLD Note: Detailed implementation removed for interview focus]
+
+High-Level Architecture:
+
+Signing Service:
+├─ Component: Key Management Service (KMS)
+├─ Purpose: Generate, store, rotate signing keys
+├─ Technology: AWS KMS, HashiCorp Vault, Azure Key Vault
+└─ Key concept: Focus on rotation strategy, not implementation
+
+Key Selection Logic:
+1. Get active key from KMS
+2. Sign token with active key
+3. Include "kid" (key ID) in JWT header
+
+Validation Logic:
+1. Extract "kid" from JWT header
+2. Fetch public key from JWKS endpoint (cached)
+3. Verify signature with public key
+4. Check key status (active or expired)
+5. Reject if key is revoked
+
+Rotation Procedure:
+1. Generate new key pair (KMS)
+2. Mark new key as ACTIVE
+3. Mark old key as EXPIRED
+4. Wait for max token lifetime (15 min)
+5. Mark old key as REVOKED
+6. Remove old key after 90 days (audit compliance)
+```
+
+**Key Storage Security:**
+
+```text
+DO:
+✅ Store private keys in HSM (Hardware Security Module)
+✅ Use KMS with audit logging
+✅ Separate key access by environment (prod keys ≠ dev keys)
+✅ Require multi-party approval for key access
+✅ Encrypt keys at rest (even in KMS)
+
+DON'T:
+❌ Store keys in code repository
+❌ Store keys in environment variables (use secret manager)
+❌ Reuse keys across environments
+❌ Give developers access to production keys
+❌ Log private keys (even encrypted)
+```
+
+#### Defense in Depth: Layered Token Security
+
+**Layer 1: Token Generation**
+
+```text
+Secure Token Properties:
+├─ Random, unpredictable (cryptographically secure RNG)
+├─ Minimum 128 bits entropy (refresh tokens)
+├─ Include rate limiting identifier
+└─ Bind to device/IP (conditional)
+
+Example:
+refresh_token = base64url(
+    random_bytes(32) +           # 256 bits entropy
+    hmac(user_id, secret) +      # Integrity check
+    timestamp                     # Replay prevention
+)
+```
+
+**Layer 2: Token Transmission**
+
+```text
+Security Measures:
+✅ HTTPS only (TLS 1.3)
+✅ Certificate pinning (mobile apps)
+✅ Token in Authorization header (not URL)
+✅ Short TTL for tokens in transit
+❌ Never send tokens in URL query parameters (logged!)
+❌ Never send tokens in HTTP referrer header
+```
+
+**Layer 3: Token Storage**
+
+```text
+Client-Side:
+├─ Access token: Memory only (cleared on tab close)
+├─ Refresh token: HTTP-only cookie (XSS protection)
+└─ Never localStorage (XSS vulnerable)
+
+Server-Side:
+├─ Hash tokens before storing (bcrypt with cost 12)
+├─ Encrypt at rest (AES-256-GCM)
+├─ Store in Redis with TTL (auto-cleanup)
+└─ Separate database from main application DB
+```
+
+**Layer 4: Token Validation**
+
+```text
+Multi-Step Validation:
+1. Signature verification (cryptographic)
+2. Expiration check (timestamp)
+3. Issuer verification (iss claim)
+4. Audience verification (aud claim)
+5. Scope verification (permissions)
+6. Rate limit check (per token)
+7. Anomaly detection (unusual usage pattern)
+
+Example Validation Logic:
+def validate_access_token(token, required_scope):
+    # Step 1: Cryptographic verification
+    try:
+        payload = jwt.verify(token, public_key, algorithms=['RS256'])
+    except jwt.InvalidSignatureError:
+        log_security_event("invalid_signature", token_id)
+        raise Unauthorized("Invalid token signature")
+    
+    # Step 2: Time-based checks
+    if payload['exp'] < current_time():
+        raise Unauthorized("Token expired")
+    if payload.get('nbf', 0) > current_time():
+        raise Unauthorized("Token not yet valid")
+    
+    # Step 3: Claims verification
+    if payload['iss'] != 'auth.myapp.com':
+        log_security_event("invalid_issuer", payload)
+        raise Unauthorized("Invalid token issuer")
+    if payload['aud'] != 'api.myapp.com':
+        raise Unauthorized("Invalid token audience")
+    
+    # Step 4: Scope check
+    if required_scope not in payload.get('scope', []):
+        raise Forbidden("Insufficient scope")
+    
+    # Step 5: Rate limiting
+    if check_rate_limit(payload['jti']) > 100:
+        log_security_event("rate_limit_exceeded", payload['user_id'])
+        raise TooManyRequests()
+    
+    # Step 6: Anomaly detection (advanced)
+    if detect_anomaly(payload, request):
+        log_security_event("anomaly_detected", payload['user_id'])
+        require_step_up_auth()
+    
+    return payload
+```
+
+**Layer 5: Monitoring & Alerting**
+
+```text
+Security Metrics to Track:
+
+Token Usage Patterns:
+├─ Failed validation attempts (>10/min → alert)
+├─ Expired token usage (indicates token theft)
+├─ Same token from multiple IPs (token sharing)
+├─ Rapid token refresh (>5/min → suspicious)
+└─ Token use after logout (serious breach)
+
+Anomaly Detection:
+├─ Login from new country (step-up auth)
+├─ Unusual API call patterns (ML model)
+├─ Access time anomaly (user usually 9-5, now 3 AM)
+└─ Velocity check (10 different IPs in 1 hour)
+
+Alerting Strategy:
+High Severity (Immediate Response):
+├─ Multiple failed signature validations
+├─ Token reuse after rotation (theft detected)
+├─ Access from sanctioned country
+└─ Privilege escalation attempt
+
+Medium Severity (Review within 1 hour):
+├─ Unusual access patterns
+├─ Token sharing detected
+├─ High refresh rate
+└─ Failed MFA challenges
+
+Low Severity (Daily Review):
+├─ Expired token usage
+├─ Minor anomalies
+└─ Rate limit violations
+```
+
+#### Session Fixation Prevention
+
+**Attack Scenario:**
+
+```text
+Without Protection:
+1. Attacker gets session ID from legitimate site
+2. Tricks user into using that session ID (phishing link)
+3. User authenticates with attacker's session ID
+4. Attacker now has authenticated session!
+
+Example:
+Attacker: https://myapp.com/login?session=ATTACKER_SESSION
+User clicks, logs in
+└─ User now authenticated in ATTACKER_SESSION
+└─ Attacker uses ATTACKER_SESSION to access user account
+```
+
+**Prevention Strategy:**
+
+```text
+Defense 1: Regenerate Session ID After Login
+
+Before Login:
+session_id: "anonymous_abc123"
+
+After Login:
+session_id: "authenticated_xyz789"  // New ID!
+└─ Old session_id invalidated
+└─ Attacker's pre-set session ID useless
+
+Implementation:
+def login(username, password):
+    user = verify_credentials(username, password)
+    if user:
+        old_session_id = request.session.id
+        new_session_id = generate_secure_session_id()
+        
+        # Transfer session data to new ID
+        migrate_session(old_session_id, new_session_id)
+        
+        # Invalidate old session
+        delete_session(old_session_id)
+        
+        # Set new session cookie
+        response.set_cookie('session_id', new_session_id)
+        
+        return response
+
+Defense 2: Session Binding
+
+Bind session to:
+├─ User-Agent (browser fingerprint)
+├─ IP address (with tolerance for mobile)
+├─ TLS session ID (if available)
+└─ Reject if mismatch detected
+
+Defense 3: Short Session Lifetime
+
+Public WiFi Scenario:
+├─ Session expires after 15 minutes of inactivity
+├─ Absolute timeout after 2 hours
+└─ Forces re-authentication frequently
+```
+
+---
+
+### Real-World Example: Auth0's Token Management
+
+**Auth0's Token Architecture (as of 2024):**
+
+```text
+Token Types:
+├─ Access Token (JWT)
+│   ├─ Lifetime: Configurable (default 24 hours, recommend 15 min)
+│   ├─ Size: ~1.5 KB average
+│   ├─ Validation: Stateless (no DB lookup)
+│   └─ Revocation: Via token version or blacklist
+│
+├─ Refresh Token (Opaque)
+│   ├─ Lifetime: Configurable (7 days to 100 days)
+│   ├─ Rotation: Automatic on each use
+│   ├─ Validation: Database lookup required
+│   └─ Revocation: Instant (delete from DB)
+│
+├─ ID Token (JWT)
+│   ├─ Lifetime: Same as access token
+│   ├─ Purpose: User profile information (OIDC)
+│   ├─ Contents: name, email, picture, custom claims
+│   └─ Use case: Display user info, not API access
+│
+└─ Client Credentials Token (M2M)
+    ├─ Lifetime: 24 hours
+    ├─ Purpose: Service-to-service authentication
+    ├─ Validation: Stateless
+    └─ Revocation: Via API
+
+Evolution Timeline:
+
+2016 - V1:
+├─ Access tokens: 24-hour lifetime (too long!)
+├─ No automatic rotation
+├─ Logout didn't work (JWT still valid)
+└─ Problem: Many security incidents
+
+2018 - V2:
+├─ Introduced refresh token rotation
+├─ Recommended 15-min access tokens
+├─ Added token introspection endpoint
+└─ Improvement: 70% reduction in token theft impact
+
+2020 - V3:
+├─ Refresh token reuse detection
+├─ Anomaly detection (ML-based)
+├─ Automatic token family revocation
+└─ Result: 95% reduction in successful attacks
+
+2023 - Current:
+├─ Device Code Flow for IoT
+├─ Pushed Authorization Requests (PAR)
+├─ Token Binding support
+├─ JWT secured authorization request (JAR)
+└─ Stats: 15B authentications/month, 99.99% uptime
+
+Scale Numbers (2024):
+├─ 15 billion authentications/month
+├─ 50 million monthly active users
+├─ <20ms token validation (P99)
+├─ 99.99% availability
+└─ Token theft detection: 99.7% accuracy
+```
+
+**Key Lessons from Auth0:**
+
+```text
+1. Start with Short-Lived Tokens
+   └─ Auth0 learned the hard way: Long-lived JWTs = Security nightmare
+   └─ Recommendation: 15 minutes max for access tokens
+
+2. Refresh Token Rotation is Essential
+   └─ Automatic rotation on every use
+   └─ Reuse detection prevents token theft
+
+3. Multiple Layers of Defense
+   ├─ Token binding
+   ├─ Anomaly detection
+   ├─ Rate limiting
+   └─ No single point of failure
+
+4. Monitor Everything
+   └─ Auth0 tracks 200+ security metrics
+   └─ ML models detect unusual patterns
+   └─ Alert within 10 seconds of breach attempt
+
+5. Make It Easy for Developers
+   └─ SDKs handle token management automatically
+   └─ Secure defaults (developers can't misconfigure)
+   └─ Clear documentation with security warnings
+```
+
+---
+
+### 🤔 Think About It
+
+1. **For Beginners:** You're building a mobile app. Your friend suggests storing the access token in localStorage so it persists after app restarts. Why is this a bad idea? What should you do instead?
+
+2. **For Intermediate:** Your JWT access tokens are 2KB in size and sent with every request. With 10,000 requests per second, you're transferring 20 MB/s just in tokens. How would you reduce token size while maintaining security?
+
+3. **For Advanced:** You've implemented refresh token rotation. An attacker steals both the access token AND the refresh token at the same time. Your rotation strategy detects the theft when the attacker uses the refresh token. But the attacker can still use the access token for 15 minutes. How would you design a system to detect this specific attack pattern and revoke access immediately?
+
+---
+
+### ✅ Key Takeaways
+
+- **JWT = Self-contained**: Contains all information, no database lookup needed
+- **Two-token strategy**: Short-lived access (15 min) + Long-lived refresh (30 days)
+- **Token rotation prevents theft**: New token on each refresh, detect reuse
+- **Storage matters**: Memory for access tokens, HTTP-only cookies for refresh
+- **Stateless vs Stateful trade-off**: JWTs scale better, sessions revoke faster
+- **Revocation is hard**: Use short lifetimes + stateful refresh tokens
+- **Multiple defense layers**: Signature, expiration, binding, monitoring
+- **Key rotation is essential**: Rotate signing keys every 90 days
+- **Monitor token usage**: Anomaly detection catches 95% of breaches
+- **HTTPS is mandatory**: Tokens in cleartext = Instant compromise
+
+---
+
+### 🎯 Practice Exercise
+
+**Scenario:** You're designing the token management system for "HealthSecure," a HIPAA-compliant healthcare platform where doctors access patient medical records.
+
+**Requirements:**
+1. **High Security**: Medical records are extremely sensitive
+2. **Compliance**: HIPAA requires audit trail of all data access
+3. **User Experience**: Doctors shouldn't re-login every 15 minutes during rounds
+4. **Mobile**: Doctors use mobile devices with spotty network
+5. **Emergency Access**: In emergencies, doctors need immediate access (can't wait for MFA)
+6. **Audit**: Every record access must be logged with doctor identity
+
+**Your Task:**
+
+1. **Design Token Strategy:**
+   ```text
+   Question: Would you use stateless JWT or stateful sessions? Why?
+   Consider:
+   - Audit requirements (must know who accessed what, when)
+   - Revocation needs (terminate rogue doctor immediately)
+   - Performance (doctors in same hospital, low latency critical)
+   - Compliance (HIPAA logging requirements)
+   ```
+
+2. **Token Lifetimes:**
+   ```text
+   Design appropriate lifetimes for:
+   - Access token: ??? minutes (justify)
+   - Refresh token: ??? days (justify)
+   - Emergency access token: ??? minutes (justify)
+   
+   Constraints:
+   - Doctors do 8-hour shifts
+   - Network interruptions common (need offline tolerance)
+   - Patient safety > Security (in emergencies)
+   ```
+
+3. **Emergency Access Pattern:**
+   ```text
+   Design flow for emergency access:
+   - Doctor needs immediate patient record access
+   - No time for MFA
+   - Must still be secure and auditable
+   - Should require justification after the fact
+   
+   Consider:
+   - How to detect abuse?
+   - How to audit later?
+   - What permissions during emergency?
+   ```
+
+4. **Token Revocation:**
+   ```text
+   Scenario: Doctor's phone is stolen at 2 PM
+   Requirements:
+   - Revoke access within 30 seconds
+   - Can't wait for access token expiration
+   - Must work even if phone is offline
+   
+   Design:
+   - How to achieve instant revocation?
+   - What about cached tokens?
+   - How to handle offline scenarios?
+   ```
+
+5. **Audit Trail:**
+   ```text
+   Every API call must log:
+   - Which doctor (user_id)
+   - Which patient (patient_id)
+   - What action (read, update, delete)
+   - When (timestamp)
+   - Device (device_id)
+   - Location (IP, GPS if available)
+   - Justification (why accessed)
+   
+   Design:
+   - Where does this data come from? (Token? Request? Both?)
+   - How do you prevent doctors from tampering with logs?
+   - Storage: 10M records/day, 7-year retention (HIPAA)
+   ```
+
+**Bonus Challenge:**
+- Design a system to detect anomalous access patterns (e.g., doctor accessing 100+ records in 10 minutes)
+- How would you implement "break-glass" emergency access with automatic security review?
+- Design token binding to prevent use of stolen tokens from different locations
+
+---
