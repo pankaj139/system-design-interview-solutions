@@ -7450,4 +7450,1279 @@ Cost savings:
 
 ---
 
+## 11. SCALABILITY
+
+### Handling 10x Traffic
+
+🟢 **BEGINNER: What is Scalability?**
+
+**Restaurant Chain Analogy:**
+
+```text
+Small Restaurant (Current):
+├─ Serves 100 customers/day
+├─ 1 chef, 2 waiters
+├─ Small kitchen, 10 tables
+└─ Works fine!
+
+Growing Restaurant (10x Growth):
+├─ Now serves 1,000 customers/day
+├─ Problem: Same 1 chef, 2 waiters, 10 tables
+└─ Result: Long waits, angry customers, food quality drops
+
+Solutions:
+1. Vertical Scaling (Bigger restaurant):
+   └─ Hire super chef who cooks 10x faster
+   └─ Problem: Such chefs don't exist (and cost too much!)
+
+2. Horizontal Scaling (More restaurants):
+   └─ Open 10 branches, each serves 100 customers
+   └─ Solution: Scales well, proven model!
+```
+
+**In Our Analytics System:**
+
+```text
+Current Scale:
+├─ 10M events/day
+├─ 115 events/sec average
+├─ 345 events/sec peak
+└─ Works with 27 servers
+
+10x Growth (Target):
+├─ 100M events/day
+├─ 1,157 events/sec average
+├─ 3,471 events/sec peak
+└─ Need to scale!
+
+Two Approaches:
+1. Vertical Scaling (Bigger servers):
+   ├─ 8 CPU → 64 CPU servers
+   ├─ 16 GB RAM → 256 GB RAM
+   └─ Problem: Expensive, has limits
+
+2. Horizontal Scaling (More servers):
+   ├─ 8 stream processors → 80 stream processors
+   ├─ 12 database nodes → 120 database nodes
+   └─ Solution: Cost-effective, unlimited scaling
+```
+
+**Scalability Requirements:**
+
+```text
+Our system must scale in 3 dimensions:
+
+1. Event Ingestion (Write Scaling):
+   ├─ Current: 345 events/sec
+   ├─ Target: 3,471 events/sec
+   └─ Need: 10x write capacity
+
+2. Data Storage (Storage Scaling):
+   ├─ Current: 5 TB (90 days)
+   ├─ Target: 50 TB (90 days)
+   └─ Need: 10x storage capacity
+
+3. Query Processing (Read Scaling):
+   ├─ Current: 100 queries/sec
+   ├─ Target: 1,000 queries/sec
+   └─ Need: 10x query capacity
+```
+
+**Key Principle: Linear Scalability**
+
+```text
+Perfect linear scaling:
+├─ 1 server: 100 events/sec
+├─ 2 servers: 200 events/sec
+├─ 10 servers: 1,000 events/sec
+└─ 100 servers: 10,000 events/sec
+
+Reality (with overhead):
+├─ 1 server: 100 events/sec
+├─ 2 servers: 190 events/sec (95% efficiency)
+├─ 10 servers: 900 events/sec (90% efficiency)
+└─ 100 servers: 8,000 events/sec (80% efficiency)
+
+Goal: Maintain >80% efficiency at scale
+```
+
+---
+
+🟡 **INTERMEDIATE: Scaling Strategy**
+
+**Component-by-Component Scaling:**
+
+**1. API Gateway Scaling:**
+
+```text
+Current: 3 Nginx instances
+├─ Each handles 5,000 req/sec
+└─ Total: 15,000 req/sec
+
+Target (10x): Need 30,000 req/sec
+├─ Option A: 6 Nginx instances (2x)
+├─ Option B: Upgrade to larger instances (3x capacity each)
+└─ Chosen: Option A (horizontal scaling, better redundancy)
+
+Implementation:
+├─ Add 3 more Nginx instances
+├─ Use DNS round-robin or AWS ELB
+└─ Auto-scaling group (scale 3-10 instances based on traffic)
+```
+
+**2. Event API Servers Scaling:**
+
+```text
+Current: 6 servers (c5.xlarge)
+├─ Each handles 500 events/sec
+└─ Total: 3,000 events/sec
+
+Target: Need 30,000 events/sec
+├─ Need: 30,000 / 500 = 60 servers
+└─ With 20% buffer: 72 servers
+
+Auto-scaling configuration:
+├─ Minimum: 20 servers (off-peak)
+├─ Normal: 40 servers (business hours)
+├─ Maximum: 100 servers (Black Friday)
+└─ Scale trigger: CPU > 70% for 5 minutes
+
+Cost optimization:
+├─ Use Spot Instances for stateless API servers
+├─ 70% cost savings: $745/month → $224/month
+└─ Annual savings: $6,252
+```
+
+**3. Kafka Cluster Scaling:**
+
+```text
+Current: 3 brokers, 12 partitions
+├─ Each broker: 20,000 msgs/sec
+└─ Total: 60,000 msgs/sec capacity
+
+Target: Need 35,000 msgs/sec (with 3x buffer)
+├─ Current capacity sufficient!
+└─ But need more partitions for parallelism
+
+Scaling approach:
+├─ Keep 3 brokers (sufficient throughput)
+├─ Increase partitions: 12 → 36 partitions
+├─ Reason: More parallelism for stream processors
+└─ Each partition: 1,000 msgs/sec
+
+Benefits of more partitions:
+├─ More stream processor tasks can run in parallel
+├─ Better load distribution
+├─ Faster recovery from failures
+└─ Limitation: More memory overhead
+```
+
+**4. Stream Processing (Flink) Scaling:**
+
+```text
+Current: 8 Task Managers
+├─ Each: 8 vCPUs, 1,000 events/sec
+└─ Total: 8,000 events/sec capacity
+
+Target: Need 35,000 events/sec
+├─ Need: 35 Task Managers
+├─ With buffer: 40 Task Managers
+└─ Parallelism: 36 (matches Kafka partitions)
+
+Scaling strategy:
+├─ Increase parallelism: 12 → 36
+├─ Each task handles 1 Kafka partition
+├─ Scale Task Managers: 8 → 40
+└─ Cost: $2,235/month → $11,175/month
+
+Optimization with Spot Instances:
+├─ 80% of capacity on Spot (70% discount)
+├─ 20% on On-Demand (for stability)
+├─ Effective cost: $4,470/month
+└─ Savings: $6,705/month ($80,460/year)
+```
+
+**5. ClickHouse Cluster Scaling:**
+
+```text
+Current: 12 nodes (6 hot + 6 warm)
+├─ Storage: 5 TB
+└─ Query capacity: 400 QPS
+
+Target (10x):
+├─ Storage: 50 TB
+├─ Query capacity: 4,000 QPS
+└─ Need to scale!
+
+Horizontal scaling approach:
+├─ Hot tier: 6 → 18 nodes (3x)
+├─ Warm tier: 6 → 24 nodes (4x)
+├─ Shards: 2 → 6 shards
+└─ Replication: 3x (unchanged)
+
+Sharding strategy:
+├─ Shard by tenant_id (if multi-tenant)
+├─ OR shard by date range
+├─ Example: 6 shards = 6 date ranges
+│  ├─ Shard 1: Days 1-15 of month
+│  ├─ Shard 2: Days 16-31 of month
+│  └─ Rotate monthly
+└─ Benefit: Queries only hit relevant shards
+```
+
+**Auto-scaling Decision Matrix:**
+
+| Component | Metric | Scale Up When | Scale Down When | Response Time |
+|-----------|--------|---------------|-----------------|---------------|
+| **API Servers** | CPU > 70% | Sustained 5 min | CPU < 30% for 10 min | 2 minutes |
+| **Kafka Brokers** | Disk > 80% | Sustained 30 min | Manual only | 15 minutes |
+| **Flink Tasks** | Lag > 10 min | Sustained 5 min | Lag < 1 min for 30 min | 5 minutes |
+| **ClickHouse** | Disk > 80% | Sustained 1 hour | Manual only | 30 minutes |
+| **Query Servers** | QPS > 350/node | Sustained 5 min | QPS < 100/node for 15 min | 3 minutes |
+
+---
+
+🔴 **ADVANCED: Production Scaling Patterns**
+
+**1. Staged Rollout Strategy:**
+
+```text
+Don't scale all at once! Use gradual rollout:
+
+Phase 1: Testing (Week 1)
+├─ Scale 1 component to 2x capacity
+├─ Route 10% of traffic to new capacity
+├─ Monitor: latency, errors, cost
+└─ Rollback plan: Ready to revert in 5 minutes
+
+Phase 2: Validation (Week 2)
+├─ Route 50% of traffic
+├─ Run load tests at 10x scale
+├─ Verify: all metrics within SLAs
+└─ Fix any issues found
+
+Phase 3: Full Rollout (Week 3-4)
+├─ Scale all components
+├─ Route 100% of traffic
+├─ Monitor closely for 2 weeks
+└─ Document learnings
+
+Phase 4: Optimization (Week 5-6)
+├─ Identify bottlenecks
+├─ Tune configurations
+├─ Reduce over-provisioning
+└─ Optimize costs
+```
+
+**2. Hotspot Detection and Mitigation:**
+
+```text
+Problem: Uneven load distribution
+
+Example hotspot scenarios:
+├─ Celebrity user generates 1000x events
+├─ Viral product gets 500x more views
+├─ One tenant has 10x more traffic
+└─ Black Friday: 10x spike in specific region
+
+Detection:
+├─ Monitor partition lag in Kafka
+├─ Track query latency per shard
+├─ Alert when any partition > 3x average load
+└─ Dashboard showing load distribution
+
+Mitigation strategies:
+
+A. Key Salting (for skewed keys):
+```
+
+```python
+# Without salting: Celebrity user overwhelms 1 partition
+partition = hash(user_id) % num_partitions
+
+# With salting: Spread across multiple partitions
+salt = hash(user_id + timestamp) % 10  # 10 salts
+partition = hash(str(user_id) + str(salt)) % num_partitions
+
+# Result: 1 hot user spread across 10 partitions
+```
+
+```text
+B. Dedicated Resources for Hot Tenants:
+├─ Detect: Tenant generates >10x average traffic
+├─ Isolate: Route to dedicated Kafka topic + Flink job
+├─ Scale: Provision dedicated resources
+└─ Bill: Charge premium for dedicated resources
+
+C. Circuit Breaker for Hotspots:
+```
+
+```python
+class HotspotCircuitBreaker:
+    def __init__(self, threshold_qps=1000):
+        self.threshold_qps = threshold_qps
+        self.counters = {}  # tenant_id -> count
+    
+    def should_throttle(self, tenant_id):
+        current_qps = self.counters.get(tenant_id, 0)
+        
+        if current_qps > self.threshold_qps:
+            # Throttle by returning 429 Too Many Requests
+            return True
+        
+        return False
+    
+    def increment(self, tenant_id):
+        self.counters[tenant_id] = self.counters.get(tenant_id, 0) + 1
+    
+    def reset_every_second(self):
+        # Reset counters every second
+        self.counters = {}
+```
+
+**3. Data Skew Handling:**
+
+```text
+Problem: Some shards have much more data
+
+Example:
+├─ Shard 1 (US users): 60% of data
+├─ Shard 2 (EU users): 25% of data
+├─ Shard 3 (APAC users): 15% of data
+└─ Result: Shard 1 is bottleneck
+
+Solution: Adaptive Sharding
+```
+
+```sql
+-- Reshard to distribute load evenly
+-- Original: 3 shards by region
+-- New: 6 shards with balanced distribution
+
+-- US gets 3 shards (was 1)
+-- EU gets 2 shards (was 1)
+-- APAC gets 1 shard (was 1)
+
+-- Resharding process:
+1. Create new shard layout
+2. Backfill historical data (parallel)
+3. Switch stream processing to new layout
+4. Drain old shards
+5. Delete old shards
+
+-- Tools: ClickHouse ALTER TABLE MOVE PARTITION
+ALTER TABLE events 
+MOVE PARTITION 202601 
+TO TABLE events_shard_new;
+```
+
+**4. Cross-Region Replication:**
+
+```text
+For global scale, deploy in multiple regions:
+
+Architecture:
+├─ US-East (Primary):
+│  ├─ Handles 60% of traffic (US users)
+│  ├─ Full stack: Kafka + Flink + ClickHouse
+│  └─ Master for US data
+├─ EU-West (Secondary):
+│  ├─ Handles 25% of traffic (EU users)
+│  ├─ Full stack deployed
+│  └─ Master for EU data
+└─ AP-Southeast (Tertiary):
+   ├─ Handles 15% of traffic (APAC users)
+   ├─ Full stack deployed
+   └─ Master for APAC data
+
+Data Replication:
+├─ Each region has local copy of ALL data
+├─ Async replication across regions (5-10 min lag)
+├─ Users query local region (low latency)
+└─ Global dashboards aggregate from all regions
+
+Benefits:
+├─ Low latency: Users query local region
+├─ High availability: Region failure doesn't affect others
+├─ Compliance: Data residency requirements (GDPR)
+└─ Disaster recovery: Each region is backup for others
+
+Cost:
+├─ 3x infrastructure: $10K/month → $30K/month
+├─ Cross-region bandwidth: ~$500/month
+├─ Total: $30.5K/month
+└─ Benefit: Serve global users with <100ms latency
+```
+
+**5. Real Company Example: Uber's Scaling Journey**
+
+```text
+Uber's analytics platform evolution:
+
+2015 (1M trips/day):
+├─ Single datacenter
+├─ MySQL for analytics (didn't scale)
+├─ Batch processing (24hr latency)
+└─ Problem: Can't make real-time decisions
+
+2017 (10M trips/day):
+├─ Migrated to Kafka + Spark + Cassandra
+├─ Real-time processing (1-2 min latency)
+├─ Horizontal scaling
+└─ Cost: $500K/month
+
+2020 (100M trips/day):
+├─ Upgraded to Kafka + Flink + ClickHouse
+├─ 3 regions (US, EU, APAC)
+├─ Auto-scaling (elastic capacity)
+├─ Optimizations: Pre-aggregation, caching
+└─ Cost: $2M/month (4x scale but only 4x cost!)
+
+2024 (1B trips/day):
+├─ 10 regions globally
+├─ Multi-tenant isolation
+├─ ML-powered resource allocation
+├─ Cost per event: $0.002 → $0.0002 (10x cheaper!)
+└─ Cost: $6M/month (linear scaling achieved)
+
+Key learnings:
+├─ Start simple, scale incrementally
+├─ Horizontal scaling is essential
+├─ Pre-aggregation saves 80% cost
+├─ Multi-region reduces latency by 70%
+└─ Automation critical at scale
+```
+
+---
+
+### Data Partitioning
+
+🟢 **BEGINNER: What is Partitioning?**
+
+**Library Analogy:**
+
+```text
+Small Library (No Partitioning):
+├─ 1,000 books on 1 shelf
+├─ Finding a book: Check all 1,000 books
+└─ Time: 10 minutes
+
+Large Library (With Partitioning):
+├─ 100,000 books across 100 shelves
+├─ Partition by: First letter of title
+│  ├─ Shelf A: Books starting with A
+│  ├─ Shelf B: Books starting with B
+│  └─ ...
+├─ Finding "Harry Potter": Go to Shelf H, check ~1,000 books
+└─ Time: Still 10 minutes (not worse!)
+
+Smart Library (Good Partitioning):
+├─ 100,000 books across 100 shelves
+├─ Partition by: Genre + First letter
+│  ├─ Fiction-A, Fiction-B, ..., Fiction-Z
+│  ├─ Science-A, Science-B, ..., Science-Z
+│  └─ ...
+├─ Finding "Harry Potter" (Fiction-H): Check ~100 books
+└─ Time: 1 minute (10x faster!)
+```
+
+**In Our Analytics System:**
+
+```text
+Without Partitioning:
+├─ 1 billion events in 1 table
+├─ Query: Find events from yesterday
+├─ Must scan: All 1 billion events
+└─ Time: 10 minutes
+
+With Date Partitioning:
+├─ 1 billion events split into 365 partitions (by day)
+├─ Query: Find events from yesterday
+├─ Must scan: Only 1 partition (~2.7M events)
+├─ Time: 2 seconds (300x faster!)
+└─ Benefit: Only read relevant data
+```
+
+**Two Types of Partitioning:**
+
+```text
+1. Vertical Partitioning (Split by columns):
+   ├─ Store different columns separately
+   ├─ Example: Hot columns vs Cold columns
+   └─ Benefit: Only read columns you need
+
+2. Horizontal Partitioning (Split by rows):
+   ├─ Store different rows separately
+   ├─ Example: Partition by date, by tenant, by region
+   └─ Benefit: Only read rows you need
+```
+
+---
+
+🟡 **INTERMEDIATE: Partitioning Strategies**
+
+**1. Time-based Partitioning:**
+
+Most common for analytics (time-series data):
+
+```sql
+-- ClickHouse: Partition by month
+CREATE TABLE events (
+    event_id String,
+    user_id UInt64,
+    timestamp DateTime,
+    event_type String,
+    revenue Decimal(10,2)
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(timestamp)  -- Partition by month
+ORDER BY (timestamp, user_id);
+
+-- Result:
+-- Partition 202601: January 2026 events
+-- Partition 202602: February 2026 events
+-- Partition 202603: March 2026 events
+-- ...
+
+-- Query optimization:
+SELECT COUNT(*) FROM events
+WHERE timestamp >= '2026-01-01'
+  AND timestamp < '2026-02-01';
+-- Only scans partition 202601 (1 month of data)
+-- Skips 11 other months
+```
+
+**Partition Size Guidelines:**
+
+```text
+Partition too small:
+├─ 1 partition per hour = 720 partitions/month
+├─ Problem: Too many partitions (overhead)
+├─ Metadata: 1 KB/partition × 720 = 720 KB
+└─ Merge operations slow down
+
+Partition too large:
+├─ 1 partition per year = 12 partitions total
+├─ Problem: Can't skip much data
+├─ Query scanning: 1/12 of data (still large)
+└─ Minimal benefit
+
+Optimal partition size:
+├─ 1 partition per day: 365 partitions/year
+├─ OR 1 partition per month: 12 partitions/year
+├─ Balance: Granular enough to skip data, not too many
+└─ Rule of thumb: 10 GB - 100 GB per partition
+```
+
+**2. Hash Partitioning (By Key):**
+
+Distribute data evenly across shards:
+
+```sql
+-- Partition by hash of user_id
+CREATE TABLE events_distributed (
+    event_id String,
+    user_id UInt64,
+    timestamp DateTime,
+    event_type String
+) ENGINE = Distributed(
+    cluster_name,
+    database_name,
+    events_local,
+    sipHash64(user_id)  -- Hash function
+);
+
+-- Result:
+-- User 12345 → Shard 1
+-- User 67890 → Shard 2
+-- User 11111 → Shard 3
+
+-- Benefit: Even distribution
+-- Trade-off: Can't skip shards for user queries
+```
+
+**3. Range Partitioning:**
+
+Partition by value ranges:
+
+```sql
+-- Partition by revenue ranges
+CREATE TABLE orders (
+    order_id String,
+    user_id UInt64,
+    revenue Decimal(10,2)
+) ENGINE = MergeTree()
+PARTITION BY 
+    multiIf(
+        revenue < 100, 'low',
+        revenue < 1000, 'medium',
+        revenue < 10000, 'high',
+        'vip'
+    )
+ORDER BY order_id;
+
+-- Result:
+-- Partition 'low': Orders < $100
+-- Partition 'medium': Orders $100-$1000
+-- Partition 'high': Orders $1000-$10000
+-- Partition 'vip': Orders > $10000
+
+-- Query optimization:
+SELECT * FROM orders WHERE revenue > 5000;
+-- Only scans 'high' and 'vip' partitions
+```
+
+**4. Composite Partitioning:**
+
+Combine multiple strategies:
+
+```sql
+-- Partition by tenant AND date
+CREATE TABLE events_multitenant (
+    tenant_id UInt32,
+    event_id String,
+    timestamp DateTime,
+    event_type String
+) ENGINE = MergeTree()
+PARTITION BY (tenant_id, toYYYYMM(timestamp))
+ORDER BY (tenant_id, timestamp);
+
+-- Result:
+-- Partition (1, 202601): Tenant 1, January 2026
+-- Partition (1, 202602): Tenant 1, February 2026
+-- Partition (2, 202601): Tenant 2, January 2026
+-- ...
+
+-- Query optimization:
+SELECT * FROM events_multitenant
+WHERE tenant_id = 1
+  AND timestamp >= '2026-01-01'
+  AND timestamp < '2026-02-01';
+-- Only scans partition (1, 202601)
+-- Skips all other tenants and months!
+```
+
+**Partition Pruning Examples:**
+
+```text
+Query 1: Single day
+├─ WHERE timestamp = '2026-01-15'
+├─ Partitions scanned: 1 (202601)
+├─ Data scanned: 10 GB
+└─ Speedup: 36x (vs scanning all months)
+
+Query 2: Month range
+├─ WHERE timestamp >= '2026-01-01' AND timestamp < '2026-04-01'
+├─ Partitions scanned: 3 (202601, 202602, 202603)
+├─ Data scanned: 30 GB
+└─ Speedup: 12x
+
+Query 3: No time filter (bad!)
+├─ WHERE user_id = 12345
+├─ Partitions scanned: ALL (12 months)
+├─ Data scanned: 360 GB
+└─ Speedup: 1x (no benefit)
+
+Lesson: Always include partition key in WHERE clause!
+```
+
+---
+
+🔴 **ADVANCED: Partition Management at Scale**
+
+**1. Dynamic Partitioning:**
+
+Automatically create partitions as data arrives:
+
+```sql
+-- ClickHouse automatically creates partitions
+-- When inserting data with new toYYYYMM(timestamp) value
+
+INSERT INTO events VALUES
+('evt1', 12345, '2026-03-15 10:00:00', 'page_view', 0);
+-- Partition 202603 created automatically if doesn't exist
+
+-- No need to pre-create partitions!
+-- Benefit: Handles future dates automatically
+```
+
+**2. Partition Lifecycle Management:**
+
+```sql
+-- Automatically drop old partitions
+ALTER TABLE events 
+DROP PARTITION 202512;  -- Drop December 2025
+
+-- Move old partitions to cold storage
+ALTER TABLE events 
+MOVE PARTITION 202601 TO VOLUME 'cold';
+
+-- Automated with TTL:
+ALTER TABLE events 
+MODIFY TTL 
+    timestamp + INTERVAL 90 DAY DELETE,  -- Delete after 90 days
+    timestamp + INTERVAL 30 DAY TO VOLUME 'cold';  -- Move to cold after 30 days
+```
+
+**3. Partition Rebalancing:**
+
+When data skew occurs:
+
+```python
+def check_partition_balance():
+    """Monitor partition sizes and rebalance if needed"""
+    partitions = clickhouse.query("""
+        SELECT 
+            partition,
+            COUNT(*) as row_count,
+            formatReadableSize(SUM(bytes)) as size
+        FROM system.parts
+        WHERE table = 'events'
+          AND active = 1
+        GROUP BY partition
+        ORDER BY size DESC
+    """)
+    
+    avg_size = sum(p['size'] for p in partitions) / len(partitions)
+    
+    for partition in partitions:
+        if partition['size'] > avg_size * 2:
+            print(f"Partition {partition['partition']} is 2x larger than average")
+            print(f"Consider: splitting into sub-partitions")
+            
+            # Option: Reshard this partition
+            reshard_partition(partition['partition'])
+
+def reshard_partition(partition_id):
+    """Split large partition into multiple smaller ones"""
+    # 1. Create new sub-partitioned table
+    # 2. Copy data with additional partition key
+    # 3. Swap tables atomically
+    # 4. Drop old partition
+    pass
+```
+
+**4. Multi-Level Partitioning:**
+
+For very large datasets:
+
+```sql
+-- Level 1: Partition by year-month (for time-based pruning)
+-- Level 2: Sub-partition by tenant (for tenant isolation)
+
+CREATE TABLE events_hierarchical (
+    tenant_id UInt32,
+    event_id String,
+    timestamp DateTime,
+    event_type String
+) ENGINE = MergeTree()
+PARTITION BY (toYYYYMM(timestamp), intDiv(tenant_id, 100))
+ORDER BY (tenant_id, timestamp);
+
+-- Result:
+-- Partition (202601, 0): Jan 2026, Tenants 0-99
+-- Partition (202601, 1): Jan 2026, Tenants 100-199
+-- Partition (202601, 2): Jan 2026, Tenants 200-299
+-- ...
+
+-- Benefits:
+-- 1. Time queries: Skip non-matching months
+-- 2. Tenant queries: Skip non-matching tenant ranges
+-- 3. Combined: Skip on both dimensions
+```
+
+**5. Partition-wise Operations:**
+
+Perform operations on individual partitions:
+
+```sql
+-- Backup specific partition
+ALTER TABLE events 
+FREEZE PARTITION 202601;
+-- Creates immutable snapshot of partition
+
+-- Restore from backup
+ALTER TABLE events 
+ATTACH PARTITION 202601 FROM '/backup/path';
+
+-- Move partition between clusters
+-- (for migrating data to new cluster)
+ALTER TABLE events 
+FETCH PARTITION 202601 FROM '/zookeeper/path';
+```
+
+**6. Real Company Example: Cloudflare's Partitioning**
+
+```text
+Cloudflare analyzes 25 PB of logs per day:
+
+Partitioning strategy:
+├─ Primary: Partition by hour (24 partitions/day)
+├─ Secondary: Sub-partition by datacenter (200+ datacenters)
+├─ Tertiary: Bucket by customer ID (for multi-tenancy)
+└─ Result: 1M+ partitions active at any time
+
+Why hourly partitions?
+├─ Queries typically ask for: "last N hours"
+├─ Hour granularity: optimal for query patterns
+├─ Partition size: ~1 TB/partition (manageable)
+└─ TTL: Drop hourly partitions after 30 days
+
+Optimization:
+├─ Writes: Append-only to current hour partition
+├─ Reads: Query hits 1-24 partitions typically
+├─ Compaction: Merge small hourly files into daily
+└─ Result: 99.9% of queries scan <1% of data
+
+Performance:
+├─ Query latency: P50 = 200ms, P99 = 2s
+├─ Write throughput: 10M events/sec
+├─ Storage cost: $0.02/GB/month (compressed)
+└─ Total cost: $500K/month for 25 PB/day
+```
+
+---
+
+### Horizontal Scaling
+
+🟢 **BEGINNER: Adding More Servers**
+
+**Pizza Shop Analogy:**
+
+```text
+1 Oven (Vertical Scaling):
+├─ Make bigger oven
+├─ Problem: Size limits
+└─ Cost: Exponentially expensive
+
+Multiple Ovens (Horizontal Scaling):
+├─ Buy 10 small ovens
+├─ Each makes 10 pizzas/hour
+├─ Total: 100 pizzas/hour
+└─ Cost: Linear (10x ovens = 10x capacity)
+
+Benefits:
+├─ No single point of failure (if 1 oven breaks, 9 still work)
+├─ Can add ovens incrementally
+├─ Each oven is replaceable
+└─ Proven model (every pizza chain does this!)
+```
+
+**In Our System:**
+
+```text
+Vertical Scaling (Single Server):
+├─ 8 CPU → 16 CPU → 32 CPU → 64 CPU
+├─ Cost: $100 → $200 → $500 → $2,000/month
+├─ Limit: Max 128 CPU (hardware limit)
+└─ Problem: Single point of failure
+
+Horizontal Scaling (Multiple Servers):
+├─ 1 server (8 CPU) → 2 servers → 4 servers → 8 servers
+├─ Cost: $100 → $200 → $400 → $800/month
+├─ Limit: Unlimited (add more servers)
+└─ Benefit: No single point of failure
+```
+
+**What Can Scale Horizontally:**
+
+```text
+Stateless Components (Easy):
+├─ API servers: Just add more, put behind load balancer
+├─ Stream processors: Add more workers, increase parallelism
+└─ Query servers: Add more, route queries via load balancer
+
+Stateful Components (Harder):
+├─ Databases: Need sharding/replication
+├─ Message queues: Need partitioning
+└─ Cache: Need consistent hashing
+```
+
+---
+
+🟡 **INTERMEDIATE: Scaling Each Component**
+
+**1. API Server Horizontal Scaling:**
+
+```text
+Architecture:
+┌──────────────┐
+│ Load Balancer│ (AWS ELB / Nginx)
+└──────┬───────┘
+       │
+   ┌───┴────┬────────┬────────┐
+   │        │        │        │
+┌──▼───┐ ┌──▼───┐ ┌──▼───┐ ┌──▼───┐
+│ API 1│ │ API 2│ │ API 3│ │ API 4│
+└──────┘ └──────┘ └──────┘ └──────┘
+
+Load Balancing Strategies:
+├─ Round-robin: Request 1 → API 1, Request 2 → API 2, etc.
+├─ Least connections: Route to server with fewest active connections
+├─ Least response time: Route to fastest server
+└─ Weighted: Route more traffic to larger servers
+
+Health Checks:
+├─ Every 10 seconds: Check /health endpoint
+├─ If server unhealthy: Stop routing traffic
+├─ After 3 failures: Mark server as down
+└─ Auto-recovery: Resume routing after server healthy again
+```
+
+```python
+# API server auto-scaling policy (AWS/Terraform)
+resource "aws_autoscaling_group" "api_servers" {
+  min_size = 4
+  max_size = 50
+  desired_capacity = 10
+  
+  # Scale up if CPU > 70% for 5 minutes
+  target_tracking_configuration {
+    metric = "CPUUtilization"
+    target_value = 70
+    scale_up_cooldown = 300    # 5 minutes
+    scale_down_cooldown = 600  # 10 minutes
+  }
+}
+```
+
+**2. Kafka Horizontal Scaling:**
+
+```text
+Adding Brokers:
+├─ Start: 3 brokers
+├─ Add: 3 more brokers (total 6)
+└─ Result: 2x throughput
+
+Kafka automatically rebalances:
+├─ Partitions redistributed across 6 brokers
+├─ Each broker handles fewer partitions
+└─ Load balanced automatically
+
+Process:
+1. Add new broker to cluster
+2. Kafka detects new broker
+3. Run partition reassignment tool:
+```
+
+```bash
+# Reassign partitions to include new brokers
+kafka-reassign-partitions.sh \
+  --bootstrap-server localhost:9092 \
+  --reassignment-json-file reassignment.json \
+  --execute
+
+# reassignment.json specifies new partition→broker mapping
+{
+  "partitions": [
+    {"topic": "events", "partition": 0, "replicas": [0,1,2]},
+    {"topic": "events", "partition": 1, "replicas": [1,2,3]},
+    {"topic": "events", "partition": 2, "replicas": [2,3,4]},
+    ...
+  ]
+}
+```
+
+**3. Flink Horizontal Scaling:**
+
+```text
+Scaling Flink Jobs:
+├─ Current: 8 Task Managers, parallelism = 12
+├─ Target: 16 Task Managers, parallelism = 24
+└─ Process:
+
+Step 1: Take savepoint (snapshot of job state)
+$ flink savepoint <job-id> /path/to/savepoint
+
+Step 2: Cancel job
+$ flink cancel <job-id>
+
+Step 3: Scale Task Managers (8 → 16)
+$ kubectl scale deployment flink-taskmanager --replicas=16
+
+Step 4: Restart job with higher parallelism
+$ flink run -p 24 -s /path/to/savepoint job.jar
+
+Result:
+├─ Job resumes from exact state (no data loss)
+├─ 24 parallel tasks (was 12)
+├─ Each task processes fewer events
+└─ 2x throughput
+```
+
+**4. ClickHouse Horizontal Scaling:**
+
+```text
+Adding Shards:
+
+Current: 2 shards, 3 replicas each = 6 nodes
+Target: 4 shards, 3 replicas each = 12 nodes
+
+Configuration:
+```
+
+```xml
+<!-- config.xml -->
+<remote_servers>
+  <cluster_name>
+    <!-- Shard 1 -->
+    <shard>
+      <replica><host>node1</host><port>9000</port></replica>
+      <replica><host>node2</host><port>9000</port></replica>
+      <replica><host>node3</host><port>9000</port></replica>
+    </shard>
+    <!-- Shard 2 -->
+    <shard>
+      <replica><host>node4</host><port>9000</port></replica>
+      <replica><host>node5</host><port>9000</port></replica>
+      <replica><host>node6</host><port>9000</port></replica>
+    </shard>
+    <!-- Shard 3 (NEW) -->
+    <shard>
+      <replica><host>node7</host><port>9000</port></replica>
+      <replica><host>node8</host><port>9000</port></replica>
+      <replica><host>node9</host><port>9000</port></replica>
+    </shard>
+    <!-- Shard 4 (NEW) -->
+    <shard>
+      <replica><host>node10</host><port>9000</port></replica>
+      <replica><host>node11</host><port>9000</port></replica>
+      <replica><host>node12</host><port>9000</port></replica>
+    </shard>
+  </cluster_name>
+</remote_servers>
+```
+
+```sql
+-- Create distributed table
+CREATE TABLE events_distributed ON CLUSTER cluster_name AS events_local
+ENGINE = Distributed(cluster_name, default, events_local, rand());
+
+-- Queries automatically distributed across all 4 shards
+SELECT country, COUNT(*) FROM events_distributed GROUP BY country;
+-- Executes on all 4 shards in parallel, results merged
+```
+
+**5. Scaling Coordination:**
+
+```text
+Challenge: Scale all components together
+
+Example traffic spike:
+├─ Black Friday: 10x normal traffic
+├─ Need to scale: API, Kafka, Flink, ClickHouse
+└─ But not all at same rate!
+
+Scaling Ratios:
+├─ API servers: Scale 10x (stateless, easy)
+├─ Kafka: Scale 2x (need more partitions)
+├─ Flink: Scale 5x (CPU-bound processing)
+├─ ClickHouse: Scale 3x (storage + query load)
+└─ Each component has different scaling characteristics
+
+Automation:
+```
+
+```python
+def auto_scale_cluster(current_load, target_load):
+    """Automatically scale entire cluster based on load"""
+    scale_factor = target_load / current_load
+    
+    # Scale each component proportionally
+    scale_api_servers(current=10, factor=scale_factor)
+    scale_kafka_partitions(current=36, factor=min(scale_factor, 2))  # Cap at 2x
+    scale_flink_tasks(current=40, factor=scale_factor * 0.8)
+    scale_clickhouse_nodes(current=12, factor=scale_factor * 0.5)
+    
+    # Wait for scale-up to complete
+    wait_for_healthy_cluster()
+    
+    # Verify new capacity
+    verify_cluster_capacity(target_load)
+```
+
+---
+
+🔴 **ADVANCED: Elastic Scaling at Scale**
+
+**1. Predictive Auto-scaling:**
+
+Use ML to predict traffic and scale proactively:
+
+```python
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+
+class PredictiveScaler:
+    def __init__(self):
+        self.model = RandomForestRegressor()
+        self.history = []
+    
+    def train(self, historical_data):
+        """Train on historical traffic patterns"""
+        # Features: hour, day_of_week, day_of_month, is_holiday
+        # Target: events_per_second
+        X = np.array([[h['hour'], h['dow'], h['dom'], h['holiday']] 
+                      for h in historical_data])
+        y = np.array([h['events_per_sec'] for h in historical_data])
+        
+        self.model.fit(X, y)
+    
+    def predict_load(self, timestamp):
+        """Predict load for given timestamp"""
+        hour = timestamp.hour
+        dow = timestamp.weekday()
+        dom = timestamp.day
+        holiday = is_holiday(timestamp)
+        
+        predicted_load = self.model.predict([[hour, dow, dom, holiday]])[0]
+        return predicted_load
+    
+    def scale_ahead(self, minutes_ahead=15):
+        """Scale cluster 15 minutes before predicted spike"""
+        future_time = datetime.now() + timedelta(minutes=minutes_ahead)
+        predicted_load = self.predict_load(future_time)
+        current_load = get_current_load()
+        
+        if predicted_load > current_load * 1.5:
+            print(f"Spike predicted in 15 min: {predicted_load:.0f} events/sec")
+            print(f"Scaling up proactively...")
+            scale_cluster(predicted_load)
+        
+        return predicted_load
+
+# Run every 5 minutes
+schedule.every(5).minutes.do(scaler.scale_ahead)
+```
+
+**Benefits:**
+- Scale up BEFORE traffic spike (not during)
+- Avoid scrambling during actual spike
+- Better user experience (no degradation)
+- Typical accuracy: 90%+ for predictable patterns
+
+**2. Cost-Optimized Scaling:**
+
+Balance performance vs cost:
+
+```python
+def optimize_cluster_cost(target_performance):
+    """Find minimum cost configuration meeting performance target"""
+    
+    # Options with cost/performance trade-offs
+    options = [
+        {'name': 'spot_instances', 'cost_factor': 0.3, 'risk': 0.1},
+        {'name': 'reserved_instances', 'cost_factor': 0.6, 'risk': 0.0},
+        {'name': 'on_demand', 'cost_factor': 1.0, 'risk': 0.0},
+    ]
+    
+    # Optimization: Mix of instance types
+    # 70% Spot (cheap, some risk)
+    # 20% Reserved (medium cost, no risk)
+    # 10% On-Demand (expensive, immediate availability)
+    
+    total_capacity = calculate_required_capacity(target_performance)
+    
+    allocation = {
+        'spot': int(total_capacity * 0.7),
+        'reserved': int(total_capacity * 0.2),
+        'on_demand': int(total_capacity * 0.1),
+    }
+    
+    total_cost = (
+        allocation['spot'] * base_cost * 0.3 +
+        allocation['reserved'] * base_cost * 0.6 +
+        allocation['on_demand'] * base_cost * 1.0
+    )
+    
+    print(f"Optimized allocation: {allocation}")
+    print(f"Total cost: ${total_cost:,.0f}/month")
+    print(f"Savings vs all on-demand: {((1.0 - (total_cost / (total_capacity * base_cost))) * 100):.0f}%")
+    
+    return allocation
+
+# Result: 40-50% cost savings while meeting SLAs
+```
+
+**3. Cascading Failure Prevention:**
+
+```python
+class CircuitBreaker:
+    """Prevent cascading failures during scaling events"""
+    
+    def __init__(self, failure_threshold=5, timeout=60):
+        self.failure_count = 0
+        self.failure_threshold = failure_threshold
+        self.timeout = timeout
+        self.state = 'CLOSED'  # CLOSED, OPEN, HALF_OPEN
+        self.last_failure_time = None
+    
+    def call(self, func, *args, **kwargs):
+        if self.state == 'OPEN':
+            if time.time() - self.last_failure_time > self.timeout:
+                self.state = 'HALF_OPEN'
+            else:
+                raise Exception("Circuit breaker OPEN - requests blocked")
+        
+        try:
+            result = func(*args, **kwargs)
+            if self.state == 'HALF_OPEN':
+                self.state = 'CLOSED'
+                self.failure_count = 0
+            return result
+        except Exception as e:
+            self.failure_count += 1
+            self.last_failure_time = time.time()
+            
+            if self.failure_count >= self.failure_threshold:
+                self.state = 'OPEN'
+                print(f"Circuit breaker OPEN after {self.failure_count} failures")
+            
+            raise e
+
+# Usage: Wrap scaling operations
+circuit_breaker = CircuitBreaker()
+circuit_breaker.call(scale_clickhouse_cluster, target_nodes=24)
+```
+
+**4. Real Company Example: Netflix's Chaos Engineering**
+
+```text
+Netflix's approach to horizontal scaling at massive scale:
+
+Scale: 200M subscribers, 1B hours watched/month
+
+Horizontal Scaling Strategy:
+├─ Microservices: 700+ services
+├─ Each service: Independently scalable
+├─ Auto-scaling: Every 1 minute evaluation
+└─ Multi-region: Active-active in 3 AWS regions
+
+Chaos Engineering:
+├─ Randomly kill instances (Chaos Monkey)
+├─ Simulate AZ failure (Chaos Kong)
+├─ Test scaling under stress
+└─ Result: System resilient to failures
+
+Scaling Metrics:
+├─ Auto-scale trigger: CPU > 70% for 5 min
+├─ Scale-up time: 90 seconds (new instance ready)
+├─ Scale-down delay: 15 minutes (prevent flapping)
+└─ Cost optimization: 40% Spot, 60% On-Demand
+
+Learnings:
+├─ Always over-provision by 20% (N+1 redundancy)
+├─ Scale up fast, scale down slow
+├─ Test failure scenarios regularly
+├─ Automate everything (no manual scaling)
+└─ Monitor scaling events closely
+
+Cost at Scale:
+├─ Infrastructure: $100M+/month
+├─ Per-subscriber cost: $0.50/month
+├─ Cost reduction with scaling optimization: 30%
+└─ Annual savings: $360M
+```
+
+---
+
 
