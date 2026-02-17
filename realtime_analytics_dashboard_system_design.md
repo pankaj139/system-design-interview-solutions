@@ -8726,3 +8726,2699 @@ Cost at Scale:
 ---
 
 
+
+## 12. PERFORMANCE OPTIMIZATION 🚀
+
+### 🟢 Beginner Level: Understanding Performance Basics
+
+**Analogy: Restaurant Kitchen Efficiency**
+
+Think of performance optimization like making a restaurant kitchen more efficient:
+- **Query Optimization**: Like having ingredients pre-chopped (less work when order comes in)
+- **Materialized Views**: Like having pre-made sauces ready to use (not making from scratch each time)
+- **Data Compression**: Like using vacuum-sealed bags to store more food in the freezer
+- **Indexing**: Like organizing ingredients alphabetically for faster retrieval
+- **Caching**: Like keeping frequently used items on the counter (not in storage)
+
+**Why Performance Matters:**
+
+```text
+Slow Dashboard Impact:
+├─ User Experience: Users abandon dashboards loading > 3 seconds
+├─ Business Cost: Slow queries = More compute resources = Higher bills
+├─ Decision Making: Delayed insights = Missed opportunities
+└─ System Load: Inefficient queries slow down entire system
+
+Example Cost Impact:
+├─ Query taking 10 seconds → Blocks 10 concurrent users
+├─ Optimized to 1 second → Same resources serve 100 concurrent users
+├─ Cost savings: 90% reduction in infrastructure
+└─ Revenue impact: Better UX = Higher retention
+```
+
+**Basic Performance Metrics:**
+
+```python
+# Key metrics to monitor for dashboard performance
+performance_metrics = {
+    "query_latency": {
+        "p50": "< 500ms",      # 50% of queries
+        "p95": "< 2 seconds",  # 95% of queries
+        "p99": "< 5 seconds"   # 99% of queries
+    },
+    "dashboard_load_time": {
+        "initial_render": "< 1 second",
+        "data_loaded": "< 3 seconds",
+        "full_interactive": "< 5 seconds"
+    },
+    "data_freshness": {
+        "real_time": "< 10 seconds lag",
+        "near_real_time": "< 1 minute lag",
+        "batch": "< 15 minutes lag"
+    }
+}
+```
+
+**Simple Optimization Wins:**
+
+1. **Add Indexes** - Make lookups 100x faster
+2. **Limit Results** - Don't fetch more data than needed
+3. **Use Time Windows** - Query last 24 hours, not all history
+4. **Pre-aggregate** - Store hourly/daily summaries instead of raw events
+5. **Cache Results** - Reuse same query results for multiple users
+
+---
+
+### 🟡 Intermediate Level: Query Performance Optimization
+
+**Query Optimization Techniques:**
+
+**1. Partition Pruning:**
+
+```sql
+-- Bad: Scans entire table (10 billion rows)
+SELECT COUNT(*)
+FROM events
+WHERE user_id = 12345;
+
+-- Good: Scans only relevant partition (10 million rows)
+SELECT COUNT(*)
+FROM events
+WHERE event_date >= '2024-01-01'
+  AND event_date < '2024-01-02'
+  AND user_id = 12345;
+
+-- Performance improvement: 1000x faster (100s → 100ms)
+```
+
+**2. Columnar Storage Benefits:**
+
+```text
+ClickHouse Columnar Storage:
+
+Row-based (Traditional):
+User1, Event1, 2024-01-01 | User2, Event2, 2024-01-01 | ...
+└─ Must read entire row even if only need one column
+
+Columnar (ClickHouse):
+UserColumn:   [User1, User2, User3, ...]
+EventColumn:  [Event1, Event2, Event3, ...]
+DateColumn:   [2024-01-01, 2024-01-01, ...]
+└─ Read only needed columns
+
+Example Query: SELECT COUNT(*) FROM events WHERE event_date = '2024-01-01'
+├─ Row-based: Read 1000 bytes per row × 1M rows = 1 GB
+├─ Columnar: Read 10 bytes per row × 1M rows = 10 MB
+└─ Performance: 100x less I/O, 10x faster query
+```
+
+**3. Materialized Views for Pre-Aggregation:**
+
+```sql
+-- Create materialized view for hourly aggregates
+CREATE MATERIALIZED VIEW hourly_metrics_mv
+ENGINE = SummingMergeTree()
+PARTITION BY toYYYYMM(event_hour)
+ORDER BY (metric_name, event_hour)
+AS SELECT
+    toStartOfHour(event_timestamp) AS event_hour,
+    metric_name,
+    count() AS event_count,
+    sum(metric_value) AS total_value,
+    avg(metric_value) AS avg_value,
+    max(metric_value) AS max_value
+FROM events
+GROUP BY event_hour, metric_name;
+
+-- Query the materialized view (1000x faster)
+SELECT
+    event_hour,
+    metric_name,
+    event_count,
+    avg_value
+FROM hourly_metrics_mv
+WHERE event_hour >= now() - INTERVAL 24 HOUR
+ORDER BY event_hour DESC;
+
+-- Performance comparison:
+-- Raw table: 10 seconds (scanning 100M events)
+-- Materialized view: 10ms (scanning 24 hourly aggregates)
+```
+
+**4. Query Result Caching:**
+
+```python
+from functools import lru_cache
+import redis
+import hashlib
+import json
+
+class QueryCache:
+    """Multi-level caching for dashboard queries"""
+    
+    def __init__(self):
+        self.redis_client = redis.Redis(host='localhost', port=6379)
+        self.memory_cache = {}
+        
+    def get_cache_key(self, query, params):
+        """Generate cache key from query and parameters"""
+        cache_input = f"{query}:{json.dumps(params, sort_keys=True)}"
+        return hashlib.md5(cache_input.encode()).hexdigest()
+    
+    def get(self, query, params, ttl=300):
+        """Get cached query result (L1: Memory, L2: Redis)"""
+        cache_key = self.get_cache_key(query, params)
+        
+        # L1: Check memory cache (fastest)
+        if cache_key in self.memory_cache:
+            print(f"Cache HIT (Memory) - {cache_key}")
+            return self.memory_cache[cache_key]
+        
+        # L2: Check Redis cache
+        cached_value = self.redis_client.get(cache_key)
+        if cached_value:
+            result = json.loads(cached_value)
+            self.memory_cache[cache_key] = result  # Promote to L1
+            print(f"Cache HIT (Redis) - {cache_key}")
+            return result
+        
+        print(f"Cache MISS - {cache_key}")
+        return None
+    
+    def set(self, query, params, result, ttl=300):
+        """Store query result in cache"""
+        cache_key = self.get_cache_key(query, params)
+        
+        # Store in both L1 and L2
+        self.memory_cache[cache_key] = result
+        self.redis_client.setex(
+            cache_key,
+            ttl,
+            json.dumps(result)
+        )
+
+# Usage example
+cache = QueryCache()
+
+def execute_dashboard_query(query, params):
+    """Execute query with caching"""
+    
+    # Check cache first
+    cached_result = cache.get(query, params, ttl=300)
+    if cached_result:
+        return cached_result
+    
+    # Execute query if not cached
+    result = execute_clickhouse_query(query, params)
+    
+    # Store in cache
+    cache.set(query, params, result, ttl=300)
+    
+    return result
+
+# Performance impact:
+# Cache hit rate: 60-80% for typical dashboards
+# Cache hit latency: 1-5ms (vs 100-1000ms for query)
+# Cost savings: 70% reduction in database load
+```
+
+**5. Approximate Query Processing:**
+
+```sql
+-- Exact count (slow: 10 seconds for 1B rows)
+SELECT COUNT(DISTINCT user_id)
+FROM events
+WHERE event_date >= '2024-01-01';
+
+-- Approximate count (fast: 100ms, 98% accurate)
+SELECT uniq(user_id)  -- ClickHouse's HyperLogLog approximation
+FROM events
+WHERE event_date >= '2024-01-01';
+
+-- Use cases for approximation:
+-- ✓ Dashboard widgets showing "~5.2M users"
+-- ✓ Real-time analytics where exactness isn't critical
+-- ✗ Financial reports requiring exact counts
+-- ✗ Compliance reports needing audit trails
+```
+
+**Performance Benchmarks:**
+
+```text
+Query Optimization Results (Real Data):
+
+Baseline (Unoptimized):
+├─ Query time: 45 seconds
+├─ Data scanned: 500 GB
+├─ Cost per query: $0.25
+└─ Concurrent users supported: 5
+
+After Partitioning:
+├─ Query time: 12 seconds (73% faster)
+├─ Data scanned: 50 GB (90% less)
+├─ Cost per query: $0.025 (90% cheaper)
+└─ Concurrent users: 20
+
+After Materialized Views:
+├─ Query time: 500ms (99% faster than baseline)
+├─ Data scanned: 1 MB (99.9% less)
+├─ Cost per query: $0.0001 (99.96% cheaper)
+└─ Concurrent users: 500
+
+After Caching (80% hit rate):
+├─ Average query time: 50ms (99.9% faster)
+├─ Cache hits: 5ms, Cache misses: 500ms
+├─ Effective cost: $0.00002 per query
+└─ Concurrent users: 5,000+
+
+ROI Calculation:
+├─ Infrastructure cost reduction: $50K/month → $5K/month
+├─ Development effort: 2 engineer-months
+├─ Payback period: 1 month
+└─ Annual savings: $540K
+```
+
+---
+
+### 🔴 Advanced Level: Data Compression & Storage Optimization
+
+**1. Columnar Compression Strategies:**
+
+```sql
+-- ClickHouse compression codecs for different data types
+
+CREATE TABLE events_optimized (
+    event_id UInt64 CODEC(Delta, ZSTD(3)),           -- Delta encoding for sequential IDs
+    user_id UInt64 CODEC(LZ4),                       -- Fast compression for random IDs
+    event_timestamp DateTime CODEC(Delta, ZSTD(3)),  -- Delta encoding for timestamps
+    event_type LowCardinality(String),               -- Dictionary encoding for enums
+    country_code FixedString(2) CODEC(LZ4),          -- LZ4 for fixed-length strings
+    metric_value Float64 CODEC(Gorilla, ZSTD(3)),    -- Gorilla for time-series floats
+    json_payload String CODEC(ZSTD(9))               -- High compression for JSON
+)
+ENGINE = MergeTree()
+PARTITION BY toYYYYMM(event_timestamp)
+ORDER BY (event_type, user_id, event_timestamp);
+
+-- Compression ratios achieved:
+-- Raw data size: 1 TB
+-- Compressed size: 100 GB (10x compression)
+-- Query performance: No degradation (decompression is fast)
+```
+
+**Compression Codec Comparison:**
+
+```text
+ClickHouse Compression Codecs:
+
+LZ4 (Default):
+├─ Compression ratio: 3-5x
+├─ Compression speed: 500 MB/s
+├─ Decompression speed: 2000 MB/s
+├─ CPU usage: Low
+└─ Use case: General purpose, balanced performance
+
+ZSTD(1-22):
+├─ Compression ratio: 5-15x (level dependent)
+├─ Compression speed: 100-400 MB/s
+├─ Decompression speed: 800-1200 MB/s
+├─ CPU usage: Medium-High
+└─ Use case: Better compression when storage cost > CPU cost
+
+Delta Encoding:
+├─ Compression ratio: 10-100x for sequential data
+├─ Speed: Very fast (CPU-efficient)
+├─ Use case: Timestamps, sequential IDs, counters
+└─ Example: Timestamps stored as deltas from base
+
+Gorilla Codec (Facebook's time-series compression):
+├─ Compression ratio: 10-20x for time-series floats
+├─ Optimized for: Values that change slowly over time
+├─ Use case: Metrics, sensor data, stock prices
+└─ Example: CPU utilization values: [45.2, 45.3, 45.1, ...]
+
+LowCardinality (Dictionary Encoding):
+├─ Compression ratio: 5-50x for low-cardinality strings
+├─ Memory savings: Store each unique value once
+├─ Use case: Enums, country codes, categorical data
+└─ Example: 1M rows with 10 unique countries → Dictionary of 10 + indices
+
+Benchmark Results (1 TB dataset):
+├─ No compression: 1000 GB, Query: 10s
+├─ LZ4: 250 GB (4x), Query: 10.5s (+5% overhead)
+├─ ZSTD(3): 150 GB (6.7x), Query: 11s (+10% overhead)
+├─ Delta+ZSTD: 100 GB (10x), Query: 11s (+10% overhead)
+└─ Optimal: Mixed codecs, 80 GB (12.5x), Query: 10.5s
+```
+
+**2. Tiered Storage for Cost Optimization:**
+
+```python
+class TieredStorageManager:
+    """Manage hot/warm/cold data tiers for cost optimization"""
+    
+    def __init__(self):
+        self.tiers = {
+            'hot': {
+                'storage_type': 'NVMe SSD',
+                'cost_per_gb': 0.20,  # $0.20/GB/month
+                'query_latency': '50ms',
+                'retention': '7 days'
+            },
+            'warm': {
+                'storage_type': 'SSD',
+                'cost_per_gb': 0.10,  # $0.10/GB/month
+                'query_latency': '200ms',
+                'retention': '30 days'
+            },
+            'cold': {
+                'storage_type': 'S3',
+                'cost_per_gb': 0.023,  # $0.023/GB/month
+                'query_latency': '2s',
+                'retention': '1 year'
+            },
+            'archive': {
+                'storage_type': 'S3 Glacier',
+                'cost_per_gb': 0.004,  # $0.004/GB/month
+                'query_latency': 'hours',
+                'retention': '7 years'
+            }
+        }
+    
+    def calculate_storage_cost(self, daily_data_gb=100, days=365):
+        """Calculate cost for tiered vs. single-tier storage"""
+        
+        # Single-tier (all hot storage)
+        single_tier_cost = daily_data_gb * days * self.tiers['hot']['cost_per_gb']
+        
+        # Tiered storage strategy
+        hot_data = daily_data_gb * 7    # Last 7 days
+        warm_data = daily_data_gb * 30  # Days 8-37
+        cold_data = daily_data_gb * 328 # Days 38-365
+        
+        tiered_cost = (
+            hot_data * self.tiers['hot']['cost_per_gb'] +
+            warm_data * self.tiers['warm']['cost_per_gb'] +
+            cold_data * self.tiers['cold']['cost_per_gb']
+        )
+        
+        savings = single_tier_cost - tiered_cost
+        savings_pct = (savings / single_tier_cost) * 100
+        
+        return {
+            'single_tier_cost': single_tier_cost,
+            'tiered_cost': tiered_cost,
+            'savings': savings,
+            'savings_percentage': savings_pct,
+            'breakdown': {
+                'hot': hot_data * self.tiers['hot']['cost_per_gb'],
+                'warm': warm_data * self.tiers['warm']['cost_per_gb'],
+                'cold': cold_data * self.tiers['cold']['cost_per_gb']
+            }
+        }
+
+# Real-world example
+manager = TieredStorageManager()
+result = manager.calculate_storage_cost(daily_data_gb=100, days=365)
+
+print(f"""
+Storage Cost Analysis (100 GB/day for 1 year):
+
+Single-Tier (All NVMe SSD):
+├─ Total data: 36,500 GB
+├─ Monthly cost: ${result['single_tier_cost']:,.2f}
+└─ Query latency: 50ms
+
+Tiered Storage:
+├─ Hot (7 days, 700 GB): ${result['breakdown']['hot']:,.2f}
+├─ Warm (30 days, 3,000 GB): ${result['breakdown']['warm']:,.2f}
+├─ Cold (328 days, 32,800 GB): ${result['breakdown']['cold']:,.2f}
+├─ Total monthly cost: ${result['tiered_cost']:,.2f}
+└─ Query latency: 50ms (recent), 2s (historical)
+
+Savings:
+├─ Monthly: ${result['savings']:,.2f}
+├─ Percentage: {result['savings_percentage']:.1f}%
+└─ Annual: ${result['savings'] * 12:,.2f}
+""")
+
+# Output:
+# Single-Tier: $7,300/month
+# Tiered: $1,100/month
+# Savings: $6,200/month (85%), $74,400/year
+```
+
+**3. Pinterest's Performance Optimization Journey:**
+
+```text
+Pinterest Real-Time Analytics at Scale:
+
+Scale:
+├─ Daily active users: 450M
+├─ Events per second: 2M+
+├─ Dashboard queries: 100K/day
+├─ Data ingested: 10 TB/day
+└─ Query latency target: p95 < 1 second
+
+Initial Performance Problems (2019):
+├─ Query latency: p95 = 30 seconds
+├─ Dashboard load time: 45 seconds
+├─ User complaints: "Too slow to be useful"
+├─ Infrastructure cost: $2M/month
+└─ Engineering cost: 10 FTEs managing infrastructure
+
+Optimization Phase 1: Partitioning & Indexing (Q1 2020)
+├─ Action: Partition by date, index by user_id
+├─ Result: p95 latency → 8 seconds (73% improvement)
+├─ Data scanned: Reduced by 90%
+└─ Cost savings: $400K/month
+
+Optimization Phase 2: Materialized Views (Q3 2020)
+├─ Action: Pre-aggregate popular metrics at hourly granularity
+├─ Coverage: 80% of queries use materialized views
+├─ Result: p95 latency → 2 seconds (75% improvement)
+├─ Storage overhead: +15% (worthwhile trade-off)
+└─ Cost savings: $600K/month
+
+Optimization Phase 3: Query Result Caching (Q4 2020)
+├─ Action: Redis cache with 5-minute TTL
+├─ Cache hit rate: 65%
+├─ Result: p95 latency → 500ms (75% improvement)
+├─ Cache infrastructure cost: $50K/month
+└─ Net savings: $350K/month
+
+Optimization Phase 4: Compression & Tiered Storage (2021)
+├─ Action: ZSTD compression + S3 for data > 30 days old
+├─ Compression ratio: 8x average
+├─ Storage cost: $2M/month → $400K/month
+├─ Query performance: No significant degradation
+└─ Annual savings: $19.2M
+
+Final Results (2022):
+├─ Query latency: p95 = 400ms (98.7% improvement)
+├─ Dashboard load time: 2 seconds (96% improvement)
+├─ Infrastructure cost: $600K/month (70% reduction)
+├─ User satisfaction: 4.5/5 (was 2.1/5)
+└─ ROI: 10 engineer-months effort, $1.4M savings/month
+
+Key Techniques Used:
+├─ Aggressive partitioning by date
+├─ Materialized views for popular aggregations
+├─ Multi-level caching (Redis + CDN)
+├─ Columnar compression (ZSTD)
+├─ Tiered storage (SSD → S3)
+├─ Approximate queries for non-critical metrics
+└─ Query result pre-computation for scheduled reports
+
+Lessons Learned:
+├─ 80/20 rule: 20% of queries account for 80% of load
+├─ Cache invalidation is hard: Use short TTLs (5 min)
+├─ Compression is free performance: CPU << Storage cost
+├─ Measure everything: Can't optimize what you don't measure
+└─ User experience > Cost: Invest in performance first
+```
+
+**4. Airbnb's Query Performance Architecture:**
+
+```python
+# Airbnb's query optimization framework
+
+class QueryOptimizer:
+    """Airbnb's approach to optimizing analytics queries"""
+    
+    def __init__(self):
+        self.optimization_rules = [
+            self.partition_pruning,
+            self.predicate_pushdown,
+            self.materialized_view_rewrite,
+            self.approximate_aggregation
+        ]
+    
+    def partition_pruning(self, query):
+        """Add partition filters to reduce data scanned"""
+        # Example: Automatically add date range if missing
+        if 'event_date' not in query.filters:
+            query.filters.append({
+                'field': 'event_date',
+                'operator': '>=',
+                'value': 'current_date - interval 7 days'
+            })
+        return query
+    
+    def predicate_pushdown(self, query):
+        """Push filters as close to data source as possible"""
+        # Move WHERE clauses before JOINs
+        # Reduce rows processed in JOIN operations
+        return query
+    
+    def materialized_view_rewrite(self, query):
+        """Automatically use materialized views when available"""
+        # Check if query matches any materialized view pattern
+        for mv in self.get_available_materialized_views():
+            if self.query_matches_mv(query, mv):
+                return self.rewrite_to_use_mv(query, mv)
+        return query
+    
+    def approximate_aggregation(self, query):
+        """Use approximate functions for non-critical queries"""
+        replacements = {
+            'COUNT(DISTINCT user_id)': 'approx_distinct(user_id)',
+            'PERCENTILE(value, 0.95)': 'approx_percentile(value, 0.95)'
+        }
+        for exact, approx in replacements.items():
+            if exact in query.text and not query.requires_exact:
+                query.text = query.text.replace(exact, approx)
+        return query
+    
+    def optimize(self, query):
+        """Apply all optimization rules"""
+        for rule in self.optimization_rules:
+            query = rule(query)
+        return query
+
+# Performance impact at Airbnb scale:
+# Queries optimized: 95% of all dashboard queries
+# Average speedup: 25x faster
+# Cost reduction: $3M/year in compute costs
+# User satisfaction: Dashboard load time < 2s for 99% of users
+```
+
+**Cost-Performance Trade-offs:**
+
+```text
+Storage & Compute Cost Analysis:
+
+Scenario: 100 TB analytics data, 10K queries/day
+
+Option 1: All-Flash Storage + No Optimization
+├─ Storage: 100 TB × $0.20/GB = $20K/month
+├─ Compute: 10K queries × 10s avg × $0.01/vCPU-hour = $15K/month
+├─ Total: $35K/month
+└─ Query latency: p95 = 15s
+
+Option 2: Compression + Basic Optimization
+├─ Storage: 20 TB (5x compression) × $0.20/GB = $4K/month
+├─ Compute: 10K queries × 3s avg × $0.01/vCPU-hour = $4.5K/month
+├─ Total: $8.5K/month (-76%)
+└─ Query latency: p95 = 5s
+
+Option 3: Tiered Storage + Materialized Views
+├─ Storage (Hot): 5 TB × $0.20/GB = $1K/month
+├─ Storage (Cold): 15 TB × $0.023/GB = $0.35K/month
+├─ Compute: 10K queries × 500ms avg × $0.01/vCPU-hour = $0.75K/month
+├─ Total: $2.1K/month (-94%)
+└─ Query latency: p95 = 1s
+
+Option 4: Full Optimization (Compression + Tiers + MVs + Cache)
+├─ Storage (Hot): 3 TB × $0.20/GB = $0.6K/month
+├─ Storage (Warm): 7 TB × $0.10/GB = $0.7K/month
+├─ Storage (Cold): 10 TB × $0.023/GB = $0.23K/month
+├─ Cache (Redis): 100 GB × $0.50/GB = $0.05K/month
+├─ Compute: 10K queries × 100ms avg × $0.01/vCPU-hour = $0.15K/month
+├─ Total: $1.73K/month (-95%)
+└─ Query latency: p95 = 200ms
+
+ROI Analysis:
+├─ Initial cost: $35K/month
+├─ Optimized cost: $1.73K/month
+├─ Savings: $33.27K/month, $399K/year
+├─ Engineering effort: 4 engineer-months ($80K)
+├─ Payback period: 2.4 months
+└─ 3-year ROI: 1,397%
+
+Recommendation: Option 4 (Full Optimization)
+├─ Best cost-performance ratio
+├─ User experience: 75x faster than baseline
+├─ Quick payback period
+└─ Scales efficiently as data grows
+```
+
+---
+
+
+## 13. SECURITY 🔒
+
+### 🟢 Beginner Level: Understanding Security Basics
+
+**Analogy: Bank Vault Protection**
+
+Think of analytics security like protecting a bank vault:
+- **Authentication**: Verify identity (showing ID to enter bank)
+- **Authorization**: Control access (only vault employees can enter vault)
+- **Encryption**: Protect data in transit and at rest (armored trucks, locked safes)
+- **Audit Logging**: Track who accessed what (security cameras, access logs)
+- **Data Privacy**: Protect sensitive information (PII in sealed envelopes)
+
+**Why Security Matters for Analytics:**
+
+```text
+Analytics Security Concerns:
+
+Data Sensitivity:
+├─ User behavior data: Can reveal personal habits
+├─ Financial data: Revenue, costs, customer spending
+├─ Business metrics: Competitive intelligence
+└─ PII (Personally Identifiable Information): Names, emails, IP addresses
+
+Security Incidents Impact:
+├─ Data breach: $4.35M average cost per breach (IBM 2022)
+├─ Regulatory fines: GDPR up to €20M or 4% revenue
+├─ Reputation damage: Loss of customer trust
+└─ Business disruption: Systems taken offline for investigation
+
+Example Breach:
+├─ Analytics dashboard exposed without authentication
+├─ Exposed: 10M user records with email, behavior data
+├─ Fine: $5M (GDPR violation)
+├─ Legal costs: $2M
+├─ Customer churn: 15% (lost revenue: $20M)
+└─ Total cost: $27M
+```
+
+**Basic Security Principles:**
+
+```python
+# Security checklist for analytics dashboards
+
+security_checklist = {
+    "authentication": {
+        "required": True,
+        "methods": ["SSO", "OAuth", "JWT"],
+        "mfa_enabled": True,  # Multi-factor authentication
+        "session_timeout": "8 hours"
+    },
+    "authorization": {
+        "model": "RBAC",  # Role-Based Access Control
+        "principle": "Least privilege",  # Minimum necessary access
+        "review_frequency": "Quarterly"
+    },
+    "encryption": {
+        "in_transit": "TLS 1.3",
+        "at_rest": "AES-256",
+        "key_rotation": "Every 90 days"
+    },
+    "data_privacy": {
+        "pii_masking": True,
+        "anonymization": "Hash user IDs",
+        "retention_limit": "365 days"
+    },
+    "audit_logging": {
+        "log_access": True,
+        "log_changes": True,
+        "retention": "7 years",
+        "alerting": "Real-time for suspicious activity"
+    }
+}
+```
+
+**Common Security Mistakes:**
+
+1. **No Authentication**: Dashboard accessible to anyone
+2. **Weak Passwords**: Default passwords not changed
+3. **No Encryption**: Data transmitted in plain text
+4. **No Access Control**: All users see all data
+5. **No Audit Logs**: Can't track who accessed what
+6. **PII Exposure**: Displaying emails, phone numbers unnecessarily
+
+---
+
+### 🟡 Intermediate Level: Access Control & Data Privacy
+
+**1. Role-Based Access Control (RBAC):**
+
+```python
+from enum import Enum
+from typing import List, Set
+
+class Permission(Enum):
+    """Granular permissions for analytics dashboards"""
+    VIEW_DASHBOARD = "view_dashboard"
+    EDIT_DASHBOARD = "edit_dashboard"
+    VIEW_ALL_DATA = "view_all_data"
+    VIEW_OWN_TEAM_DATA = "view_own_team_data"
+    EXPORT_DATA = "export_data"
+    VIEW_PII = "view_pii"
+    MANAGE_USERS = "manage_users"
+    VIEW_FINANCIAL_DATA = "view_financial_data"
+
+class Role:
+    """Role definition with associated permissions"""
+    
+    def __init__(self, name: str, permissions: Set[Permission]):
+        self.name = name
+        self.permissions = permissions
+
+# Define standard roles
+ROLES = {
+    "viewer": Role("Viewer", {
+        Permission.VIEW_DASHBOARD,
+        Permission.VIEW_OWN_TEAM_DATA
+    }),
+    
+    "analyst": Role("Analyst", {
+        Permission.VIEW_DASHBOARD,
+        Permission.VIEW_ALL_DATA,
+        Permission.EXPORT_DATA
+    }),
+    
+    "manager": Role("Manager", {
+        Permission.VIEW_DASHBOARD,
+        Permission.EDIT_DASHBOARD,
+        Permission.VIEW_ALL_DATA,
+        Permission.EXPORT_DATA,
+        Permission.VIEW_FINANCIAL_DATA
+    }),
+    
+    "admin": Role("Admin", {
+        Permission.VIEW_DASHBOARD,
+        Permission.EDIT_DASHBOARD,
+        Permission.VIEW_ALL_DATA,
+        Permission.EXPORT_DATA,
+        Permission.VIEW_PII,
+        Permission.MANAGE_USERS,
+        Permission.VIEW_FINANCIAL_DATA
+    })
+}
+
+class AccessControl:
+    """Enforce access control for analytics queries"""
+    
+    def __init__(self, user_id: str, role: str):
+        self.user_id = user_id
+        self.role = ROLES.get(role)
+        
+    def can_access(self, permission: Permission) -> bool:
+        """Check if user has specific permission"""
+        return permission in self.role.permissions
+    
+    def filter_query(self, query: str) -> str:
+        """Add row-level security filters to query"""
+        
+        # If user can only view own team data, add filter
+        if not self.can_access(Permission.VIEW_ALL_DATA):
+            # Get user's team
+            user_team = self.get_user_team(self.user_id)
+            
+            # Add WHERE clause to filter by team
+            if "WHERE" in query:
+                query = query.replace("WHERE", f"WHERE team_id = '{user_team}' AND")
+            else:
+                query += f" WHERE team_id = '{user_team}'"
+        
+        return query
+    
+    def mask_pii(self, results: List[dict]) -> List[dict]:
+        """Mask PII fields if user doesn't have VIEW_PII permission"""
+        
+        if self.can_access(Permission.VIEW_PII):
+            return results  # No masking needed
+        
+        # Mask PII fields
+        pii_fields = ['email', 'phone', 'ssn', 'ip_address']
+        
+        for row in results:
+            for field in pii_fields:
+                if field in row:
+                    row[field] = self.mask_field(row[field])
+        
+        return results
+    
+    def mask_field(self, value: str) -> str:
+        """Mask sensitive field value"""
+        if '@' in value:  # Email
+            parts = value.split('@')
+            return f"{parts[0][:2]}***@{parts[1]}"
+        else:
+            return f"***{value[-4:]}"  # Show last 4 characters
+
+# Usage example
+def execute_secure_query(query: str, user_id: str, role: str):
+    """Execute query with access control"""
+    
+    ac = AccessControl(user_id, role)
+    
+    # Check permission
+    if not ac.can_access(Permission.VIEW_DASHBOARD):
+        raise PermissionError("User not authorized to view dashboard")
+    
+    # Filter query based on user's access level
+    filtered_query = ac.filter_query(query)
+    
+    # Execute query
+    results = execute_query(filtered_query)
+    
+    # Mask PII if necessary
+    results = ac.mask_pii(results)
+    
+    return results
+
+# Example usage
+# Analyst role: Can see all data, no PII
+results_analyst = execute_secure_query(
+    "SELECT user_id, email, revenue FROM users",
+    user_id="analyst_123",
+    role="analyst"
+)
+# Output: user_id visible, email masked, revenue visible
+
+# Admin role: Can see everything including PII
+results_admin = execute_secure_query(
+    "SELECT user_id, email, revenue FROM users",
+    user_id="admin_456",
+    role="admin"
+)
+# Output: user_id visible, email visible, revenue visible
+```
+
+**2. API Authentication & Authorization:**
+
+```python
+import jwt
+import hashlib
+import time
+from datetime import datetime, timedelta
+
+class APIKeyManager:
+    """Manage API keys for programmatic access"""
+    
+    def __init__(self):
+        self.api_keys = {}  # In production: Use database
+    
+    def generate_api_key(self, user_id: str, permissions: List[str]) -> dict:
+        """Generate new API key with specific permissions"""
+        
+        # Generate random API key
+        api_key = hashlib.sha256(
+            f"{user_id}:{time.time()}".encode()
+        ).hexdigest()
+        
+        # Store with metadata
+        self.api_keys[api_key] = {
+            "user_id": user_id,
+            "permissions": permissions,
+            "created_at": datetime.now(),
+            "last_used": None,
+            "rate_limit": 1000  # requests per hour
+        }
+        
+        return {
+            "api_key": api_key,
+            "permissions": permissions,
+            "rate_limit": 1000
+        }
+    
+    def validate_api_key(self, api_key: str) -> dict:
+        """Validate API key and return user info"""
+        
+        if api_key not in self.api_keys:
+            raise ValueError("Invalid API key")
+        
+        key_info = self.api_keys[api_key]
+        
+        # Update last used timestamp
+        key_info["last_used"] = datetime.now()
+        
+        return key_info
+
+class JWTAuthenticator:
+    """JWT-based authentication for dashboard API"""
+    
+    def __init__(self, secret_key: str):
+        self.secret_key = secret_key
+    
+    def generate_token(self, user_id: str, role: str, expires_in: int = 28800) -> str:
+        """Generate JWT token (default: 8 hours)"""
+        
+        payload = {
+            "user_id": user_id,
+            "role": role,
+            "issued_at": datetime.utcnow().isoformat(),
+            "expires_at": (datetime.utcnow() + timedelta(seconds=expires_in)).isoformat()
+        }
+        
+        token = jwt.encode(payload, self.secret_key, algorithm="HS256")
+        return token
+    
+    def validate_token(self, token: str) -> dict:
+        """Validate JWT token and return payload"""
+        
+        try:
+            payload = jwt.decode(token, self.secret_key, algorithms=["HS256"])
+            
+            # Check expiration
+            expires_at = datetime.fromisoformat(payload["expires_at"])
+            if datetime.utcnow() > expires_at:
+                raise jwt.ExpiredSignatureError("Token expired")
+            
+            return payload
+            
+        except jwt.InvalidTokenError as e:
+            raise ValueError(f"Invalid token: {e}")
+
+# Usage in API endpoint
+def dashboard_api_endpoint(request):
+    """Protected API endpoint example"""
+    
+    # Extract token from Authorization header
+    auth_header = request.headers.get("Authorization", "")
+    
+    if auth_header.startswith("Bearer "):
+        # JWT authentication
+        token = auth_header[7:]
+        authenticator = JWTAuthenticator(secret_key="your-secret-key")
+        user_info = authenticator.validate_token(token)
+        
+    elif auth_header.startswith("ApiKey "):
+        # API key authentication
+        api_key = auth_header[7:]
+        key_manager = APIKeyManager()
+        user_info = key_manager.validate_api_key(api_key)
+        
+    else:
+        return {"error": "Authentication required"}, 401
+    
+    # Execute query with user's permissions
+    results = execute_secure_query(
+        request.query,
+        user_id=user_info["user_id"],
+        role=user_info["role"]
+    )
+    
+    return {"data": results}, 200
+```
+
+**3. Data Anonymization & PII Protection:**
+
+```sql
+-- PII masking strategies in queries
+
+-- Strategy 1: Hash user identifiers
+SELECT
+    SHA256(user_id) AS anonymized_user_id,  -- One-way hash
+    DATE_TRUNC('day', event_timestamp) AS event_date,
+    event_type,
+    COUNT(*) AS event_count
+FROM events
+WHERE event_date >= CURRENT_DATE - INTERVAL '30 days'
+GROUP BY anonymized_user_id, event_date, event_type;
+
+-- Strategy 2: Aggregate to remove individual identification
+SELECT
+    country_code,
+    age_bucket,  -- e.g., '18-24', '25-34'
+    gender,
+    AVG(revenue) AS avg_revenue,
+    COUNT(*) AS user_count
+FROM users
+GROUP BY country_code, age_bucket, gender
+HAVING COUNT(*) >= 10;  -- k-anonymity: minimum 10 users per group
+
+-- Strategy 3: Differential privacy (add noise)
+SELECT
+    product_category,
+    COUNT(*) + (RANDOM() * 20 - 10)::INT AS noisy_count  -- Add ±10 noise
+FROM purchases
+GROUP BY product_category;
+
+-- Strategy 4: Tokenization for reversible masking
+CREATE TABLE user_tokens (
+    token_id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Store tokenized data
+INSERT INTO analytics_events (token_id, event_type)
+SELECT token_id, event_type
+FROM events e
+JOIN user_tokens ut ON e.user_id = ut.user_id;
+
+-- Only authorized users can reverse tokens
+SELECT
+    ut.user_id,  -- Requires JOIN with user_tokens table
+    e.event_type,
+    COUNT(*) AS event_count
+FROM analytics_events e
+JOIN user_tokens ut ON e.token_id = ut.token_id
+WHERE has_permission(current_user(), 'VIEW_PII')
+GROUP BY ut.user_id, e.event_type;
+```
+
+**4. Encryption Configuration:**
+
+```yaml
+# Encryption configuration for analytics pipeline
+
+encryption:
+  # Encryption in transit
+  in_transit:
+    protocol: TLS 1.3
+    cipher_suites:
+      - TLS_AES_256_GCM_SHA384
+      - TLS_CHACHA20_POLY1305_SHA256
+    certificate:
+      type: "Let's Encrypt"
+      auto_renewal: true
+      expiry_alert: 30  # days before expiration
+  
+  # Encryption at rest
+  at_rest:
+    algorithm: AES-256-GCM
+    key_management:
+      service: "AWS KMS"
+      key_rotation: 90  # days
+      auto_rotation: true
+    
+    # Different keys for different data sensitivity
+    keys:
+      - name: "pii_data_key"
+        usage: "User PII (email, phone, address)"
+        rotation: 30  # days
+      
+      - name: "financial_data_key"
+        usage: "Revenue, transaction data"
+        rotation: 30  # days
+      
+      - name: "analytics_data_key"
+        usage: "Aggregated metrics (non-sensitive)"
+        rotation: 90  # days
+  
+  # Field-level encryption
+  field_level:
+    enabled: true
+    fields:
+      - name: "email"
+        algorithm: "AES-256-GCM"
+        key: "pii_data_key"
+      
+      - name: "credit_card"
+        algorithm: "AES-256-GCM"
+        key: "financial_data_key"
+        tokenization: true  # Store tokens, not actual values
+      
+      - name: "ip_address"
+        algorithm: "SHA-256"  # One-way hash
+        salt: true
+
+# Performance impact
+performance:
+  encryption_overhead: "5-10%"  # CPU overhead
+  latency_increase: "10-20ms"  # Per request
+  storage_overhead: "5-15%"  # Encrypted data size
+```
+
+---
+
+### 🔴 Advanced Level: Compliance & Audit Logging
+
+**1. GDPR Compliance Implementation:**
+
+```python
+class GDPRComplianceManager:
+    """Manage GDPR compliance for analytics data"""
+    
+    def __init__(self):
+        self.data_retention_days = 365
+        self.pii_fields = ['email', 'phone', 'ip_address', 'device_id']
+    
+    def handle_data_subject_request(self, request_type: str, user_id: str):
+        """Handle GDPR data subject requests"""
+        
+        if request_type == "access":
+            # Right to access: Provide all data about user
+            return self.export_user_data(user_id)
+        
+        elif request_type == "rectification":
+            # Right to rectification: Correct inaccurate data
+            return self.update_user_data(user_id)
+        
+        elif request_type == "erasure":
+            # Right to erasure (Right to be forgotten)
+            return self.delete_user_data(user_id)
+        
+        elif request_type == "portability":
+            # Right to data portability: Export in machine-readable format
+            return self.export_user_data(user_id, format="JSON")
+        
+        elif request_type == "restriction":
+            # Right to restriction: Stop processing user's data
+            return self.restrict_user_data_processing(user_id)
+    
+    def export_user_data(self, user_id: str, format: str = "CSV") -> dict:
+        """Export all user data (GDPR Article 15)"""
+        
+        query = f"""
+        SELECT
+            user_id,
+            email,
+            created_at,
+            last_login,
+            event_type,
+            event_timestamp,
+            metadata
+        FROM events
+        WHERE user_id = '{user_id}'
+        ORDER BY event_timestamp DESC
+        """
+        
+        data = execute_query(query)
+        
+        # Create audit log entry
+        self.log_gdpr_request(user_id, "access", status="completed")
+        
+        return {
+            "user_id": user_id,
+            "data": data,
+            "format": format,
+            "exported_at": datetime.now().isoformat(),
+            "retention_expires": (datetime.now() + timedelta(days=30)).isoformat()
+        }
+    
+    def delete_user_data(self, user_id: str) -> dict:
+        """Delete user data (GDPR Article 17 - Right to be forgotten)"""
+        
+        # Step 1: Identify all user data
+        tables_with_user_data = [
+            'events', 'user_profiles', 'sessions',
+            'analytics_metrics', 'cached_results'
+        ]
+        
+        deletion_summary = {}
+        
+        for table in tables_with_user_data:
+            # Delete from main table
+            query = f"DELETE FROM {table} WHERE user_id = '{user_id}'"
+            rows_deleted = execute_query(query)
+            deletion_summary[table] = rows_deleted
+            
+            # Delete from backups (mark for deletion)
+            self.mark_backup_for_deletion(table, user_id)
+        
+        # Step 2: Anonymize user in aggregated tables
+        # (Can't delete from aggregates, so we anonymize)
+        self.anonymize_aggregated_data(user_id)
+        
+        # Step 3: Log deletion request
+        self.log_gdpr_request(
+            user_id,
+            "erasure",
+            status="completed",
+            details=deletion_summary
+        )
+        
+        return {
+            "user_id": user_id,
+            "status": "deleted",
+            "deleted_at": datetime.now().isoformat(),
+            "deletion_summary": deletion_summary
+        }
+    
+    def anonymize_aggregated_data(self, user_id: str):
+        """Anonymize user in pre-aggregated analytics data"""
+        
+        # Replace user_id with anonymous token
+        anonymous_id = hashlib.sha256(f"anonymous_{user_id}".encode()).hexdigest()
+        
+        query = f"""
+        UPDATE hourly_metrics
+        SET user_id = '{anonymous_id}'
+        WHERE user_id = '{user_id}'
+        """
+        
+        execute_query(query)
+    
+    def enforce_data_retention(self):
+        """Delete data older than retention period (GDPR Article 5)"""
+        
+        cutoff_date = datetime.now() - timedelta(days=self.data_retention_days)
+        
+        query = f"""
+        DELETE FROM events
+        WHERE event_timestamp < '{cutoff_date.isoformat()}'
+        AND retention_exempt = FALSE
+        """
+        
+        rows_deleted = execute_query(query)
+        
+        return {
+            "cutoff_date": cutoff_date.isoformat(),
+            "rows_deleted": rows_deleted
+        }
+    
+    def log_gdpr_request(self, user_id: str, request_type: str, status: str, details: dict = None):
+        """Log GDPR request for audit trail"""
+        
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "user_id": user_id,
+            "request_type": request_type,
+            "status": status,
+            "details": details,
+            "processed_by": "automated_system"
+        }
+        
+        # Store in audit log (must be retained for 7 years)
+        store_audit_log(log_entry)
+
+# Real-world stats:
+# GDPR fines issued (2018-2023): €2.79 billion
+# Average fine: €1.5 million
+# Largest fine: Amazon (€746 million)
+# Common violations: Insufficient legal basis, lack of consent, inadequate security
+```
+
+**2. Comprehensive Audit Logging:**
+
+```python
+import json
+from enum import Enum
+
+class AuditEventType(Enum):
+    """Types of events to audit"""
+    USER_LOGIN = "user_login"
+    USER_LOGOUT = "user_logout"
+    QUERY_EXECUTED = "query_executed"
+    DATA_EXPORTED = "data_exported"
+    DASHBOARD_ACCESSED = "dashboard_accessed"
+    PERMISSION_CHANGED = "permission_changed"
+    DATA_DELETED = "data_deleted"
+    PII_ACCESSED = "pii_accessed"
+    SECURITY_ALERT = "security_alert"
+
+class AuditLogger:
+    """Comprehensive audit logging for compliance"""
+    
+    def __init__(self):
+        self.log_stream = "audit_logs"
+        self.retention_years = 7  # Regulatory requirement
+    
+    def log_event(self, event_type: AuditEventType, user_id: str, details: dict):
+        """Log audit event"""
+        
+        audit_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "event_type": event_type.value,
+            "user_id": user_id,
+            "ip_address": self.get_client_ip(),
+            "user_agent": self.get_user_agent(),
+            "session_id": self.get_session_id(),
+            "details": details,
+            "severity": self.calculate_severity(event_type)
+        }
+        
+        # Write to audit log
+        self.write_to_audit_log(audit_entry)
+        
+        # Alert on high-severity events
+        if audit_entry["severity"] == "high":
+            self.send_security_alert(audit_entry)
+    
+    def log_query_execution(self, user_id: str, query: str, results_count: int):
+        """Log query execution for audit trail"""
+        
+        details = {
+            "query": query,
+            "results_count": results_count,
+            "execution_time_ms": 150,
+            "data_scanned_gb": 2.5,
+            "contains_pii": self.contains_pii(query)
+        }
+        
+        self.log_event(AuditEventType.QUERY_EXECUTED, user_id, details)
+    
+    def log_data_export(self, user_id: str, export_type: str, record_count: int):
+        """Log data export for compliance"""
+        
+        details = {
+            "export_type": export_type,
+            "record_count": record_count,
+            "file_format": "CSV",
+            "contains_pii": True,
+            "purpose": "Business analysis"
+        }
+        
+        self.log_event(AuditEventType.DATA_EXPORTED, user_id, details)
+    
+    def log_pii_access(self, user_id: str, pii_type: str, record_count: int):
+        """Log PII access (GDPR requirement)"""
+        
+        details = {
+            "pii_type": pii_type,  # e.g., "email", "phone"
+            "record_count": record_count,
+            "access_reason": "Customer support inquiry",
+            "approved_by": "manager_123"
+        }
+        
+        self.log_event(AuditEventType.PII_ACCESSED, user_id, details)
+    
+    def detect_suspicious_activity(self, user_id: str):
+        """Detect and log suspicious activity"""
+        
+        # Check for anomalies
+        recent_queries = self.get_recent_queries(user_id, minutes=5)
+        
+        if len(recent_queries) > 100:
+            # Suspicious: > 100 queries in 5 minutes
+            self.log_event(
+                AuditEventType.SECURITY_ALERT,
+                user_id,
+                {
+                    "alert_type": "rate_limit_exceeded",
+                    "query_count": len(recent_queries),
+                    "time_window": "5 minutes"
+                }
+            )
+        
+        # Check for bulk PII access
+        pii_access_count = self.count_pii_access(user_id, hours=1)
+        if pii_access_count > 10000:
+            # Suspicious: Accessing > 10K PII records in 1 hour
+            self.log_event(
+                AuditEventType.SECURITY_ALERT,
+                user_id,
+                {
+                    "alert_type": "bulk_pii_access",
+                    "record_count": pii_access_count,
+                    "time_window": "1 hour"
+                }
+            )
+    
+    def calculate_severity(self, event_type: AuditEventType) -> str:
+        """Calculate event severity"""
+        
+        high_severity_events = [
+            AuditEventType.DATA_DELETED,
+            AuditEventType.PERMISSION_CHANGED,
+            AuditEventType.SECURITY_ALERT
+        ]
+        
+        medium_severity_events = [
+            AuditEventType.DATA_EXPORTED,
+            AuditEventType.PII_ACCESSED
+        ]
+        
+        if event_type in high_severity_events:
+            return "high"
+        elif event_type in medium_severity_events:
+            return "medium"
+        else:
+            return "low"
+
+# Usage example
+audit_logger = AuditLogger()
+
+# Log query execution
+audit_logger.log_query_execution(
+    user_id="analyst_123",
+    query="SELECT user_id, email FROM users LIMIT 1000",
+    results_count=1000
+)
+
+# Log data export
+audit_logger.log_data_export(
+    user_id="manager_456",
+    export_type="CSV",
+    record_count=50000
+)
+
+# Detect suspicious activity
+audit_logger.detect_suspicious_activity(user_id="analyst_123")
+```
+
+**3. Stripe's Security Architecture:**
+
+```text
+Stripe Real-Time Analytics Security:
+
+Scale:
+├─ Payment events: 1M+ per minute
+├─ Sensitive data: Credit card numbers, bank accounts, PII
+├─ Regulatory compliance: PCI DSS Level 1, SOC 2, GDPR, CCPA
+└─ Audit logs: 100M+ events per day
+
+Security Architecture:
+├─ Network Layer: VPC isolation, private subnets
+├─ Application Layer: mTLS, API key rotation
+├─ Data Layer: Encryption at rest (AES-256), field-level encryption
+└─ Monitoring: Real-time security alerts, anomaly detection
+
+Key Security Features:
+
+1. PCI DSS Compliance:
+   ├─ Tokenization: Replace card numbers with tokens
+   ├─ Encryption: All cardholder data encrypted
+   ├─ Access control: Minimum necessary access
+   ├─ Monitoring: All access to cardholder data logged
+   └─ Annual audit: Third-party PCI assessment
+
+2. Data Access Controls:
+   ├─ Role-based: 5 standard roles (Viewer, Developer, Analyst, Admin, Owner)
+   ├─ Team-based: Users only see their team's data
+   ├─ API keys: Separate keys for test and production
+   ├─ Key restrictions: Limit by IP, domain, API endpoint
+   └─ Automatic revocation: Keys expire after 90 days of inactivity
+
+3. Audit Logging:
+   ├─ Every API call logged
+   ├─ Dashboard access logged
+   ├─ Data exports logged
+   ├─ Permission changes logged
+   ├─ Retention: 7 years (regulatory requirement)
+   └─ Real-time alerts: Suspicious activity triggers immediate notification
+
+4. Data Privacy:
+   ├─ PII minimization: Only collect necessary data
+   ├─ Anonymization: Hash user IDs in analytics
+   ├─ Right to deletion: Automated GDPR deletion workflow
+   ├─ Data residency: Store data in user's region
+   └─ Purpose limitation: Data only used for stated purposes
+
+5. Threat Detection:
+   ├─ Rate limiting: Prevent brute force attacks
+   ├─ Anomaly detection: ML models detect suspicious patterns
+   ├─ Fraud detection: Real-time fraud scoring
+   ├─ Alerting: Security team notified within 1 minute
+   └─ Automated response: Suspicious accounts auto-suspended
+
+Security Metrics:
+├─ Zero data breaches (since founding in 2010)
+├─ PCI compliance: 100% (annual audit)
+├─ Encryption coverage: 100% of data at rest and in transit
+├─ Audit log completeness: 99.99%
+├─ Incident response time: < 15 minutes (p95)
+└─ Security team size: 200+ engineers
+
+Cost of Security:
+├─ Security infrastructure: $10M/year
+├─ Compliance audits: $2M/year
+├─ Security team: $30M/year (salaries)
+├─ Total security investment: $42M/year
+├─ Revenue: $7.4B/year (2022)
+└─ Security as % of revenue: 0.57%
+
+ROI of Security Investment:
+├─ Customer trust: Enables enterprise deals
+├─ Avoided breaches: Estimated $100M+ in potential losses
+├─ Competitive advantage: Security as differentiator
+└─ Regulatory compliance: Avoids fines, enables global expansion
+```
+
+**4. Uber's Data Security Lessons:**
+
+```text
+Uber Data Breach (2016) - Lessons Learned:
+
+Incident:
+├─ Breach date: October 2016
+├─ Discovery: November 2017 (1 year later)
+├─ Data exposed: 57M users (names, emails, phone numbers), 600K drivers (licenses)
+├─ Attack vector: Stolen AWS credentials from GitHub
+├─ Ransom paid: $100K to hackers (to delete data)
+└─ Cover-up: Breach concealed from regulators
+
+Consequences:
+├─ Regulatory fines: $148M (50 US states settlement)
+├─ Legal fees: $20M+
+├─ Reputation damage: Loss of user trust
+├─ Executive departures: CSO fired, CEO resigned
+├─ Customer churn: Estimated 5-10% loss
+└─ Total cost: $200M+ (direct + indirect)
+
+Security Failures:
+├─ Credentials in code: AWS keys committed to GitHub repo
+├─ No access controls: Engineers had broad access to production
+├─ No monitoring: Breach undetected for 1 year
+├─ No incident response: Paid ransom instead of reporting
+└─ No encryption: PII stored in plaintext
+
+Uber's Security Improvements (Post-Breach):
+
+1. Access Control Overhaul:
+   ├─ Zero-trust architecture: Assume breach, verify everything
+   ├─ Just-in-time access: Temporary access for specific tasks
+   ├─ Principle of least privilege: Minimum necessary permissions
+   └─ Regular access reviews: Quarterly permission audits
+
+2. Secrets Management:
+   ├─ No secrets in code: Use secret management service (Vault)
+   ├─ Automatic rotation: Credentials rotate every 24 hours
+   ├─ GitHub scanning: Automated detection of committed secrets
+   └─ Break-glass procedures: Emergency access with approval workflow
+
+3. Encryption Everywhere:
+   ├─ At rest: AES-256 for all PII
+   ├─ In transit: TLS 1.3 for all communications
+   ├─ Field-level: Sensitive fields individually encrypted
+   └─ Key management: AWS KMS with automatic rotation
+
+4. Monitoring & Alerting:
+   ├─ All access logged: 100% coverage
+   ├─ Real-time anomaly detection: ML-based threat detection
+   ├─ Security Operations Center: 24/7 monitoring
+   ├─ Automated response: Suspicious activity auto-blocked
+   └─ Regular penetration testing: Quarterly red team exercises
+
+5. Incident Response:
+   ├─ Clear protocols: Step-by-step breach response plan
+   ├─ Transparent reporting: Immediate notification to regulators
+   ├─ User notification: Within 72 hours (GDPR requirement)
+   ├─ Post-mortem culture: Blameless incident reviews
+   └─ Continuous improvement: Lessons incorporated into security practices
+
+Current Security Posture (2024):
+├─ Security team: 500+ engineers
+├─ Security budget: $100M+/year
+├─ Compliance: SOC 2 Type II, ISO 27001, GDPR, CCPA
+├─ Bug bounty program: $10M+ paid to researchers
+├─ Incident response time: < 5 minutes (p95)
+└─ Zero major breaches since 2016
+
+Key Lessons:
+├─ Security is not optional: Cost of breach >> cost of security
+├─ Culture matters: Security is everyone's responsibility
+├─ Transparency builds trust: Own up to incidents quickly
+├─ Invest proactively: Don't wait for breach to improve security
+└─ Monitor everything: Can't protect what you can't see
+```
+
+---
+
+
+## 14. MONITORING & OBSERVABILITY 📊
+
+### 🟢 Beginner Level: Understanding Monitoring Basics
+
+**Analogy: Car Dashboard & Warning Lights**
+
+Think of system monitoring like your car's dashboard:
+- **Metrics**: Speedometer, fuel gauge, temperature (key numbers at a glance)
+- **Logs**: Trip computer showing recent events (what happened and when)
+- **Traces**: GPS navigation showing your route (following a request through the system)
+- **Alerts**: Warning lights (engine, oil, battery) that tell you when something's wrong
+- **Dashboards**: Complete instrument panel showing everything together
+
+**Why Monitoring Matters:**
+
+```text
+Without Monitoring:
+├─ No visibility: Don't know if system is healthy
+├─ Slow detection: Find issues only when users complain
+├─ Difficult debugging: Can't see what went wrong
+├─ No proactive fixes: React to problems instead of preventing them
+└─ Lost revenue: Downtime costs money
+
+With Monitoring:
+├─ Real-time visibility: Always know system health
+├─ Fast detection: Alerts within seconds of issues
+├─ Easy debugging: Logs and traces show root cause
+├─ Proactive fixes: Detect issues before they impact users
+└─ High availability: 99.9%+ uptime
+
+Example: E-commerce site during Black Friday
+├─ Without monitoring: Site crashes, 30 min to detect, 2 hours to fix
+├─ Lost sales: $1M (during 2.5 hours downtime)
+├─ With monitoring: Alert in 30 seconds, fixed in 5 minutes
+├─ Lost sales: $50K (during 5 minutes)
+└─ Monitoring ROI: $950K saved in one incident
+```
+
+**Basic Monitoring Layers:**
+
+```text
+What to Monitor in Analytics Dashboard:
+
+1. Infrastructure Metrics:
+   ├─ CPU usage: Should be < 70% average
+   ├─ Memory usage: Should be < 80%
+   ├─ Disk usage: Should be < 85%
+   ├─ Network bandwidth: Monitor for saturation
+   └─ Alert if: Any metric sustained above threshold for > 5 minutes
+
+2. Application Metrics:
+   ├─ Request rate: Queries per second
+   ├─ Error rate: % of failed queries
+   ├─ Latency: p50, p95, p99 response times
+   ├─ Throughput: Data processed per second
+   └─ Alert if: Error rate > 1% or p95 latency > 3s
+
+3. Data Quality Metrics:
+   ├─ Data freshness: Time lag between event and availability
+   ├─ Completeness: % of expected records received
+   ├─ Accuracy: Data validation checks
+   ├─ Consistency: Reconciliation with source systems
+   └─ Alert if: Freshness > 15 min or completeness < 95%
+
+4. Business Metrics:
+   ├─ Active users: Users using dashboards
+   ├─ Query patterns: Most common queries
+   ├─ Dashboard load times: User experience
+   ├─ Feature usage: Which features are popular
+   └─ Alert if: Active users drops > 50% suddenly
+```
+
+**Simple Monitoring Setup:**
+
+```python
+# Basic health check endpoint
+
+from flask import Flask, jsonify
+import time
+import psutil
+
+app = Flask(__name__)
+
+@app.route('/health')
+def health_check():
+    """Basic health check endpoint"""
+    
+    status = {
+        "status": "healthy",
+        "timestamp": time.time(),
+        "checks": {}
+    }
+    
+    # Check CPU usage
+    cpu_percent = psutil.cpu_percent(interval=1)
+    status["checks"]["cpu"] = {
+        "value": cpu_percent,
+        "healthy": cpu_percent < 80,
+        "threshold": 80
+    }
+    
+    # Check memory usage
+    memory = psutil.virtual_memory()
+    status["checks"]["memory"] = {
+        "value": memory.percent,
+        "healthy": memory.percent < 85,
+        "threshold": 85
+    }
+    
+    # Check disk usage
+    disk = psutil.disk_usage('/')
+    status["checks"]["disk"] = {
+        "value": disk.percent,
+        "healthy": disk.percent < 90,
+        "threshold": 90
+    }
+    
+    # Overall status
+    all_healthy = all(check["healthy"] for check in status["checks"].values())
+    status["status"] = "healthy" if all_healthy else "unhealthy"
+    
+    status_code = 200 if all_healthy else 503
+    return jsonify(status), status_code
+
+# Output example:
+# {
+#   "status": "healthy",
+#   "timestamp": 1704067200,
+#   "checks": {
+#     "cpu": {"value": 45.2, "healthy": true, "threshold": 80},
+#     "memory": {"value": 62.8, "healthy": true, "threshold": 85},
+#     "disk": {"value": 73.1, "healthy": true, "threshold": 90}
+#   }
+# }
+```
+
+---
+
+### 🟡 Intermediate Level: Pipeline Health Monitoring
+
+**1. Key Metrics to Monitor:**
+
+```python
+from prometheus_client import Counter, Histogram, Gauge
+import time
+
+# Define Prometheus metrics
+
+# Counter: Always increasing (total events processed)
+events_processed = Counter(
+    'events_processed_total',
+    'Total number of events processed',
+    ['pipeline_stage', 'event_type']
+)
+
+# Gauge: Can go up or down (current queue size)
+queue_size = Gauge(
+    'queue_size',
+    'Current number of events in queue',
+    ['queue_name']
+)
+
+# Histogram: Distribution of values (latency buckets)
+query_latency = Histogram(
+    'query_latency_seconds',
+    'Query execution latency in seconds',
+    ['query_type'],
+    buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0]
+)
+
+# Track error rate
+query_errors = Counter(
+    'query_errors_total',
+    'Total number of query errors',
+    ['error_type']
+)
+
+# Example: Instrumenting a query execution
+def execute_query_with_metrics(query, query_type):
+    """Execute query with monitoring instrumentation"""
+    
+    start_time = time.time()
+    
+    try:
+        # Execute query
+        result = execute_query(query)
+        
+        # Record success metrics
+        events_processed.labels(
+            pipeline_stage='query_execution',
+            event_type=query_type
+        ).inc()
+        
+        # Record latency
+        latency = time.time() - start_time
+        query_latency.labels(query_type=query_type).observe(latency)
+        
+        return result
+        
+    except Exception as e:
+        # Record error
+        query_errors.labels(error_type=type(e).__name__).inc()
+        raise
+
+# Example: Update queue size gauge
+def update_queue_metrics(queue_name, size):
+    """Update queue size gauge"""
+    queue_size.labels(queue_name=queue_name).set(size)
+```
+
+**2. Prometheus Configuration:**
+
+```yaml
+# prometheus.yml - Monitoring configuration
+
+global:
+  scrape_interval: 15s      # How often to scrape targets
+  evaluation_interval: 15s  # How often to evaluate rules
+  
+  external_labels:
+    cluster: 'analytics-prod'
+    region: 'us-east-1'
+
+# Scrape configurations
+scrape_configs:
+  # Analytics API servers
+  - job_name: 'analytics-api'
+    static_configs:
+      - targets:
+          - 'api-1.internal:9090'
+          - 'api-2.internal:9090'
+          - 'api-3.internal:9090'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+  
+  # ClickHouse database
+  - job_name: 'clickhouse'
+    static_configs:
+      - targets:
+          - 'clickhouse-1.internal:9363'
+          - 'clickhouse-2.internal:9363'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+  
+  # Kafka brokers
+  - job_name: 'kafka'
+    static_configs:
+      - targets:
+          - 'kafka-1.internal:7071'
+          - 'kafka-2.internal:7071'
+          - 'kafka-3.internal:7071'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+  
+  # Redis cache
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-1.internal:9121']
+    scrape_interval: 15s
+
+# Alerting rules
+rule_files:
+  - 'alerts/analytics_alerts.yml'
+  - 'alerts/infrastructure_alerts.yml'
+
+# Alert manager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+```
+
+**3. Alert Rules Configuration:**
+
+```yaml
+# alerts/analytics_alerts.yml
+
+groups:
+  - name: analytics_pipeline
+    interval: 30s
+    rules:
+      # Alert: High query latency
+      - alert: HighQueryLatency
+        expr: histogram_quantile(0.95, rate(query_latency_seconds_bucket[5m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+          team: analytics
+        annotations:
+          summary: "High query latency detected"
+          description: "P95 query latency is {{ $value }}s (threshold: 3s)"
+      
+      # Alert: High error rate
+      - alert: HighErrorRate
+        expr: rate(query_errors_total[5m]) / rate(events_processed_total[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          team: analytics
+        annotations:
+          summary: "High query error rate"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 1%)"
+      
+      # Alert: Queue backlog
+      - alert: KafkaQueueBacklog
+        expr: kafka_consumer_lag > 100000
+        for: 10m
+        labels:
+          severity: warning
+          team: data-engineering
+        annotations:
+          summary: "Kafka consumer lag is high"
+          description: "Consumer lag is {{ $value }} messages (threshold: 100K)"
+      
+      # Alert: Data freshness issue
+      - alert: StaleData
+        expr: time() - last_event_timestamp > 900  # 15 minutes
+        for: 5m
+        labels:
+          severity: critical
+          team: data-engineering
+        annotations:
+          summary: "Data ingestion stalled"
+          description: "No new events in last {{ $value }}s (threshold: 900s)"
+      
+      # Alert: Low cache hit rate
+      - alert: LowCacheHitRate
+        expr: rate(cache_hits[5m]) / (rate(cache_hits[5m]) + rate(cache_misses[5m])) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          team: analytics
+        annotations:
+          summary: "Cache hit rate is low"
+          description: "Hit rate is {{ $value | humanizePercentage }} (threshold: 50%)"
+      
+      # Alert: Database connection pool exhausted
+      - alert: DatabaseConnectionPoolExhausted
+        expr: clickhouse_connection_pool_active / clickhouse_connection_pool_size > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          team: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "{{ $value | humanizePercentage }} of connections in use"
+
+  - name: infrastructure
+    interval: 30s
+    rules:
+      # Alert: High CPU usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}% (threshold: 80%)"
+      
+      # Alert: High memory usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}% (threshold: 85%)"
+      
+      # Alert: Disk space running low
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: critical
+          team: infrastructure
+        annotations:
+          summary: "Disk space low on {{ $labels.instance }}"
+          description: "Disk usage is {{ $value }}% (threshold: 85%)"
+```
+
+**4. Grafana Dashboard Configuration:**
+
+```json
+{
+  "dashboard": {
+    "title": "Real-Time Analytics - Pipeline Health",
+    "tags": ["analytics", "monitoring"],
+    "timezone": "UTC",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Query Throughput (QPS)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(events_processed_total{pipeline_stage='query_execution'}[5m])",
+            "legendFormat": "{{instance}} - {{query_type}}"
+          }
+        ],
+        "yAxisLabel": "Queries per Second",
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"type": "lt", "params": [100]},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"type": "avg"}
+            }
+          ],
+          "message": "Query throughput dropped below 100 QPS"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Query Latency (P50, P95, P99)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(query_latency_seconds_bucket[5m]))",
+            "legendFormat": "P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(query_latency_seconds_bucket[5m]))",
+            "legendFormat": "P95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(query_latency_seconds_bucket[5m]))",
+            "legendFormat": "P99"
+          }
+        ],
+        "yAxisLabel": "Latency (seconds)",
+        "thresholds": [
+          {"value": 1.0, "color": "green"},
+          {"value": 3.0, "color": "yellow"},
+          {"value": 5.0, "color": "red"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(query_errors_total[5m]) / rate(events_processed_total[5m]) * 100",
+            "legendFormat": "Error Rate %"
+          }
+        ],
+        "yAxisLabel": "Error Rate (%)",
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"type": "gt", "params": [1.0]},
+              "message": "Error rate exceeded 1%"
+            }
+          ]
+        }
+      },
+      {
+        "id": 4,
+        "title": "Kafka Consumer Lag",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "kafka_consumer_lag",
+            "legendFormat": "{{topic}} - {{partition}}"
+          }
+        ],
+        "yAxisLabel": "Messages Behind",
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"type": "gt", "params": [100000]},
+              "message": "Kafka consumer lag exceeded 100K messages"
+            }
+          ]
+        }
+      },
+      {
+        "id": 5,
+        "title": "Data Freshness",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "time() - last_event_timestamp",
+            "legendFormat": "Seconds since last event"
+          }
+        ],
+        "thresholds": [
+          {"value": 0, "color": "green"},
+          {"value": 300, "color": "yellow"},
+          {"value": 900, "color": "red"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Cache Hit Rate",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "rate(cache_hits[5m]) / (rate(cache_hits[5m]) + rate(cache_misses[5m])) * 100",
+            "legendFormat": "Hit Rate %"
+          }
+        ],
+        "thresholds": [
+          {"value": 0, "color": "red"},
+          {"value": 50, "color": "yellow"},
+          {"value": 70, "color": "green"}
+        ]
+      }
+    ]
+  }
+}
+```
+
+**5. Data Quality Monitoring:**
+
+```python
+class DataQualityMonitor:
+    """Monitor data quality metrics"""
+    
+    def __init__(self):
+        self.quality_metrics = {
+            'completeness': Gauge('data_completeness_percentage', 'Data completeness'),
+            'accuracy': Gauge('data_accuracy_percentage', 'Data accuracy'),
+            'freshness': Gauge('data_freshness_seconds', 'Data freshness in seconds'),
+            'consistency': Gauge('data_consistency_percentage', 'Data consistency')
+        }
+    
+    def check_completeness(self, expected_count: int, actual_count: int) -> float:
+        """Check if all expected records are present"""
+        completeness = (actual_count / expected_count) * 100
+        self.quality_metrics['completeness'].set(completeness)
+        
+        if completeness < 95:
+            self.alert("Data Completeness Low", f"Only {completeness:.1f}% of expected records")
+        
+        return completeness
+    
+    def check_freshness(self, table: str) -> float:
+        """Check how fresh the data is"""
+        query = f"""
+        SELECT (now() - MAX(event_timestamp)) AS freshness_seconds
+        FROM {table}
+        """
+        
+        result = execute_query(query)
+        freshness_seconds = result[0]['freshness_seconds']
+        
+        self.quality_metrics['freshness'].set(freshness_seconds)
+        
+        if freshness_seconds > 900:  # 15 minutes
+            self.alert("Stale Data", f"Data is {freshness_seconds}s old (threshold: 900s)")
+        
+        return freshness_seconds
+    
+    def check_accuracy(self, table: str) -> float:
+        """Check data accuracy using validation rules"""
+        query = f"""
+        SELECT
+            COUNT(*) AS total_rows,
+            SUM(CASE WHEN email LIKE '%@%' THEN 1 ELSE 0 END) AS valid_emails,
+            SUM(CASE WHEN revenue >= 0 THEN 1 ELSE 0 END) AS valid_revenue,
+            SUM(CASE WHEN age BETWEEN 0 AND 120 THEN 1 ELSE 0 END) AS valid_age
+        FROM {table}
+        """
+        
+        result = execute_query(query)[0]
+        
+        # Calculate accuracy as % of rows passing all validation rules
+        valid_rows = min(
+            result['valid_emails'],
+            result['valid_revenue'],
+            result['valid_age']
+        )
+        
+        accuracy = (valid_rows / result['total_rows']) * 100
+        self.quality_metrics['accuracy'].set(accuracy)
+        
+        if accuracy < 99:
+            self.alert("Data Accuracy Low", f"Only {accuracy:.1f}% of rows are valid")
+        
+        return accuracy
+    
+    def check_consistency(self, source_table: str, target_table: str) -> float:
+        """Check consistency between source and target"""
+        # Compare aggregates between source and analytics table
+        query_source = f"SELECT SUM(revenue) as total FROM {source_table}"
+        query_target = f"SELECT SUM(revenue) as total FROM {target_table}"
+        
+        source_total = execute_query(query_source)[0]['total']
+        target_total = execute_query(query_target)[0]['total']
+        
+        # Calculate consistency (how close are the totals)
+        consistency = (1 - abs(source_total - target_total) / source_total) * 100
+        self.quality_metrics['consistency'].set(consistency)
+        
+        if consistency < 99:
+            self.alert(
+                "Data Inconsistency",
+                f"Source: ${source_total:,.0f}, Target: ${target_total:,.0f}"
+            )
+        
+        return consistency
+    
+    def alert(self, title: str, message: str):
+        """Send alert for data quality issue"""
+        print(f"ALERT: {title} - {message}")
+        # In production: Send to PagerDuty, Slack, etc.
+
+# Usage
+monitor = DataQualityMonitor()
+
+# Run quality checks every 5 minutes
+completeness = monitor.check_completeness(expected_count=1000000, actual_count=998500)
+freshness = monitor.check_freshness('events')
+accuracy = monitor.check_accuracy('events')
+consistency = monitor.check_consistency('source_db.orders', 'analytics.orders')
+
+print(f"""
+Data Quality Report:
+├─ Completeness: {completeness:.1f}%
+├─ Freshness: {freshness}s
+├─ Accuracy: {accuracy:.1f}%
+└─ Consistency: {consistency:.1f}%
+""")
+```
+
+---
+
+### 🔴 Advanced Level: SLA Monitoring & Incident Response
+
+**1. SLA Definition & Tracking:**
+
+```python
+class SLAMonitor:
+    """Monitor and enforce SLAs"""
+    
+    def __init__(self):
+        self.sla_targets = {
+            'availability': {
+                'target': 99.9,  # 99.9% uptime
+                'allowed_downtime_per_month': 43.8  # minutes
+            },
+            'query_latency_p95': {
+                'target': 2.0,  # 2 seconds
+                'measurement_window': '5m'
+            },
+            'query_latency_p99': {
+                'target': 5.0,  # 5 seconds
+                'measurement_window': '5m'
+            },
+            'data_freshness': {
+                'target': 300,  # 5 minutes
+                'measurement_window': '15m'
+            },
+            'error_rate': {
+                'target': 0.01,  # 1% max error rate
+                'measurement_window': '5m'
+            }
+        }
+        
+        self.error_budget = self.calculate_error_budget()
+    
+    def calculate_error_budget(self) -> dict:
+        """Calculate error budget for each SLA"""
+        
+        # Error budget = (100% - SLA) of time
+        # For 99.9% SLA, error budget is 0.1% = 43.8 minutes/month
+        
+        minutes_per_month = 30 * 24 * 60  # 43,200 minutes
+        
+        availability_sla = self.sla_targets['availability']['target']
+        error_budget_pct = 100 - availability_sla
+        error_budget_minutes = minutes_per_month * (error_budget_pct / 100)
+        
+        return {
+            'total_minutes': error_budget_minutes,
+            'remaining_minutes': error_budget_minutes,  # Updated as outages occur
+            'percentage_used': 0.0
+        }
+    
+    def track_downtime(self, duration_minutes: float):
+        """Track downtime and update error budget"""
+        
+        self.error_budget['remaining_minutes'] -= duration_minutes
+        self.error_budget['percentage_used'] = (
+            (self.error_budget['total_minutes'] - self.error_budget['remaining_minutes']) /
+            self.error_budget['total_minutes'] * 100
+        )
+        
+        if self.error_budget['remaining_minutes'] < 0:
+            self.alert_sla_breach()
+    
+    def check_sla_compliance(self) -> dict:
+        """Check current compliance against all SLAs"""
+        
+        compliance = {}
+        
+        # Check availability
+        uptime_pct = self.get_uptime_percentage()
+        compliance['availability'] = {
+            'current': uptime_pct,
+            'target': self.sla_targets['availability']['target'],
+            'compliant': uptime_pct >= self.sla_targets['availability']['target']
+        }
+        
+        # Check latency
+        p95_latency = self.get_p95_latency()
+        compliance['latency_p95'] = {
+            'current': p95_latency,
+            'target': self.sla_targets['query_latency_p95']['target'],
+            'compliant': p95_latency <= self.sla_targets['query_latency_p95']['target']
+        }
+        
+        # Check freshness
+        freshness = self.get_data_freshness()
+        compliance['freshness'] = {
+            'current': freshness,
+            'target': self.sla_targets['data_freshness']['target'],
+            'compliant': freshness <= self.sla_targets['data_freshness']['target']
+        }
+        
+        # Check error rate
+        error_rate = self.get_error_rate()
+        compliance['error_rate'] = {
+            'current': error_rate,
+            'target': self.sla_targets['error_rate']['target'],
+            'compliant': error_rate <= self.sla_targets['error_rate']['target']
+        }
+        
+        return compliance
+    
+    def generate_sla_report(self) -> str:
+        """Generate monthly SLA report"""
+        
+        compliance = self.check_sla_compliance()
+        
+        report = f"""
+SLA Compliance Report - {datetime.now().strftime('%B %Y')}
+
+Availability:
+├─ Target: {self.sla_targets['availability']['target']}%
+├─ Actual: {compliance['availability']['current']:.3f}%
+├─ Status: {'✅ PASS' if compliance['availability']['compliant'] else '❌ FAIL'}
+└─ Error Budget: {self.error_budget['remaining_minutes']:.1f} min remaining ({self.error_budget['percentage_used']:.1f}% used)
+
+Query Latency (P95):
+├─ Target: {self.sla_targets['query_latency_p95']['target']}s
+├─ Actual: {compliance['latency_p95']['current']:.2f}s
+└─ Status: {'✅ PASS' if compliance['latency_p95']['compliant'] else '❌ FAIL'}
+
+Data Freshness:
+├─ Target: {self.sla_targets['data_freshness']['target']}s
+├─ Actual: {compliance['freshness']['current']:.0f}s
+└─ Status: {'✅ PASS' if compliance['freshness']['compliant'] else '❌ FAIL'}
+
+Error Rate:
+├─ Target: {self.sla_targets['error_rate']['target'] * 100:.2f}%
+├─ Actual: {compliance['error_rate']['current'] * 100:.2f}%
+└─ Status: {'✅ PASS' if compliance['error_rate']['compliant'] else '❌ FAIL'}
+
+Overall SLA Compliance: {sum(1 for c in compliance.values() if c['compliant'])}/{len(compliance)}
+        """
+        
+        return report
+    
+    def alert_sla_breach(self):
+        """Alert when SLA is breached"""
+        print("🚨 CRITICAL: SLA BREACH - Error budget exhausted!")
+        # Send to PagerDuty, Slack, Email
+
+# Example SLA Report Output:
+# Availability: 99.95% (Target: 99.9%) ✅
+# Error Budget: 21.6 min remaining (50.7% used)
+# Query Latency P95: 1.8s (Target: 2.0s) ✅
+# Data Freshness: 180s (Target: 300s) ✅
+# Error Rate: 0.3% (Target: 1.0%) ✅
+# Overall: 4/4 SLAs met
+```
+
+**2. Incident Response Playbook:**
+
+```yaml
+# incident_response_playbook.yml
+
+incidents:
+  # Incident: High latency
+  - name: high_query_latency
+    severity: P2  # Priority 2
+    symptoms:
+      - "P95 query latency > 5 seconds"
+      - "Users reporting slow dashboards"
+    
+    investigation_steps:
+      - step: 1
+        action: "Check ClickHouse query log"
+        command: "SELECT query, query_duration_ms FROM system.query_log ORDER BY query_duration_ms DESC LIMIT 10"
+        expected: "Identify slow queries"
+      
+      - step: 2
+        action: "Check for long-running queries"
+        command: "SELECT query_id, user, elapsed FROM system.processes WHERE elapsed > 10"
+        expected: "Find queries running > 10 seconds"
+      
+      - step: 3
+        action: "Check CPU and memory usage"
+        command: "top -b -n 1"
+        expected: "Identify resource bottlenecks"
+      
+      - step: 4
+        action: "Check cache hit rate"
+        query: "rate(cache_hits[5m]) / (rate(cache_hits[5m]) + rate(cache_misses[5m]))"
+        expected: "> 60% hit rate"
+    
+    remediation:
+      - action: "Kill long-running queries"
+        command: "KILL QUERY WHERE query_id = '<query_id>'"
+      
+      - action: "Scale up ClickHouse cluster"
+        command: "kubectl scale deployment clickhouse --replicas=10"
+      
+      - action: "Clear and warm cache"
+        command: "redis-cli FLUSHALL && python warm_cache.py"
+      
+      - action: "Enable query result caching"
+        config: "enable_query_result_cache: true"
+    
+    escalation:
+      - threshold: "15 minutes"
+        action: "Page on-call engineer"
+      
+      - threshold: "30 minutes"
+        action: "Escalate to senior engineer"
+      
+      - threshold: "60 minutes"
+        action: "Engage incident commander"
+  
+  # Incident: Data pipeline stalled
+  - name: data_pipeline_stalled
+    severity: P1  # Priority 1 (Critical)
+    symptoms:
+      - "No new events in last 15 minutes"
+      - "Kafka consumer lag increasing"
+      - "Dashboard showing stale data"
+    
+    investigation_steps:
+      - step: 1
+        action: "Check Kafka broker health"
+        command: "kafka-broker-api-versions.sh --bootstrap-server kafka:9092"
+      
+      - step: 2
+        action: "Check consumer group lag"
+        command: "kafka-consumer-groups.sh --bootstrap-server kafka:9092 --group analytics-consumer --describe"
+      
+      - step: 3
+        action: "Check Flink job status"
+        command: "curl http://flink-jobmanager:8081/jobs"
+      
+      - step: 4
+        action: "Check ClickHouse ingestion"
+        query: "SELECT COUNT(*) FROM events WHERE event_timestamp > now() - INTERVAL 15 MINUTE"
+    
+    remediation:
+      - action: "Restart Kafka consumers"
+        command: "kubectl rollout restart deployment/kafka-consumer"
+      
+      - action: "Restart Flink job"
+        command: "flink cancel <job-id> && flink run analytics-job.jar"
+      
+      - action: "Check Kafka broker storage"
+        command: "df -h /var/lib/kafka"
+        note: "If disk full, increase retention or add storage"
+    
+    communication:
+      - audience: "Internal users"
+        channel: "Slack #analytics"
+        message: "Analytics dashboards may show stale data. Investigating..."
+      
+      - audience: "Stakeholders"
+        channel: "Email"
+        message: "Real-time analytics experiencing delays. ETA: 15 minutes"
+
+  # Incident: High error rate
+  - name: high_error_rate
+    severity: P2
+    symptoms:
+      - "Error rate > 5%"
+      - "Users seeing error messages"
+    
+    investigation_steps:
+      - step: 1
+        action: "Check application logs"
+        command: "kubectl logs -l app=analytics-api --tail=100"
+      
+      - step: 2
+        action: "Check error types"
+        query: "sum by (error_type) (rate(query_errors_total[5m]))"
+      
+      - step: 3
+        action: "Check database connectivity"
+        command: "nc -zv clickhouse 9000"
+    
+    remediation:
+      - action: "Restart failed pods"
+        command: "kubectl delete pod -l app=analytics-api --field-selector status.phase=Failed"
+      
+      - action: "Scale out to handle load"
+        command: "kubectl scale deployment analytics-api --replicas=10"
+```
+
+**3. Google's SRE Approach to Analytics Monitoring:**
+
+```text
+Google Cloud Analytics Monitoring Strategy:
+
+Scale:
+├─ Data processed: 100+ PB per day
+├─ Query volume: 10M+ queries per day
+├─ Dashboards: 500K+ active dashboards
+├─ SLA: 99.95% availability (21.6 min downtime/month)
+└─ Global: 20+ regions
+
+Monitoring Philosophy (Site Reliability Engineering):
+
+1. Service Level Indicators (SLIs):
+   ├─ Availability: % of successful requests
+   ├─ Latency: P50, P95, P99 response times
+   ├─ Throughput: Queries per second
+   ├─ Correctness: Data accuracy and consistency
+   └─ Freshness: Time lag for real-time data
+
+2. Service Level Objectives (SLOs):
+   ├─ Availability: 99.95% (measured over 30 days)
+   ├─ Latency: P95 < 2s, P99 < 5s
+   ├─ Error rate: < 0.1%
+   ├─ Data freshness: < 5 minutes lag
+   └─ Measurement window: Rolling 30 days
+
+3. Error Budgets:
+   ├─ Calculation: (100% - 99.95%) × 43,200 min/month = 21.6 min/month
+   ├─ Purpose: Balance reliability with velocity
+   ├─ Policy: If budget exhausted, freeze feature releases
+   ├─ Allocation: 50% infrastructure, 30% planned changes, 20% reserve
+   └─ Tracking: Real-time dashboard showing budget consumption
+
+4. Monitoring Stack:
+   ├─ Metrics: Borgmon (Google's Prometheus predecessor)
+   ├─ Logs: Cloud Logging (10+ PB logs per day)
+   ├─ Traces: Dapper (distributed tracing)
+   ├─ Alerting: Alertmanager with PagerDuty integration
+   └─ Dashboards: Custom SRE dashboards + Grafana
+
+5. Alert Philosophy:
+   ├─ Alert on symptoms, not causes
+   ├─ Every alert must be actionable
+   ├─ Reduce alert fatigue: Only page for P1/P0
+   ├─ Alert on SLO burn rate, not absolute values
+   └─ Example: Alert if error budget will be exhausted in < 7 days
+
+6. On-Call Structure:
+   ├─ Primary on-call: First responder
+   ├─ Secondary on-call: Backup + escalation
+   ├─ Shift duration: 1 week rotations
+   ├─ Coverage: 24/7/365
+   ├─ Escalation: Auto-escalate if no ack in 5 minutes
+   └─ Compensation: Extra pay + time off after on-call
+
+7. Incident Response:
+   ├─ Severity levels: P0 (Critical), P1 (High), P2 (Medium), P3 (Low)
+   ├─ Response time: P0 < 5 min, P1 < 15 min, P2 < 1 hour
+   ├─ Incident commander: Coordinates response for P0/P1
+   ├─ Post-mortems: Required for all P0/P1, blame-free culture
+   └─ Action items: Tracked to completion, improve reliability
+
+8. Key Metrics Tracked:
+   ├─ MTTD (Mean Time To Detect): < 2 minutes
+   ├─ MTTA (Mean Time To Acknowledge): < 5 minutes
+   ├─ MTTR (Mean Time To Repair): < 15 minutes (P0/P1)
+   ├─ MTBF (Mean Time Between Failures): > 30 days
+   └─ Toil: < 50% of SRE time (rest on engineering)
+
+9. Automation:
+   ├─ Auto-remediation: 60% of incidents auto-resolved
+   ├─ Auto-scaling: Predict load, scale proactively
+   ├─ Chaos engineering: Regular failure injection tests
+   ├─ Canary deployments: Gradual rollouts with automatic rollback
+   └─ Load shedding: Drop low-priority queries under high load
+
+Results:
+├─ Availability: 99.97% (exceeds 99.95% SLO)
+├─ MTTR: 12 minutes average (target: < 15 min)
+├─ False positive alerts: < 5% (down from 30%)
+├─ On-call pages: 2-3 per week (down from 10+)
+├─ Incident rate: 1 P0 per month (down from 5)
+└─ Customer satisfaction: 4.6/5.0
+
+Cost of Monitoring:
+├─ Monitoring infrastructure: $5M/year
+├─ SRE team: 50 engineers × $300K = $15M/year
+├─ Tools and licenses: $2M/year
+├─ Total: $22M/year
+├─ Service revenue: $500M/year
+└─ Monitoring as % of revenue: 4.4%
+
+Key Lessons:
+├─ Measure what users care about (SLIs)
+├─ Set realistic SLOs based on business needs
+├─ Use error budgets to balance reliability and velocity
+├─ Automate everything: remediation, scaling, alerting
+├─ Blameless post-mortems improve reliability
+└─ Invest in tooling: Good observability pays for itself
+```
+
+**4. Netflix's Observability at Scale:**
+
+```text
+Netflix Real-Time Analytics Observability:
+
+Scale:
+├─ Metrics: 2M+ metrics per second
+├─ Logs: 500 GB per day
+├─ Traces: 10M+ traces per day
+├─ Dashboards: 10K+ Grafana dashboards
+└─ Engineers using observability: 2,000+
+
+Observability Stack:
+
+1. Metrics (Atlas):
+   ├─ Custom-built: Netflix Atlas (time-series database)
+   ├─ Ingestion: 2M+ metrics per second
+   ├─ Retention: 3 months at full resolution
+   ├─ Query language: Netflix Stack Language (DSL)
+   └─ Visualization: Grafana + custom dashboards
+
+2. Logging (ELK Stack):
+   ├─ Collection: Filebeat → Logstash
+   ├─ Storage: Elasticsearch (500 GB/day)
+   ├─ Visualization: Kibana
+   ├─ Retention: 7 days hot, 30 days warm, 90 days cold
+   └─ Search: Full-text search on all logs
+
+3. Distributed Tracing (Zipkin):
+   ├─ Instrumentation: All services auto-instrumented
+   ├─ Sampling: 0.1% of requests (still 10M+ traces/day)
+   ├─ Storage: Cassandra (distributed)
+   ├─ Visualization: Zipkin UI
+   └─ Insights: Identify bottlenecks in request path
+
+4. Alerting (Atlas Alerting):
+   ├─ Alert rules: 50K+ active alerts
+   ├─ Delivery: PagerDuty, Slack, Email
+   ├─ Smart grouping: Related alerts grouped together
+   ├─ Auto-resolution: Alerts auto-resolve when issue clears
+   └─ On-call: 24/7 coverage with follow-the-sun model
+
+5. Chaos Engineering (Chaos Monkey):
+   ├─ Randomly terminate instances
+   ├─ Simulate AZ failures
+   ├─ Inject latency and errors
+   ├─ Test alerting and auto-recovery
+   └─ Run continuously in production
+
+Key Practices:
+
+1. High-Cardinality Metrics:
+   ├─ Tag everything: region, AZ, instance, service, customer
+   ├─ Atlas handles 100+ tags per metric
+   ├─ Enables detailed drill-down analysis
+   └─ Example: "Show me latency for customer X in region Y"
+
+2. Anomaly Detection:
+   ├─ ML models detect unusual patterns
+   ├─ Baseline: Learn normal behavior over 7 days
+   ├─ Alert: When metric deviates > 3 standard deviations
+   └─ Reduces false positives by 80%
+
+3. Predictive Alerting:
+   ├─ Don't wait for failure
+   ├─ Predict based on trends: "Disk will be full in 4 hours"
+   ├─ Proactive remediation: Scale before hitting limits
+   └─ Result: 50% reduction in user-impacting incidents
+
+4. Self-Service Observability:
+   ├─ Every engineer can create dashboards
+   ├─ Templates for common patterns
+   ├─ No centralized monitoring team bottleneck
+   └─ Culture: "You build it, you run it"
+
+Results:
+├─ Availability: 99.97%
+├─ MTTD: 1.5 minutes average
+├─ MTTR: 8 minutes average
+├─ Alert false positive rate: < 3%
+├─ Chaos tests: 1000+ per day, 99.9% success
+└─ Observability cost: $10M/year (0.03% of revenue)
+
+Innovation: Vizceral (Netflix's visualization tool)
+├─ Real-time traffic visualization
+├─ Shows all services and dependencies
+├─ Highlights issues with color coding
+├─ Open-sourced: github.com/Netflix/vizceral
+└─ Used by engineering teams daily
+
+Key Takeaways:
+├─ Invest in observability early
+├─ High-cardinality metrics enable detailed analysis
+├─ Anomaly detection reduces alert fatigue
+├─ Chaos engineering validates monitoring
+├─ Self-service culture scales better than centralized team
+└─ Observability is a competitive advantage
+```
+
+---
+
