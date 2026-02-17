@@ -6263,3 +6263,1191 @@ FORMAT Parquet;
 - Indexes tuned per customer
 
 ---
+
+## 10. DEEP DIVE: DRILL-DOWN & FILTERING
+
+### Dimensional Modeling
+
+🟢 **BEGINNER: Understanding Drill-downs**
+
+**Restaurant Menu Analogy:**
+
+```text
+Imagine analyzing restaurant sales:
+
+Level 1 (Overview):
+└─ Total sales: $100,000 this month
+
+Level 2 (Drill-down by Category):
+├─ Appetizers: $20,000
+├─ Main Courses: $50,000
+├─ Desserts: $15,000
+└─ Beverages: $15,000
+
+Level 3 (Drill-down by Specific Item):
+Main Courses ($50,000) →
+├─ Pasta: $20,000
+├─ Steaks: $18,000
+├─ Fish: $8,000
+└─ Chicken: $4,000
+
+Level 4 (Drill-down by Time):
+Pasta ($20,000) →
+├─ Week 1: $4,000
+├─ Week 2: $6,000
+├─ Week 3: $5,000
+└─ Week 4: $5,000
+```
+
+This is **drill-down** - starting broad and going deeper into specific details!
+
+**In Our Analytics Dashboard:**
+
+A product manager sees:
+1. "10,000 users viewed products today" (Overview)
+2. Clicks "Electronics" → "5,000 users viewed electronics" (Category drill-down)
+3. Clicks "Phones" → "3,000 users viewed phones" (Sub-category drill-down)
+4. Clicks "iPhone 15" → "1,500 users viewed iPhone 15" (Product drill-down)
+5. Filters by "USA" → "1,000 US users viewed iPhone 15" (Geographic filter)
+
+**Why Drill-downs Matter:**
+
+```text
+Business Questions:
+├─ "Which country has most sales?" → Drill-down by country
+├─ "Which product category is growing?" → Drill-down by category + time
+├─ "Why did conversions drop?" → Drill-down by funnel step + segment
+└─ "Are mobile users different?" → Filter by device type
+```
+
+**Basic Dimensions:**
+
+```text
+Common dimensions for drill-down:
+├─ Time: year → month → week → day → hour → minute
+├─ Geography: region → country → state → city
+├─ Product: category → sub-category → product → variant
+├─ User: segment → cohort → individual user
+└─ Device: platform → OS → browser → version
+```
+
+---
+
+🟡 **INTERMEDIATE: Star Schema Design**
+
+**Dimensional Modeling Fundamentals:**
+
+Analytics databases use **star schema** - a fact table (events) surrounded by dimension tables (attributes).
+
+**Star Schema Structure:**
+
+```text
+           ┌──────────────┐
+           │ Dimension:   │
+           │   TIME       │
+           │ - date_id    │
+           │ - day        │
+           │ - week       │
+           │ - month      │
+           └──────┬───────┘
+                  │
+   ┌──────────────┼──────────────┐
+   │              │              │
+┌──┴────────┐ ┌──┴─────────┐ ┌──┴─────────┐
+│Dimension: │ │   FACT:    │ │ Dimension: │
+│  USER     │ │   EVENTS   │ │  PRODUCT   │
+│- user_id  │─│- event_id  │─│- prod_id   │
+│- segment  │ │- user_id   │ │- category  │
+│- country  │ │- prod_id   │ │- brand     │
+└───────────┘ │- date_id   │ └────────────┘
+              │- metric    │
+              └────┬───────┘
+                   │
+            ┌──────┴────────┐
+            │  Dimension:   │
+            │   GEOGRAPHY   │
+            │ - geo_id      │
+            │ - country     │
+            │ - region      │
+            │ - city        │
+            └───────────────┘
+```
+
+**Implementation in ClickHouse:**
+
+```sql
+-- Fact Table: Events
+CREATE TABLE events (
+    event_id String,
+    event_type String,
+    user_id UInt64,
+    product_id UInt32,
+    date_id UInt32,        -- 20260122 format
+    geo_id UInt16,
+    timestamp DateTime,
+    
+    -- Metrics (measures)
+    revenue Decimal(10,2),
+    duration UInt32,
+    
+    -- Denormalized dimensions (for performance)
+    country String,
+    product_category String,
+    user_segment String
+    
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (date_id, user_id, timestamp);
+
+-- Dimension Table: Products
+CREATE TABLE dim_products (
+    product_id UInt32,
+    product_name String,
+    category String,
+    sub_category String,
+    brand String,
+    price Decimal(10,2)
+) ENGINE = ReplacingMergeTree()
+ORDER BY product_id;
+
+-- Dimension Table: Users
+CREATE TABLE dim_users (
+    user_id UInt64,
+    user_segment String,
+    signup_date Date,
+    country String,
+    subscription_tier String
+) ENGINE = ReplacingMergeTree()
+ORDER BY user_id;
+```
+
+**Drill-down Query Pattern:**
+
+```sql
+-- Level 1: Overview (all products)
+SELECT 
+    COUNT(*) as total_views,
+    COUNT(DISTINCT user_id) as unique_users,
+    SUM(revenue) as total_revenue
+FROM events
+WHERE event_type = 'product_viewed'
+  AND date_id = 20260122;
+
+-- Result: 10,000 views, 5,000 users, $50,000 revenue
+
+-- Level 2: Drill-down by Category
+SELECT 
+    product_category,
+    COUNT(*) as views,
+    COUNT(DISTINCT user_id) as users,
+    SUM(revenue) as revenue
+FROM events
+WHERE event_type = 'product_viewed'
+  AND date_id = 20260122
+GROUP BY product_category
+ORDER BY views DESC;
+
+-- Result:
+-- Electronics: 5,000 views, 2,500 users, $30,000
+-- Clothing: 3,000 views, 1,800 users, $15,000
+-- Home: 2,000 views, 1,000 users, $5,000
+
+-- Level 3: Drill-down Electronics by Sub-category
+SELECT 
+    p.sub_category,
+    COUNT(*) as views,
+    AVG(p.price) as avg_price
+FROM events e
+JOIN dim_products p ON e.product_id = p.product_id
+WHERE e.event_type = 'product_viewed'
+  AND e.date_id = 20260122
+  AND p.category = 'Electronics'
+GROUP BY p.sub_category
+ORDER BY views DESC;
+
+-- Result:
+-- Phones: 3,000 views, $800 avg price
+-- Laptops: 1,500 views, $1,200 avg price
+-- Headphones: 500 views, $150 avg price
+```
+
+**Multi-dimensional Drill-down:**
+
+```sql
+-- Drill-down by Category AND Country
+SELECT 
+    product_category,
+    country,
+    COUNT(*) as views,
+    COUNT(DISTINCT user_id) as users
+FROM events
+WHERE event_type = 'product_viewed'
+  AND date_id = 20260122
+GROUP BY product_category, country
+ORDER BY views DESC
+LIMIT 10;
+
+-- Result shows top combinations:
+-- Electronics, US: 2,000 views
+-- Electronics, UK: 1,500 views
+-- Clothing, US: 1,200 views
+-- Electronics, DE: 800 views
+-- ...
+```
+
+**ROLLUP and CUBE for Subtotals:**
+
+```sql
+-- Get totals at multiple levels automatically
+SELECT 
+    product_category,
+    country,
+    COUNT(*) as views
+FROM events
+WHERE event_type = 'product_viewed'
+  AND date_id = 20260122
+GROUP BY ROLLUP(product_category, country)
+ORDER BY product_category, country;
+
+-- Result includes:
+-- Electronics, US: 2,000
+-- Electronics, UK: 1,500
+-- Electronics, NULL: 5,000  (subtotal for Electronics)
+-- Clothing, US: 1,200
+-- Clothing, NULL: 3,000    (subtotal for Clothing)
+-- NULL, NULL: 10,000       (grand total)
+```
+
+---
+
+🔴 **ADVANCED: Advanced Dimensional Techniques**
+
+**1. Slowly Changing Dimensions (SCD)**
+
+User segments change over time. How do we track this?
+
+**SCD Type 2 (Historical Tracking):**
+
+```sql
+-- Track user segment history
+CREATE TABLE dim_users_scd (
+    user_id UInt64,
+    user_segment String,
+    valid_from Date,
+    valid_to Date,
+    is_current UInt8,
+    version UInt16
+) ENGINE = ReplacingMergeTree(version)
+ORDER BY (user_id, valid_from);
+
+-- Insert when user upgrades from Free to Premium
+INSERT INTO dim_users_scd VALUES
+(12345, 'Free', '2025-01-01', '2026-01-15', 0, 1),
+(12345, 'Premium', '2026-01-15', '9999-12-31', 1, 2);
+
+-- Query: What segment was user in when event occurred?
+SELECT 
+    e.user_id,
+    e.event_type,
+    e.timestamp,
+    u.user_segment
+FROM events e
+JOIN dim_users_scd u 
+  ON e.user_id = u.user_id
+  AND toDate(e.timestamp) BETWEEN u.valid_from AND u.valid_to
+WHERE e.date_id = 20260122;
+```
+
+**2. Hierarchical Dimensions:**
+
+```sql
+-- Product category hierarchy
+CREATE TABLE dim_product_hierarchy (
+    product_id UInt32,
+    product_name String,
+    l1_category String,      -- Electronics
+    l2_category String,      -- Phones
+    l3_category String,      -- Smartphones
+    l4_category String       -- iPhone 15
+) ENGINE = ReplacingMergeTree()
+ORDER BY product_id;
+
+-- Drill-down query that works at any level
+SELECT 
+    multiIf(
+        {level} = 1, l1_category,
+        {level} = 2, l2_category,
+        {level} = 3, l3_category,
+        l4_category
+    ) as category,
+    COUNT(*) as views
+FROM events e
+JOIN dim_product_hierarchy p ON e.product_id = p.product_id
+WHERE date_id = 20260122
+  AND l1_category = 'Electronics'  -- Filter from parent level
+GROUP BY category
+ORDER BY views DESC;
+```
+
+**3. Ragged Hierarchies:**
+
+Geographic hierarchies aren't always uniform:
+
+```text
+Country → State → City → Zip
+  └─ USA → California → San Francisco → 94102
+  └─ USA → California → Los Angeles → 90001
+  └─ UK → (no state) → London → SW1A 1AA
+```
+
+**Solution: Bridge Table:**
+
+```sql
+CREATE TABLE dim_geography_bridge (
+    geo_id UInt32,
+    country String,
+    state String,           -- Can be empty
+    city String,
+    zip_code String,        -- Can be empty
+    hierarchy_level UInt8   -- 1=country, 2=state, 3=city, 4=zip
+) ENGINE = ReplacingMergeTree()
+ORDER BY geo_id;
+```
+
+**4. Degenerate Dimensions:**
+
+Sometimes dimension data lives in fact table (no separate dimension table needed):
+
+```sql
+-- Order number is a dimension but has no attributes
+CREATE TABLE order_events (
+    order_id String,        -- Degenerate dimension
+    product_id UInt32,
+    user_id UInt64,
+    order_total Decimal(10,2),
+    timestamp DateTime
+) ENGINE = MergeTree()
+ORDER BY (timestamp, order_id);
+
+-- Can still group by order
+SELECT order_id, SUM(order_total)
+FROM order_events
+GROUP BY order_id;
+```
+
+**5. Junk Dimensions:**
+
+Group low-cardinality flags together:
+
+```sql
+-- Instead of many boolean columns in fact table
+CREATE TABLE dim_event_flags (
+    flag_id UInt16,
+    is_mobile UInt8,
+    is_logged_in UInt8,
+    is_first_visit UInt8,
+    has_discount UInt8
+) ENGINE = ReplacingMergeTree()
+ORDER BY flag_id;
+
+-- Pre-populate all 16 combinations (2^4)
+-- flag_id = 0: all false
+-- flag_id = 15: all true
+-- flag_id = 8: only is_mobile true
+-- etc.
+
+-- Fact table just stores flag_id
+CREATE TABLE events (
+    event_id String,
+    user_id UInt64,
+    flag_id UInt16,  -- Reference to junk dimension
+    ...
+);
+```
+
+**6. Real Company Example: Mixpanel's Approach**
+
+Mixpanel handles drill-downs with:
+
+```text
+Event Properties (Dimensions):
+├─ Pre-defined: automatically tracked
+│  ├─ $os (operating system)
+│  ├─ $browser
+│  ├─ $city
+│  └─ $device
+├─ Custom: defined by customer
+│  ├─ plan_type: "free", "pro", "enterprise"
+│  ├─ experiment_group: "A", "B", "control"
+│  └─ product_category: "electronics", "clothing"
+└─ User properties: attached to user profile
+   ├─ user_segment
+   ├─ signup_date
+   └─ total_spend
+
+Query Model:
+└─ All properties available for filtering and grouping
+   └─ No need to pre-define dimension tables!
+   └─ Properties stored as JSON maps
+   └─ Indexed for fast filtering
+```
+
+---
+
+### Query Optimization
+
+🟢 **BEGINNER: Making Queries Fast**
+
+**Why Query Speed Matters:**
+
+```text
+User Experience:
+├─ <1 second: Instant, users stay engaged
+├─ 1-3 seconds: Acceptable, but users notice
+├─ 3-5 seconds: Slow, users get impatient
+└─ >5 seconds: Users abandon dashboard
+```
+
+**Three Ways to Make Queries Fast:**
+
+**1. Index the Right Columns**
+
+```text
+Phone Book Analogy:
+├─ WITHOUT INDEX: Read every page to find "Smith"
+└─ WITH INDEX: Jump directly to "S" section
+
+Database:
+├─ WITHOUT INDEX: Scan all 1 billion events
+└─ WITH INDEX: Read only relevant partitions
+```
+
+**2. Pre-calculate Common Queries**
+
+```text
+Restaurant Analogy:
+├─ WITHOUT PRE-CALC: Count orders every time manager asks
+└─ WITH PRE-CALC: Keep running total, update as orders come
+
+Database:
+├─ WITHOUT PRE-CALC: SUM(revenue) over 1B rows every query
+└─ WITH PRE-CALC: Read pre-computed hourly totals (only 24 rows)
+```
+
+**3. Cache Recent Results**
+
+```text
+Restaurant Analogy:
+├─ WITHOUT CACHE: Cook same burger 10 times for 10 customers
+└─ WITH CACHE: Cook once, serve quickly to all 10
+
+Database:
+├─ WITHOUT CACHE: Run same query 100 times for 100 dashboard loads
+└─ WITH CACHE: Run once, serve cached result to all 100 loads
+```
+
+---
+
+🟡 **INTERMEDIATE: Optimization Techniques**
+
+**1. Partition Pruning:**
+
+ClickHouse partitions data by time. Filters on time skip entire partitions:
+
+```sql
+-- BAD: Scans all 12 months of data
+SELECT COUNT(*) FROM events
+WHERE country = 'US';
+-- Reads: 3.6 TB (full year)
+
+-- GOOD: Scans only 1 day
+SELECT COUNT(*) FROM events
+WHERE timestamp >= '2026-01-22'
+  AND timestamp < '2026-01-23'
+  AND country = 'US';
+-- Reads: 10 GB (1 day) - 360x faster!
+```
+
+**Performance Impact:**
+
+```text
+Partition pruning:
+├─ Without time filter: 12 partitions scanned = 3.6 TB
+├─ With 1-day filter: 1 partition scanned = 10 GB
+└─ Speedup: 360x faster, 99.7% less data scanned
+```
+
+**2. Columnar Storage Benefits:**
+
+ClickHouse stores columns separately. Only read columns you need:
+
+```sql
+-- BAD: Reads all 20 columns
+SELECT * FROM events
+WHERE date_id = 20260122;
+-- Reads: 10 GB (all columns)
+
+-- GOOD: Reads only 3 columns
+SELECT event_type, user_id, timestamp
+FROM events
+WHERE date_id = 20260122;
+-- Reads: 2 GB (3 columns) - 5x faster!
+```
+
+**3. Skip Indexes:**
+
+```sql
+-- Create bloom filter index on country
+ALTER TABLE events 
+ADD INDEX country_idx country 
+TYPE bloom_filter GRANULARITY 4;
+
+-- Now filtering by country is much faster
+SELECT COUNT(*) FROM events
+WHERE date_id = 20260122
+  AND country = 'US';
+-- Skip index eliminates 95% of data blocks before reading
+```
+
+**4. Materialized Views (Pre-aggregation):**
+
+```sql
+-- Create materialized view for hourly metrics
+CREATE MATERIALIZED VIEW events_hourly
+ENGINE = SummingMergeTree()
+ORDER BY (date, hour, country, product_category)
+AS SELECT
+    toDate(timestamp) as date,
+    toHour(timestamp) as hour,
+    country,
+    product_category,
+    COUNT(*) as event_count,
+    COUNT(DISTINCT user_id) as unique_users,
+    SUM(revenue) as total_revenue
+FROM events
+GROUP BY date, hour, country, product_category;
+
+-- Query the pre-aggregated view (1000x faster)
+SELECT 
+    country,
+    SUM(total_revenue) as revenue
+FROM events_hourly
+WHERE date = '2026-01-22'
+GROUP BY country;
+-- Reads: 10 MB from aggregated view
+-- vs 10 GB from raw events
+```
+
+**5. Query Rewriting:**
+
+The query optimizer can rewrite queries to use materialized views automatically:
+
+```sql
+-- User writes:
+SELECT country, SUM(revenue)
+FROM events
+WHERE timestamp >= '2026-01-22' AND timestamp < '2026-01-23'
+GROUP BY country;
+
+-- Optimizer rewrites to:
+SELECT country, SUM(total_revenue)
+FROM events_hourly
+WHERE date = '2026-01-22'
+GROUP BY country;
+-- Automatically uses faster materialized view!
+```
+
+**6. Approximate Algorithms:**
+
+For very large datasets, approximate is acceptable:
+
+```sql
+-- Exact count (slow for 1B rows)
+SELECT COUNT(DISTINCT user_id) FROM events;
+-- Takes: 30 seconds
+
+-- Approximate count with HyperLogLog (0.01% error)
+SELECT uniqHLL12(user_id) FROM events;
+-- Takes: 3 seconds - 10x faster!
+-- Error: ±0.01% (99.99% accurate)
+```
+
+**Performance Comparison:**
+
+| Query Type | Method | Response Time | Accuracy |
+|------------|--------|---------------|----------|
+| **Daily totals** | Raw scan | 10 seconds | 100% |
+| **Daily totals** | Materialized view | 100ms | 100% |
+| **Unique users** | Exact COUNT DISTINCT | 30 seconds | 100% |
+| **Unique users** | HyperLogLog | 3 seconds | 99.99% |
+| **Percentiles** | Exact | 45 seconds | 100% |
+| **Percentiles** | T-Digest | 5 seconds | 99.9% |
+
+---
+
+🔴 **ADVANCED: Query Performance Engineering**
+
+**1. Query Planner Optimization:**
+
+Understand how ClickHouse executes queries:
+
+```sql
+-- Use EXPLAIN to see query plan
+EXPLAIN 
+SELECT country, COUNT(*) 
+FROM events 
+WHERE date_id = 20260122 
+  AND product_category = 'Electronics'
+GROUP BY country;
+
+-- Output shows:
+-- 1. Partition pruning: 1/365 partitions
+-- 2. Primary key filter: date_id
+-- 3. Bloom filter: product_category
+-- 4. Column reads: country, product_category
+-- 5. Aggregation: GROUP BY country
+-- 6. Estimated rows: 13,698 (0.14% of total)
+```
+
+**2. Distributed Query Execution:**
+
+For sharded ClickHouse clusters:
+
+```sql
+-- Query sent to all shards in parallel
+SELECT country, SUM(revenue)
+FROM events_distributed  -- Distributed table
+WHERE date_id = 20260122
+GROUP BY country;
+
+-- Execution:
+-- 1. Coordinator sends query to 4 shards
+-- 2. Each shard processes 1/4 of data in parallel
+-- 3. Partial aggregates returned to coordinator
+-- 4. Coordinator merges results
+-- 5. Total time: ~same as 1 shard (parallelized)
+```
+
+**Performance Math:**
+
+```text
+Single shard:
+└─ 10 GB data / 1 GB/sec = 10 seconds
+
+4 shards (parallel):
+└─ (10 GB / 4) / 1 GB/sec = 2.5 seconds
+   + 0.5 sec merge = 3 seconds total
+   
+Speedup: 3.3x with 4 shards
+```
+
+**3. Query Result Sampling:**
+
+For exploratory queries, sample data:
+
+```sql
+-- Sample 10% of data for fast results
+SELECT country, COUNT(*) * 10 as estimated_count
+FROM events SAMPLE 0.1  -- Sample 10%
+WHERE date_id = 20260122
+GROUP BY country;
+
+-- Performance:
+-- Full scan: 10 GB, 10 seconds
+-- Sampled: 1 GB, 1 second (10x faster)
+-- Accuracy: ±5% error (acceptable for exploration)
+```
+
+**4. Query Prioritization:**
+
+Assign priorities to queries:
+
+```sql
+-- High priority (dashboard load)
+SELECT ... FROM events
+SETTINGS priority = 1;  -- Highest priority
+
+-- Low priority (background export)
+SELECT ... FROM events
+SETTINGS priority = 10;  -- Lowest priority
+```
+
+**5. Resource Limits:**
+
+Prevent runaway queries:
+
+```sql
+-- Set query timeout
+SET max_execution_time = 30;  -- Kill after 30 seconds
+
+-- Set memory limit
+SET max_memory_usage = 10000000000;  -- 10 GB max
+
+-- Set rows limit
+SET max_rows_to_read = 1000000000;  -- 1B rows max
+```
+
+**6. Real Company Example: Uber's Query Optimization**
+
+Uber's analytics platform (built on ClickHouse) handles 10T events/day:
+
+```text
+Optimization Strategy:
+├─ Partition by date (1 partition = 1 day)
+├─ Sub-partition by city (1000 cities)
+├─ Pre-aggregate at multiple levels:
+│  ├─ 1-minute rollups: 50 TB/day
+│  ├─ 1-hour rollups: 2 TB/day
+│  └─ 1-day rollups: 50 GB/day
+├─ Bloom filter indexes on: city, trip_type, vehicle_type
+├─ Cache top 100 queries (80% hit rate)
+└─ Result: p95 query latency = 400ms
+
+Cost Optimization:
+├─ Without pre-aggregation: $2M/month
+├─ With pre-aggregation: $400K/month
+└─ Savings: $1.6M/month (80% cost reduction)
+```
+
+---
+
+### Caching Strategy
+
+🟢 **BEGINNER: What is Caching?**
+
+**Restaurant Analogy:**
+
+```text
+WITHOUT CACHE:
+Customer orders burger → Chef cooks burger (5 min) → Serve
+Customer orders burger → Chef cooks burger (5 min) → Serve
+Customer orders burger → Chef cooks burger (5 min) → Serve
+
+WITH CACHE:
+Customer orders burger → Chef cooks burger (5 min) → Serve + Save 1 extra
+Customer orders burger → Serve from saved burger (30 sec)
+Customer orders burger → Serve from saved burger (30 sec)
+
+Result: 2 customers served 10x faster!
+```
+
+**In Our Dashboard:**
+
+```text
+WITHOUT CACHE:
+User loads dashboard → Query database (5 sec) → Show results
+User loads dashboard → Query database (5 sec) → Show results
+
+WITH CACHE:
+User loads dashboard → Query database (5 sec) → Show results + Cache
+User loads dashboard → Serve from cache (100 ms) → Show results
+
+Result: 50x faster for cached queries!
+```
+
+**What to Cache:**
+
+```text
+Good candidates:
+├─ Popular dashboards (CEO dashboard loaded 100x/day)
+├─ Slow queries (queries taking >3 seconds)
+├─ Recent time ranges (today, last 7 days)
+└─ Aggregated metrics (totals, averages)
+
+Bad candidates:
+├─ Real-time queries (need fresh data)
+├─ User-specific data (different for each user)
+├─ Rarely accessed reports (not worth caching)
+└─ Very large result sets (too big to cache)
+```
+
+---
+
+🟡 **INTERMEDIATE: Multi-Layer Caching**
+
+**Caching Architecture:**
+
+```text
+┌─────────────┐
+│  Dashboard  │ (User's browser)
+│   Cache     │ Cache Time: 30 seconds
+└──────┬──────┘
+       │
+┌──────┴──────┐
+│   CDN       │ (Edge locations)
+│   Cache     │ Cache Time: 2 minutes
+└──────┬──────┘
+       │
+┌──────┴──────┐
+│ Application │
+│   Cache     │ Redis: 10 minutes
+│  (Redis)    │
+└──────┬──────┘
+       │
+┌──────┴──────┐
+│ ClickHouse  │
+│   Cache     │ Query result cache: 1 hour
+│             │
+└─────────────┘
+```
+
+**Layer 1: Browser Cache**
+
+```javascript
+// Cache dashboard data in browser
+function loadDashboard() {
+    const cacheKey = 'dashboard_metrics_today';
+    const cached = localStorage.getItem(cacheKey);
+    const cacheTime = localStorage.getItem(cacheKey + '_time');
+    
+    // Check if cache is fresh (< 30 seconds old)
+    if (cached && (Date.now() - cacheTime) < 30000) {
+        displayMetrics(JSON.parse(cached));
+        return;
+    }
+    
+    // Cache miss or stale - fetch from server
+    fetch('/api/metrics?date=today')
+        .then(resp => resp.json())
+        .then(data => {
+            localStorage.setItem(cacheKey, JSON.stringify(data));
+            localStorage.setItem(cacheKey + '_time', Date.now());
+            displayMetrics(data);
+        });
+}
+```
+
+**Layer 2: CDN Cache**
+
+```text
+Cache-Control headers:
+├─ Static assets: Cache for 1 year
+│  Cache-Control: public, max-age=31536000, immutable
+│
+├─ Dashboard data: Cache for 2 minutes
+│  Cache-Control: public, max-age=120, s-maxage=120
+│
+└─ Real-time data: No cache
+   Cache-Control: no-cache, no-store, must-revalidate
+```
+
+**Layer 3: Application Cache (Redis)**
+
+```python
+import redis
+import json
+
+redis_client = redis.Redis(host='localhost', port=6379)
+
+def get_metrics(date, country):
+    # Create cache key
+    cache_key = f"metrics:{date}:{country}"
+    
+    # Try cache first
+    cached = redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
+    
+    # Cache miss - query database
+    query = f"""
+        SELECT 
+            country,
+            SUM(revenue) as total_revenue,
+            COUNT(DISTINCT user_id) as unique_users
+        FROM events
+        WHERE date_id = {date}
+          AND country = '{country}'
+    """
+    result = clickhouse_client.execute(query)
+    
+    # Store in cache for 10 minutes
+    redis_client.setex(
+        cache_key,
+        600,  # 10 minutes TTL
+        json.dumps(result)
+    )
+    
+    return result
+```
+
+**Layer 4: ClickHouse Query Cache**
+
+```sql
+-- Enable query result cache
+SET use_query_cache = 1;
+SET query_cache_ttl = 3600;  -- 1 hour
+
+-- Subsequent identical queries served from cache
+SELECT country, SUM(revenue)
+FROM events
+WHERE date_id = 20260122
+GROUP BY country;
+
+-- First execution: 5 seconds
+-- Cached executions: 10ms
+```
+
+**Cache Invalidation Strategy:**
+
+```text
+When to invalidate cache:
+
+1. Time-based (TTL):
+   ├─ Expire after X minutes
+   └─ Good for: Slowly changing data
+
+2. Event-based:
+   ├─ Invalidate when new data arrives
+   └─ Good for: Real-time updates
+
+3. Manual:
+   ├─ User clicks "Refresh" button
+   └─ Good for: User-triggered updates
+
+4. Pattern-based:
+   ├─ Invalidate all keys matching pattern
+   └─ Example: Delete "metrics:20260122:*"
+```
+
+**Cache Warming:**
+
+Proactively populate cache before users request:
+
+```python
+def warm_cache():
+    """Pre-populate cache with popular queries"""
+    popular_queries = [
+        {'date': 'today', 'country': 'US'},
+        {'date': 'today', 'country': 'UK'},
+        {'date': 'today', 'metric': 'revenue'},
+        {'date': 'last_7_days', 'metric': 'users'},
+    ]
+    
+    for query in popular_queries:
+        # Execute query and cache result
+        result = execute_query(query)
+        cache_result(query, result)
+        
+    print(f"Warmed {len(popular_queries)} cache entries")
+
+# Run every 5 minutes
+schedule.every(5).minutes.do(warm_cache)
+```
+
+---
+
+🔴 **ADVANCED: Intelligent Caching**
+
+**1. Adaptive TTL:**
+
+Adjust cache lifetime based on data freshness:
+
+```python
+def get_adaptive_ttl(date):
+    """Return cache TTL based on how old the data is"""
+    days_ago = (datetime.now().date() - date).days
+    
+    if days_ago == 0:
+        # Today: Fresh data, short cache (2 minutes)
+        return 120
+    elif days_ago <= 7:
+        # Last week: Medium cache (10 minutes)
+        return 600
+    elif days_ago <= 30:
+        # Last month: Long cache (1 hour)
+        return 3600
+    else:
+        # Historical: Very long cache (24 hours)
+        return 86400
+
+# Usage
+ttl = get_adaptive_ttl(query_date)
+redis_client.setex(cache_key, ttl, result)
+```
+
+**2. Query Fingerprinting:**
+
+Generate consistent cache keys for semantically identical queries:
+
+```python
+import hashlib
+
+def normalize_query(sql):
+    """Normalize query for caching"""
+    # Remove whitespace variations
+    sql = ' '.join(sql.split())
+    
+    # Remove comments
+    sql = re.sub(r'--.*$', '', sql, flags=re.MULTILINE)
+    sql = re.sub(r'/\*.*?\*/', '', sql, flags=re.DOTALL)
+    
+    # Lowercase keywords
+    sql = sql.lower()
+    
+    return sql
+
+def get_query_fingerprint(sql, params):
+    """Generate cache key from query + params"""
+    normalized = normalize_query(sql)
+    params_str = json.dumps(params, sort_keys=True)
+    fingerprint = hashlib.sha256(
+        f"{normalized}:{params_str}".encode()
+    ).hexdigest()
+    return f"query:{fingerprint}"
+
+# Usage
+cache_key = get_query_fingerprint(
+    "SELECT country, SUM(revenue) FROM events WHERE date = ? GROUP BY country",
+    {"date": "2026-01-22"}
+)
+```
+
+**3. Probabilistic Early Expiration:**
+
+Prevent cache stampede (many requests hitting DB simultaneously when cache expires):
+
+```python
+import random
+import time
+
+def get_with_early_expiration(key, fetch_func, ttl=600):
+    """Get from cache with probabilistic early recomputation"""
+    
+    cached_data = redis_client.get(key)
+    if not cached_data:
+        # Cache miss - fetch and cache
+        data = fetch_func()
+        redis_client.setex(key, ttl, json.dumps(data))
+        return data
+    
+    # Cache hit - check if we should recompute early
+    cache_age = redis_client.ttl(key)
+    remaining_ttl = ttl - cache_age
+    
+    # Probability of early recomputation increases as TTL approaches
+    # When TTL=1 sec, probability=99%
+    # When TTL=300 sec, probability=1%
+    recompute_probability = 1.0 - (remaining_ttl / ttl)
+    
+    if random.random() < recompute_probability:
+        # Recompute in background, return stale data immediately
+        threading.Thread(
+            target=refresh_cache_async,
+            args=(key, fetch_func, ttl)
+        ).start()
+    
+    return json.loads(cached_data)
+
+def refresh_cache_async(key, fetch_func, ttl):
+    """Refresh cache in background"""
+    data = fetch_func()
+    redis_client.setex(key, ttl, json.dumps(data))
+```
+
+**4. Cache Compression:**
+
+Save memory by compressing cached results:
+
+```python
+import zlib
+
+def cache_compressed(key, data, ttl):
+    """Cache data with compression"""
+    json_str = json.dumps(data)
+    compressed = zlib.compress(json_str.encode())
+    
+    # Store compressed with metadata
+    redis_client.setex(
+        f"compressed:{key}",
+        ttl,
+        compressed
+    )
+    
+    print(f"Compression ratio: {len(json_str) / len(compressed):.1f}x")
+
+def get_compressed(key):
+    """Retrieve and decompress"""
+    compressed = redis_client.get(f"compressed:{key}")
+    if not compressed:
+        return None
+    
+    json_str = zlib.decompress(compressed).decode()
+    return json.loads(json_str)
+
+# Typical compression ratios:
+# - JSON metrics: 5-10x compression
+# - Time-series data: 3-5x compression
+# - Result: Cache 5-10x more data in same memory
+```
+
+**5. Cache Hierarchy with Fallback:**
+
+```python
+class CacheHierarchy:
+    def __init__(self):
+        self.l1 = {}  # In-memory (1 MB, 1ms latency)
+        self.l2 = redis.Redis()  # Redis (100 GB, 5ms latency)
+        self.l3 = memcached_client  # Memcached (1 TB, 20ms latency)
+    
+    def get(self, key):
+        # Try L1 (in-memory)
+        if key in self.l1:
+            return self.l1[key]
+        
+        # Try L2 (Redis)
+        val = self.l2.get(key)
+        if val:
+            self.l1[key] = val  # Promote to L1
+            return val
+        
+        # Try L3 (Memcached)
+        val = self.l3.get(key)
+        if val:
+            self.l2.setex(key, 600, val)  # Promote to L2
+            self.l1[key] = val  # Promote to L1
+            return val
+        
+        # Cache miss at all levels
+        return None
+    
+    def set(self, key, value, ttl):
+        # Write to all levels
+        self.l1[key] = value
+        self.l2.setex(key, ttl, value)
+        self.l3.set(key, value, time=ttl)
+```
+
+**6. Real Company Example: Netflix's EVCache**
+
+Netflix uses EVCache (built on Memcached) for dashboard metrics:
+
+```text
+Architecture:
+├─ 3 cache zones (US-East, US-West, EU)
+├─ 1000+ cache nodes
+├─ 30M requests/second
+├─ 10TB cached data
+└─ <1ms p99 latency
+
+Optimization techniques:
+├─ Chunked caching (large results split into chunks)
+├─ Compressed values (5x compression)
+├─ Async replication across zones
+├─ Client-side routing (consistent hashing)
+└─ Circuit breaker for failures
+
+Cache hit rates:
+├─ Dashboard metrics: 95%
+├─ User profiles: 99%
+├─ Real-time data: 60% (shorter TTL)
+└─ Overall: 90%
+
+Cost savings:
+├─ Without cache: 100K ClickHouse queries/sec = $500K/month
+├─ With cache (90% hit rate): 10K queries/sec = $50K/month
+└─ Savings: $450K/month ($5.4M/year)
+```
+
+---
+
+
