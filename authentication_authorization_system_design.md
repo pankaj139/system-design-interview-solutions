@@ -14906,3 +14906,928 @@ Handle these operational scenarios:
 - When would you choose multi-master replication despite the complexity?
 
 ---
+
+## Section 12: Protecting the System (Security)
+
+### What You'll Learn
+
+By the end of this section, you'll be able to:
+- Implement comprehensive security controls for authentication systems
+- Understand encryption strategies (at rest and in transit)
+- Design rate limiting and DDoS protection mechanisms
+- Implement audit logging for compliance
+- Protect against common attack vectors (XSS, CSRF, SQL injection)
+- Meet compliance requirements (GDPR, SOC 2, HIPAA, PCI DSS)
+- Respond to security incidents effectively
+
+### Why This Matters
+
+Security is not optional for authentication systems - a single breach can expose millions of user accounts. Real-world example: The 2021 Facebook breach exposed 533 million user records due to improper access controls. In 2019, a Capital One breach (due to a misconfigured WAF) exposed 100 million credit applications. Authentication systems are the #1 target for attackers because compromising them gives access to everything else!
+
+---
+
+### 🟢 For Beginners: Security Fundamentals
+
+#### Why Security is Critical for Authentication
+
+Think of your authentication system as the front door to a bank vault. If the door is weak, it doesn't matter how thick the vault walls are - attackers will walk right in!
+
+**Real Impact of Breaches:**
+- **Financial:** Average data breach costs $4.45M (IBM 2023)
+- **Reputation:** 65% of customers lose trust after a breach
+- **Legal:** GDPR fines up to €20M or 4% of revenue
+- **Operational:** Months of recovery effort
+
+#### The Castle Defense Analogy
+
+Imagine protecting a medieval castle:
+
+```text
+CASTLE SECURITY = AUTH SYSTEM SECURITY
+
+Layer 1: Moat (Firewall)
+├─ Keeps out casual attackers
+└─ First line of defense
+
+Layer 2: Castle Walls (TLS Encryption)
+├─ Protects data in transit
+└─ Prevents eavesdropping
+
+Layer 3: Guard Tower (Rate Limiting)
+├─ Watches for suspicious activity
+└─ Blocks brute force attacks
+
+Layer 4: Inner Keep (Password Hashing)
+├─ Even if walls are breached, treasure is protected
+└─ Passwords are unreadable
+
+Layer 5: Vault (Encryption at Rest)
+├─ Final protection for stored data
+└─ Database encryption
+
+Layer 6: Watchers (Audit Logs)
+├─ Record everything
+└─ Detect and investigate breaches
+```
+
+This is called "Defense in Depth" - multiple layers of security so if one fails, others protect you!
+
+#### Basic Security Controls
+
+**1. Always Use HTTPS**
+
+Never send passwords over plain HTTP - it's like shouting your password in a crowded room!
+
+```text
+❌ BAD: http://example.com/login
+   └─ Password sent in plain text
+   └─ Anyone can intercept it
+
+✅ GOOD: https://example.com/login
+   └─ Password encrypted with TLS
+   └─ Safe from eavesdropping
+```
+
+**2. Hash Passwords, Never Store Plain Text**
+
+```text
+What User Enters: "MyPassword123"
+
+❌ WRONG - Store as is:
+   Database: "MyPassword123"
+   └─ If hacked, all passwords stolen!
+
+✅ RIGHT - Hash it:
+   Database: "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+   └─ Looks like gibberish, can't reverse it
+   └─ Use bcrypt or Argon2
+```
+
+**3. Rate Limit Login Attempts**
+
+Prevent attackers from trying millions of passwords:
+
+```text
+Rule: Allow only 5 login attempts per 15 minutes
+
+Attempt 1: Wrong password - allowed
+Attempt 2: Wrong password - allowed
+Attempt 3: Wrong password - allowed
+Attempt 4: Wrong password - allowed
+Attempt 5: Wrong password - allowed
+Attempt 6: BLOCKED! "Too many attempts, try again in 15 minutes"
+```
+
+**4. Use Multi-Factor Authentication**
+
+We covered this in Section 9, but it's worth repeating: MFA blocks 99.9% of automated attacks!
+
+**5. Log Everything Important**
+
+Keep a record of security events:
+- Who logged in (and from where)
+- Failed login attempts
+- Password changes
+- Permission changes
+- Data access
+
+Think of it as security camera footage - invaluable when investigating incidents!
+
+---
+
+### 🟡 For Intermediate: Production Security Controls
+
+#### Encryption Strategy
+
+**1. Encryption in Transit (TLS 1.3)**
+
+All communication must be encrypted:
+
+```yaml
+TLS Configuration:
+  version: TLS 1.3
+  cipher_suites:
+    - TLS_AES_256_GCM_SHA384
+    - TLS_CHACHA20_POLY1305_SHA256
+  certificate:
+    type: RSA-2048 or ECC-256
+    auto_renewal: true
+    provider: Let's Encrypt or AWS ACM
+  
+HSTS Header:
+  Strict-Transport-Security: "max-age=31536000; includeSubDomains; preload"
+```
+
+**Benefits:**
+- Prevents man-in-the-middle attacks
+- Protects credentials in transit
+- Required for PCI DSS compliance
+
+**2. Encryption at Rest**
+
+Protect data in databases and backups:
+
+```yaml
+Database Encryption:
+  PostgreSQL:
+    - Transparent Data Encryption (TDE)
+    - Column-level encryption for sensitive fields
+    - Encrypted backups
+  
+Encryption Keys:
+  Storage: AWS KMS, HashiCorp Vault, Azure Key Vault
+  Rotation: Every 90 days
+  Access: Least privilege (only auth service)
+
+Sensitive Fields (Additional Encryption):
+  - SSN: AES-256-GCM with application-level encryption
+  - Credit Card: Tokenization + vault storage
+  - MFA Secrets: Encrypted with separate key
+```
+
+**3. Password Hashing Best Practices**
+
+```javascript
+// Modern password hashing
+const bcrypt = require('bcrypt');
+const saltRounds = 12; // Higher = more secure but slower
+
+// Hashing (during registration)
+const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
+// Result: $2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5jtRq9rKjU9Cu
+
+// Verification (during login)
+const isValid = await bcrypt.compare(plainPassword, hashedPassword);
+
+// Why bcrypt/Argon2?
+// - Slow by design (prevents brute force)
+// - Automatic salt (prevents rainbow tables)
+// - Adjustable difficulty (future-proof)
+```
+
+**Password Policy Enforcement:**
+
+```yaml
+Password Requirements:
+  min_length: 12
+  require_uppercase: true
+  require_lowercase: true
+  require_digit: true
+  require_special: true
+  
+  # Prevent common passwords
+  blacklist:
+    - Password123
+    - Company2024
+    - Welcome1!
+  
+  # Check against breach databases
+  haveibeenpwned_check: true
+  
+  # Prevent reuse
+  password_history: 5 # Can't reuse last 5 passwords
+```
+
+#### Rate Limiting Implementation
+
+**Multi-Tier Rate Limiting:**
+
+```yaml
+Rate Limits:
+  # Tier 1: Global (DDoS Protection)
+  global:
+    limit: 100,000 requests/second
+    action: Drop at edge (CloudFlare, AWS Shield)
+  
+  # Tier 2: Per IP (Prevent Scraping)
+  per_ip:
+    login: 10 attempts/15 minutes
+    password_reset: 3 attempts/hour
+    mfa_verification: 5 attempts/5 minutes
+    api_calls: 1000/hour
+  
+  # Tier 3: Per User (Account Protection)
+  per_user:
+    failed_logins: 5 attempts/15 minutes
+    password_changes: 3/day
+    token_refresh: 100/hour
+  
+  # Tier 4: Per API Key (Client Quotas)
+  per_api_key:
+    basic_tier: 1000 requests/day
+    pro_tier: 100,000 requests/day
+    enterprise: unlimited
+
+Actions:
+  soft_limit: Return 429 with Retry-After header
+  hard_limit: Temporary account lock (15 minutes)
+  severe: CAPTCHA challenge
+  critical: Permanent ban + security review
+```
+
+**Implementation with Redis:**
+
+```python
+import redis
+import time
+
+class RateLimiter:
+    def __init__(self, redis_client):
+        self.redis = redis_client
+    
+    def check_rate_limit(self, key, limit, window_seconds):
+        """
+        Sliding window rate limiter
+        Returns: (allowed: bool, remaining: int, reset_time: int)
+        """
+        current_time = int(time.time())
+        window_start = current_time - window_seconds
+        
+        # Remove old entries
+        self.redis.zremrangebyscore(key, 0, window_start)
+        
+        # Count requests in current window
+        request_count = self.redis.zcard(key)
+        
+        if request_count < limit:
+            # Allow request
+            self.redis.zadd(key, {str(current_time): current_time})
+            self.redis.expire(key, window_seconds)
+            return True, limit - request_count - 1, current_time + window_seconds
+        else:
+            # Deny request
+            oldest = self.redis.zrange(key, 0, 0, withscores=True)
+            reset_time = int(oldest[0][1]) + window_seconds if oldest else current_time + window_seconds
+            return False, 0, reset_time
+
+# Usage
+limiter = RateLimiter(redis_client)
+allowed, remaining, reset = limiter.check_rate_limit(
+    key=f"login:{ip_address}",
+    limit=10,
+    window_seconds=900  # 15 minutes
+)
+
+if not allowed:
+    return {
+        "error": "Too many login attempts",
+        "retry_after": reset - int(time.time())
+    }, 429
+```
+
+#### Protection Against Common Attacks
+
+**1. SQL Injection Prevention**
+
+```python
+# ❌ VULNERABLE - Never do this!
+query = f"SELECT * FROM users WHERE email = '{email}'"
+# Attacker input: "' OR '1'='1" --> Returns all users!
+
+# ✅ SAFE - Use parameterized queries
+query = "SELECT * FROM users WHERE email = %s"
+cursor.execute(query, (email,))
+
+# ✅ SAFE - Use ORM
+user = User.query.filter_by(email=email).first()
+```
+
+**2. XSS (Cross-Site Scripting) Prevention**
+
+```javascript
+// ❌ DANGEROUS - Direct HTML insertion
+element.innerHTML = userInput; // Can execute malicious scripts
+
+// ✅ SAFE - Escape output
+element.textContent = userInput; // Treated as text, not HTML
+
+// Set Content Security Policy header
+res.setHeader(
+  'Content-Security-Policy',
+  "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+);
+```
+
+**3. CSRF (Cross-Site Request Forgery) Prevention**
+
+```javascript
+// Generate CSRF token
+const csrfToken = crypto.randomBytes(32).toString('hex');
+session.csrfToken = csrfToken;
+
+// Include in form
+// <input type="hidden" name="csrf_token" value="{{csrfToken}}">
+
+// Verify on submission
+if (req.body.csrf_token !== req.session.csrfToken) {
+  return res.status(403).json({ error: 'Invalid CSRF token' });
+}
+
+// Also use SameSite cookies
+res.cookie('session', sessionId, {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'strict' // or 'lax'
+});
+```
+
+#### Security Headers
+
+```http
+# Essential security headers
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: geolocation=(), microphone=(), camera=()
+```
+
+#### Audit Logging
+
+**What to Log:**
+
+```yaml
+Security Events (High Priority):
+  - Authentication attempts (success/failure)
+  - Password changes/resets
+  - MFA enrollment/changes
+  - Permission changes
+  - Account lockouts
+  - Token issuance/revocation
+  - Admin actions
+  - Unusual login locations
+  - Multiple failed MFA attempts
+
+Log Format (JSON):
+  timestamp: "2024-01-15T10:30:45.123Z"
+  event_type: "login_failed"
+  user_id: "user_12345"
+  ip_address: "203.0.113.45"
+  user_agent: "Mozilla/5.0..."
+  geo_location: "San Francisco, CA, US"
+  reason: "invalid_password"
+  attempt_count: 3
+  session_id: "sess_abc123"
+  request_id: "req_xyz789"
+```
+
+**Log Storage:**
+
+```yaml
+Storage Strategy:
+  Hot Storage (0-30 days):
+    - Elasticsearch for fast querying
+    - Used for real-time alerts
+    - Cost: ~$500/month for 100GB
+  
+  Warm Storage (31-90 days):
+    - S3 Standard for compliance queries
+    - Used for investigations
+    - Cost: ~$50/month for 1TB
+  
+  Cold Storage (91+ days):
+    - S3 Glacier for long-term retention
+    - Used for audits only
+    - Cost: ~$4/month for 1TB
+    - Retention: 7 years for compliance
+
+Indexing:
+  - user_id (for user audit trails)
+  - timestamp (for time-based queries)
+  - event_type (for filtering)
+  - ip_address (for threat detection)
+```
+
+**Compliance Requirements:**
+
+```yaml
+GDPR (EU):
+  - Log all data access
+  - Support "right to access" (export user's audit trail)
+  - Support "right to be forgotten" (delete logs with PII)
+  - Retain for investigation but anonymize after case closed
+
+SOC 2:
+  - Log all authentication events
+  - Retain for 1 year minimum
+  - Ensure log integrity (immutable)
+  - Regular log reviews
+
+HIPAA (Healthcare):
+  - Log all access to patient data
+  - Retain for 6 years
+  - Encrypt logs
+  - Audit log access (who viewed the logs?)
+
+PCI DSS (Payment):
+  - Log all access to cardholder data
+  - Retain for 1 year, archived for 3 months
+  - Daily log reviews
+  - Automated alerting for anomalies
+```
+
+---
+
+### 🔴 For Advanced: Enterprise Security
+
+#### Defense in Depth Architecture
+
+```mermaid
+graph TD
+    A[Internet] -->|Layer 1: Edge| B[DDoS Protection<br/>CloudFlare/AWS Shield]
+    B -->|Layer 2: Network| C[WAF<br/>Rate Limiting]
+    C -->|Layer 3: Application| D[Load Balancer<br/>TLS Termination]
+    D -->|Layer 4: Auth| E[Authentication Service<br/>Input Validation]
+    E -->|Layer 5: Data| F[Database<br/>Encryption at Rest]
+    E -->|Layer 6: Secrets| G[Vault<br/>Key Management]
+    E -->|Layer 7: Monitoring| H[SIEM<br/>Threat Detection]
+    
+    style B fill:#ff6b6b
+    style C fill:#ffd93d
+    style D fill:#6bcf7f
+    style E fill:#4d96ff
+    style F fill:#a78bfa
+    style G fill:#f472b6
+    style H fill:#fb923c
+```
+
+#### Advanced Threat Detection
+
+**1. Anomaly Detection with Machine Learning**
+
+```python
+# Detect unusual login patterns
+class AnomalyDetector:
+    def __init__(self):
+        self.model = self.load_model()
+    
+    def check_login_anomaly(self, user_id, login_data):
+        """
+        Detect anomalies based on:
+        - Time of day (user typically logs in 9am-5pm)
+        - Location (user typically in San Francisco)
+        - Device (user typically uses iPhone)
+        - Behavior (typing speed, mouse movements)
+        """
+        features = self.extract_features(user_id, login_data)
+        anomaly_score = self.model.predict(features)
+        
+        if anomaly_score > 0.8:  # High confidence anomaly
+            return {
+                "action": "require_mfa",
+                "reason": "Unusual login pattern detected",
+                "score": anomaly_score
+            }
+        elif anomaly_score > 0.5:  # Medium confidence
+            return {
+                "action": "notify_user",
+                "reason": "Login from new location",
+                "score": anomaly_score
+            }
+        else:
+            return {"action": "allow"}
+    
+    def extract_features(self, user_id, login_data):
+        # Get user's historical patterns
+        history = self.get_user_history(user_id)
+        
+        return {
+            "hour_of_day": login_data.timestamp.hour,
+            "day_of_week": login_data.timestamp.weekday(),
+            "distance_from_usual": self.calc_geo_distance(
+                login_data.location, history.usual_location
+            ),
+            "new_device": login_data.device not in history.known_devices,
+            "velocity": self.calc_impossible_travel(
+                history.last_location, login_data.location,
+                history.last_time, login_data.timestamp
+            )
+        }
+```
+
+**2. Credential Stuffing Detection**
+
+```yaml
+Detection Signals:
+  - Multiple failed logins across different accounts from same IP
+  - High volume of login attempts (> 100/minute from single IP)
+  - Login attempts with leaked passwords (check against breach databases)
+  - Automated patterns (regular intervals, same user agent)
+
+Response Strategy:
+  Level 1 (100 attempts/minute):
+    - Increase rate limiting
+    - Log for analysis
+  
+  Level 2 (500 attempts/minute):
+    - Require CAPTCHA
+    - Alert security team
+  
+  Level 3 (1000+ attempts/minute):
+    - Block IP at edge (CloudFlare)
+    - Require MFA for affected accounts
+    - Password reset notification to users
+```
+
+**3. Account Takeover Prevention**
+
+```python
+class AccountTakeoverDetector:
+    """
+    Detect account takeover attempts through behavioral analysis
+    """
+    
+    HIGH_RISK_INDICATORS = [
+        "password_change_after_suspicious_login",
+        "email_change_after_suspicious_login",
+        "mfa_disabled_after_suspicious_login",
+        "bulk_data_export",
+        "adding_new_payment_method",
+        "changing_security_questions"
+    ]
+    
+    def check_takeover_risk(self, user_id, action):
+        # Check for high-risk action sequence
+        recent_events = self.get_recent_events(user_id, hours=1)
+        
+        suspicious_login = any(
+            e.type == "login" and e.risk_score > 0.7 
+            for e in recent_events
+        )
+        
+        if suspicious_login and action in self.HIGH_RISK_INDICATORS:
+            # High risk! Potential account takeover
+            return {
+                "risk_level": "critical",
+                "action": "block_and_verify",
+                "notification": "send_out_of_band_verification",
+                "detail": f"Suspicious {action} after risky login"
+            }
+        
+        return {"risk_level": "low"}
+```
+
+#### Secrets Management
+
+**HashiCorp Vault Integration:**
+
+```yaml
+Vault Configuration:
+  secrets:
+    database_credentials:
+      path: secret/auth-service/db
+      rotation: every 30 days
+      dynamic: true  # Generate on-demand
+    
+    jwt_signing_keys:
+      path: secret/auth-service/jwt-keys
+      rotation: every 90 days
+      algorithm: RS256
+      key_size: 2048
+    
+    api_keys:
+      path: secret/auth-service/api-keys
+      encryption: transit/aes256-gcm96
+    
+    mfa_secrets:
+      path: secret/auth-service/mfa
+      encryption: transit/aes256-gcm96
+
+Access Policies:
+  auth-service:
+    - path: "secret/auth-service/*"
+      capabilities: ["read"]
+  
+  admin:
+    - path: "secret/auth-service/*"
+      capabilities: ["read", "update", "delete"]
+
+Audit:
+  enabled: true
+  file: /var/log/vault-audit.log
+  format: json
+```
+
+**Key Rotation Strategy:**
+
+```python
+class KeyRotationManager:
+    """
+    Zero-downtime key rotation for JWT signing
+    """
+    
+    def rotate_jwt_keys(self):
+        """
+        1. Generate new key pair
+        2. Publish to JWKS endpoint (both old and new)
+        3. Start signing with new key
+        4. Keep validating with old key for grace period
+        5. Remove old key after grace period
+        """
+        
+        # Generate new key
+        new_key = self.generate_rsa_key(2048)
+        new_key_id = f"key-{int(time.time())}"
+        
+        # Add to key set (now have both old and new)
+        self.key_store.add_key(new_key_id, new_key)
+        
+        # Update signing key (new tokens use new key)
+        self.set_active_signing_key(new_key_id)
+        
+        # Schedule old key removal after grace period
+        self.schedule_key_removal(
+            key_id=self.previous_key_id,
+            after_hours=24  # Grace period
+        )
+        
+        # Update JWKS endpoint
+        self.publish_jwks()
+    
+    def publish_jwks(self):
+        """
+        Publish JSON Web Key Set for token validation
+        """
+        keys = []
+        for key_id, key_data in self.key_store.get_active_keys():
+            keys.append({
+                "kty": "RSA",
+                "kid": key_id,
+                "use": "sig",
+                "alg": "RS256",
+                "n": key_data.n,  # Public key modulus
+                "e": key_data.e   # Public key exponent
+            })
+        
+        return {"keys": keys}
+```
+
+#### Security Incident Response
+
+```mermaid
+graph TD
+    A[Security Alert] --> B{Severity?}
+    B -->|Low| C[Log and Monitor]
+    B -->|Medium| D[Alert on-call engineer]
+    B -->|High| E[Page security team]
+    B -->|Critical| F[Activate incident response]
+    
+    F --> G[Contain: Block attack source]
+    G --> H[Assess: Determine scope]
+    H --> I[Eradicate: Remove threat]
+    I --> J[Recover: Restore service]
+    J --> K[Post-mortem: Learn and improve]
+    
+    style F fill:#ff6b6b
+    style G fill:#ffd93d
+    style H fill:#6bcf7f
+    style I fill:#4d96ff
+    style J fill:#a78bfa
+    style K fill:#fb923c
+```
+
+**Incident Response Playbook:**
+
+```yaml
+Incident: Suspected Account Breach
+
+Phase 1: Detection (0-5 minutes)
+  - Automated alert: Unusual login pattern
+  - ML model flags 50+ accounts with suspicious activity
+  - Multiple failed MFA attempts
+  - Actions:
+    - Notify security team
+    - Start incident log
+    - Preserve evidence
+
+Phase 2: Containment (5-15 minutes)
+  - Force logout all suspicious sessions
+  - Require password reset for affected accounts
+  - Enable MFA requirement for all users
+  - Block suspicious IP addresses
+  - Increase rate limiting
+  - Actions:
+    - Prevent further damage
+    - Maintain service availability
+
+Phase 3: Assessment (15-60 minutes)
+  - Query audit logs for breach scope
+  - Identify compromised accounts
+  - Determine attack vector
+  - Check for data exfiltration
+  - Actions:
+    - Understand full impact
+    - Identify root cause
+
+Phase 4: Eradication (1-4 hours)
+  - Patch vulnerability
+  - Rotate all credentials
+  - Update security rules
+  - Deploy fixes
+  - Actions:
+    - Remove attacker access
+    - Prevent recurrence
+
+Phase 5: Recovery (4-24 hours)
+  - Notify affected users
+  - Help users regain access
+  - Monitor for continued attacks
+  - Restore normal rate limits
+  - Actions:
+    - Return to normal operations
+    - Maintain vigilance
+
+Phase 6: Post-Mortem (1-2 days after)
+  - Document timeline
+  - Analyze root cause
+  - Identify improvements
+  - Update runbooks
+  - Train team
+  - Actions:
+    - Learn from incident
+    - Improve defenses
+```
+
+**Real-World Example: Auth0's Security Practices**
+
+```text
+Auth0 Security Model (Serving 15B+ authentications/month):
+
+1. Anomaly Detection
+   - ML-based bot detection
+   - Breached password detection (500M+ passwords database)
+   - Brute force protection with adaptive delays
+   
+2. Security Monitoring
+   - Real-time log streaming to SIEM
+   - Automated threat intelligence
+   - 24/7 security operations center
+
+3. Compliance
+   - SOC 2 Type II certified
+   - ISO 27001 certified
+   - GDPR compliant
+   - Annual penetration testing
+   - Bug bounty program
+
+4. Encryption
+   - TLS 1.2+ for all connections
+   - Data encrypted at rest with AES-256
+   - Key rotation every 90 days
+   - HSM for key storage
+
+5. Incident Response
+   - <15 minute response time for critical issues
+   - Automated containment procedures
+   - Transparent security advisories
+   - Regular security drills
+
+Evolution Timeline:
+2013: Basic security (TLS, password hashing)
+2015: Added anomaly detection
+2017: Achieved SOC 2 certification
+2019: ML-based threat detection
+2021: Zero-trust architecture
+2023: AI-powered security (GPT-4 for threat analysis)
+```
+
+---
+
+### 🤔 Think About It
+
+**For Beginners:**
+1. Why is password hashing better than encryption?
+2. What's the difference between authentication and authorization in security context?
+3. Why do we need HTTPS even if passwords are hashed?
+
+**For Intermediate:**
+4. How would you detect a credential stuffing attack?
+5. What's the trade-off between strict rate limiting (security) and user experience?
+6. Why use bcrypt over MD5 for password hashing?
+
+**For Advanced:**
+7. How would you design a zero-trust authentication system?
+8. What's your strategy for detecting insider threats?
+9. How do you balance security monitoring with user privacy (GDPR)?
+
+---
+
+### 📝 Key Takeaways
+
+**Critical Security Principles:**
+- **Defense in Depth:** Multiple layers of security
+- **Least Privilege:** Grant minimum necessary permissions
+- **Zero Trust:** Never trust, always verify
+- **Security by Design:** Build security in from the start
+- **Assume Breach:** Plan for when (not if) you're attacked
+
+**Must-Have Controls:**
+- TLS 1.3 for all communication
+- bcrypt/Argon2 for password hashing
+- Rate limiting on all endpoints
+- MFA for sensitive operations
+- Comprehensive audit logging
+- Regular security updates and patching
+
+**Compliance Requirements:**
+- GDPR: Data privacy, right to erasure, breach notification
+- SOC 2: Security controls, audit trails, incident response
+- ISO 27001: Information security management
+- PCI DSS: Payment card data protection (if applicable)
+- HIPAA: Healthcare data protection (if applicable)
+
+**Monitoring and Response:**
+- Real-time threat detection
+- Automated alerting for anomalies
+- Incident response playbook
+- Regular security drills
+- Post-mortem analysis
+
+---
+
+### 💪 Practice Exercise
+
+**Scenario:** You're the security architect for HealthVault, a healthcare authentication platform handling PHI (Protected Health Information) for 5 million patients.
+
+**Recent Security Events:**
+1. Failed login spike: 10,000 attempts in 5 minutes from 50 IPs
+2. Audit log query: Regulator requests all access logs for patient #12345
+3. Breach notification: Popular password manager was compromised
+4. Compliance requirement: Implement HIPAA audit controls
+
+**Your Tasks:**
+
+**Part 1: Threat Response**
+- Design the immediate response to the failed login spike
+- What rate limiting rules would you implement?
+- How do you distinguish attack from legitimate traffic spike?
+- What alerts should fire?
+
+**Part 2: Audit and Compliance**
+- Design the audit log schema for HIPAA compliance
+- How do you quickly retrieve logs for a specific patient?
+- What's your log retention strategy?
+- How do you prove log integrity to auditors?
+
+**Part 3: Breach Response**
+- Password manager breach affects 2% of your users (~100K accounts)
+- Design your notification and remediation strategy
+- Should you force password resets? For whom?
+- How do you handle users who can't access their accounts?
+
+**Part 4: Security Improvements**
+- Design an anomaly detection system for unusual data access
+- What metrics indicate potential insider threat?
+- How do you implement "break the glass" emergency access?
+- Design your encryption strategy for PHI
+
+**Bonus Challenges:**
+- How would you implement phishing-resistant authentication?
+- Design a zero-trust architecture for this healthcare system
+- What's your strategy for detecting and preventing account sharing?
+- How do you secure the authentication system itself from insider threats?
+
+---
+
