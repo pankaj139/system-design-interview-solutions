@@ -2,20 +2,20 @@
 
 **File Purpose:** This file tracks the progress of all system design problems in this repository. Use this as your working checklist to plan, track, and complete designs systematically.
 
-**Last Updated:** November 14, 2025
+**Last Updated:** February 20, 2026
 
-**Progress:** 22/52 (42.3% Complete) - Educational Template Compliant
+**Progress:** 16/52 (30.8% Complete) - Educational Template Compliant
 
 ---
 
 ## 📊 Progress Overview
 
 ```text
-✅ Completed (Template Compliant): 22
-🚧 In Progress (Template Conversion): 3
+✅ Completed (Template Compliant): 16
+🚧 In Progress (Template Conversion): 9
 📝 Planned: 27
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[████████████▓░░░░░░░░░░░░░░░░░░░░░░░░░] 42.3%
+[████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 30.8%
 ```
 
 ---
@@ -538,12 +538,18 @@
 
 ### 🏢 Enterprise & Infrastructure
 
-#### 15. ⬜ Single Sign-On (SSO) & Authentication Service
+#### 15. ✅ Authentication & Authorization System
 
+- **Status:** Complete ✅
+- **File:** `authentication_authorization_system_design.md`
+- **Completed:** January 22, 2026
+- **Template Compliance:** ✅ Full compliance (Welcome section, 🟢🟡🔴 levels, Putting It All Together)
 - **Priority:** P1 - High
 - **Difficulty:** ⭐⭐⭐⭐ Very Hard
-- **Estimated Time:** 4-5 hours
-- **Key Concepts:** OAuth 2.0, SAML, JWT, identity federation
+- **Scale:** 10M users, 200K logins/day, 10M API calls/day, 99.95% availability, <50ms token validation
+- **Key Features:** OAuth 2.0, SAML, OpenID Connect, JWT tokens, MFA (TOTP, SMS, push), SSO, RBAC/ABAC authorization, session management, rate limiting, audit logging, encryption at rest and in transit, distributed architecture
+- **Lines:** 17,000+ (comprehensive educational format with 15 sections)
+- **Key Topics:** Authentication protocols, authorization models, token management, MFA, SSO/identity federation, scalability, security, monitoring
 
 #### 16. ⬜ Monitoring & Alerting System (Datadog/Prometheus)
 
