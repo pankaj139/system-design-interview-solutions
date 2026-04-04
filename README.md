@@ -32,7 +32,25 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (23/52)
+## ✅ Completed Designs (24/52)
+
+### 0. [Payment Gateway System Design](./payment_gateway_system_design.md)
+
+**Status:** ✅ Complete (Educational Multi-Level Template - 4,244 lines)
+
+Expert-level design of a Stripe/PayPal-like payment gateway processing $1B/day with 99.999% availability and PCI DSS Level 1 compliance.
+
+**Key Features:**
+- **Idempotency:** Redis SETNX for exactly-once transaction processing — zero double charges
+- **PCI DSS:** 5-zone network segmentation, HSM key hierarchy, token vault in isolated CDE
+- **Fraud Detection:** 3-layer system (rules 1ms + XGBoost ML 40ms + graph analysis async) with 0.08% false positive rate
+- **Settlement:** Double-entry bookkeeping, daily T+1 ACH payout, 3-way reconciliation (internal + processor + bank)
+- **Multi-Currency:** DCC flow, forex hedging, 100+ currency support with 30-second rate refresh
+- **Interview Prep:** 25+ questions, 45-minute framework, key numbers cheat sheet
+
+**Scale:** 10M transactions/day, $1B daily volume, 348 TPS peak, 100K merchants, <200ms auth p95, 99.999% availability
+
+---
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
