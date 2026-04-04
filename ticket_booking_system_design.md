@@ -118,3 +118,23 @@ Before diving in, here are the key terms you'll encounter throughout this docume
 | **PCI DSS** | Payment Card Industry Data Security Standard — rules for handling credit card data |
 
 ---
+
+## TABLE OF CONTENTS
+
+- [Section 1: Understanding What We're Building](#section-1-understanding-what-were-building)
+- [Section 2: Capacity Planning & Scale Estimation](#section-2-capacity-planning--scale-estimation)
+- [Section 3: High-Level System Architecture](#section-3-high-level-system-architecture)
+- [Section 4: Seat Locking & Concurrency Control](#section-4-seat-locking--concurrency-control)
+- [Section 5: Database Design & Data Modeling](#section-5-database-design--data-modeling)
+- [Section 6: API Design](#section-6-api-design)
+- [Section 7: Payment Processing & Distributed Transactions](#section-7-payment-processing--distributed-transactions)
+- [Section 8: Ticket Generation & Validation](#section-8-ticket-generation--validation)
+- [Section 9: Flash Sale Architecture & Queue Management](#section-9-flash-sale-architecture--queue-management)
+- [Section 10: Scalability & Performance](#section-10-scalability--performance)
+- [Section 11: Security Considerations](#section-11-security-considerations)
+- [Section 12: Monitoring & Observability](#section-12-monitoring--observability)
+- [Section 13: Trade-Offs & Design Decisions](#section-13-trade-offs--design-decisions)
+- [Section 14: Interview Preparation](#section-14-interview-preparation)
+- [Section 15: Putting It All Together](#section-15-putting-it-all-together)
+
+---
