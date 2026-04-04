@@ -290,92 +290,6 @@ Cloud-based photo storage and management platform with ML-powered features.
 
 ---
 
-## 📋 Upcoming Designs (27)
-
-### Core Infrastructure & Storage
-
-- [x] **Design a URL shortener** (like TinyURL)
-- [x] **Design a text storage service** (like Pastebin)
-- [x] **Design a content delivery network (CDN)**
-- [x] **Design a distributed cache** (like Redis/Memcached)
-- [x] **Design a file storage service** (like Dropbox or Google Drive)
-- [x] **Design a distributed key-value store**
-- [ ] **Design a distributed storage system**
-- [ ] **Design an in-memory database**
-
-### Messaging & Communication
-
-- [x] **Design a pub/sub messaging system** (like Kafka)
-- [x] **Design a chat application** (like WhatsApp)
-- [ ] **Design a notification system** — 🚧 In Progress ([Notification System](./notification_system_design.md))
-- [ ] **Design a distributed stream processing system**
-
-### Social Media & Content
-
-- [x] **Design a social media platform** (like Instagram or Twitter)
-- [x] **Design a feed/newsfeed system** (like Facebook/LinkedIn Feed)
-- [x] **Design a video streaming service** (like Netflix or YouTube)
-- [ ] **Design a system to find friends on social networks**
-
-### Search & Discovery
-
-- [x] **Design a web crawler**
-- [x] **Design a proximity service** (like Yelp)
-- [ ] **Design a recommendation engine**
-- [x] **Design an autocomplete/search suggestions engine**
-- [x] **Design a search engine**
-- [ ] **Design Google Maps** (location, routing, scalability)
-- [ ] **Design a system that aggregates book reviews from various sources**
-
-### E-commerce & Marketplace
-
-- [x] **Design an e-commerce website** (like Amazon)
-- [x] **Design a payment gateway**
-- [ ] **Design a ticket booking system**
-- [ ] **Design a shopping cart system**
-- [ ] **Design a promotion/cashback offer system**
-- [ ] **Design a warehouse inventory system**
-
-### On-Demand Services
-
-- [x] **Design a ride-sharing service** (like Uber) — 🚧 Template Conversion Required
-- [ ] **Design a food delivery system** (like Swiggy/Zomato)
-- [ ] **Design a registration system for a restaurant**
-- [ ] **Design a system for finding shortest delivery routes**
-
-### Gaming & Entertainment
-
-- [ ] **Design an online multiplayer game backend**
-- [ ] **Design a blackjack/poker gaming site**
-
-### Security & Authentication
-
-- [x] **Design an API rate limiter**
-- [ ] **Design SSO (Single Sign-On)**
-- [ ] **Design a global authentication service**
-- [ ] **Design a firewall system for network security**
-- [ ] **Design a buffer overflow prevention technique**
-
-### Monitoring & Operations
-
-- [ ] **Design a distributed metrics logging system**
-- [ ] **Design a health monitoring system for servers**
-- [ ] **Design a system for collecting performance metrics at scale**
-
-### Real-World Systems
-
-- [ ] **Design a parking lot system**
-- [ ] **Design an online voting/election system**
-- [ ] **Design an elevator system**
-- [ ] **Design a smart elevator** (grouping, real-time optimization)
-
-### Architecture Patterns
-
-- [ ] **Design a microservices architecture for a large application**
-- [ ] **Compare monolithic vs microservice architecture** (pros and cons)
-
----
-
 ### 13. [Proximity Service (Yelp)](./proximity_service_system_design.md)
 
 **Status:** ✅ Complete (Educational Template Format)
@@ -599,6 +513,7 @@ Three-sided marketplace platform for food delivery with real-time order tracking
 **Scale:** 10M orders/day, 500K restaurants, 1M drivers, 100+ cities, <30 sec driver matching, 99.9% uptime
 
 ---
+
 
 ## 📋 Upcoming Designs (27)
 
