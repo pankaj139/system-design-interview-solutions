@@ -2,9 +2,9 @@
 
 **File Purpose:** This file tracks the progress of all system design problems in this repository. Use this as your working checklist to plan, track, and complete designs systematically.
 
-**Last Updated:** February 20, 2026
+**Last Updated:** April 4, 2026
 
-**Progress:** 16/52 (30.8% Complete) - Educational Template Compliant
+**Progress:** 17/52 (32.7% Complete) - Educational Template Compliant
 
 ---
 
@@ -381,6 +381,21 @@
 - **Real-World Examples:** Uber's architecture evolution (monolith → microservices, MySQL → Schemaless → PostgreSQL), H3 hexagonal grid (evolved from Geohash, no edge discontinuities), Reliable reprocessing with Kafka DLQs, Schemaless custom sharded datastore (lessons scaling to billions of rows), Surge pricing strategy evolution (smoothed surge, upfront pricing), Payment platform scaling (Gergely Orosz insights), WebSocket scaling to 500K connections
 - **Interview Questions:** 20+ HLD-focused questions across all 12 sections (🟢 Beginner, 🟡 Intermediate, 🔴 Advanced) with detailed answer frameworks, follow-ups, and real-world scenarios
 - **Practice Exercises:** 12+ hands-on exercises with bonus challenges (food delivery state machine, payment retry queue, capacity planning for 10x growth, trade-off analysis: surge fairness vs revenue)
+### 23. ✅ Food Delivery System Design (Uber Eats/DoorDash)
+
+- **Status:** ✅ Complete - Educational Template Format
+- **File:** `food_delivery_system_design.md`
+- **Quick Ref:** `interview-quick-references/food-delivery-quick-ref.md`
+- **Completed:** November 4, 2025
+- **Template Compliance:** ✅ Full compliance (Welcome section, 🟢🟡🔴 levels, 16 sections, 78 interview questions, Putting It All Together)
+- **Priority:** P1 - High (On-demand services, Multi-sided marketplace)
+- **Difficulty:** ⭐⭐⭐⭐⭐ Expert Level (Three-sided marketplace with complex coordination)
+- **Scale:** 10M orders/day, 500K restaurants, 1M drivers, 100+ cities, <30 sec driver matching, 99.9% uptime
+- **Key Features:** Event-driven microservices architecture (Kafka), multi-database strategy (PostgreSQL for transactions, Cassandra for time-series, Redis for caching, Elasticsearch for search), real-time geospatial driver matching with Redis GEORADIUS and multi-factor scoring, WebSocket location tracking (200K concurrent connections, 1-second GPS updates), complex order state machine (12+ states with timeout handling), Saga pattern for distributed transactions, dynamic surge pricing (supply/demand balancing, max 3x), ML-powered demand prediction and driver repositioning, batch delivery optimization (Traveling Salesman Problem), traffic-aware ETA calculation (Google Maps API integration), multi-party payment settlement (customer/restaurant/driver splits)
+- **Lines:** 19,313 (comprehensive educational format with 78 interview questions across all 13 sections)
+- **Interview Questions:** 78 questions (39 Beginner, 26 Intermediate, 13 Advanced) covering all major design topics
+
+
 
 ---
 
@@ -515,12 +530,12 @@
 
 ### 🚗 Location & Real-Time Services
 
-#### 12. ⬜ Food Delivery Service (DoorDash/Uber Eats)
+#### 12. ✅ Food Delivery Service (DoorDash/Uber Eats)
 
+- **Status:** ✅ Complete — See [Completed Designs → #23](./food_delivery_system_design.md)
 - **Priority:** P2 - Medium
-- **Difficulty:** ⭐⭐⭐⭐ Very Hard
-- **Estimated Time:** 4-5 hours
-- **Key Concepts:** Multi-party coordination, routing optimization, real-time tracking
+- **Difficulty:** ⭐⭐⭐⭐⭐ Expert
+- **Key Concepts:** Multi-party coordination, routing optimization, real-time tracking, geospatial matching
 
 #### 13. ⬜ Hotel Booking System (Airbnb)
 

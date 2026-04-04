@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (22/52 - 42.3%)
+## ✅ Completed Designs (23/52)
 
 ### 1. [LeetCode System Design](./leetcode_system_design.md)
 
@@ -290,92 +290,6 @@ Cloud-based photo storage and management platform with ML-powered features.
 
 ---
 
-## 📋 Upcoming Designs (27)
-
-### Core Infrastructure & Storage
-
-- [x] **Design a URL shortener** (like TinyURL)
-- [x] **Design a text storage service** (like Pastebin)
-- [x] **Design a content delivery network (CDN)**
-- [x] **Design a distributed cache** (like Redis/Memcached)
-- [x] **Design a file storage service** (like Dropbox or Google Drive)
-- [x] **Design a distributed key-value store**
-- [ ] **Design a distributed storage system**
-- [ ] **Design an in-memory database**
-
-### Messaging & Communication
-
-- [x] **Design a pub/sub messaging system** (like Kafka)
-- [x] **Design a chat application** (like WhatsApp)
-- [ ] **Design a notification system** — 🚧 In Progress ([Notification System](./notification_system_design.md))
-- [ ] **Design a distributed stream processing system**
-
-### Social Media & Content
-
-- [x] **Design a social media platform** (like Instagram or Twitter)
-- [x] **Design a feed/newsfeed system** (like Facebook/LinkedIn Feed)
-- [x] **Design a video streaming service** (like Netflix or YouTube)
-- [ ] **Design a system to find friends on social networks**
-
-### Search & Discovery
-
-- [x] **Design a web crawler**
-- [x] **Design a proximity service** (like Yelp)
-- [ ] **Design a recommendation engine**
-- [x] **Design an autocomplete/search suggestions engine**
-- [x] **Design a search engine**
-- [ ] **Design Google Maps** (location, routing, scalability)
-- [ ] **Design a system that aggregates book reviews from various sources**
-
-### E-commerce & Marketplace
-
-- [x] **Design an e-commerce website** (like Amazon)
-- [x] **Design a payment gateway**
-- [ ] **Design a ticket booking system**
-- [ ] **Design a shopping cart system**
-- [ ] **Design a promotion/cashback offer system**
-- [ ] **Design a warehouse inventory system**
-
-### On-Demand Services
-
-- [x] **Design a ride-sharing service** (like Uber) — 🚧 Template Conversion Required
-- [ ] **Design a food delivery system** (like Swiggy/Zomato)
-- [ ] **Design a registration system for a restaurant**
-- [ ] **Design a system for finding shortest delivery routes**
-
-### Gaming & Entertainment
-
-- [ ] **Design an online multiplayer game backend**
-- [ ] **Design a blackjack/poker gaming site**
-
-### Security & Authentication
-
-- [x] **Design an API rate limiter**
-- [ ] **Design SSO (Single Sign-On)**
-- [ ] **Design a global authentication service**
-- [ ] **Design a firewall system for network security**
-- [ ] **Design a buffer overflow prevention technique**
-
-### Monitoring & Operations
-
-- [ ] **Design a distributed metrics logging system**
-- [ ] **Design a health monitoring system for servers**
-- [ ] **Design a system for collecting performance metrics at scale**
-
-### Real-World Systems
-
-- [ ] **Design a parking lot system**
-- [ ] **Design an online voting/election system**
-- [ ] **Design an elevator system**
-- [ ] **Design a smart elevator** (grouping, real-time optimization)
-
-### Architecture Patterns
-
-- [ ] **Design a microservices architecture for a large application**
-- [ ] **Compare monolithic vs microservice architecture** (pros and cons)
-
----
-
 ### 13. [Proximity Service (Yelp)](./proximity_service_system_design.md)
 
 **Status:** ✅ Complete (Educational Template Format)
@@ -574,6 +488,33 @@ High-availability payment processing system with fraud detection and PCI DSS com
 
 ---
 
+### 24. [Food Delivery System (Uber Eats/DoorDash)](./food_delivery_system_design.md)
+
+**Status:** ✅ Complete
+
+Three-sided marketplace platform for food delivery with real-time order tracking and driver coordination.
+
+**Key Features:**
+
+- Event-driven microservices architecture with Kafka for order orchestration
+- Multi-database strategy (PostgreSQL for transactions, Cassandra for time-series, Redis for caching, Elasticsearch for search)
+- Real-time geospatial driver matching with Redis GEORADIUS and multi-factor scoring algorithm
+- WebSocket location tracking (200K concurrent connections, 1-second GPS updates)
+- Complex order state machine (12+ states: PLACED → PREPARING → PICKED_UP → DELIVERED) with timeout handling
+- Saga pattern for distributed transactions (order → payment → driver assignment)
+- Dynamic surge pricing (supply/demand balancing, max 3x multiplier)
+- ML-powered demand prediction and proactive driver repositioning
+- Batch delivery optimization using Traveling Salesman Problem (TSP) approximation
+- Traffic-aware ETA calculation with Google Maps API integration
+- Multi-party payment settlement (customer charges, restaurant/driver payouts with commission splits)
+- Comprehensive API design (30+ RESTful endpoints + WebSocket real-time updates)
+- Multi-region active-active deployment for global low latency
+
+**Scale:** 10M orders/day, 500K restaurants, 1M drivers, 100+ cities, <30 sec driver matching, 99.9% uptime
+
+---
+
+
 ## 📋 Upcoming Designs (27)
 
 ### Core Infrastructure & Storage
@@ -624,7 +565,7 @@ High-availability payment processing system with fraud detection and PCI DSS com
 
 ### On-Demand Services
 
-- [ ] **Design a food delivery system** (like Swiggy/Zomato)
+- [x] **Design a food delivery system** (like Uber Eats/DoorDash) — ✅ Complete ([Food Delivery System](./food_delivery_system_design.md))
 - [ ] **Design a registration system for a restaurant**
 - [ ] **Design a system for finding shortest delivery routes**
 
@@ -821,13 +762,13 @@ This is a personal learning repository. However, if you notice errors or have su
 
 ## 🎯 Progress Tracker
 
-**Completion Status:** 22/52 (42.3%) - Educational Template Compliant
+**Completion Status:** 23/52 (44.2%) - Educational Template Compliant
 
-**Last Design Completed:** Ride-Sharing Service System Design (Uber) - November 14, 2025
+**Last Design Completed:** Food Delivery System Design (Uber Eats/DoorDash)
 
 **Next Up:** Music Streaming Service System Design (Spotify) (Template Conversion)
 **Current Work:** Converting existing designs to educational template format
-**Milestone Achievement:** 🎉 22 Designs Complete! (Q1 2026 goal: 25 designs - 88% progress towards milestone)
+**Milestone Achievement:** 🎉 23 Designs Complete! (Q1 2026 goal: 25 designs - 92% progress towards milestone)
 
 ---
 
