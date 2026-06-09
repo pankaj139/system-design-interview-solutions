@@ -2,20 +2,20 @@
 
 **File Purpose:** This file tracks the progress of all system design problems in this repository. Use this as your working checklist to plan, track, and complete designs systematically.
 
-**Last Updated:** April 4, 2026
+**Last Updated:** April 14, 2026
 
-**Progress:** 18/52 (34.6% Complete) - Educational Template Compliant
+**Progress:** 20/52 (38.5% Complete) - Educational Template Compliant
 
 ---
 
 ## 📊 Progress Overview
 
 ```text
-✅ Completed (Template Compliant): 17
+✅ Completed (Template Compliant): 19
 🚧 In Progress (Template Conversion): 8
-📝 Planned: 27
+📝 Planned: 25
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[███████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 34.6%
+[█████████████░░░░░░░░░░░░░░░░░░░░░░░░] 38.5%
 ```
 
 ---
@@ -381,6 +381,7 @@
 - **Real-World Examples:** Uber's architecture evolution (monolith → microservices, MySQL → Schemaless → PostgreSQL), H3 hexagonal grid (evolved from Geohash, no edge discontinuities), Reliable reprocessing with Kafka DLQs, Schemaless custom sharded datastore (lessons scaling to billions of rows), Surge pricing strategy evolution (smoothed surge, upfront pricing), Payment platform scaling (Gergely Orosz insights), WebSocket scaling to 500K connections
 - **Interview Questions:** 20+ HLD-focused questions across all 12 sections (🟢 Beginner, 🟡 Intermediate, 🔴 Advanced) with detailed answer frameworks, follow-ups, and real-world scenarios
 - **Practice Exercises:** 12+ hands-on exercises with bonus challenges (food delivery state machine, payment retry queue, capacity planning for 10x growth, trade-off analysis: surge fairness vs revenue)
+
 ### 23. ✅ Food Delivery System Design (Uber Eats/DoorDash)
 
 - **Status:** ✅ Complete - Educational Template Format
@@ -395,7 +396,30 @@
 - **Lines:** 19,313 (comprehensive educational format with 78 interview questions across all 13 sections)
 - **Interview Questions:** 78 questions (39 Beginner, 26 Intermediate, 13 Advanced) covering all major design topics
 
+### 24. ✅ Movie & Event Ticketing System Design (BookMyShow-like)
 
+- **Status:** ✅ Complete - Educational Template Format
+- **File:** `movie_event_ticketing_system_design.md`
+- **Completed:** April 14, 2026
+- **Template Compliance:** ✅ Full compliance (Welcome section, 🟢🟡🔴 levels, Sections 3–16, Mermaid architecture diagram)
+- **Priority:** P1 - High (E-commerce marketplace, high-concurrency inventory)
+- **Difficulty:** ⭐⭐⭐⭐ Very Hard (Seat-level contention, idempotent payments, discovery at scale)
+- **Scale:** 50M MAU, ~8M bookings/month, ~587k tickets/day (illustrative), 20k concurrent seat ops on hot showtimes (peak scenario)
+- **Key Features:** Redis NX+TTL seat holds + PostgreSQL `seat_sales` uniqueness, checkout idempotency and PSP webhooks, OpenSearch discovery with async facets, versioned hall layouts per showtime, signed QR tickets with first-use entry validation, Kafka for order side-effects, hot-partition mitigation and queue patterns for flash onsales
+- **Lines:** 2,100+ (educational multi-level; food-delivery style interview Q blocks + extended narrative; still expandable toward 12k+)
+
+### 25. ✅ Feature Flag & Experimentation Platform System Design (LaunchDarkly-like)
+
+- **Status:** ✅ Complete - Educational Template Format
+- **File:** `feature_flag_service_system_design.md`
+- **Quick Ref:** `interview-quick-references/feature-flag-service-quick-ref.md`
+- **Completed:** April 14, 2026
+- **Template Compliance:** ✅ Full compliance (Welcome, 🟢🟡🔴, Sections 3–16, Mermaid diagram, 15+ APIs, Postgres/Redis/Kafka/ClickHouse, Appendix D interview bank)
+- **Priority:** P1 - High (Progressive delivery, experimentation, real-time config)
+- **Difficulty:** ⭐⭐⭐⭐ Very Hard (Streaming fan-out, deterministic evaluation at billion-scale, multi-tenant fairness)
+- **Scale:** 50K enterprise customers, 500M end users, 100B evaluations/day (~1.16M avg QPS, ~3.5M peak), &lt;1s propagation to 99% SDKs, &lt;50ms p99 server eval, 99.99% availability
+- **Key Features:** MurmurHash basis-point bucketing; ordered rules + prerequisites + kill switches; SSE/WebSocket + snapshot/patch protocol; server vs mobile/browser SDK patterns; targeting & segments; Kafka → ClickHouse exposure pipeline; SRM/guardrails; SDK key scoping and audit/SOC 2–aligned logging
+- **Lines:** 2,562+ (educational multi-level; expanded to mirror `food_delivery_system_design.md` patterns: user stories, per-section interview Q&A with `<details>`, capacity tables, wire protocols, security matrices, Next Steps roadmap)
 
 ---
 
@@ -455,7 +479,7 @@
 
 ---
 
-## 📋 Pending Designs (27)
+## 📋 Pending Designs (26)
 
 ### 💬 Messaging & Real-Time Systems
 

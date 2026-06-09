@@ -2,7 +2,7 @@
 
 **Repository Purpose:** This repository contains comprehensive, production-ready system design solutions for the most commonly asked interview questions at top tech companies. Each design follows a structured framework covering requirements, calculations, architecture, APIs, databases, trade-offs, and scalability considerations.
 
-**Last Updated:** November 14, 2025
+**Last Updated:** April 14, 2026
 
 ---
 
@@ -32,9 +32,47 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (24/52)
+## ✅ Completed Designs (26/52)
 
-### 0. [Payment Gateway System Design](./payment_gateway_system_design.md)
+### 0. [Movie & Event Ticketing System Design (BookMyShow-like)](./movie_event_ticketing_system_design.md)
+
+**Status:** ✅ Complete (Educational Multi-Level Template — Sections 3–16, ~2,300+ lines; depth aligned with `food_delivery_system_design.md`: interview Q blocks, worked math, DB overview)
+
+BookMyShow/Fandango-style platform: city-based discovery, interactive seat maps, short-lived holds, payment-integrated checkout, signed QR tickets, and partner/exhibitor integration patterns.
+
+**Key Features:**
+
+- **Seat concurrency:** Redis holds (`SET NX` + TTL) paired with PostgreSQL unique `(showtime_id, seat_label)` for sold state — no double booking
+- **Payments:** Idempotent checkout, PSP webhooks, saga/compensation and orphan-charge reconciliation
+- **Discovery:** OpenSearch for titles; CDN + multi-tier cache for listings; async availability facets
+- **Venues:** Immutable hall layout snapshots per showtime; timezone-aware scheduling; optional partner sync APIs
+- **Tickets & entry:** HMAC/JWT-style QR payloads, rotating secrets, idempotent gate validation (first-use semantics)
+- **Observability:** Business + golden signals (hold conflict rate, webhook lag, reconciliation backlog)
+
+**Scale (design assumptions):** 50M MAU, 8M bookings/month, p99 &lt;200ms cached browse paths, 99.95% availability target for discovery
+
+---
+
+### Feature Flag & Experimentation Platform (LaunchDarkly-like)
+
+**Docs:** [feature_flag_service_system_design.md](./feature_flag_service_system_design.md) · **Quick ref:** [interview-quick-references/feature-flag-service-quick-ref.md](./interview-quick-references/feature-flag-service-quick-ref.md)
+
+**Status:** ✅ Complete (Educational template — Sections 3–16, ~2,560+ lines; depth aligned with `food_delivery_system_design.md`: per-section interview Q&A, user stories, worked estimates, security/monitoring matrices)
+
+LaunchDarkly-class platform: deterministic **MurmurHash** bucketing, ordered targeting rules, **SSE/WebSocket** delivery with **snapshot + patch**, server vs client **SDK** evaluation modes, **Kafka → ClickHouse** exposure analytics, **SRM/guardrails**, and **SOC 2**–aligned audit and **SDK key** scoping.
+
+**Key Features:**
+
+- **Three planes:** Postgres control plane; Redis + object store + stream gateways for data plane; Kafka/ClickHouse analytics
+- **Scale targets:** 100B evaluations/day, ~1.16M avg QPS (~3.5M peak), &lt;1s propagation to 99% SDKs, &lt;50ms p99 server-side eval, 99.99% availability
+- **APIs:** 15+ endpoints (flags, evaluate/bulk, snapshots, stream, segments, exposure, audit, simulate, key rotation)
+- **Interview prep:** 45-minute pacing, 28-question appendix, key-numbers cheat sheet
+
+**Scale (design assumptions):** 50K enterprise customers, 500M end users
+
+---
+
+### 1. [Payment Gateway System Design](./payment_gateway_system_design.md)
 
 **Status:** ✅ Complete (Educational Multi-Level Template - 4,244 lines)
 
@@ -52,7 +90,7 @@ Expert-level design of a Stripe/PayPal-like payment gateway processing $1B/day w
 
 ---
 
-### 1. [LeetCode System Design](./leetcode_system_design.md)
+### 2. [LeetCode System Design](./leetcode_system_design.md)
 
 **Status:** ✅ Complete (Educational Multi-Level Template - 12,190 lines)
 
@@ -83,7 +121,7 @@ Online coding platform with judge system, sandboxed code execution, and real-tim
 
 ---
 
-### 2. [Google Photos System Design](./google_photos_system_design.md)
+### 3. [Google Photos System Design](./google_photos_system_design.md)
 
 **Status:** ✅ Complete
 
@@ -101,7 +139,7 @@ Cloud-based photo storage and management service with intelligent features.
 
 ---
 
-### 3. [URL Shortener (TinyURL) System Design](./url_shortener_system_design.md)
+### 4. [URL Shortener (TinyURL) System Design](./url_shortener_system_design.md)
 
 **Status:** ✅ Complete
 
@@ -119,7 +157,7 @@ URL shortening service with analytics, custom aliases, and high-availability arc
 
 ---
 
-### 4. [Distributed Cache (Redis/Memcached) System Design](./distributed_cache_system_design.md)
+### 5. [Distributed Cache (Redis/Memcached) System Design](./distributed_cache_system_design.md)
 
 **Status:** ✅ Complete
 
@@ -138,7 +176,7 @@ High-performance in-memory distributed caching system with replication, sharding
 
 ---
 
-### 5. [Rate Limiter for API Gateway System Design](./rate_limiter_system_design.md)
+### 6. [Rate Limiter for API Gateway System Design](./rate_limiter_system_design.md)
 
 **Status:** ✅ Complete
 
@@ -157,7 +195,7 @@ Distributed rate limiter for API gateway with multi-tier support, burst handling
 
 ---
 
-### 6. [Content Delivery Network (CDN) System Design](./cdn_system_design.md)
+### 7. [Content Delivery Network (CDN) System Design](./cdn_system_design.md)
 
 **Status:** ✅ Complete
 
@@ -178,7 +216,7 @@ Global CDN serving content across 100+ edge locations with intelligent caching a
 
 ---
 
-### 7. [Distributed Key-Value Store (like DynamoDB/Cassandra)](./distributed_keyvalue_store_system_design.md)
+### 8. [Distributed Key-Value Store (like DynamoDB/Cassandra)](./distributed_keyvalue_store_system_design.md)
 
 **Status:** ✅ Complete
 
@@ -199,7 +237,7 @@ Highly available distributed key-value store for e-commerce with multi-datacente
 
 ---
 
-### 8. [Pub/Sub Messaging System (like Kafka)](./pubsub_messaging_system_design.md)
+### 9. [Pub/Sub Messaging System (like Kafka)](./pubsub_messaging_system_design.md)
 
 **Status:** ✅ Complete (Educational Template Format - 18,248 lines)
 
@@ -221,7 +259,7 @@ Distributed message queue for event streaming across microservices with high thr
 
 ---
 
-### 9. [Chat Application System Design (WhatsApp/Signal)](./chat_application_system_design.md)
+### 10. [Chat Application System Design (WhatsApp/Signal)](./chat_application_system_design.md)
 
 **Status:** ✅ Complete (Educational Template Format)
 
@@ -243,7 +281,7 @@ Real-time messaging application with end-to-end encryption, multimedia support, 
 
 ---
 
-### 10. [Text Storage Service System Design (Pastebin)](./text_storage_service_system_design.md)
+### 11. [Text Storage Service System Design (Pastebin)](./text_storage_service_system_design.md)
 
 **Status:** ✅ Complete (Educational Template Format)
 
@@ -265,7 +303,7 @@ Text snippet storage and sharing service with expiration, syntax highlighting, a
 
 ---
 
-### 11. [File Storage Service System Design (Dropbox)](./file_storage_system_design.md)
+### 12. [File Storage Service System Design (Dropbox)](./file_storage_system_design.md)
 
 **Status:** ✅ Complete (Educational Template Format)
 
@@ -287,7 +325,7 @@ Cloud file storage and synchronization service with real-time sync, versioning, 
 
 ---
 
-### 12. [Google Photos System Design](./google_photos_system_design.md)
+### 13. [Google Photos System Design](./google_photos_system_design.md)
 
 **Status:** ✅ Complete
 
@@ -308,7 +346,7 @@ Cloud-based photo storage and management platform with ML-powered features.
 
 ---
 
-### 13. [Proximity Service (Yelp)](./proximity_service_system_design.md)
+### 14. [Proximity Service (Yelp)](./proximity_service_system_design.md)
 
 **Status:** ✅ Complete (Educational Template Format)
 
@@ -330,7 +368,7 @@ Location-based business search service with advanced geospatial indexing and ML-
 
 ---
 
-### 14. [Social Media Platform System Design](./social_media_platform_system_design.md)
+### 15. [Social Media Platform System Design](./social_media_platform_system_design.md)
 
 **Status:** ✅ Complete (Educational Template Format - 6,567 lines)
 
@@ -354,7 +392,7 @@ Large-scale social media platform with photo/video sharing, feed generation, and
 
 ---
 
-### 15. [Newsfeed System Design](./newsfeed_system_design.md)
+### 16. [Newsfeed System Design](./newsfeed_system_design.md)
 
 **Status:** ✅ Complete (Educational Template Format - 6,608 lines)
 
@@ -378,7 +416,7 @@ Personalized newsfeed system for social media platforms with real-time updates a
 
 ---
 
-### 16. [Distributed Stream Processing System (Flink/Storm)](./distributed_stream_processing_system_design.md)
+### 17. [Distributed Stream Processing System (Flink/Storm)](./distributed_stream_processing_system_design.md)
 
 **Status:** ✅ Complete (Educational Template Format - 10,052 lines)
 
@@ -403,7 +441,7 @@ Real-time stream processing platform for fraud detection with exactly-once seman
 
 ---
 
-### 17. [Ride-Sharing Service (Uber)](./ride_sharing_system_design.md)
+### 18. [Ride-Sharing Service (Uber)](./ride_sharing_system_design.md)
 
 **Status:** ✅ Complete (Educational Template Format - 7,052 lines)  
 **Completion Date:** November 14, 2025  
