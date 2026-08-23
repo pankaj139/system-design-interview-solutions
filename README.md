@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (26/52)
+## ✅ Completed Designs (27/52)
 
 ### 0. [Movie & Event Ticketing System Design (BookMyShow-like)](./movie_event_ticketing_system_design.md)
 
@@ -483,6 +483,45 @@ Real-time ride-sharing platform with geospatial driver matching, dynamic pricing
 **Cost:** $3.13M/year infrastructure ($0.87 per ride), 76% profit margin
 
 **Reading Time:** 🟢 8-10h (full depth) | 🟡 5-7h (focused) | 🔴 3-5h (advanced review)
+
+---
+
+### 19. [Understanding and Optimising Databases](./database_optimization_system_design.md)
+
+**Status:** ✅ Complete (Educational Template Format)  
+**Completion Date:** August 2026  
+**Quick Reference:** [interview-quick-references/database-optimization-quick-ref.md](./interview-quick-references/database-optimization-quick-ref.md)
+
+Comprehensive guide to understanding database internals and optimising databases for production at scale — from a single PostgreSQL instance to sharded, globally distributed architectures handling 1M+ QPS.
+
+**Key Features:**
+
+- **Database Internals:** B-tree vs LSM-tree storage engines, Write-Ahead Log (WAL), MVCC concurrency model
+- **Indexing Deep Dive:** Composite, partial, covering, and hash indexes; leftmost-prefix rule; covering index strategy; removing unused indexes
+- **Query Optimisation:** EXPLAIN ANALYZE methodology, anti-patterns (SELECT *, OFFSET pagination, correlated subqueries, implicit casts), cursor-based pagination
+- **Schema Design:** Normalisation, denormalisation, zero-downtime expand-contract migrations, table partitioning
+- **Replication & HA:** Async vs sync replication, Patroni automated failover, split-brain prevention (STONITH, fencing), RPO/RTO targets
+- **Sharding:** Hash, range, consistent hashing, directory-based; cross-shard scatter-gather; online resharding (zero downtime)
+- **Caching Strategies:** Cache-aside, write-through, write-behind; thundering herd prevention; multi-tier caching (CDN → in-process → Redis → DB)
+- **Database Selection:** Decision framework for PostgreSQL, Cassandra, Redis, Elasticsearch, ClickHouse, CockroachDB; polyglot persistence with CDC (Debezium + Kafka)
+- **Performance Tuning:** PgBouncer connection pooling, PostgreSQL configuration (shared_buffers, work_mem, autovacuum), table bloat management
+- **Security:** Parameterised queries, least-privilege users, row-level security (RLS), column-level encryption (pgcrypto), audit logging
+- **Monitoring:** pg_stat_statements, Prometheus + Grafana dashboards, alerting rules, lock monitoring
+
+**Scale Targets:**
+- Single PostgreSQL: ~50K read QPS, ~10K write QPS (indexed queries)
+- With Redis cache: 90-95% of reads never reach DB
+- With 3 read replicas + PgBouncer: effectively 150K+ read QPS
+- Sharded (64 shards): 3M+ write QPS, petabyte-scale storage
+
+**Performance Metrics:**
+- B-tree index lookup: 3-4 disk I/Os
+- Index vs full-scan: 100x–1000x faster
+- Redis latency: ~0.1ms
+- Async replication lag (same AZ): 1–5ms
+
+**Difficulty:** ⭐⭐⭐⭐ Hard  
+**Reading Time:** 🟢 5-7h (full depth) | 🟡 3-5h (focused) | 🔴 2-3h (advanced review)
 
 ---
 
