@@ -1995,7 +1995,7 @@ server_idle_timeout = 600      ; close idle DB connections after 10 min
 from sqlalchemy import create_engine
 
 engine = create_engine(
-    "******pgbouncer:6432/mydb",
+    "******pgbouncer-host:6432/mydb",
     pool_size=10,           # persistent connections in pool
     max_overflow=20,        # extra connections under load
     pool_timeout=30,        # wait up to 30s for available connection
@@ -2475,7 +2475,7 @@ Consistency level ALL:
 - Every database decision is a trade-off — know what you're giving up
 - CAP theorem: in a network partition, choose between consistency (CP) or availability (AP)
 - Financial and safety-critical systems need CP; most user-facing features can tolerate AP
-- Eventual consistency is powerful — know precisely when it's and isn't acceptable
+- Eventual consistency is powerful — know precisely when it is and isn't acceptable
 
 ---
 

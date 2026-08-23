@@ -32,7 +32,7 @@ This collection represents in-depth system design solutions that go beyond surfa
 
 ---
 
-## ✅ Completed Designs (27/52)
+## ✅ Completed Designs (27/55)
 
 ### 0. [Movie & Event Ticketing System Design (BookMyShow-like)](./movie_event_ticketing_system_design.md)
 

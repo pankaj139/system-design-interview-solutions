@@ -62,7 +62,7 @@
 | Geospatial | GiST / PostGIS |
 
 ### Composite index column order:
-```
+```text
 (equality filter columns) → (range filter columns) → (included columns)
 
 Example: WHERE user_id = 42 AND status = 'PENDING' AND created_at > '2024-01-01'
