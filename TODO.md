@@ -2,20 +2,20 @@
 
 **File Purpose:** This file tracks the progress of all system design problems in this repository. Use this as your working checklist to plan, track, and complete designs systematically.
 
-**Last Updated:** April 14, 2026
+**Last Updated:** August 2026
 
-**Progress:** 20/52 (38.5% Complete) - Educational Template Compliant
+**Progress:** 27/55 (49.1% Complete) - Educational Template Compliant
 
 ---
 
 ## 📊 Progress Overview
 
 ```text
-✅ Completed (Template Compliant): 19
-🚧 In Progress (Template Conversion): 8
-📝 Planned: 25
+✅ Completed (Template Compliant): 27
+🚧 In Progress (Template Conversion): 2
+📝 Planned: 26
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[█████████████░░░░░░░░░░░░░░░░░░░░░░░░] 38.5%
+[██████████████████░░░░░░░░░░░░░░░░░░░] 49.1%
 ```
 
 ---
@@ -420,6 +420,20 @@
 - **Scale:** 50K enterprise customers, 500M end users, 100B evaluations/day (~1.16M avg QPS, ~3.5M peak), &lt;1s propagation to 99% SDKs, &lt;50ms p99 server eval, 99.99% availability
 - **Key Features:** MurmurHash basis-point bucketing; ordered rules + prerequisites + kill switches; SSE/WebSocket + snapshot/patch protocol; server vs mobile/browser SDK patterns; targeting & segments; Kafka → ClickHouse exposure pipeline; SRM/guardrails; SDK key scoping and audit/SOC 2–aligned logging
 - **Lines:** 2,562+ (educational multi-level; expanded to mirror `food_delivery_system_design.md` patterns: user stories, per-section interview Q&A with `<details>`, capacity tables, wire protocols, security matrices, Next Steps roadmap)
+
+---
+
+### 26. ✅ Understanding and Optimising Databases
+
+- **Status:** ✅ Complete - Educational Template Format
+- **File:** `database_optimization_system_design.md`
+- **Quick Ref:** `interview-quick-references/database-optimization-quick-ref.md`
+- **Completed:** August 2026
+- **Template Compliance:** ✅ Full compliance (Welcome, 🟢🟡🔴 levels, Sections 1–16, Quick Reference cheat sheet)
+- **Priority:** P1 - High (Foundational topic — applies to every system design)
+- **Difficulty:** ⭐⭐⭐⭐ Hard (Internals, indexing strategy, sharding, distributed HA)
+- **Scale:** 1M+ QPS with <10ms p99 latency, petabyte-scale data, 99.99% availability
+- **Key Features:** B-tree vs LSM-tree internals, WAL, MVCC; indexing strategy (composite, partial, covering); query anti-patterns and EXPLAIN ANALYZE; schema design and zero-downtime expand-contract migrations; primary-replica replication with Patroni automated failover; hash/range/consistent hashing sharding; Redis caching patterns with thundering herd prevention; polyglot persistence with CDC (Debezium + Kafka); PostgreSQL tuning (shared_buffers, PgBouncer, autovacuum); security (parameterised queries, row-level security, column encryption); monitoring (pg_stat_statements, Prometheus alerts); CAP theorem trade-offs and practical consistency levels
 
 ---
 
